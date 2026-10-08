@@ -68,8 +68,7 @@ fn find_slot(nodes: &[Node], name: &str, cursor: &mut Cursor) -> Option<Slot> {
                 }
                 *cursor = Cursor::UNKNOWN;
             }
-            // Every branch is entered at the column reached here, and the one taken decides where
-            // the walk resumes: the branches agree on that or the column is lost.
+            // Keep the column only if all branches end at the same column.
             Node::If {
                 branches,
                 otherwise,
@@ -81,8 +80,7 @@ fn find_slot(nodes: &[Node], name: &str, cursor: &mut Cursor) -> Option<Slot> {
                     return Some(slot);
                 }
             }
-            // A loop runs its body zero or more times; with the body and the separator both ending
-            // where they began, every iteration count leaves the same column.
+            // A loop preserves the column only if its body and separator both do.
             Node::For { body, sep, .. } => {
                 let bodies = [body.as_slice(), sep.as_slice()];
                 if let Some(slot) = walk_alternatives(bodies.into_iter(), name, cursor) {

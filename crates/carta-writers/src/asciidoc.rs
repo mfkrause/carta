@@ -1,8 +1,4 @@
-//! `AsciiDoc` writer: renders the document model to `AsciiDoc` markup.
-//!
-//! Inline content is filled to a 72-column line and block structure is conveyed through the format's
-//! line-oriented markup. Output carries no trailing newline; the caller appends one. This format has
-//! no public specification, so its rules are stated directly here.
+//! Render the document model as `AsciiDoc` markup without a trailing newline.
 
 use std::fmt::Write as _;
 

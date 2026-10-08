@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end surface: each `corpus/text/<fmt>/*` case converts to every curated target and diffs
-# vs pandoc; the 652 CommonMark spec examples additionally drive HTML as a dedicated group.
-#
-# Usage: surfaces/e2e.sh [format]   (no arg = every reader format)
+# Compare full conversions and CommonMark HTML. Usage: surfaces/e2e.sh [format]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -29,7 +26,6 @@ for fmt in $FORMATS; do
   tally_group
 done
 
-# CommonMark spec examples to HTML: full-pipeline parity, reported on its own line.
 if echo "$FORMATS" | grep -qw commonmark; then
   specdir="$WORK/spec"
   extract_spec "$specdir"

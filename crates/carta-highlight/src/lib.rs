@@ -1,10 +1,7 @@
-//! A syntax highlighting engine: it tokenizes source code against a catalog of bundled grammars and
-//! resolves the color styles that renderers paint those tokens with.
+//! Syntax highlighting with language grammars and color themes.
 //!
-//! The entry point is [`Highlighter`], which owns the grammar [`Registry`] and the caches that make
-//! repeated tokenization cheap. Give it a language name and source text and it returns one
-//! [`SourceLine`] per line, each a sequence of classified [`Token`]s. Color [`Theme`]s and the list
-//! of bundled languages and styles are exposed alongside for the CLI and the writers.
+//! [`Highlighter`] returns classified [`Token`]s grouped into [`SourceLine`]s.
+//! [`Registry`] resolves grammars; [`Theme`] supplies colors and font styles.
 
 mod firstbytes;
 mod grammar;

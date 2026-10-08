@@ -405,8 +405,7 @@ pub(super) fn normalize_code(content: &str, markdown: bool) -> String {
         .chars()
         .map(|c| if c == '\n' { ' ' } else { c })
         .collect();
-    // Markdown dialect strips all surrounding whitespace; strict removes one space from each end
-    // and only when the content is not all spaces.
+    // Markdown trims all edges; strict mode strips one space per edge except from all-space spans.
     if markdown {
         return collapsed.trim().to_owned();
     }

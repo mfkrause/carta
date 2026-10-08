@@ -55,7 +55,6 @@ fn heading_levels() {
         blocks("h2. Title"),
         vec![Block::Header(2, Box::default(), vec![str_node("Title")])]
     );
-    // Level seven is not a heading.
     assert!(matches!(blocks("h7. Title").as_slice(), [Block::Para(_)]));
 }
 
@@ -127,7 +126,6 @@ fn color_block_wraps_in_div() {
             vec![Block::Para(vec![Inline::LineBreak, str_node("stuff")])],
         )]
     );
-    // A close that is not alone on its line keeps the colour inline.
     assert!(matches!(
         blocks("{color:red}a\nb{color}").as_slice(),
         [Block::Para(_)]
@@ -351,7 +349,6 @@ fn symbols_and_emoticons() {
     assert_eq!(para("(!)"), vec![str_node("\u{2757}")]);
     assert_eq!(para("(y)"), vec![str_node("\u{1F44D}")]);
     assert_eq!(para(":)"), vec![str_node("\u{1F642}")]);
-    // A symbol is recognised even when it abuts a preceding word.
     assert_eq!(para("a(!)"), vec![str_node("a\u{2757}")]);
 }
 

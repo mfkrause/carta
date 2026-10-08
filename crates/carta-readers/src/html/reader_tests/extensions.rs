@@ -52,7 +52,6 @@ fn native_spans_off_unwraps_span_and_small_caps() {
 
 #[test]
 fn native_spans_off_keeps_class_carrying_inlines() {
-    // mark/kbd are their own constructs, not <span> elements, so the toggle leaves them
     let result = read_with("<p><mark>m</mark></p>", Extensions::empty());
     let Some(Block::Para(inlines)) = result.first() else {
         panic!("expected paragraph");
@@ -203,7 +202,6 @@ fn header_ids(input: &str, added: &[Extension]) -> Vec<String> {
 
 #[test]
 fn gfm_auto_identifiers_drops_dots_keeps_digits_and_does_not_collapse() {
-    // gfm slug: dots dropped, leading digits kept, no separator-run collapsing
     let ids = header_ids(
         "<h2>1.2 Section A.B</h2><h2>Tools &amp; Tips</h2>",
         &[Extension::GfmAutoIdentifiers],

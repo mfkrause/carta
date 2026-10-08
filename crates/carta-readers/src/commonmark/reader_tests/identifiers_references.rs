@@ -8,7 +8,6 @@ fn gfm_auto_identifiers_slug_headers_and_count_duplicates() {
         "# Foo & Bar\n\n# 1.2 Section\n\n# Foo & Bar\n",
         Extension::GfmAutoIdentifiers,
     );
-    // Punctuation drops without collapsing gaps; a repeated slug takes its occurrence count.
     assert_eq!(
         header_ids(&result),
         ["foo--bar", "12-section", "foo--bar-1"]
@@ -21,7 +20,6 @@ fn auto_identifiers_strip_leading_runs_and_increment_until_unique() {
         "# 1. Intro\n\n# Intro\n\n# Intro\n",
         Extension::AutoIdentifiers,
     );
-    // The leading non-letter run is stripped; each repeat increments until unused.
     assert_eq!(header_ids(&result), ["intro", "intro-1", "intro-2"]);
 }
 
@@ -43,7 +41,6 @@ fn only_link_reference_definitions_leave_no_paragraph() {
 
 #[test]
 fn link_reference_definitions_strip_and_keep_the_body() {
-    // Leading definitions are stripped; the shortcut reference resolves against them.
     let doc = blocks("[a]: /url\nSee [a] here.\n");
     assert!(
         matches!(doc.as_slice(), [Block::Para(_)]),
@@ -54,7 +51,6 @@ fn link_reference_definitions_strip_and_keep_the_body() {
 
 #[test]
 fn an_unterminated_bracket_is_not_a_definition() {
-    // A lone `[` that never forms `[label]:` is ordinary text and registers nothing.
     let doc = blocks("[not a definition\n");
     assert!(
         matches!(doc.as_slice(), [Block::Para(_)]),
@@ -65,7 +61,6 @@ fn an_unterminated_bracket_is_not_a_definition() {
 
 #[test]
 fn a_leading_abbreviation_definition_is_consumed() {
-    // A definition-only paragraph vanishes; a body after the definition remains.
     assert!(
         blocks_with(
             "*[HTML]: Hyper Text Markup Language\n",
@@ -109,7 +104,6 @@ fn implicit_header_references_fold_case_and_collapse_whitespace() {
 
 #[test]
 fn implicit_header_references_match_on_label_source_not_decoded_text() {
-    // Labels match the heading's literal source, so the unmarked form does not resolve.
     let result = blocks_with_many(
         "# Heading with *emphasis*\n\n[Heading with *emphasis*] [Heading with emphasis]\n",
         HEADER_REFS,
@@ -123,14 +117,12 @@ fn an_explicit_definition_outranks_an_implicit_header_reference() {
         "# Linked Elsewhere\n\n[Linked Elsewhere]: https://example.com/x\n\n[Linked Elsewhere]\n",
         HEADER_REFS,
     );
-    // An explicit definition with the same label is registered first and keeps the link.
     assert_eq!(reference_targets(&result), ["https://example.com/x"]);
 }
 
 #[test]
 fn a_repeated_heading_is_reachable_only_through_the_first() {
     let result = blocks_with_many("# Twice\n\n# Twice\n\n[Twice]\n", HEADER_REFS);
-    // The first occurrence keeps the bare identifier, so the reference resolves to it.
     assert_eq!(reference_targets(&result), ["#twice"]);
 }
 
@@ -226,6 +218,5 @@ fn implicit_header_references_duplicate_headings_both_resolve_and_get_disambigua
     let [Block::Header(_, _, first), Block::Header(_, _, second)] = result.as_slice() else {
         panic!("expected two headings, got {result:?}");
     };
-    // Both occurrences pop their own queued parse and resolve identically.
     assert_eq!(first, second);
 }

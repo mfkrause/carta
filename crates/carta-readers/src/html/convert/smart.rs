@@ -154,7 +154,6 @@ pub(super) fn resolve_smart(items: &[Item], lo: usize, hi: usize) -> Vec<Inline>
                     ));
                     i = j + 1;
                 } else {
-                    // An opener with no closer is a left quote; one that cannot open is a right quote.
                     buf.push(if can_open(items, i) {
                         LEFT_DOUBLE
                     } else {

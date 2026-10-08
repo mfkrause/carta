@@ -90,8 +90,7 @@ fn table_measurement_stays_within_the_fill_column() {
         }))
     }
 
-    // A fraction far past the whole line, on a table nested inside a cell being measured at the
-    // unconstrained sizing width, once scaled its column to that width instead of the fill column.
+    // Check oversized fractions against fill width during nested measurement.
     let inner = table(
         ColWidth::ColWidth(1e300),
         vec![Block::Para(vec![Inline::Str("inner".into())])],
@@ -101,8 +100,7 @@ fn table_measurement_stays_within_the_fill_column() {
         vec![inner, Block::HorizontalRule],
     );
     let rendered = render_columns(vec![outer], 40);
-    // The framing each nesting level adds puts the total slightly over the fill column; what matters
-    // is that the width tracks the fill column rather than the sizing width.
+    // Nested borders may exceed fill width; measuring width must not determine output.
     let widest = rendered.lines().map(str::len).max().unwrap_or(0);
     assert!(widest < 80, "widest line was {widest} columns");
 }
@@ -119,16 +117,13 @@ fn long_paragraph() -> Vec<Block> {
 fn narrow_columns_wraps_a_paragraph_sooner() {
     let wide = render_columns(long_paragraph(), 40);
     let narrow = render_columns(long_paragraph(), 20);
-    // A narrower fill column forces more line breaks.
     assert!(narrow.lines().count() > wide.lines().count());
-    // Every laid-out line stays within the requested width.
     assert!(narrow.lines().all(|line| line.chars().count() <= 20));
     assert!(wide.lines().all(|line| line.chars().count() <= 40));
 }
 
 #[test]
 fn omitted_columns_uses_the_default_fill_width() {
-    // The default-width render is identical to passing the built-in width explicitly.
     assert_eq!(
         render(long_paragraph()),
         render_columns(long_paragraph(), 72)
@@ -196,7 +191,6 @@ fn integral_uses_unicode_scripts_and_thin_space() {
 
 #[test]
 fn inline_fallback_emits_verbatim_single_dollars() {
-    // no single-line form: wrapped verbatim in `$…$`, dollars unescaped
     assert_eq!(inline("\\frac{1}{2}"), "$\\frac{1}{2}$");
 }
 
@@ -207,7 +201,6 @@ fn display_fallback_emits_verbatim_double_dollars() {
 
 #[test]
 fn inline_fallback_trims_edge_whitespace() {
-    // inline fallback trims edge whitespace before wrapping; interior whitespace preserved
     assert_eq!(inline("\\sqrt{x} "), "$\\sqrt{x}$");
     assert_eq!(inline(" \\sqrt{x}"), "$\\sqrt{x}$");
     assert_eq!(inline("  \\sqrt{x}  "), "$\\sqrt{x}$");
@@ -216,14 +209,12 @@ fn inline_fallback_trims_edge_whitespace() {
 
 #[test]
 fn display_fallback_keeps_edge_whitespace() {
-    // Display fallback wraps the source as written; only inline math trims its edges.
     assert_eq!(display("\\sqrt{x} "), "$$\\sqrt{x} $$");
     assert_eq!(display(" \\sqrt{x}"), "$$ \\sqrt{x}$$");
 }
 
 #[test]
 fn inline_fallback_of_lone_backslash() {
-    // a lone backslash wraps to `$\$` unescaped; a bailing `\ ` trims to the same body
     assert_eq!(inline("\\"), "$\\$");
 }
 
@@ -251,11 +242,10 @@ fn sup(text: &str) -> String {
 
 #[test]
 fn ordinary_subscript_digits_use_subscript_glyphs() {
-    // A run that maps under the subscript script stays subscript and is never flipped.
     assert_eq!(sub("12"), "\u{2081}\u{2082}");
-    assert_eq!(sub("-1"), "\u{208b}\u{2081}"); // ASCII hyphen-minus has a subscript glyph
+    assert_eq!(sub("-1"), "\u{208b}\u{2081}");
     assert_eq!(sub("+1"), "\u{208a}\u{2081}");
-    assert_eq!(sub("=1"), "\u{208c}\u{2081}"); // U+208C subscript equals
+    assert_eq!(sub("=1"), "\u{208c}\u{2081}");
     assert_eq!(sub("(1)"), "\u{208d}\u{2081}\u{208e}");
 }
 
@@ -266,7 +256,6 @@ fn math_minus_has_no_subscript_glyph_so_the_run_flips_to_superscript() {
     assert_eq!(sub("\u{2212}2"), "\u{207b}\u{00b2}");
     assert_eq!(sub("\u{2212}"), "\u{207b}");
     assert_eq!(sub("1\u{2212}2"), "\u{00b9}\u{207b}\u{00b2}");
-    // The superscript script maps U+2212 directly.
     assert_eq!(sup("\u{2212}1"), "\u{207b}\u{00b9}");
 }
 
@@ -279,7 +268,6 @@ fn run_that_maps_under_neither_script_falls_back_to_parentheses() {
 
 #[test]
 fn math_spaces_pass_through_the_script_mappers_unchanged() {
-    // fixed-width math spaces keep a run convertible and render as themselves
     assert_eq!(
         sub("\u{2004}=\u{2004}1"),
         "\u{2004}\u{208c}\u{2004}\u{2081}"
@@ -303,7 +291,6 @@ fn non_space_separators_and_format_marks_do_not_pass_through() {
     assert!(!is_script_space('\u{0085}')); // next line (Cc)
     assert!(!is_script_space('\u{feff}')); // byte-order mark (Cf)
     assert_eq!(sub("1\u{2028}2"), "_(1\u{2028}2)");
-    // Every ASCII whitespace control and Unicode space separator does pass through.
     for ch in [
         ' ', '\t', '\n', '\u{000b}', '\u{000c}', '\r', '\u{00a0}', '\u{1680}', '\u{2000}',
         '\u{200a}', '\u{202f}', '\u{205f}', '\u{3000}',
@@ -318,12 +305,10 @@ fn non_space_separators_and_format_marks_do_not_pass_through() {
 
 #[test]
 fn formatted_subscript_content_flips_the_whole_run_to_superscript() {
-    // non-text, non-space content has no subscript form, so the run renders with superscripts
     let flipped = render(vec![Block::Para(vec![Inline::Subscript(vec![
         Inline::Emph(vec![Inline::Str("2".to_owned().into())]),
     ])])]);
     assert_eq!(flipped, "\u{00b2}");
-    // A formatted but otherwise unmappable run still falls back.
     let fallback = render(vec![Block::Para(vec![Inline::Subscript(vec![
         Inline::Emph(vec![Inline::Str("a".to_owned().into())]),
     ])])]);

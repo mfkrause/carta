@@ -1,21 +1,7 @@
-//! Jupyter notebook writer: renders the document model to a notebook (`nbformat` 4.5) JSON document.
+//! Render Jupyter notebook version 4.5 JSON without a trailing newline.
 //!
-//! The notebook is a list of cells followed by the format version and notebook metadata. Cells are
-//! derived from the top-level block sequence: a [`Block::Div`] carrying the `cell` class is one cell,
-//! and any run of blocks between such divs is grouped into a markdown cell of its own. A cell's
-//! second class selects its kind: `code` and `raw` are recognized, anything else is markdown.
-//!
-//! A markdown cell renders its blocks through the markdown engine and stores the result as `source`.
-//! A code cell takes the text of its first [`Block::CodeBlock`] as `source`, reads its execution
-//! count from the `execution_count` attribute, and reconstructs each sibling `output` div as an
-//! output object. A raw cell carries the text of its [`Block::RawBlock`] as `source` under the
-//! `raw_mimetype` derived from the block's format.
-//!
-//! Notebook metadata is the contents of the `jupyter` metadata entry (minus the version keys, which
-//! are fixed at 4 and 5). Every cell receives an `id`: the div's identifier when it has one, and
-//! otherwise a stable identifier derived from the cell's position and content. The document is
-//! pretty-printed with one-space indentation; an empty object or array stays on one line. The result
-//! carries no trailing newline; the caller appends one.
+//! Cell divs retain their types and identifiers; other blocks form Markdown cells.
+//! Missing cell identifiers derive from position and content.
 
 use std::collections::BTreeMap;
 use std::iter::Peekable;
@@ -507,7 +493,6 @@ fn next_id(div_id: &str, seed: &str, counter: &mut usize) -> String {
 
 /// A deterministic identifier in the canonical 8-4-4-4-12 hexadecimal layout, hashed from the cell's
 /// ordinal and content so repeated runs over the same document reproduce it byte for byte.
-// The single-letter bindings mirror the byte layout the format string lays out.
 #[allow(clippy::many_single_char_names)]
 fn generated_id(ordinal: usize, seed: &str) -> String {
     let mut material = ordinal.to_string();

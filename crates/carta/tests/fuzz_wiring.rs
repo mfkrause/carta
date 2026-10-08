@@ -1,13 +1,5 @@
-//! Structural guard keeping the fuzz wiring in lockstep with the reader set.
-//!
-//! Fuzzing a reader takes three hand-maintained pieces that must agree: a target source in
-//! `fuzz/fuzz_targets/`, a `[[bin]]` in `fuzz/Cargo.toml`, and at least one committed seed in
-//! `fuzz/seeds/<target>/` for the deterministic PR replay. (Both CI workflows derive their target
-//! list from `fuzz/Cargo.toml` at runtime, so there is no matrix to keep in sync.) Adding a reader
-//! without all three is a silent coverage gap: the reader goes unfuzzed. These tests turn
-//! that gap into a loud, offline failure that names what is missing.
+//! Check that every reader has a fuzz target, manifest entry, and committed replay seed.
 
-// Test harness code: panicking on a malformed workspace layout is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;

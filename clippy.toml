@@ -1,4 +1,4 @@
-# unwrap/expect/panic on known fixtures is idiomatic in tests; shipped paths stay lint-enforced.
+# Allow fixture assertions in tests; enforce panic restrictions in shipped code.
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
@@ -6,7 +6,7 @@ allow-panic-in-tests = true
 # Product names the doc-markdown lint reads as identifiers; `..` extends clippy's built-in list.
 doc-valid-idents = ["MathJax", "KaTeX", "MathML", ".."]
 
-# Determinism gate: hash collections iterate in random order; allow per-site only where order is irrelevant.
+# Hash collection order is random; allow only where order does not affect output.
 disallowed-types = [
   { path = "std::collections::HashMap", reason = "non-deterministic iteration; use BTreeMap" },
   { path = "std::collections::HashSet", reason = "non-deterministic iteration; use BTreeSet" },

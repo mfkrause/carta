@@ -1,15 +1,4 @@
-//! Reader for the `man` macro package (the `groff`/`troff` manual-page language).
-//!
-//! A manual page is a sequence of control lines (a request or macro, introduced by `.` or `'` in
-//! the first column) and text lines. Text lines are *filled*: consecutive lines collapse into one
-//! paragraph, their words separated by single spaces. Macros structure the page: section headings
-//! (`.SH`/`.SS`), paragraph breaks (`.PP`), tagged and indented lists (`.TP`/`.IP`), relative insets
-//! (`.RS`/`.RE`), verbatim regions (`.nf`/`.EX`), and hyperlinks (`.UR`/`.MT`). Inline font macros
-//! (`.B`, `.I`, `.BR`, …) and the `\f` escape switch between roman, bold, and italic; the `\(xx`,
-//! `\[…]`, and `\*x` escapes produce special characters and predefined strings.
-//!
-//! The title macro `.TH` populates document metadata (`title`, `section`, `date`, `footer`,
-//! `header`); everything else becomes the block sequence.
+//! Read roff documents that use the `man` macro package.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -186,8 +175,7 @@ impl HeadingIds {
             IdScheme::Plain => slug(&text),
             IdScheme::Gfm => slug_gfm(&text),
         };
-        // Folding runs on the finished slug, keeping separators left by unfoldable words. The plain
-        // shape then re-drops the leading run folding can expose; the gfm shape never strips it.
+        // Fold before trimming the plain slug; GitHub slugs retain their leading separators.
         let base = if self.ascii {
             let folded = fold_to_ascii(&base);
             match scheme {
@@ -368,7 +356,6 @@ impl Parser {
 
     /// Parses a sequence of blocks until the context's terminator (or end of input). A terminator
     /// line is left unconsumed for the caller, except a `.RE` that closes the inset it belongs to.
-    // The macro dispatch lists names separately for clarity even where their handling coincides.
     #[allow(clippy::too_many_lines, clippy::match_same_arms)]
     fn parse_blocks(&mut self, ctx: Ctx) -> Vec<Block> {
         let mut blocks = Vec::new();

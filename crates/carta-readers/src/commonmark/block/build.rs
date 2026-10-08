@@ -156,7 +156,6 @@ impl Parser {
         };
         let mut out = Vec::new();
         for &child in &node.children {
-            // A raw HTML element flattens to open tag, content, and close tag.
             if let Some(Kind::HtmlElement(info)) = self.kind(child)
                 && !info.as_div
             {
@@ -318,7 +317,7 @@ impl Parser {
             Some((line, rest)) => (line, Some(rest)),
             None => (first_node.text.as_str(), None),
         };
-        // Known limitation: a marker indented 2+ columns still matches; the indent was folded away.
+        // Known limitation: folded indentation lets a marker indented 2+ columns match.
         let alert_type = alert_marker_type(marker_line, self.greedy_paragraphs)?;
 
         let title = IrBlock::Div(

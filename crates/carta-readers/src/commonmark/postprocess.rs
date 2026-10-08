@@ -218,7 +218,6 @@ pub(super) fn raw_tex_scan(line: &str, name: &str, mut depth: usize) -> (usize, 
         }
         if raw_tex_env_name(rest, b"end").as_deref() == Some(name) {
             depth = depth.saturating_sub(1);
-            // Advance past this `\end{...}` so the close offset lands just after its brace.
             let end_off = rest.find('}').map_or(line.len(), |brace| i + brace + 1);
             if depth == 0 {
                 return (0, Some(end_off));
@@ -425,7 +424,6 @@ pub(super) fn alert_marker_type(line: &str, uppercase_only: bool) -> Option<&'st
     let inner = line.strip_prefix("[!")?;
     let close = inner.find(']')?;
     let name = inner.get(..close)?;
-    // Only whitespace may follow the closing bracket.
     if !inner.get(close + 1..)?.chars().all(char::is_whitespace) {
         return None;
     }
@@ -548,7 +546,6 @@ pub(super) fn line_block_lines(text: &str) -> Vec<String> {
     for raw in text.lines() {
         if let Some(rest) = raw.strip_prefix('|') {
             let rest = rest.strip_prefix(' ').unwrap_or(rest);
-            // Trailing whitespace drops first, so an all-space entry collapses to empty.
             entries.push(preserve_leading_spaces(rest.trim_end_matches([' ', '\t'])));
         } else if let Some(last) = entries.last_mut() {
             last.push(' ');
@@ -594,8 +591,7 @@ pub(super) fn strip_atx_closing(content: &str, require_preceding_space: bool) ->
     if without_hashes.len() == trimmed.len() {
         return trimmed.to_owned();
     }
-    // Without the opener-space rule a closing hash run always terminates; with it, the run must be
-    // set off from the content by whitespace.
+    // With the opener-space rule, closing hashes also need preceding whitespace.
     if !require_preceding_space
         || without_hashes.is_empty()
         || without_hashes.ends_with([' ', '\t'])

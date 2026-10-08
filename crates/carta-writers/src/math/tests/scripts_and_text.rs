@@ -37,7 +37,6 @@ fn single_run_and_sub_first_script_orders_do_not_regress() {
 
 #[test]
 fn fixed_size_wrapper_sizes_the_null_delimiter_as_a_literal_period() {
-    // a sized null delimiter prints as a tight literal period, at every scale and l/r variant
     assert_eq!(to_inlines("\\big."), Some(vec![str_inline(".")]));
     assert_eq!(to_inlines("\\Bigl."), Some(vec![str_inline(".")]));
     assert_eq!(to_inlines("\\bigg."), Some(vec![str_inline(".")]));
@@ -54,7 +53,6 @@ fn fixed_size_wrapper_sizes_the_null_delimiter_as_a_literal_period() {
 
 #[test]
 fn fixed_size_wrapper_treats_angle_brackets_as_tight_delimiters() {
-    // after a sizing wrapper, < and > are tight open/close delimiters, not relations
     assert_eq!(
         to_inlines("a \\big< b"),
         Some(vec![var("a"), str_inline("<"), var("b")])
@@ -75,7 +73,6 @@ fn fixed_size_wrapper_treats_angle_brackets_as_tight_delimiters() {
 
 #[test]
 fn fixed_size_wrapper_sizes_an_ordinary_or_relation_character_tightly() {
-    // ordinary/relation/punctuation marks size as tight literal glyphs: \big + is a tight +
     assert_eq!(to_inlines("\\big +"), Some(vec![str_inline("+")]));
     assert_eq!(to_inlines("\\big-"), Some(vec![str_inline("\u{2212}")]));
     assert_eq!(to_inlines("\\bigl +"), Some(vec![str_inline("+")]));
@@ -92,7 +89,6 @@ fn fixed_size_wrapper_sizes_an_ordinary_or_relation_character_tightly() {
 
 #[test]
 fn fixed_size_wrapper_sizes_a_prime_run_as_one_multi_prime_delimiter() {
-    // a prime run sizes as one multi-prime glyph, not nested prime scripts
     assert_eq!(to_inlines("\\big '"), Some(vec![str_inline("\u{2032}")]));
     assert_eq!(to_inlines("\\big ''"), Some(vec![str_inline("\u{2033}")]));
     assert_eq!(to_inlines("\\big '''"), Some(vec![str_inline("\u{2034}")]));
@@ -105,7 +101,6 @@ fn fixed_size_wrapper_sizes_a_prime_run_as_one_multi_prime_delimiter() {
 
 #[test]
 fn fixed_size_wrapper_sizes_the_colon_equals_digraph_as_one_relation() {
-    // := sizes as one relation digraph, not a sized : plus a loose =
     assert_eq!(to_inlines("\\big :="), Some(vec![str_inline(":=")]));
     assert_eq!(
         to_inlines("a \\big := b"),
@@ -123,7 +118,6 @@ fn fixed_size_wrapper_sizes_the_colon_equals_digraph_as_one_relation() {
 
 #[test]
 fn fixed_size_wrapper_rejects_a_letter_digit_or_arrow_follower() {
-    // letters, digits, and stretchy arrows are not sizable delimiters: verbatim fallback
     assert_eq!(to_inlines("\\big a"), None);
     assert_eq!(to_inlines("\\big 1"), None);
     assert_eq!(to_inlines("\\big\\uparrow"), None);
@@ -134,7 +128,6 @@ fn fixed_size_wrapper_rejects_a_letter_digit_or_arrow_follower() {
 
 #[test]
 fn fixed_size_scale_matrix_covers_every_width_and_variant() {
-    // Each width sizes to a fixed percentage; the l/r variants share their base width.
     assert_eq!(
         to_typst("\\big(").as_deref(),
         Some("#scale(x: 120%, y: 120%)[\\(]")
@@ -163,7 +156,6 @@ fn fixed_size_scale_matrix_covers_every_width_and_variant() {
 
 #[test]
 fn typst_colon_equals_digraph_is_tight() {
-    // a colon directly before = is the tight := digraph; other colon sequences stay loose
     assert_eq!(to_typst(":=").as_deref(), Some(":="));
     assert_eq!(to_typst(": =").as_deref(), Some(": ="));
     assert_eq!(to_typst("=:").as_deref(), Some("= :"));
@@ -184,7 +176,6 @@ fn typst_colon_equals_digraph_is_tight_in_the_inline_tree() {
 
 #[test]
 fn typst_scripted_escaped_close_delimiter_has_no_leading_space() {
-    // an escaped close delimiter is tight as a script base: no stray space before the script
     assert_eq!(to_typst("(a)").as_deref(), Some("\\(a\\)"));
     assert_eq!(to_typst("[a]").as_deref(), Some("\\[a\\]"));
     assert_eq!(to_typst("(a)^2").as_deref(), Some("\\(a\\)^2"));
@@ -224,7 +215,6 @@ fn text_escape_preserves_the_wrapper_formatting() {
 
 #[test]
 fn text_escape_swallows_a_following_space() {
-    // A control symbol absorbs one following run of spaces, as in TeX.
     assert_eq!(
         to_inlines("\\text{50\\% off}"),
         Some(vec![str_inline("50%off")])
@@ -242,7 +232,6 @@ fn text_escape_in_typst_stays_inside_the_quoted_run() {
         to_typst("\\textbf{a\\#b}").as_deref(),
         Some("bold(\"a#b\")")
     );
-    // A literal double-quote inside the run is escaped for the Typst string.
     assert_eq!(
         to_typst("\\text{a\"b}").as_deref(),
         Some("upright(\"a\\\"b\")")
@@ -267,13 +256,11 @@ fn text_spacing_emits_its_width_codepoint() {
         to_inlines("\\text{a\\!b}"),
         Some(vec![str_inline("a\u{200A}b")])
     );
-    // An escaped space is an ordinary space inside a text wrapper.
     assert_eq!(to_inlines("\\text{a\\ b}"), Some(vec![str_inline("a b")]));
 }
 
 #[test]
 fn text_spacing_splits_the_wrapper_formatting_per_run() {
-    // The wrapper applies to each side of the spacing independently; the spacing is a bare glyph.
     assert_eq!(
         to_inlines("\\textbf{a\\,b}"),
         Some(vec![
@@ -302,7 +289,6 @@ fn text_spacing_splits_the_typst_run() {
 
 #[test]
 fn operatorname_drops_literal_spaces_and_folds_spacing() {
-    // math mode: literal spaces drop, explicit spacing folds in, plus trailing thin space (U+2006)
     assert_eq!(
         to_inlines("\\operatorname{a b}"),
         Some(vec![str_inline("ab\u{2006}")])
@@ -331,14 +317,12 @@ fn tilde_inside_text_is_a_non_breaking_space() {
 
 #[test]
 fn math_inside_text_renders_as_math() {
-    // A `$…$` switches back to math: the inner `x` is an italic variable, not roman text.
     assert_eq!(to_inlines("\\text{$x$}"), Some(vec![var("x")]));
     assert_eq!(to_typst("\\text{$x$}").as_deref(), Some("x"));
 }
 
 #[test]
 fn math_inside_text_ignores_the_wrapper_formatting() {
-    // The bold wrapper does not apply to the spliced math: `x` stays an italic variable.
     assert_eq!(to_inlines("\\textbf{$x$}"), Some(vec![var("x")]));
 }
 
@@ -352,14 +336,12 @@ fn text_around_inner_math_keeps_its_run() {
 
 #[test]
 fn unbalanced_dollar_in_text_falls_back() {
-    // A `$` with no closing `$` cannot be re-entered, so the whole node falls back to verbatim.
     assert_eq!(to_inlines("\\text{$x}"), None);
     assert_eq!(to_typst("\\text{a$b}"), None);
 }
 
 #[test]
 fn paren_delimiters_in_text_switch_back_to_math() {
-    // \(..\) inside a text wrapper re-enters math exactly like $..$
     assert_eq!(to_inlines("\\text{$x$}"), to_inlines("\\text{\\(x\\)}"));
     assert_eq!(
         to_typst("\\text{ if \\(x>0\\)}").as_deref(),
@@ -369,7 +351,6 @@ fn paren_delimiters_in_text_switch_back_to_math() {
 
 #[test]
 fn bracket_delimiters_in_text_switch_back_to_math() {
-    // `\[…\]` re-enters math the same way, splicing the math between the literal runs.
     assert_eq!(
         to_typst("\\text{x \\[y\\] z}").as_deref(),
         Some("upright(\"x \") y upright(\" z\")")
@@ -378,7 +359,6 @@ fn bracket_delimiters_in_text_switch_back_to_math() {
 
 #[test]
 fn unbalanced_math_delimiter_in_text_falls_back() {
-    // A `\(` with no closing `\)` cannot be re-entered, so the whole node falls back to verbatim.
     assert_eq!(to_inlines("\\text{\\(x}"), None);
     assert_eq!(to_typst("\\text{a\\[b}"), None);
 }
@@ -399,7 +379,6 @@ fn bold_italic_alias_wraps_strong_emph() {
 
 #[test]
 fn bold_script_alias_uses_the_bold_script_codepoint() {
-    // `\mathbfcal{L}` is the bold-script L (U+1D4DB), wrapped in Strong.
     assert_eq!(
         to_inlines("\\mathbfcal{L}"),
         Some(vec![Inline::Strong(vec![str_inline("\u{1D4DB}")])])
@@ -409,7 +388,6 @@ fn bold_script_alias_uses_the_bold_script_codepoint() {
 
 #[test]
 fn bold_fraktur_alias_uses_the_bold_fraktur_codepoint() {
-    // `\mathbffrak{g}` is the bold-fraktur g (U+1D58C), wrapped in Strong.
     assert_eq!(
         to_inlines("\\mathbffrak{g}"),
         Some(vec![Inline::Strong(vec![str_inline("\u{1D58C}")])])
@@ -431,7 +409,6 @@ fn sans_italic_alias_is_emphasised() {
 
 #[test]
 fn bare_sqrt_with_no_argument_is_the_radical_sign() {
-    // A `\sqrt` with no radicand is the bare radical glyph (U+221A).
     assert_eq!(to_inlines("\\sqrt"), Some(vec![str_inline("\u{221A}")]));
     assert_eq!(to_typst("\\sqrt").as_deref(), Some("\u{221A}"));
 }
@@ -453,7 +430,6 @@ fn raw_unicode_glyph_maps_to_its_typst_name() {
 
 #[test]
 fn raw_unicode_glyph_inside_text_stays_verbatim() {
-    // Inside a text wrapper the glyph is literal text, never reverse-mapped.
     assert_eq!(
         to_typst("\\text{\u{3B1}}").as_deref(),
         Some("upright(\"\u{3B1}\")")
@@ -486,17 +462,14 @@ fn middle_delimiter_renders_as_mid() {
 
 #[test]
 fn not_does_not_precompose_unnegatable_relations_in_typst() {
-    // verbatim fallback rather than a wrong precomposed character
     assert_eq!(to_typst("\\not\\mid"), None);
     assert_eq!(to_typst("\\not\\exists"), None);
     assert_eq!(to_typst("\\not\\cup"), None);
-    // A relation the backend does compose still renders.
     assert_eq!(to_typst("\\not\\subset").as_deref(), Some("subset.not"));
 }
 
 #[test]
 fn lone_declare_math_operator_is_empty() {
-    // A bare declaration has no typeset glyph; it lowers to empty output.
     assert_eq!(
         to_inlines("\\DeclareMathOperator{\\foo}{foo}"),
         Some(vec![])
@@ -547,7 +520,6 @@ fn styled_mixed_run_combines_into_one_wrapper() {
 
 #[test]
 fn monospace_wraps_each_glyph_but_keeps_a_number_whole() {
-    // per-glyph code spans, but a digit run is one number atom and so one code span
     assert_eq!(
         to_inlines("\\mathtt{abc}"),
         Some(vec![
@@ -560,7 +532,6 @@ fn monospace_wraps_each_glyph_but_keeps_a_number_whole() {
         to_inlines("\\mathtt{12}"),
         Some(vec![Inline::Code(Box::default(), "12".to_string().into())])
     );
-    // A monospaced operator is still code-wrapped, keeping its ordinary glyph.
     assert_eq!(
         to_inlines("\\mathtt{+}"),
         Some(vec![Inline::Code(Box::default(), "+".to_string().into())])
@@ -569,7 +540,6 @@ fn monospace_wraps_each_glyph_but_keeps_a_number_whole() {
 
 #[test]
 fn style_wraps_the_base_alone_not_its_scripts() {
-    // the wrapper is around the base only, not base-plus-scripts
     assert_eq!(
         to_inlines("\\mathbf{a}^2"),
         Some(vec![
@@ -593,7 +563,6 @@ fn style_wraps_the_base_alone_not_its_scripts() {
 
 #[test]
 fn raw_glyph_limit_operator_with_both_scripts_is_verbatim() {
-    // stacked limits cannot lay out on one line: verbatim fallback
     assert_eq!(to_inlines("\u{2211}_a^b"), None);
     assert_eq!(to_inlines("\u{220F}_i^n"), None);
     assert_eq!(to_inlines("\u{22C3}_a^b"), None);
@@ -610,7 +579,6 @@ fn accent_over_non_ascii_single_glyph() {
 
 #[test]
 fn upright_wrapper_keeps_math_spacing_and_minus() {
-    // \mathrm still resolves function names and thin spaces, and renders hyphen as minus (U+2212)
     assert_eq!(
         to_inlines("\\mathrm{\\sin}"),
         Some(vec![str_inline("sin\u{2006}")])
@@ -619,7 +587,6 @@ fn upright_wrapper_keeps_math_spacing_and_minus() {
         to_inlines("\\mathrm{-}"),
         Some(vec![str_inline("\u{2212}")])
     );
-    // A bare `d` set upright stays upright; an adjacent unwrapped variable is italicised.
     assert_eq!(
         to_inlines("\\mathrm{d}x"),
         Some(vec![str_inline("d"), var("x")])
@@ -638,7 +605,6 @@ fn adjacent_manual_spaces_coalesce_into_one_run() {
 
 #[test]
 fn manual_space_after_operator_suppresses_automatic_spacing() {
-    // a manual space after a binary operator retypes it ordinary: automatic spacing drops
     assert_eq!(
         to_inlines("a +\\, b"),
         Some(vec![var("a"), str_inline("+\u{2006}"), var("b"),])
@@ -647,10 +613,8 @@ fn manual_space_after_operator_suppresses_automatic_spacing() {
 
 #[test]
 fn typst_parenthesises_a_lone_symbol_script() {
-    // a lone ASCII symbol script is parenthesised so Typst binds it whole to the script
     assert_eq!(to_typst("a^{+}").as_deref(), Some("a^(+)"));
     assert_eq!(to_typst("a^{\\%}").as_deref(), Some("a^(%)"));
-    // An identifier, a digit, or a period stays bare.
     assert_eq!(to_typst("a^{x}").as_deref(), Some("a^x"));
     assert_eq!(to_typst("a^{2}").as_deref(), Some("a^2"));
     assert_eq!(to_typst("a^{.}").as_deref(), Some("a^."));
@@ -658,7 +622,6 @@ fn typst_parenthesises_a_lone_symbol_script() {
 
 #[test]
 fn typst_unwraps_single_line_equation_environment() {
-    // a single unaligned line splices in transparently, with no surrounding parentheses
     assert_eq!(
         to_typst("\\begin{equation}a+b\\end{equation}").as_deref(),
         Some("a + b")
@@ -692,7 +655,6 @@ fn bare_quote_or_backtick_in_math_falls_back_to_verbatim() {
     assert_eq!(to_inlines("a`b"), None);
     assert_eq!(to_typst("a\"b"), None);
     assert_eq!(to_typst("a`b"), None);
-    // The same holds inside `\operatorname`, whose argument is math content.
     assert_eq!(to_inlines("\\operatorname{a\"b}"), None);
     assert_eq!(to_typst("\\operatorname{a`b}"), None);
 }

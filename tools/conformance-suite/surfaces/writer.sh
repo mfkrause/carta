@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Writer surface: render corpus/ast through carta and pandoc for each target and diff (json
-# structurally, notebooks after canonicalizing cell ids); exclusions.tsv pairs are skipped and counted.
-# Usage: surfaces/writer.sh [target] [case]   (no arg = every target + extension-toggle group)
+# Compare AST rendering, applying exclusions. Usage: surfaces/writer.sh [target] [case]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -30,15 +28,13 @@ for target in $TARGETS; do
   tally_group
 done
 
-# Each corpus/ast-ext/<spec>/ dir is named for the full target spec it renders with; the base
-# (before the first +/-) selects normalization and compare mode. Full sweep only.
+# Full sweeps use ast-ext specs; the base selects normalization and comparison.
 if [ "$EXT_RUN" = 1 ] && [ -d "$CORPUS/ast-ext" ]; then
   conf_reset "writer-ext"
   for spec_dir in "$CORPUS"/ast-ext/*; do
     [ -d "$spec_dir" ] || continue
     spec="$(basename "$spec_dir")"
     base="${spec%%[+-]*}"
-    # Binary package targets have no text form to diff and carry their own surfaces.
     case "$base" in docx | epub | epub2 | epub3 | odt) continue ;; esac
     norm="$(oracle_norm "$base")"
     mode="$(compare_mode "$base")"

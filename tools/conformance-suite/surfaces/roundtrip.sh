@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Round-trip surface: for each fetched-corpus .native doc, mint the JSON AST with pandoc, feed it
-# through `carta -f json -t json`, and require structural identity. Corpus absent: zero cases.
+# Require JSON round-trip identity for fetched native documents; skip if absent.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools

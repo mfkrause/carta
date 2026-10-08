@@ -1,9 +1,4 @@
-//! Parsing of format specifiers of the form `base[+ext][-ext]…`.
-//!
-//! A specifier names a base format and a sequence of extension toggles applied onto that format's
-//! default extension set: `+name` enables an extension, `-name` disables it. The base name (the text
-//! before the first `+`/`-`) is what [`reader_for`](crate::reader_for)/[`writer_for`](crate::writer_for)
-//! resolve; the resulting [`Extensions`] is merged into the reader/writer options.
+//! Parse `base[+ext][-ext]` format specifiers, applying toggles to format defaults.
 
 use carta_core::{Error, Extension, Extensions, Result, presets};
 
@@ -51,8 +46,7 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::Citations,
             Extension::TaskLists,
         ]),
-        // Notebook markdown cells use a GitHub-flavored dialect with dollar math and auto ids;
-        // a hash run needs a following space to open a heading (bare `#.` is a list marker).
+        // Notebook cells use GitHub-style Markdown with math and auto ids; headings need a space.
         "ipynb" => Extensions::from_list(&[
             Extension::AllSymbolsEscapable,
             Extension::AutoIdentifiers,
@@ -70,9 +64,7 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::TaskLists,
             Extension::TexMathDollars,
         ]),
-        // Writing AsciiDoc assigns header identifiers from title text by default.
         "asciidoc" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        // Plain strips markup but keeps the structural extensions that shape block layout.
         "plain" => Extensions::from_list(&[
             Extension::BlankBeforeBlockquote,
             Extension::BlankBeforeHeader,
@@ -100,7 +92,6 @@ fn default_extensions(base: &str) -> Extensions {
 /// writes with the same defaults.
 fn reader_default_extensions(base: &str) -> Extensions {
     match base {
-        // OPML embeds Markdown in node text, parsed with the extended dialect's defaults.
         "markdown" | "opml" => presets::MARKDOWN_READ,
         "gfm" => presets::GFM_READ,
         "commonmark_x" => presets::COMMONMARK_X_READ,
@@ -388,8 +379,7 @@ fn parse_format_spec_with(
         let (name, remainder) = after_sign.split_at(token_end);
         rest = remainder;
 
-        // A declared set admits only its members (anything else is unsupported for the format);
-        // no declared set means any modeled extension, rejecting only unknown names.
+        // Declared sets reject unsupported toggles; undeclared sets accept any known toggle.
         let extension = match &supported {
             Some(set) => Extension::from_name(name)
                 .filter(|ext| set.contains(*ext))
@@ -445,11 +435,9 @@ mod tests {
 
     #[test]
     fn unknown_extension_is_an_error() {
-        // A base with no declared accepted set rejects an unrecognized name as unknown.
         let err = parse_format_spec("unregistered_format+bogus").unwrap_err();
         assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
 
-        // A base that declares an accepted set reports the same name as unsupported for it.
         let err = parse_format_spec("commonmark+bogus").unwrap_err();
         assert!(matches!(
             err,
@@ -497,7 +485,6 @@ mod tests {
             assert!(ext.contains(Extension::LineBlocks));
             assert!(ext.contains(Extension::NativeDivs));
             assert!(ext.contains(Extension::NativeSpans));
-            // The text extensions are opt-in, not part of the default set.
             assert!(!ext.contains(Extension::Smart));
             assert!(!ext.contains(Extension::TexMathDollars));
         }
@@ -519,7 +506,6 @@ mod tests {
 
     #[test]
     fn html_unknown_extension_is_an_error() {
-        // HTML declares an accepted set, so an unrecognized name is unsupported for the format.
         let err = parse_format_spec("html+bogus").unwrap_err();
         assert!(matches!(
             err,
@@ -530,7 +516,6 @@ mod tests {
 
     #[test]
     fn recognized_dialect_toggle_names_parse_without_error() {
-        // Each markdown-family toggle name must be recognized and apply in both directions.
         let names = [
             "abbreviations",
             "all_symbols_escapable",
@@ -610,14 +595,12 @@ mod tests {
 
     #[test]
     fn dokuwiki_rejects_an_extension_outside_its_set() {
-        // `pipe_tables` is a modeled extension, but not one dokuwiki accepts.
         let err = parse_format_spec("dokuwiki+pipe_tables").unwrap_err();
         assert!(matches!(
             err,
             Error::UnsupportedExtension { extension, format }
                 if extension == "pipe_tables" && format == "dokuwiki"
         ));
-        // An unknown name is reported the same way: unsupported for this format.
         let err = parse_format_spec("dokuwiki+bogus").unwrap_err();
         assert!(matches!(
             err,
@@ -627,7 +610,7 @@ mod tests {
 
     #[test]
     fn every_registry_format_declares_its_accepted_set_status() {
-        // A new format must be added to exactly one of these two arrays, deliberately.
+        // Each format must belong to exactly one coverage group.
         const WITH_SET: &[&str] = &[
             "asciidoc",
             "beamer",
@@ -665,7 +648,6 @@ mod tests {
             "tsv",
             "typst",
         ];
-        // Formats that intentionally declare NO set (any modeled toggle is admitted).
         const WITHOUT_SET: &[&str] = &[];
 
         let mut names: Vec<&str> = crate::supported_input_formats();
@@ -686,7 +668,6 @@ mod tests {
                 "format `{name}`: supported_extensions presence disagrees with its category"
             );
         }
-        // An unrecognized base declares no set, so any modeled toggle is admitted for it.
         assert!(supported_extensions("unregistered_format").is_none());
     }
 
@@ -695,7 +676,6 @@ mod tests {
         let (base, ext) = parse_format_spec("docx").unwrap();
         assert_eq!(base, "docx");
         assert!(ext.contains(Extension::AutoIdentifiers));
-        // The three writer-shaping toggles are opt-in, off by default.
         assert!(!ext.contains(Extension::Styles));
         assert!(!ext.contains(Extension::NativeNumbering));
         assert!(!ext.contains(Extension::EmptyParagraphs));
@@ -709,7 +689,6 @@ mod tests {
         assert!(ext.contains(Extension::EmptyParagraphs));
         assert!(ext.contains(Extension::AutoIdentifiers));
 
-        // `pipe_tables` is a modeled extension, but not one docx accepts.
         let err = parse_format_spec("docx+pipe_tables").unwrap_err();
         assert!(matches!(
             err,
@@ -723,7 +702,6 @@ mod tests {
         let (base, ext) = parse_format_spec("odt").unwrap();
         assert_eq!(base, "odt");
         assert!(ext.contains(Extension::AutoIdentifiers));
-        // Empty-paragraph preservation is an opt-in toggle, off by default.
         assert!(!ext.contains(Extension::EmptyParagraphs));
     }
 
@@ -734,7 +712,6 @@ mod tests {
         assert!(ext.contains(Extension::NativeNumbering));
         assert!(ext.contains(Extension::AutoIdentifiers));
 
-        // `styles` and `raw_html` are modeled extensions, but not ones odt accepts.
         for spec in ["odt+styles", "odt+raw_html"] {
             let err = parse_format_spec(spec).unwrap_err();
             assert!(matches!(
@@ -750,7 +727,6 @@ mod tests {
         assert!(ext.contains(Extension::Smart));
         assert!(!ext.contains(Extension::AutoIdentifiers));
 
-        // `pipe_tables` is a modeled extension, but not one rst accepts.
         let err = parse_format_spec("rst+pipe_tables").unwrap_err();
         assert!(matches!(
             err,
@@ -765,7 +741,6 @@ mod tests {
         assert!(ext.contains(Extension::Strikeout));
         assert!(ext.contains(Extension::TaskLists));
 
-        // `latex_macros` is a modeled extension, but not one commonmark accepts.
         let err = parse_format_spec("commonmark+latex_macros").unwrap_err();
         assert!(matches!(
             err,

@@ -134,7 +134,6 @@ fn listings_value(value: &str) -> String {
 /// `language=` option expects, with the handful that carry special characters already braced so they
 /// survive the option list. Names follow the language table published with the listings package.
 #[cfg(feature = "highlight")]
-// Aliases and dialects share target names, so equal arms are expected; the table is long by nature.
 #[allow(clippy::match_same_arms, clippy::too_many_lines)]
 pub(super) fn listings_language(class: &str) -> Option<&'static str> {
     let key = class.to_ascii_lowercase();

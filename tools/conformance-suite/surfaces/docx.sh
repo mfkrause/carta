@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# DOCX surface: convert each corpus/ast case with both tools, unpack the OOXML packages, and diff
-# every content part after XML canonicalization; styling parts skip, binaries compare byte-for-byte.
-#
-# Usage: surfaces/docx.sh
+# Compare unpacked DOCX content after XML normalization. Usage: surfaces/docx.sh
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 # pin SOURCE_DATE_EPOCH so property dates match on both sides (carta defaults to 1 when unset)
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
-# Styling-design parts: each tool's own look, not compared.
 docx_skip_part() {
   case "$1" in
     word/styles.xml | word/settings.xml | word/webSettings.xml | word/fontTable.xml | \
@@ -18,14 +14,12 @@ docx_skip_part() {
   return 1
 }
 
-# Canonicalize one XML part to stdout: sort attributes, fold whitespace, pin namespace prefixes,
-# strip bookmarks and section geometry, normalize the timestamp. Standard library only.
+# Normalize XML attributes, whitespace, namespaces, anchors, geometry, and dates.
 docx_canon() {
   python3 - "$1" <<'PY'
 import sys, re
 import xml.etree.ElementTree as ET
 
-# namespaces pinned to fixed prefixes so both sides serialize identically
 NS = {
     'http://schemas.openxmlformats.org/wordprocessingml/2006/main': 'w',
     'http://schemas.openxmlformats.org/officeDocument/2006/math': 'm',
@@ -111,13 +105,11 @@ serialize(root, out)
 s = ''.join(out)
 # property dates are free; fold so only presence and placement compare
 s = re.sub(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', 'TIMESTAMP', s)
-# One element per line keeps a divergence diff readable.
 s = re.sub(r'><', '>\n<', s)
 sys.stdout.write(s + '\n')
 PY
 }
 
-# Diff one case's two unpacked packages; prints the differing parts, empty when they agree.
 docx_diff() {
   local odir="$1" xdir="$2" rel bad="" d fl
   fl=$(diff <(cd "$odir" && find . -type f | sort) <(cd "$xdir" && find . -type f | sort))
@@ -140,7 +132,6 @@ $d"
   printf '%s' "$bad"
 }
 
-# The oracle takes normalization flags; carta takes the bare spec.
 docx_case() {
   local label="$1" target="$2" input="$3" onorm="$4" work detail repro
   work="$WORK/docx/${label//\//-}"
@@ -173,7 +164,6 @@ run_docx() {
   local onorm input feature stem
   conf_reset "docx"
   onorm=$(oracle_norm docx)
-  # Bare-format cases render with the default extension set.
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
@@ -183,7 +173,6 @@ run_docx() {
     fi
     docx_case "docx/$feature/$stem" docx "$input" "$onorm"
   done
-  # Extension-toggle cases render with the spec their directory names (e.g. docx+native_numbering).
   for input in "$CORPUS"/ast-ext/docx*/*.json; do
     [ -e "$input" ] || continue
     feature=$(basename "$(dirname "$input")")

@@ -1,16 +1,6 @@
-//! Dash-ruled tables: blocks whose columns are fixed by runs of `-` rather than the `|`/`+` borders
-//! of a pipe or grid table. Three shapes share this module:
+//! Parse dash-ruled headed, headerless, and multiline tables.
 //!
-//! * a single-line *headed* table: one header line above a dash ruling, then one row per line;
-//! * a single-line *headerless* table: a dash ruling, then one row per line, closed by a second
-//!   ruling; and
-//! * a *multi-line* table: a dash ruling, an optional header closed by a second ruling, then rows
-//!   separated by blank lines whose physical lines join into one cell each, closed by a final ruling.
-//!
-//! Every form slices each line into cells at the dash runs' start columns and reads per-column
-//! alignment from a reference line (the header, or the first row when headerless). The single-line
-//! forms leave their column widths unset; the multi-line form derives a fractional width for each
-//! column from the ruling. Each cell's text is left raw for the inline phase.
+//! Dash positions define cells. Headers or first rows define alignment; multiline tables also set widths.
 
 use carta_ast::Alignment;
 use carta_core::{Extension, Extensions};
@@ -462,11 +452,9 @@ mod tests {
 
     #[test]
     fn opener_skips_list_markers_and_short_runs() {
-        // A first run of two or more dashes opens a table candidate.
         assert!(opens_dash_table("--"));
         assert!(opens_dash_table("---- ----"));
         assert!(opens_dash_table("-- --"));
-        // A single leading dash is a list marker, not a border.
         assert!(!opens_dash_table("-"));
         assert!(!opens_dash_table("- -"));
         assert!(!opens_dash_table("- - -"));
@@ -488,7 +476,6 @@ mod tests {
         assert_eq!(head_cell(&table, 0), "Right");
         assert_eq!(head_cell(&table, 2), "Center");
         assert_eq!(cell(&table, 0, 1), "12");
-        // Header text flush within each run leaves the default alignment.
         assert!(matches!(align(&table, 0), Alignment::AlignDefault));
         assert!(table.head.iter().all(|_| true) && table.columns.iter().all(|c| c.width.is_none()));
     }
@@ -512,7 +499,6 @@ mod tests {
     fn headed_table_closes_at_trailing_ruling() {
         let lines = ["H1 H2", "-- --", "a  b", "-- --", "c  d"];
         let (table, consumed) = parse(&lines, SIMPLE).expect("table");
-        // The second ruling closes the table; the row after it is left for the next block.
         assert_eq!(consumed, 4);
         assert_eq!(table.body.len(), 1);
         assert_eq!(cell(&table, 0, 0), "a");
@@ -526,7 +512,6 @@ mod tests {
         assert!(table.head.is_empty());
         assert_eq!(cell(&table, 0, 0), "1 2");
         assert_eq!(cell(&table, 0, 1), "");
-        // Without the closing ruling there is no table.
         let open = ["--- ---", "1 2"];
         assert!(parse(&open, SIMPLE).is_none());
     }
@@ -572,19 +557,15 @@ mod tests {
         ];
         let (table, consumed) = parse(&lines, MULTILINE).expect("table");
         assert_eq!(consumed, lines.len());
-        // The header line between the two rulings forms the header row.
         assert_eq!(head_cell(&table, 0), "Left");
         assert_eq!(head_cell(&table, 2), "Right");
-        // Alignment is read from the header line.
         assert!(matches!(align(&table, 0), Alignment::AlignLeft));
         assert!(matches!(align(&table, 1), Alignment::AlignRight));
         assert!(matches!(align(&table, 2), Alignment::AlignRight));
-        // Two rows: one single-line, one whose middle column folds two physical lines.
         assert_eq!(table.body.len(), 2);
         assert_eq!(cell(&table, 0, 1), "b");
         assert_eq!(cell(&table, 1, 1), "over\nlines");
         assert_eq!(cell(&table, 1, 2), "two");
-        // The short last run widens to its predecessor's span, so every column shares one width.
         assert_eq!(width(&table, 0), Some(11.0 / 72.0));
         assert_eq!(width(&table, 2), Some(11.0 / 72.0));
     }
@@ -602,7 +583,6 @@ mod tests {
         let (table, consumed) = parse(&lines, MULTILINE).expect("table");
         assert_eq!(consumed, lines.len());
         assert!(table.head.is_empty());
-        // With no header, the first row fixes alignment; column zero is indented and short.
         assert!(matches!(align(&table, 0), Alignment::AlignCenter));
         assert_eq!(table.body.len(), 2);
         assert_eq!(cell(&table, 0, 0), "a\ncont");
@@ -633,14 +613,12 @@ mod tests {
     #[test]
     fn multiline_requires_its_extension() {
         let lines = ["------", "alpha", "", "beta", "------"];
-        // With only simple tables enabled, the blank-separated body is not a table.
         assert!(parse(&lines, SIMPLE).is_none());
         assert!(parse(&lines, MULTILINE).is_some());
     }
 
     #[test]
     fn two_rulings_single_line_rows_stay_simple() {
-        // dash-led single-line rows with no blank: the simple headerless shape claims it, widths unset
         let lines = ["----- -----", "a     b", "c     d", "-----------"];
         let (table, _) = parse(&lines, BOTH).expect("table");
         assert_eq!(table.body.len(), 2);

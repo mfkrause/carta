@@ -1,4 +1,3 @@
-// Test code: a wrong index panics the test rather than corrupting shipped output.
 #![allow(clippy::indexing_slicing)]
 use super::*;
 use carta_ast::{Inline, QuoteType};

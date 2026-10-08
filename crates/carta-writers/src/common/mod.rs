@@ -1,11 +1,4 @@
-//! Shared helpers for the text-oriented writers. The submodule layout is a private organizational
-//! detail; every item is re-exported here, so consumers import from `crate::common` rather than
-//! reaching into a submodule.
-//!
-//! This root also holds a few cross-cutting helpers (smart-quote glyphs, ASCII punctuation fallback,
-//! list-offset conversion, raw-passthrough emission). A single-writer build leaves whole submodule
-//! re-exports unreferenced, so unused-import warnings on the glob re-exports are allowed; items that
-//! are live only under some writer features carry a per-item `cfg_attr` dead-code gate instead.
+//! Shared text-writer helpers, re-exported through `crate::common`.
 #![allow(unused_imports)]
 
 mod dimensions;

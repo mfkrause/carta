@@ -34,7 +34,6 @@ fn a_backtick_fence_still_interrupts_a_paragraph() {
 
 #[test]
 fn an_opener_after_a_non_interrupting_tilde_still_fires() {
-    // The tilde line folds in, but the following heading is read normally rather than absorbed.
     let out = md(
         "text\n~~~\n# h\n~~~\nmore\n",
         &[Extension::FencedCodeBlocks],

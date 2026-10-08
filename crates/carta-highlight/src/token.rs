@@ -1,9 +1,4 @@
-//! The fixed vocabulary of token kinds a tokenizer emits, with the naming each output format uses.
-//!
-//! A grammar's `itemData` attaches a default-style name (`dsKeyword`, `dsComment`, …) to every
-//! context and rule; that name selects one of these kinds. Each kind then carries the identifiers the
-//! renderers and the color model need: the canonical style key (`Keyword`), the compact HTML class
-//! (`kw`), and the macro stem the LaTeX writer defines (`KeywordTok`).
+//! Token kinds and their theme, HTML, and LaTeX names.
 
 /// A single classified span of source text.
 #[derive(Debug, Clone, PartialEq, Eq)]

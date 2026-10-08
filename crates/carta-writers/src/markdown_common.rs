@@ -251,7 +251,6 @@ mod tests {
 
     #[test]
     fn code_span_pads_only_when_backtick_bearing() {
-        // Backtick-free content is wrapped with no padding, whatever its spacing.
         assert_eq!(code_span(""), "``");
         assert_eq!(code_span("plain"), "`plain`");
         assert_eq!(code_span("   "), "`   `");
@@ -259,7 +258,6 @@ mod tests {
         assert_eq!(code_span(" and "), "` and `");
         assert_eq!(code_span(" x"), "` x`");
         assert_eq!(code_span("x "), "`x `");
-        // A backtick anywhere forces a single space of padding and a longer fence.
         assert_eq!(code_span("`x"), "`` `x ``");
         assert_eq!(code_span("x`"), "`` x` ``");
         assert_eq!(code_span("`x`"), "`` `x` ``");
@@ -285,7 +283,6 @@ mod tests {
             }),
             "/p \"T\""
         );
-        // A quote in the title passes through unescaped between the delimiting quotes.
         assert_eq!(
             destination(&Target {
                 url: "/p".into(),
@@ -326,8 +323,6 @@ mod tests {
             url: "http://e.com/a%20b".into(),
             title: String::new().into(),
         };
-        // The percent-decoded visible form of the URL still yields the angle-bracket form, which
-        // carries the encoded URL.
         assert_eq!(
             autolink(&str_inlines("http://e.com/a b"), &target),
             Some("<http://e.com/a%20b>".to_owned())

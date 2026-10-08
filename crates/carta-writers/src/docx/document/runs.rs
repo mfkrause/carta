@@ -144,7 +144,6 @@ pub(super) fn horizontal_rule() -> Element {
 
 /// The run properties accumulated down a chain of nested inline formatting. Rendered in the fixed
 /// schema order so output stays stable regardless of nesting order.
-// Independent on/off toggles; a flat set of bools is the natural shape.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Default)]
 pub(super) struct RunProps {
@@ -335,12 +334,10 @@ fn is_east_asian(c: char) -> bool {
 #[allow(clippy::too_many_lines)]
 pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut Element) {
     let mut buffer = String::new();
-    // East Asian kind of the buffered text; a kind change flushes first.
     let mut buffer_hint = false;
     let mut index = 0;
     while let Some(inline) = inlines.get(index) {
         match inline {
-            // Consecutive text shares a run; a change of East Asian kind flushes the buffer.
             Inline::Str(_) => {
                 let mut text = String::new();
                 while let Some(Inline::Str(piece)) = inlines.get(index) {
@@ -357,8 +354,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                 buffer.push_str(&text);
                 continue;
             }
-            // A space joins the non-East-Asian side of its neighbours; between two East Asian runs
-            // or at a formatting boundary it stands alone.
+            // Spaces join the non-East-Asian neighbor, but stand alone at other boundaries.
             Inline::Space => {
                 let next_hint = match inlines.get(index + 1) {
                     Some(Inline::Str(piece)) => Some(piece.chars().any(is_east_asian)),
@@ -437,7 +433,6 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                     ));
                 }
             }
-            // The quotation glyphs join their inner text so a quoted word renders as one run.
             Inline::Quoted(kind, children) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let (open, close) = quotation_marks(kind);
@@ -447,13 +442,11 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                 quoted.push(Inline::Str(close.into()));
                 render_runs(&quoted, props, ctx, out);
             }
-            // Without citation processing a citation renders as the source text it was written as.
             Inline::Cite(_, source) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 render_runs(source, props, ctx, out);
             }
-            // A span contributes its content, with `custom-style` as the character style. A comment
-            // range is a span pair: the opening marker's text and author move to the comments part.
+            // Comment span pairs move author and text to the comments part.
             Inline::Span(attr, children) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 if has_class(attr, "comment-start") {
@@ -483,8 +476,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                     close_bookmark(mark, out);
                 }
             }
-            // A '#' destination targets the in-document bookmark; any other goes through an external
-            // relationship. Content renders first, so an inner link is numbered ahead of its outer.
+            // Render inner links first; fragments use bookmarks, other targets use relationships.
             Inline::Link(_, children, target) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let mut hyperlink = Element::new("w:hyperlink");
@@ -513,7 +505,6 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                     None => render_runs(alt, props, ctx, out),
                 }
             }
-            // Unrenderable math degrades to the delimited literal source.
             Inline::Math(kind, source) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let display = matches!(kind, MathType::DisplayMath);
@@ -531,7 +522,6 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                     out.push_raw(payload);
                 }
             }
-            // A footnote drops a numbered mark here and queues its block content for the notes part.
             Inline::Note(blocks) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let id = ctx.next_id;

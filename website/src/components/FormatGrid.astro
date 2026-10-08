@@ -3,7 +3,7 @@ import { byFamily, shipping, type Format } from '../data/formats';
 import StatusBadge from './StatusBadge.astro';
 
 interface Props {
-  /** Restrict to formats carta already converts; otherwise the roadmap is included too. */
+  /** Exclude roadmap formats by default. */
   shippingOnly?: boolean;
 }
 

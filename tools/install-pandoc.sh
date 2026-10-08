@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Install a pinned pandoc binary as a black-box oracle into .oracle/ (gitignored): differential
-# testing only, never read its source or commit it (clean-room rule, AGENTS.md).
-# Usage: install-pandoc.sh [--update | --version=3.10]   (no arg: pinned, or latest stable first run)
+# Install a pinned binary for conformance testing. Usage: install-pandoc.sh [--update|--version=X]
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -90,7 +88,6 @@ mkdir -p "$bin_dir"
 install -m 0755 "$src_bin" "$bin_dir/pandoc"
 printf '%s\n' "$version" >"$version_file"
 
-# Record the JSON AST api-version; our serialization must match its major.minor.
 api_version="$(printf '' | "$bin_dir/pandoc" -f markdown -t json 2>/dev/null |
   sed -n 's/.*"pandoc-api-version":\(\[[0-9,]*\]\).*/\1/p' | head -1)"
 printf '%s\n' "${api_version:-unknown}" >"$ref_dir/API_VERSION"

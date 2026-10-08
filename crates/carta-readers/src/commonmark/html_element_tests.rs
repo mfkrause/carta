@@ -51,19 +51,16 @@ fn nested_divs_balance_into_a_tree() {
 
 #[test]
 fn div_final_block_tightens_only_when_the_close_tag_trails_content() {
-    // Close tag on its own line keeps the final block as `Para`, even without blank lines.
     let para = md("<div>\nfoo\n</div>\n");
     assert!(matches!(
         para.as_slice(),
         [IrBlock::Div(_, c)] if matches!(c.as_slice(), [IrBlock::Para(_)])
     ));
-    // Close tag trailing content on the same line tightens the final block to `Plain`.
     let plain = md("<div>\nfoo\nbar</div>\n");
     assert!(matches!(
         plain.as_slice(),
         [IrBlock::Div(_, c)] if matches!(c.as_slice(), [IrBlock::Plain(_)])
     ));
-    // An earlier block stays `Para`; only the trailing one tightens.
     let mixed = md("<div>\n\nfoo\n\nbar</div>\n");
     let [IrBlock::Div(_, content)] = mixed.as_slice() else {
         panic!("expected one div, got {mixed:?}");
@@ -76,7 +73,6 @@ fn div_final_block_tightens_only_when_the_close_tag_trails_content() {
 
 #[test]
 fn multibyte_attribute_values_do_not_leak_into_following_content() {
-    // Open tag is consumed by byte length: a multibyte attribute value must leave no stray bytes to re-read.
     let out = md("<div class=\"café\">\n\nx\n\n</div>\n");
     let [IrBlock::Div(attr, content)] = out.as_slice() else {
         panic!("expected one div, got {out:?}");
@@ -96,7 +92,6 @@ fn content_after_the_close_tag_is_a_following_block() {
 
 #[test]
 fn raw_html_block_trailing_newline_depends_on_dialect() {
-    // The strict dialect keeps a raw HTML block's final newline; the markdown dialect drops it.
     let input = "<pre>\nhi\n</pre>\n";
     let strict = parse(input, presets::COMMONMARK, false).0;
     let [IrBlock::RawHtml(text)] = strict.as_slice() else {
@@ -128,13 +123,11 @@ fn non_div_block_tag_keeps_raw_tags_around_parsed_content() {
 
 #[test]
 fn raw_element_final_block_tightens_when_no_blank_precedes_the_close() {
-    // No blank line before the close tag: the final block is `Plain`.
     let tight = md("<section>\nfoo\n</section>\n");
     assert!(matches!(
         tight.as_slice(),
         [IrBlock::RawHtml(_), IrBlock::Plain(_), IrBlock::RawHtml(_)]
     ));
-    // A blank line before the close tag keeps the final block `Para`.
     let loose = md("<section>\nfoo\n\n</section>\n");
     assert!(matches!(
         loose.as_slice(),
@@ -162,7 +155,6 @@ fn native_divs_off_renders_a_div_as_a_raw_element() {
 
 #[test]
 fn both_extensions_off_spans_a_block_element_to_its_balanced_close() {
-    // With neither extension, a block-level tag is one verbatim raw block to its balanced close, not a div.
     let out = with("<div>\n\nfoo\n\n</div>\n", &[]);
     let [IrBlock::RawHtml(html)] = out.as_slice() else {
         panic!("expected one raw HTML block, got {out:?}");
@@ -172,7 +164,6 @@ fn both_extensions_off_spans_a_block_element_to_its_balanced_close() {
 
 #[test]
 fn inline_and_unknown_tags_are_not_block_elements() {
-    // `<em>`/`<span>` are inline and `<custom>` is unrecognized: none open a block element or produce a div.
     for input in ["<em>\n\nx\n\n</em>\n", "<custom>\n\nx\n\n</custom>\n"] {
         let out = md(input);
         assert!(
@@ -189,7 +180,6 @@ fn an_unclosed_element_closes_at_end_of_input_without_a_close_tag() {
         panic!("expected one div, got {out:?}");
     };
     assert!(matches!(content.as_slice(), [IrBlock::Para(_)]));
-    // A raw element left open emits no trailing close tag.
     let raw = md("<section>\n\nfoo\n");
     assert!(
         !raw.iter()
@@ -206,7 +196,6 @@ fn parse_open_tag_reads_name_attributes_and_extent() {
     assert_eq!(tag.attr.id, "x");
     assert_eq!(tag.attr.classes, vec!["a".to_owned(), "b".to_owned()]);
     assert_eq!(tag.attr.attributes, vec![("data-k".into(), "v".into())]);
-    // The extent stops just past the `>`, leaving any same-line remainder.
     assert_eq!(tag.len, "<div id=\"x\" class=\"a b\" data-k=v>".len());
 }
 
@@ -236,7 +225,6 @@ fn find_close_tag_locates_the_matching_name_and_skips_unrelated_ones() {
     let found = html_element::find_close_tag("foo</div>bar", "div").expect("a close tag");
     assert_eq!(&"foo</div>bar"[found.start..found.end], "</div>");
     assert!(html_element::find_close_tag("</span>", "div").is_none());
-    // Trailing whitespace before `>` is allowed; a bare name is not a close tag.
     assert!(html_element::find_close_tag("</div >", "div").is_some());
     assert!(html_element::find_close_tag("no tag here", "div").is_none());
 }
@@ -270,7 +258,6 @@ fn parse_close_tag_matches_a_leading_block_close_tag() {
         html_element::parse_close_tag("</div  >"),
         Some("</div  >".len())
     );
-    // Only a block-level name, only at the very start.
     assert_eq!(html_element::parse_close_tag("</span>"), None);
     assert_eq!(html_element::parse_close_tag("x</div>"), None);
     assert_eq!(html_element::parse_close_tag("<div>"), None);
@@ -278,13 +265,10 @@ fn parse_close_tag_matches_a_leading_block_close_tag() {
 
 #[test]
 fn scan_depth_balances_nested_same_name_tags() {
-    // A same-name open raises the depth; the matching close returns it to zero mid-line.
     let (depth, close) = html_element::scan_depth("<div>a</div></div>", "div", 1);
     assert_eq!(depth, 0);
     assert_eq!(close, Some("<div>a</div>".len() + "</div>".len()));
-    // A self-closing same-name tag does not raise the depth.
     assert_eq!(html_element::scan_depth("<div/>", "div", 1), (1, None));
-    // A different tag's `>` inside its attributes is skipped whole.
     assert_eq!(
         html_element::scan_depth("<td x=\">\">", "div", 1),
         (1, None)

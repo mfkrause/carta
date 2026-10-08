@@ -1,9 +1,4 @@
-//! Show rules: what `#show` matches, and what it puts in its place.
-//!
-//! A rule governs the content from its declaration to the end of the region holding it, so the
-//! statement reads that content as blocks and rewrites the parts its selector picks out. Rewritten
-//! content is not offered to the same rule again, which is what keeps a rule that reintroduces what
-//! it matched from running forever.
+//! Evaluate Typst show-rule matching and replacement content.
 
 use carta_ast::{Block, Inline};
 use fancy_regex::Regex;

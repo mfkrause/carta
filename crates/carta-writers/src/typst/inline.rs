@@ -184,7 +184,6 @@ fn span_wrapper(attr: &Attr) -> (&'static str, &'static str) {
 /// Greedily fill fragments to the fill column at a physical line start (paragraph context), laid out
 /// per the document's wrap mode.
 fn fill(fragments: &[Fragment], width: usize, wrap: WrapMode) -> String {
-    // Only Auto reflows to a width; the other modes split solely on source soft breaks.
     let width = if matches!(wrap, WrapMode::Auto) {
         width.max(1)
     } else {

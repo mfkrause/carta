@@ -1,22 +1,4 @@
-//! Shared heading-identifier derivation for the readers that build identifiers from header text.
-//!
-//! Two slug shapes are available, selected by the active extension:
-//!
-//! - `auto_identifiers`: keep alphanumerics, `_`, `-`, `.`, and whitespace; collapse each
-//!   whitespace run to a single `-`; strip the leading run up to the first letter.
-//! - `gfm_auto_identifiers`: keep alphanumerics, combining marks, `_`, and `-`; turn each
-//!   whitespace character into a single `-`; drop everything else (including `.`); no leading strip.
-//!
-//! Two disambiguation strategies sit on top of the slug:
-//!
-//! - native: an empty slug becomes `section`; repeats increment a numeric suffix until the whole
-//!   identifier is unused against every identifier already issued or reserved.
-//! - count-suffix: repeats are disambiguated by a per-base occurrence count (which can itself
-//!   collide with a slug that already carries that suffix), and an empty slug stays empty.
-//!
-//! The disambiguation strategy is chosen by the dialect, not the slug shape: the broad Markdown
-//! dialect uses native disambiguation for every slug shape (so its GitHub-slug variant still maps an
-//! empty slug to `section`), while the bare `CommonMark` engine pairs the GitHub slug with count-suffix.
+//! Shared heading identifier derivation and collision handling.
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -226,11 +208,9 @@ mod tests {
     #[cfg(feature = "commonmark")]
     #[test]
     fn markdown_pairs_the_gfm_slug_with_native_disambiguation() {
-        // GitHub slug shape, native disambiguation: empty becomes `section`, unlike count-suffix.
         let mut registry = IdRegistry::default();
         assert_eq!(registry.assign_markdown(IdScheme::Gfm, "???"), "section");
         assert_eq!(registry.assign_markdown(IdScheme::Gfm, "!!!"), "section-1");
-        // A non-empty GitHub slug is still produced by the GitHub algorithm.
         assert_eq!(
             registry.assign_markdown(IdScheme::Gfm, "Hello, World."),
             "hello-world"

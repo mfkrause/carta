@@ -2,7 +2,7 @@
 
 use super::*;
 
-// --- Links and images ---
+// Links and images
 
 #[test]
 fn inline_link_and_image() {
@@ -12,7 +12,6 @@ fn inline_link_and_image() {
 
 #[test]
 fn unmatched_image_opener_keeps_its_bang() {
-    // An image opener that never finds a closing `]` reverts to the literal `![`, not `[`.
     assert_eq!(p("![x"), vec![str("![x")]);
     assert_eq!(p("![[a]x"), vec![str("![[a]x")]);
 }
@@ -28,7 +27,6 @@ fn reference_link_with_and_without_ref() {
 #[test]
 fn shortcut_reference_resolves_only_with_a_matching_definition() {
     assert_eq!(p("[foo]"), vec![str("[foo]")]);
-    // A matching definition resolves the shortcut, with case folding on the label.
     let refs = ref_map(&[("foo", "http://f")]);
     assert_eq!(
         parse_inlines("[Foo]", &refs, no_notes(), no_ext()),
@@ -63,7 +61,6 @@ fn span_past_the_label_bound_never_resolves_as_shortcut_or_collapsed() {
         parse_inlines(&collapsed, &refs, no_notes(), no_ext()),
         vec![str(&collapsed)]
     );
-    // The same collapsed form under the bound resolves through the identical path.
     let refs = ref_map(&[("foo", "http://f")]);
     assert_eq!(
         parse_inlines("[Foo][]", &refs, no_notes(), no_ext()),
@@ -101,7 +98,6 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
 fn spaced_reference_link_allows_whitespace_before_the_label() {
     let refs = ref_map(&[("ref", "http://r"), ("text", "http://t")]);
     let ext = exts(&[Extension::SpacedReferenceLinks]);
-    // display comes from the first bracket, target from the second, separated by space or newline
     assert_eq!(
         parse_inlines("[text] [ref]", &refs, no_notes(), ext),
         vec![link(vec![str("text")], "http://r")]
@@ -110,18 +106,15 @@ fn spaced_reference_link_allows_whitespace_before_the_label() {
         parse_inlines("[text]\n[ref]", &refs, no_notes(), ext),
         vec![link(vec![str("text")], "http://r")]
     );
-    // An empty second bracket is a collapsed reference keyed on the first bracket.
     assert_eq!(
         parse_inlines("[text] []", &refs, no_notes(), ext),
         vec![link(vec![str("text")], "http://t")]
     );
-    // an undefined second label leaves the whole run literal: the text is not retried as a shortcut
     let only_text = ref_map(&[("text", "http://t")]);
     assert_eq!(
         parse_inlines("[text] [ref]", &only_text, no_notes(), ext),
         vec![str("[text]"), Inline::Space, str("[ref]")]
     );
-    // Without the extension the space breaks the pair into two shortcut references.
     assert_eq!(
         parse_inlines("[text] [ref]", &refs, no_notes(), no_ext()),
         vec![
@@ -134,7 +127,6 @@ fn spaced_reference_link_allows_whitespace_before_the_label() {
 
 #[test]
 fn nested_bracket_in_link_text() {
-    // [[a]](u): the inner [a] has no target of its own, so it stays literal in the link text
     assert_eq!(p("[[a]](u)"), vec![link(vec![str("[a]")], "u")]);
 }
 
@@ -145,7 +137,7 @@ fn unmatched_brackets_are_literal() {
 
 #[test]
 fn link_suppresses_earlier_bracket_openers() {
-    // [a [b](u) c](v): the inner link deactivates the outer opener (no link may contain a link), so `[a ` and `](v)` stay literal
+    // An inner link deactivates the outer opener because links cannot contain links.
     assert_eq!(
         p("[a [b](u) c](v)"),
         vec![

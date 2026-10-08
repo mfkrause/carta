@@ -355,8 +355,7 @@ fn handle_construct(
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
-    // Failed emphasis closes re-scan the same span, so a construct can be parsed many times over;
-    // charging the shared backtracking budget by consumed span keeps total work linear.
+    // Charge re-parsed spans to keep failed emphasis searches linear.
     if *budget > 0
         && let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth)
     {
@@ -407,8 +406,7 @@ fn handle_delim(
             *pos = scan_pos;
             return;
         }
-        // No closer: the opener stays literal, but each following opener would re-scan the same
-        // span; charge the budget by span scanned so failed opens stay linear, not quadratic.
+        // Charge failed closer scans so repeated openers cannot cause quadratic work.
         *budget = budget.saturating_sub(scan_pos - begin);
     }
     pending.push(delim);

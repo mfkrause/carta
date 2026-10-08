@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# EPUB surface: epub3/epub2 diff unpacked archives against the oracle after normalization
-# (see epub_norm); epubcheck validates each carta archive. Usage: surfaces/epub.sh [epub3|epub2|epubcheck]
+# Compare EPUB archives and validate with EPUBCheck. Usage: surfaces/epub.sh [epub3|epub2|epubcheck]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 # Pin SOURCE_DATE_EPOCH so both tools stamp the same reproducible timestamp (carta defaults to 1).
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
-# Applied to both sides: values a converter picks freely, plus the three documented spec-validity
-# placeholder folds (untitled dc:title, nav anchor, EPUB 2 title page); see docs/STATUS.md → EPUB.
+# Normalize free values and spec-valid placeholders; see docs/STATUS.md.
 epub_norm() {
   sed -e 's/content="pandoc"/content="carta"/' \
       -e 's|urn:uuid:[0-9A-Fa-f-]\{36\}|urn:uuid:NORM|g' \
@@ -19,10 +17,8 @@ epub_norm() {
       -e '/<div class="titlepage"><\/div>/d'
 }
 
-# Diff one case's two unpacked archives; prints the differing entries, empty when they agree.
 epub_diff() {
   local odir="$1" xdir="$2" rel bad="" d fl
-  # Both tools lay out the same container: the file sets must match (the stylesheet aside).
   fl=$(diff <(cd "$odir" && find . -type f | sort) <(cd "$xdir" && find . -type f | sort))
   [ -n "$fl" ] && bad="file list differs:
 $fl"
@@ -43,7 +39,6 @@ $d"
   printf '%s' "$bad"
 }
 
-# The structural differential for one dialect (epub3|epub2).
 run_dialect() {
   local dialect="$1" onorm input feature stem label work detail repro
   conf_reset "epub-$dialect"
@@ -85,8 +80,7 @@ $detail"
   tally_group
 }
 
-# EPUBCheck one archive; runs in a subshell under xargs, so it reports only through its
-# STATUS<TAB>label<TAB>detail result file and the exported environment.
+# Subprocesses report through STATUS files and exported variables.
 epubcheck_one() {
   local dialect="$1" input="$2" feature stem label out res slug
   feature=$(basename "$(dirname "$input")")
@@ -101,7 +95,6 @@ epubcheck_one() {
   res=$("$EC_JAVA" -jar "$EC_JAR" "$out" 2>&1)
   rm -f "$out"
   if printf '%s' "$res" | grep -qE 'ERROR|FATAL'; then
-    # Fold the multi-line message list onto one line (~) so it survives the single result line.
     printf 'FAIL\t%s\t%s\n' "$label" \
       "$(printf '%s' "$res" | grep -E 'ERROR|FATAL' | head -n 4 | tr '\n' '~')" >"$EC_RESDIR/$slug"
   else
@@ -109,7 +102,6 @@ epubcheck_one() {
   fi
 }
 
-# The EPUBCheck validity group across both dialects.
 run_epubcheck() {
   conf_reset "epub-epubcheck"
   local jar java resdir ecwork jobs f status label detail unresolved legacy_epub2
@@ -120,11 +112,9 @@ run_epubcheck() {
     echo "  note: EPUBCheck unavailable — set JAVA_BIN and EPUBCHECK_JAR (or install to .oracle/epubcheck/)" >&2
     return
   fi
-  # Sources naming a resource no offline writer can resolve; both tools emit a dangling
-  # reference EPUBCheck rejects in either dialect (see docs/STATUS.md → EPUB).
+  # Unresolved offline resources yield references that EPUBCheck rejects.
   unresolved=" common/image-external common/image-inline common/link-in-link figure/figure-captioned figure/figure-no-alt figure/figure-with-dims image-dimensions/image-inline-dims "
-  # Content with no valid XHTML 1.1 form, which both tools emit; EPUBCheck rejects it under
-  # EPUB 2 only (see docs/STATUS.md → EPUB).
+  # EPUBCheck rejects content without a valid XHTML 1.1 form in EPUB 2.
   legacy_epub2=" common/ordered-start common/span-semantic common/underline-smallcaps table/table-caption-blocks table/table-empty table/table-foot task-list/checkboxes "
   resdir="$WORK/epub/epubcheck-results"
   ecwork="$WORK/epub/epubcheck-work"
@@ -152,7 +142,6 @@ run_epubcheck() {
   done
   export OX EC_JAVA="$java" EC_JAR="$jar" EC_WORK="$ecwork" EC_RESDIR="$resdir"
   export -f epubcheck_one
-  # JVM startup dominates, so validate in parallel; jobs report via result files tallied below.
   local slots
   slots=$(( $(command -v nproc >/dev/null 2>&1 && nproc || echo 4) ))
   [ "$slots" -gt 6 ] && slots=6

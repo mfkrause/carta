@@ -165,8 +165,6 @@ impl Builder<'_> {
                     self.body.push_str(text);
                 }
             }
-            // Already handled before dispatch; these arms keep the match total without a panicking
-            // fallback.
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, None),
             Block::LineBlock(lines) => self.line_block_like(lines, None),
             Block::Div(attr, inner) => self.div(attr, inner, None),
@@ -481,7 +479,6 @@ impl Builder<'_> {
         }
     }
 
-    // All distinct inputs to one emission; bundling them would only add indirection.
     #[allow(clippy::too_many_arguments)]
     fn emit_cell(
         &mut self,

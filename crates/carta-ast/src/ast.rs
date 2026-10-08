@@ -1,9 +1,4 @@
-//! The document model: the typed tree that every reader produces and every writer consumes.
-//!
-//! The Block/Inline split is load-bearing: encoding them as separate enums makes invalid nesting
-//! (a block inside link text, say) unrepresentable. The node families and the small enums carry
-//! their JSON tag via `#[serde(tag = "t", content = "c")]`; the array-shaped records (`Attr`,
-//! `Document`, the table parts) have hand-written codecs in [`crate::serde_impls`].
+//! The typed document tree shared by readers and writers.
 
 use std::collections::BTreeMap;
 
@@ -684,8 +679,7 @@ mod tests {
         assert_eq!(slug_gfm("Foo & Bar"), "foo--bar");
         assert_eq!(slug_gfm("a - b"), "a---b");
         assert_eq!(slug_gfm("Über Café"), "über-café");
-        // No fallback: an all-punctuation heading slugs to the empty string, and the caller decides
-        // what to substitute.
+        // The caller chooses a fallback for an empty slug.
         assert_eq!(slug_gfm("!!!"), "");
     }
 }

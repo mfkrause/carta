@@ -1,7 +1,4 @@
-//! Standalone metadata files: a YAML or JSON document parsed into a metadata map on its own, apart
-//! from any document's input format. Scalar values are read as inline Markdown (a `title: *Hi*`
-//! yields emphasized inlines), so this layer fixes the dialect those scalars are parsed in and
-//! delegates the per-scalar conversion to the Markdown reader.
+//! Read standalone YAML or JSON metadata, parsing scalar values as inline Markdown.
 
 use std::collections::BTreeMap;
 

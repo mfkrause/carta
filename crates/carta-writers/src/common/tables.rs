@@ -126,9 +126,7 @@ impl RowSpanGrid {
                 column = column.saturating_add(1);
             }
             slots.push(GridSlot::Cell(column, cell));
-            // A column span covers real columns only up to the table's own edge; clamping to the
-            // columns actually remaining keeps a rogue span value from driving unbounded
-            // covered-slot and tracking work.
+            // Clamp spans to real columns to bound covered-slot allocation and tracking.
             let remaining = self.columns.saturating_sub(column).max(1);
             let col_span = usize::try_from(cell.col_span)
                 .unwrap_or(1)

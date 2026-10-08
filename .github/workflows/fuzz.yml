@@ -1,7 +1,6 @@
 name: fuzz (nightly discovery)
 
-# Deliberately not a PR gate: discovery runs are non-deterministic (random seed, evolving corpus),
-# so a latent bug could block an unrelated PR. Findings become seeds under fuzz/seeds/<target>/, replayed per-PR in ci.yml.
+# Random discovery can fail unrelated PRs; ci.yml replays saved seeds.
 
 on:
   schedule:
@@ -29,8 +28,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Chunk fuzz targets into shards
         id: chunk
-        # Targets come from fuzz/Cargo.toml's [[bin]] table so the set never drifts; shards of at
-        # most 20 fuzz serially (one compile each), so shard count scales instead of wall clock.
+        # Limit each shard to 20 targets to bound run time and share one build.
         run: |
           names=$(grep '^name = ' fuzz/Cargo.toml | grep -v 'carta-fuzz' | cut -d'"' -f2)
           set -- $names
@@ -77,19 +75,14 @@ jobs:
         uses: actions/cache@v6
         with:
           path: fuzz/corpus
-          # Fresh per-shard key each run writes back the grown corpus; restore-keys pull the newest
-          # prior tree, falling back to other shards' so a migrating target keeps its corpus.
+          # Restore other shards too, so moved targets keep their corpus.
           key: fuzz-corpus-shard-${{ matrix.shard.index }}-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-shard-${{ matrix.shard.index }}-
             fuzz-corpus-shard-
             fuzz-corpus-all-
       - name: Fuzz shard targets
-        # Serial loop shares one compile; writable first corpus dir, read-only seeds; -timeout/-rss_limit_mb
-        # turn hangs into crashes; failures collect so all targets fuzz. gnu target: musl defeats the sanitizer.
-        #
-        # malloc_context_size=0: ASan interns per-allocation stacks forever, ratcheting RSS past
-        # -rss_limit_mb on allocation-heavy runs and yielding phantom OOMs; panics are unaffected.
+        # Use GNU for sanitizer support; disable allocation stack tracking to prevent false OOMs.
         env:
           ASAN_OPTIONS: malloc_context_size=0
         run: |

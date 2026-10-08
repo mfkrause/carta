@@ -1,27 +1,4 @@
-//! Notebook reader: parses a Jupyter notebook (`.ipynb`, nbformat v4) into the document model.
-//!
-//! A notebook is a JSON document with a `cells` array, a `metadata` object, and the `nbformat`
-//! version pair. Each cell becomes a `Div` carrying the classes `cell` and the cell kind, the
-//! cell's `id` as its identifier, and the cell's `metadata` (plus a code cell's `execution_count`)
-//! as ordered attributes:
-//!
-//! - A **markdown** cell's source is parsed as Markdown and its blocks become the `Div` body. The
-//!   embedded Markdown honors the reader's full extension set, so tables, fenced code, task lists,
-//!   and the rest are recognized exactly as configured. An image whose URL begins with
-//!   `attachment:` refers to the cell's inline attachments; the prefix is stripped to leave the
-//!   bare reference.
-//! - A **code** cell yields a `CodeBlock` of its source (tagged with the kernel language) followed
-//!   by one `Div` per execution output: a `stream` (stdout/stderr text), an `execute_result` or
-//!   `display_data` (the richest renderable bundle in the output's `data`), or an `error`
-//!   (its traceback).
-//! - A **raw** cell yields a single `RawBlock` whose target format is read from the cell's
-//!   `raw_mimetype` metadata, falling back to its `format` metadata.
-//!
-//! Notebook-level metadata is exposed under a single `jupyter` metadata key, with the `nbformat`
-//! and `nbformat_minor` versions folded in. An output's image payload is referenced by a
-//! content-addressed file name (the SHA-1 of the decoded bytes) and a markdown cell's attachment by
-//! a cell-scoped name; in both cases the bytes are lifted out of the tree into the media bag, which
-//! [`IpynbReader::read_media`] returns alongside the document.
+//! Read Jupyter notebook version 4 cells, metadata, and embedded resources.
 
 use std::collections::BTreeMap;
 
@@ -527,7 +504,6 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
             Format("markdown".into()),
             multiline_text(Some(value)).into(),
         ),
-        // The fallthrough is plain text; the preference list only routes the cases above here.
         _ => Block::CodeBlock(
             Box::default(),
             strip_ansi(&multiline_text(Some(value))).into(),

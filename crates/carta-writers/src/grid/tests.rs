@@ -490,7 +490,6 @@ fn explicit_grid_width_clamps_an_out_of_range_fraction_to_the_line() {
     // In-range fractions scale as floor(fraction * width) minus the border reservation.
     assert_eq!(explicit_grid_width(0.5, 72), 33);
     assert_eq!(explicit_grid_width(1.0, 72), 69);
-    // Out-of-range fractions clamp to the line width first.
     assert_eq!(explicit_grid_width(1.0e53, 72), 69);
     assert_eq!(explicit_grid_width(f64::INFINITY, 72), 69);
 }

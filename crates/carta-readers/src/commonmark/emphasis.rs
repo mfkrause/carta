@@ -27,16 +27,9 @@ struct DelimEntry {
     next: Option<usize>,
 }
 
-/// Resolve emphasis/strong (`*`/`_`) and format (`~`/`^`) delimiters in `nodes`, starting at
-/// `stack_bottom`.
+/// Resolve emphasis and formatting delimiters in `nodes` from `stack_bottom`.
 ///
-/// Implements the linear algorithm from the spec ("An algorithm for parsing nested emphasis and
-/// links", `CommonMark` spec §A): a single left-to-right pass over closers, with per-bucket
-/// `openers_bottom` lower bounds that prevent re-scanning already-rejected opener ranges.
-///
-/// All four delimiter kinds share one matching loop. They differ only in how a matched pair's
-/// length maps to a node; see [`match_use_count`] and [`wrap_emphasis`].
-// `opener_di` and `opener_ni` are intentionally similar: two indices into two distinct arrays.
+/// Use the CommonMark algorithm in spec section A. Per-bucket opener bounds keep scans linear.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
 pub(super) fn process_emphasis(
     nodes: &mut [Node],
@@ -71,8 +64,7 @@ pub(super) fn process_emphasis(
     // First still-active entry; used solely by the final sweep that literalizes leftovers.
     let mut head: Option<usize> = (count > 0).then_some(0);
 
-    // `openers_bottom[bucket]`: minimum delimiter-list index to search for an opener. Key: the
-    // spec §A triple plus `count >= 2`; closers share a slot only if every opener treats them alike.
+    // Key opener bounds by the spec rule-of-three inputs and `count >= 2`.
     let mut openers_bottom = std::collections::BTreeMap::<(u8, usize, bool, bool), usize>::new();
 
     let mut current: Option<usize> = head;
@@ -103,7 +95,6 @@ pub(super) fn process_emphasis(
         );
         let bottom = *openers_bottom.get(&bucket).unwrap_or(&0);
 
-        // Scan backward through active openers, down to and including `bottom`, for a match.
         let mut found: Option<usize> = None; // delimiter-list index of the matched opener
         let mut scan = scan_start;
         while let Some(si) = scan {
@@ -130,7 +121,6 @@ pub(super) fn process_emphasis(
                 scan = scan_prev;
                 continue;
             };
-            // Re-derive the Delimiter from `nodes` for the rule-of-3 check.
             let ni = entry.node_index;
             let rule_ok = match nodes.get(ni) {
                 Some(Node::Delimiter(d)) => emphasis_match(d, nodes, closer_ni),
@@ -160,7 +150,6 @@ pub(super) fn process_emphasis(
         let Some(opener_di) = found else {
             // No opener: exclude this closer's position from future searches for the same bucket.
             openers_bottom.insert(bucket, cur);
-            // A delimiter that can't open is now known to be inert as a closer too.
             if !closer_can_open {
                 convert_delimiter_to_text(nodes, closer_ni);
             }
@@ -175,7 +164,6 @@ pub(super) fn process_emphasis(
         };
         let (opener_ni, opener_count) = (opener_entry.node_index, opener_entry.count);
 
-        // Already validated above.
         let use_count =
             match_use_count_md(opener_count, closer_count, closer_ch, ext, markdown).unwrap_or(1);
 
@@ -206,7 +194,6 @@ pub(super) fn process_emphasis(
             e.count = new_opener_count;
         }
 
-        // The list entry following the closer: the resume point when both runs are spent.
         let after_closer = delims.get(cur).and_then(|e| e.next);
 
         // Delimiters between opener and closer were folded into the wrap and can never match again.
@@ -233,7 +220,6 @@ pub(super) fn process_emphasis(
             }
         }
 
-        // Resume at the surviving opener if any, else the surviving closer, else past the closer.
         current = if !opener_empty {
             Some(opener_di)
         } else if !closer_empty {
@@ -243,7 +229,6 @@ pub(super) fn process_emphasis(
         };
     }
 
-    // Any delimiter still on the active list never matched: it reverts to literal text.
     let mut leftover = head;
     while let Some(i) = leftover {
         let Some(entry) = delims.get(i) else {
@@ -321,10 +306,8 @@ pub(super) fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: boo
             }),
             content,
         );
-        // After the drain, the closer sits directly after the opener.
         let closer_ni = opener_ni + 1;
         nodes.insert(closer_ni, Node::Inline(span));
-        // The closer has shifted one further along by the insert.
         let closer_ni = opener_ni + 2;
 
         consume_mark_side(nodes, closer_ni);
@@ -334,7 +317,6 @@ pub(super) fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: boo
         current = opener_ni;
     }
 
-    // Any `=` delimiter that never formed a span reverts to literal text.
     for i in 0..nodes.len() {
         if matches!(nodes.get(i), Some(Node::Delimiter(d)) if d.ch == b'=') {
             convert_delimiter_to_text(nodes, i);
@@ -532,7 +514,7 @@ fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
 }
 
 /// The literal text an unmatched delimiter run reverts to. An unmatched smart quote becomes a curly
-/// quote: a single quote closes (`’`) and a double quote opens (`“`); every other delimiter is its
+/// quote: a single quote closes (U+2019) and a double quote opens (U+201C); every other delimiter is its
 /// own character repeated.
 pub(super) fn delimiter_literal(ch: u8, count: usize) -> String {
     match ch {

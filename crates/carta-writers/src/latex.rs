@@ -1,12 +1,4 @@
-//! LaTeX writer: renders the document model to a LaTeX document fragment.
-//!
-//! Output is a body fragment (no preamble or `\begin{document}`) wrapped at a fill column of 72;
-//! the wrap counts the literal LaTeX, markup included. Document metadata is not emitted. When a
-//! highlighter is supplied, a classified code block is colorized into a `Shaded`/`Highlighting`
-//! environment with per-token style macros; otherwise a code block renders as a `verbatim`
-//! environment, or a `lstlisting` one under idiomatic presentation. Inline code is always
-//! `\texttt{…}`. The result carries no trailing newline; the
-//! caller appends one. This format has no public specification.
+//! Render a LaTeX document fragment without a trailing newline.
 
 use std::fmt::Write as _;
 
@@ -662,7 +654,6 @@ fn line_block(
             out.push_str(&rendered);
             only_empty_so_far = false;
         } else if is_last {
-            // The break ending the previous line already stands in for this one.
         } else if only_empty_so_far {
             out.push_str("\\hfill\\break");
             breaks = false;

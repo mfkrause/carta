@@ -1,21 +1,4 @@
-//! Reader for the EPUB e-book package.
-//!
-//! An EPUB file is a ZIP archive of XML parts. Reading it proceeds in four stages. First the archive
-//! is unpacked into its named entries. Second `META-INF/container.xml` is parsed to locate the
-//! package document (the OPF), whose `<metadata>`, `<manifest>`, and `<spine>` describe the
-//! publication: its Dublin Core metadata, the map from item id to file, and the reading order.
-//! Third each spine document is decoded as XHTML through the HTML reader, giving one block sequence
-//! per file. Fourth those sequences are stitched into a single body: every element identifier is
-//! namespaced with its source file so identifiers stay unique across files, an anchor precedes each
-//! file so cross-file links can target it, intra-publication fragment links are rewritten to those
-//! anchors, and referenced images are resolved against the archive and carried out of band in a
-//! media bag.
-//!
-//! Structural role attributes (`epub:type`) reshape the block model as the content is stitched. A
-//! `<section>`/`<aside>` marked as a chapter or subchapter is flattened, its content promoted in
-//! place; a title, half-title, or contents page is dropped from the flow; a footnote or rearnote is
-//! lifted to an inline note at the reference pointing to it, its container removed; and any other
-//! role becomes a class on the container it annotates.
+//! Read EPUB packages, combining chapter content and embedded resources.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -398,17 +381,9 @@ fn nav_type_is_toc(tag: &str) -> bool {
         .is_some_and(|(value, _)| value == NAV_DROP_ROLE)
 }
 
-/// Rewrites a decoded document's blocks: flattens or drops role-tagged containers, folds remaining
-/// role attributes into classes, inlines note references, and namespaces every identifier.
+/// Transform decoded EPUB content, resolving notes and namespacing identifiers.
 ///
-/// `resolve` gates note-reference resolution. At the document level it is set, so a reference
-/// becomes an [`Inline::Note`] carrying its target's content. That content is transformed with
-/// `resolve` cleared, so a reference nested inside a note body is not expanded a second time:
-/// resolution is single-pass, and a nested reference degrades to a `noteref` raw inline. Clearing
-/// the flag inside a note body also makes a reference cycle terminate instead of recursing forever.
-/// The state threaded through the block and inline transform: the current file's basename for
-/// namespacing identifiers, the same-file notes collected from the flow, and whether a note
-/// reference resolves to its target's content at this depth.
+/// Clear `resolve` inside note bodies: nested references remain raw and cycles terminate.
 #[derive(Clone, Copy)]
 struct TransformCtx<'a> {
     basename: &'a str,
@@ -582,7 +557,6 @@ fn transform_inline(inline: Inline, ctx: TransformCtx) -> Inline {
             }
             Inline::Cite(citations, transform_inlines(children, ctx))
         }
-        // A note body already sits one resolution deep, so a reference within it is not expanded.
         Inline::Note(blocks) => Inline::Note(transform_blocks(blocks, ctx.with_resolve(false))),
         other @ (Inline::Str(_)
         | Inline::Space
@@ -725,8 +699,7 @@ fn rewrite_links(blocks: &mut [Block], basename: &str, doc_dir: &str, known: &BT
         if url.is_empty() || has_scheme(url) {
             return;
         }
-        // Whole-file references resolve to the file's leading anchor; fragments append the
-        // namespaced identifier.
+        // Whole-file links use the file anchor; fragments use namespaced identifiers.
         let (path, fragment) = match url.split_once('#') {
             Some((path, fragment)) => (path, Some(fragment)),
             None => (url, None),

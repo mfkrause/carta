@@ -1,9 +1,6 @@
-//! Attribute blocks: `{#id .class key=value key="quoted value"}`.
+//! Parse attribute blocks such as `{#id .class key="value"}`.
 //!
-//! Shared by the header, fenced-code, inline-code, link, and span attribute extensions. A token is an
-//! identifier (`#…`), a class (`.…`), or a `key=value` pair; any other bare word makes the whole block
-//! invalid, in which case the surrounding `{…}` stays literal text. A later `#id` overrides an earlier
-//! one; classes and key/value pairs accumulate in source order.
+//! Bare words invalidate the block. Later identifiers replace earlier ones; other attributes accumulate.
 
 use carta_ast::Attr;
 
@@ -248,8 +245,7 @@ mod tests {
 
     #[test]
     fn empty_identifier_token_is_invalid() {
-        // A `#` with no following token is not a valid identifier, so the whole block fails to
-        // parse, even when a later token would be well-formed.
+        // A bare `#` invalidates the whole attribute block.
         assert!(parse_attributes("{#}").is_none());
         assert!(parse_attributes("{# #b}").is_none());
         assert!(parse_attributes("{#a #}").is_none());

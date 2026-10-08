@@ -1,18 +1,8 @@
-//! A ceiling on how far a writer may amplify the document it renders.
+//! Output limits that prevent nested constructs from exhausting memory.
 //!
-//! Some formats emit already-rendered content more than once: a `longtable` head repeats so it can
-//! be reprinted after a page break, a grid table pads every cell in a column out to the widest one.
-//! Nesting such a construct inside itself multiplies the output at every level, so a few kilobytes
-//! of input can render to gigabytes.
-//!
-//! [`scope`] installs a ceiling proportional to the document's own size for the duration of one
-//! write. A writer whose output can grow faster than its input calls [`charge`] with what it has
-//! rendered and stops early once [`exhausted`] reports the ceiling is passed; the write then fails
-//! with [`Error::OutputTooLarge`] instead of exhausting memory.
-//!
-//! A construct that multiplies its own content must consult [`exhausted`] *after* rendering that
-//! content as well as before: nested constructs charge as the recursion unwinds, so checking only
-//! on the way in still lets every enclosing level multiply what it already holds.
+//! [`scope`] sets a document-sized ceiling. Writers call [`charge`] and check [`exhausted`].
+//! Check before and after rendering content that multiplies: nested rendering can exhaust the limit.
+//! Exceeding the ceiling returns [`Error::OutputTooLarge`].
 
 use std::cell::Cell;
 
@@ -47,14 +37,12 @@ impl Drop for Active {
     }
 }
 
-/// Runs `work` under a ceiling derived from `document`, failing with [`Error::OutputTooLarge`] when
-/// the writers charging against it render past that ceiling.
+/// Run `work` under an output ceiling derived from `document`.
 ///
-/// Reentrant: a writer that delegates to another format's writer shares the outermost ceiling
-/// rather than granting itself a fresh one.
+/// Nested writers share the outer ceiling.
 ///
 /// # Errors
-/// Propagates any error from `work`, or [`Error::OutputTooLarge`] when the ceiling is passed.
+/// Propagates errors from `work`, or [`Error::OutputTooLarge`] when the ceiling is exceeded.
 pub fn scope<T>(document: &Document, work: impl FnOnce() -> Result<T>) -> Result<T> {
     if STATE.get().is_some() {
         return work();

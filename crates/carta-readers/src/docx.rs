@@ -1,20 +1,4 @@
-//! Reader for `WordprocessingML` (`.docx`), the zipped-XML word-processor package.
-//!
-//! A `.docx` file is a ZIP archive of XML parts. The main story lives in `word/document.xml`; it
-//! references companion parts by relationship id (`word/_rels/document.xml.rels`) and by convention:
-//! `word/styles.xml` names the paragraph and character styles, `word/numbering.xml` defines list
-//! marker shapes, and `word/footnotes.xml` / `word/endnotes.xml` hold note bodies. Embedded images
-//! live under `word/media/` and are carried into the media bag.
-//!
-//! Each `w:p` becomes a block whose kind is decided by its style name: a `heading N` style is a
-//! section heading, `Quote` a block quote, `Source Code` a code block, and
-//! `Title`/`Author`/`Date`/`Abstract` document metadata, while a
-//! paragraph carrying list numbering (`w:numPr`) joins a reconstructed list and everything else is a
-//! plain paragraph. Runs (`w:r`) contribute inline content, with each run's properties toggling the
-//! emphasis, strong, underline, strike, superscript, subscript, and small-caps wrappers nested in a
-//! fixed order. Tables, drawings (images), hyperlinks, note references, and inline `m:oMath` (mapped
-//! to TeX) are handled in place. Paragraph text is normalized like prose: whitespace runs collapse to
-//! a single space and the leading and trailing edges are trimmed.
+//! Read `WordprocessingML` ZIP packages, including styles, lists, notes, math, and images.
 
 use std::collections::BTreeMap;
 
@@ -89,7 +73,7 @@ fn convert_on_owned_stack(
 /// application stack.
 const MAX_XML_DEPTH: usize = 3072;
 
-// --- Style, numbering, relationship, and note tables ---
+// Style, numbering, relationship, and note tables
 
 /// Run-level character formatting accumulated from direct run properties and any referenced
 /// character style.
@@ -192,7 +176,7 @@ struct Rel {
     external: bool,
 }
 
-// --- Converter ---
+// Converter
 
 /// Which slug algorithm and disambiguation a heading identifier uses.
 #[derive(Clone, Copy)]

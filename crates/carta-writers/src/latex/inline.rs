@@ -253,8 +253,7 @@ fn push_link(
             phantom_label(&attr.id)
         }));
     }
-    // A `#` fragment is a cross-reference resolved through `\hyperref`, not `\href`, and is not
-    // boxed inside underline/strikeout; only external links are.
+    // Fragments use `\hyperref`; only external links need boxes inside `soul` commands.
     if let Some(reference) = target.url.strip_prefix('#') {
         out.push(Piece::text(format!(
             "\\hyperref[{}]{{",
@@ -277,7 +276,6 @@ fn push_link(
         out.push(Piece::text(format!("{box_open}\\url{{{url}}}{box_close}")));
         return;
     }
-    // A mailto link whose text is the bare address renders the address verbatim, unstyled.
     if let [Inline::Str(text)] = inlines
         && let Some(address) = target.url.strip_prefix("mailto:")
         && text == address
@@ -297,7 +295,6 @@ fn push_link(
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
     let svg = is_svg(&target.url);
-    // The SVG include command has no alt key; other images emit it whenever a description is present.
     let alt_option = if svg || inlines.is_empty() {
         String::new()
     } else {

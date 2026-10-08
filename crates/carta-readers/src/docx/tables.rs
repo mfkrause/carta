@@ -23,8 +23,7 @@ pub(super) struct RowRaw {
 
 /// Resolves vertical merges into row spans and drops the continuation cells they absorb.
 pub(super) fn build_rows(rows: Vec<RowRaw>) -> Vec<Row> {
-    // First pass resolves each cell's span from the light merge markers (`None` marks a dropped
-    // continuation); the second can then move the heavy cell content instead of cloning it.
+    // Resolve merge positions first so the second pass can move cell content without cloning.
     let spans: Vec<Vec<Option<i32>>> = rows
         .iter()
         .enumerate()

@@ -165,7 +165,7 @@ impl BlockParser<'_> {
         blocks
     }
 
-    // --- block-start predicates -------------------------------------------
+    // block-start predicates
 
     fn macro_here(&self) -> Option<MacroKind> {
         let p = self.pos;
@@ -244,7 +244,7 @@ impl BlockParser<'_> {
             || self.list_here()
     }
 
-    // --- simple blocks -----------------------------------------------------
+    // simple blocks
 
     fn try_heading(&mut self) -> Option<Block> {
         let level = self.heading_here()?;
@@ -284,8 +284,7 @@ impl BlockParser<'_> {
 
     fn parse_paragraph(&mut self) -> Block {
         let para_start = self.pos;
-        // The first line always joins (guarantees progress); continuation lines join across the
-        // newline, which the inline layer renders as a break absorbing surrounding whitespace.
+        // Always consume the first line for progress; inline parsing normalizes continuation breaks.
         let mut content_end = self.line_end();
         self.advance_line();
         loop {
@@ -382,7 +381,7 @@ impl BlockParser<'_> {
         Some(Block::Div(Box::new(attr), inner))
     }
 
-    // --- tables ------------------------------------------------------------
+    // tables
 
     fn parse_table(&mut self) -> Block {
         let mut rows: Vec<Vec<(bool, String)>> = Vec::new();
@@ -443,7 +442,7 @@ impl BlockParser<'_> {
         Block::Table(Box::new(table))
     }
 
-    // --- lists -------------------------------------------------------------
+    // lists
 
     fn parse_list_group(&mut self, out: &mut Vec<Block>) {
         let mut items: Vec<ListItem> = Vec::new();
@@ -485,7 +484,7 @@ impl BlockParser<'_> {
         build_lists(&items, 1, out);
     }
 
-    // --- brace macros ------------------------------------------------------
+    // brace macros
 
     fn try_macro(&mut self) -> Option<Vec<Block>> {
         let kind = self.macro_here()?;

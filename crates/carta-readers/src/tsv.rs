@@ -1,7 +1,4 @@
-//! Tab-separated value reader.
-//!
-//! Shares the table assembly and field tokenizer of the comma-separated reader but splits records
-//! on tabs with no quoting: every character is literal and a line break always ends a record.
+//! Read tab-separated values into tables.
 
 use carta_ast::Document;
 use carta_core::{Reader, ReaderOptions, Result};

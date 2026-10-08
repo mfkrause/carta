@@ -1,7 +1,4 @@
-//! Facade integration tests: the high-level `convert_text` and `convert` entry points and format-name resolution. These
-//! run fully offline: outputs are the writers' own deterministic text. The error-classification cases
-//! are feature-gated so they assert the right branch under both `--all-features` and a minimal
-//! `--no-default-features --features read-commonmark,write-html` build.
+//! Offline conversion and format-resolution tests across feature sets.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -57,7 +54,6 @@ fn commonmark_to_html() {
         &WriterOptions::default(),
     )
     .unwrap();
-    // `convert_text` returns no trailing newline.
     assert_eq!(output, "<h1>Hi</h1>");
 }
 
@@ -110,7 +106,6 @@ fn number_sections_with_standalone_toc_numbers_body_and_toc_exactly_once() {
             && output.contains(r#"<span class="toc-section-number">1.1</span>"#),
         "contents entries not numbered: {output}"
     );
-    // Each numbering span appears exactly once per heading: no doubling, no body/contents leakage.
     assert_eq!(
         output.matches(r#"class="header-section-number""#).count(),
         2,

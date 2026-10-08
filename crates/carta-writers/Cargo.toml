@@ -57,8 +57,7 @@ slides = []
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
 carta-highlight = { workspace = true, optional = true }
-# Grows the stack on demand while serializing, so a deeply nested block or inline tree cannot exhaust
-# the thread's stack during the writer's per-level recursion.
+# Grow the stack during serialization to support deeply nested trees.
 stacker = { workspace = true }
 
 [build-dependencies]

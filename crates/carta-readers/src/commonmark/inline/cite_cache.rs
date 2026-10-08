@@ -1,11 +1,4 @@
-//! Memo of resolved bracketed citations, shared by every inline parse over one text buffer.
-//!
-//! Resolving `[ ... @key ... ]` parses its entries' prefixes and suffixes as fresh inline runs,
-//! and those runs cover source the enclosing scan already walked, so every enclosing bracket that
-//! resolves re-reads everything beneath it. The memo records each bracket's finished resolution
-//! the first time it is computed; a later parse over the same span replays the recorded result
-//! instead of recomputing it, so nesting citations costs work linear in the recorded results
-//! rather than doubling per level.
+//! Cache bracketed citations across inline parses over the same text buffer.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;

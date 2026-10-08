@@ -1,9 +1,4 @@
-//! Recursive-descent JSON reader for [`Document`]: parses interchange bytes straight into the model.
-//!
-//! Errors are reported as [`serde_json::Error`] values built through [`serde::de::Error::custom`],
-//! so the public entry points keep their signatures. Recursion grows the stack on demand, so nesting
-//! is bounded only by the input's own length. Payload strings borrow the input when they carry no escapes, copying once
-//! into their inline storage; only escaped strings take the decoding path.
+//! JSON decoding for [`Document`], with stack growth for nested values.
 
 use std::fmt::Display;
 
@@ -27,7 +22,7 @@ enum Content {
 }
 
 pub(super) fn from_json_bytes(bytes: &[u8]) -> Parsed<Document> {
-    // validate UTF-8 once; later slices come from `text` unchecked (boundaries fall on ASCII delimiters)
+    // Validate UTF-8 once; ASCII delimiters keep later slice boundaries valid.
     let text = std::str::from_utf8(bytes)
         .map_err(|error| serde_json::Error::custom(format_args!("invalid UTF-8: {error}")))?;
     let mut reader = Reader {
@@ -180,8 +175,7 @@ impl Reader<'_> {
         &mut self,
         dispatch: impl Fn(&mut Self, &str, Content) -> Parsed<T>,
     ) -> Parsed<T> {
-        // Every nested value is reached through a tagged object, so growing the stack here lets a
-        // document nest as deeply as its own length allows.
+        // Grow the stack at each tagged value to allow nesting up to the input length.
         stacker::maybe_grow(STACK_RESERVE, STACK_SEGMENT, || self.tagged_value(dispatch))
     }
 
@@ -376,7 +370,7 @@ impl Reader<'_> {
     fn parse_text(&mut self) -> Parsed<Text> {
         self.expect(b'"', "'\"'")?;
         let start = self.pos;
-        // payload strings are typically a few clean bytes: scalar scan beats vectorized setup
+        // Short payload strings cost less to scan without vector setup.
         loop {
             let byte = *self
                 .input

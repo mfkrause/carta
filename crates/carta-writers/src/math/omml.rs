@@ -1,16 +1,7 @@
-//! Office Math Markup (OMML) backend: lowers the shared math parse tree ([`super::parse`]) to the
-//! `m:`-namespaced math grammar used by the OOXML word-processing format.
+//! Render parsed math as Office Math Markup.
 //!
-//! The tree is the same one the other backends consume; here it is walked into an element tree and
-//! serialized. Every construct the tree can carry is either rendered to its OMML shape or, when it
-//! has no faithful single-line-of-source OMML form yet, reported as unconvertible by returning
-//! `None` so the caller can emit the verbatim source instead. The walk is panic-free and bounded
-//! against pathological nesting by an explicit depth limit.
-//!
-//! Word sets math italics automatically: a run with no style property renders latin letters and
-//! lowercase Greek in italic and everything else upright. A glyph that must defy that default
-//! carries an explicit style property: `<m:sty m:val="p"/>` forces upright, and a styled-alphabet
-//! wrapper (`\mathbb`, `\mathbf`, …) spells out its bold/italic and script variant on every run.
+//! Unsupported content returns `None` for verbatim fallback. Nesting is bounded.
+//! Word supplies default math italics; explicit run styles override them.
 
 use super::inlines::NegatedBase;
 use super::parse::{
@@ -317,8 +308,7 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
     let mut fences: Vec<FenceFrame<'_>> = Vec::new();
     let mut index = 0;
     while let Some(atom) = atoms.get(index) {
-        // A scriptless sized delimiter opens or seals a fence; an unmatched closer or non-pairing
-        // delimiter falls through to plain text.
+        // Only paired scriptless sized delimiters form fences; others remain plain text.
         if let Body::Big(_, inner) = &atom.body
             && atom.sub.is_none()
             && atom.sup.is_none()
@@ -375,8 +365,7 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
 fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
     let mut base = nucleus(&atom.body, style, depth)?;
     let mut runs = atom.script_runs();
-    // In display mode a limit-stacking operator (`\lim`, `\bigcup`, …) sets its scripts beneath
-    // and above rather than to its sides.
+    // Display limit operators place scripts above and below the base.
     if display
         && atom.siblings.is_empty()
         && stacks_display_limits(&atom.body)
@@ -397,8 +386,7 @@ fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<
     if runs.is_empty() {
         return Some(base);
     }
-    // Each run packs onto the accumulating base (paired/sealed) or restarts on a fresh empty base
-    // (flat-chain sibling), emitted as a following sibling element.
+    // Sealed script runs nest on the base; flat sibling runs start on an empty base.
     let mut out = Vec::new();
     let mut current = base;
     for script_run in &runs {
@@ -505,7 +493,6 @@ fn nucleus(body: &Body, style: Style, depth: usize) -> Option<Vec<Element>> {
             style,
             depth,
         )?]),
-        // A `\middle` divider is only meaningful inside a `\left … \right` fence, handled there.
         Body::Middle(_, _) => None,
     }
 }
@@ -756,7 +743,7 @@ fn is_limit_function(body: &Body) -> bool {
 /// Whether an operator stacks its scripts as limits beneath and above it in display mode: a named
 /// limit operator (`\lim`, `\max`, …) or one of the large set/logic operators that set their bounds
 /// over and under the glyph. The large product-style operators (`\bigoplus`, `\bigotimes`, …) keep
-/// their scripts to the side instead and are deliberately excluded.
+/// their scripts to the side instead and are excluded.
 fn stacks_display_limits(body: &Body) -> bool {
     if is_limit_function(body) {
         return true;

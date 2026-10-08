@@ -1,9 +1,5 @@
 ---
-/**
- * The row under a page title that hands the page to an agent: copy it as Markdown, read the
- * Markdown directly, or open it in an assistant. Every docs page has a `.md` twin (see
- * `src/pages/[...slug].md.ts`); these are the routes to it.
- */
+/** Links each docs page to its Markdown copy and assistant actions. */
 const site = Astro.site ?? new URL('https://carta.rs');
 const markdownPath = `${Astro.url.pathname.replace(/\/$/, '')}.md`;
 const markdownUrl = new URL(markdownPath, site).href;
@@ -143,7 +139,6 @@ const openIn = [
     color: var(--sl-color-white);
   }
 
-  /* Announced to screen readers; the icon swap carries it visually. */
   .announce {
     position: absolute;
     width: 1px;

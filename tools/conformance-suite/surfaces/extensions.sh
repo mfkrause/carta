@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Extensions surface: fail when a reader-honored extension has no corpus/text-ext/<spec>/ case diffing
-# it against the oracle. Pure structural check: no oracle, jq, or built binary needed.
+# Check that reader extensions have text-ext cases; no binary or oracle is needed.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
@@ -8,15 +7,13 @@ EXTENSIONS_RS="$ROOT/crates/carta-core/src/extensions.rs"
 READER_SRC="$ROOT/crates/carta-readers/src"
 TEXT_EXT="$CORPUS/text-ext"
 
-# Variant -> token rows from the define_extensions! table; plain lines, not an associative array,
-# for the bash 3.2 that macOS ships.
+# Use plain variant/token rows for compatibility with macOS bash 3.2.
 TOKEN_ROWS="$(sed -nE 's/^[[:space:]]+([A-Z][A-Za-z]+)[[:space:]]*=>[[:space:]]*"([a-z_]+)".*/\1 \2/p' "$EXTENSIONS_RS")"
 
 token_for_variant() {
   printf '%s\n' "$TOKEN_ROWS" | awk -v variant="$1" '$1 == variant { print $2; exit }'
 }
 
-# Tokens exercised by existing text-ext spec dirs (split on +/-, drop the base-format segment).
 covered="$(
   for spec_dir in "$TEXT_EXT"/*/; do
     [ -d "$spec_dir" ] || continue

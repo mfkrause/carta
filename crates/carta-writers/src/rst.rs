@@ -1,10 +1,4 @@
-//! reStructuredText writer: renders the document model to RST source text.
-//!
-//! Block structure is conveyed through directives and a three-space indent; inline emphasis maps to
-//! `*`/`**`, inline code to double backticks, and roles such as `:sup:` and `:math:`. Footnotes and
-//! image substitutions are collected while rendering and emitted as definition sections after the
-//! body. Output carries no trailing newline; the caller appends one. Content is wrapped at a fill
-//! column of 72.
+//! Render the document model as reStructuredText.
 
 use carta_ast::{Block, Document, Inline, MetaValue, single_block_inlines};
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};

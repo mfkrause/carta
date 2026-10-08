@@ -1,20 +1,4 @@
-//! Presentation MathML → TeX rendering, shared by every reader that carries an embedded `<math>`
-//! tree.
-//!
-//! The element tree is walked into a TeX string: token elements (`<mi>`, `<mn>`, `<mo>`) map to
-//! their literal or symbolic form, and layout elements (`<msup>`, `<mfrac>`, `<msqrt>`, …) wrap their
-//! rendered children in the matching TeX construct. An operator that reads as a binary or relation
-//! symbol is spaced from its neighbors; large operators, punctuation, and fences sit tight. A
-//! `mathvariant` selects the face a token is set in and passes down to the tokens a construct holds.
-//!
-//! Delimiters are assembled across a row rather than emitted where they stand: an opening bracket
-//! takes everything up to its match as the content of a `\left`…`\right` pair, a closing bracket
-//! with nothing open takes what precedes it, and a dividing or infix symbol stretches its pair over
-//! the whole row. A pair that holds a single token and needs no stretching is written without the
-//! `\left`…`\right` machinery.
-//!
-//! The walk is written against [`MathTree`], a minimal read-only view of an element, so the same
-//! renderer serves the different element trees the container readers build.
+//! Render presentation MathML as TeX for embedded math content.
 
 mod symbols;
 
@@ -268,8 +252,7 @@ impl Tokens {
     }
 
     fn needs_separator(&self, next: &str) -> bool {
-        // Only a character TeX reads as part of a control sequence, rather than as the punctuation or
-        // backslash that ends one, has to be held off.
+        // Separate only letters that could extend a TeX control sequence.
         let absorbed = next.starts_with(|c: char| !c.is_ascii() || c.is_ascii_alphanumeric());
         if !absorbed || self.out.ends_with(' ') {
             return false;
@@ -360,11 +343,8 @@ fn flatten(pieces: &[Piece], tokens: &mut Tokens) {
 /// that is the content of an open delimiter, and so ends at the first delimiter that closes it.
 fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclosed: bool) -> Level {
     let mut pieces: Vec<Piece> = Vec::new();
-    // where the last completed group left off, so a later closing delimiter takes only what follows
     let mut barrier = 0;
-    // whether a dividing or infix symbol has claimed the run of pieces since the last group
     let mut spanning = false;
-    // whether such a symbol found anything in that run to divide
     let mut spans = false;
     let mut index = start;
     while index < elements.len() {
@@ -499,7 +479,6 @@ fn render_group(open: Option<Delimiter>, content: &[Piece], close: Option<Delimi
         flatten(content, &mut tokens);
         trim_row(&tokens.out)
     };
-    // Nothing between the delimiters holds no gap of its own.
     let padded = if body.is_empty() {
         String::new()
     } else {
@@ -588,8 +567,7 @@ fn render<T: MathTree>(e: &T, inherited: Context<'_>) -> Piece {
         )),
         "menclose" => Piece::construct(render_menclose(e, ctx)),
         "semantics" => render_semantics(e, ctx),
-        // A style wrapper restyles the row it holds as a whole, rather than each token in it, and one
-        // left with no variant in force restyles it to the plain face.
+        // Style wrappers set the whole row; an absent variant resets it to the plain face.
         "mstyle" => {
             let (selected, command) = selected_face(variant.unwrap_or("normal"));
             let face = (selected != inherited.applied).then_some(command);
@@ -606,7 +584,6 @@ fn render<T: MathTree>(e: &T, inherited: Context<'_>) -> Piece {
                 None => wrap(&e.element_children(), held),
             }
         }
-        // A grouping or presentational wrapper carries no structure of its own: render its content.
         _ => wrap(&e.element_children(), ctx),
     }
 }
@@ -902,7 +879,6 @@ fn render_fenced<T: MathTree>(e: &T, ctx: Context<'_>) -> Piece {
         }
         Fence::None => None,
     };
-    // A pair with nothing between its delimiters still holds a group, empty as it is.
     pieces.push(content.unwrap_or(Piece {
         grouped: true,
         ..Piece::default()

@@ -27,7 +27,6 @@ fn heading_level(blocks: &[IrBlock]) -> Option<i32> {
 
 #[test]
 fn markdown_honors_start_number_when_startnum_enabled() {
-    // The default Markdown preset enables `startnum`, so the list begins at its written number.
     assert!(presets::MARKDOWN.contains(Extension::Startnum));
     let blocks = markdown_with("3. a\n4. b\n", presets::MARKDOWN);
     assert_eq!(ordered_start(&blocks), Some(3));
@@ -47,7 +46,6 @@ fn markdown_forces_start_to_one_when_startnum_disabled() {
 
 #[test]
 fn commonmark_always_honors_start_number() {
-    // CommonMark has no `startnum` extension; the written number is always kept.
     let blocks = strict_with("3. a\n4. b\n", presets::COMMONMARK);
     assert_eq!(ordered_start(&blocks), Some(3));
     let gfm = strict_with("3. a\n4. b\n", presets::GFM);
@@ -56,16 +54,12 @@ fn commonmark_always_honors_start_number() {
 
 #[test]
 fn markdown_setext_underline_needs_a_single_line_paragraph() {
-    // A single line above the underline forms a heading in the markdown dialect.
     let one = markdown_with("one line\n===\n", presets::MARKDOWN);
     assert_eq!(heading_level(&one), Some(1));
-    // Two or more lines: no heading; the `===` line stays in the paragraph.
     let many = markdown_with("line one\nline two\n===\n", presets::MARKDOWN);
     assert!(matches!(many.as_slice(), [IrBlock::Para(text)] if text.contains("===")));
-    // A leading reference definition does not count toward the line budget.
     let refd = markdown_with("[x]: /u\ncontent\n===\n", presets::MARKDOWN);
     assert_eq!(heading_level(&refd), Some(1));
-    // The CommonMark family heads a multi-line paragraph, per its setext rule.
     let cm = strict_with("line one\nline two\n===\n", presets::COMMONMARK);
     assert_eq!(heading_level(&cm), Some(1));
 }
@@ -98,14 +92,12 @@ fn commonmark_reads_seven_hashes_as_a_paragraph() {
 
 #[test]
 fn deep_heading_still_requires_a_space_after_the_hashes() {
-    // Seven hashes glued to content is not a heading in either dialect.
     let blocks = markdown_with("#######nospace\n", presets::MARKDOWN);
     assert!(matches!(blocks.as_slice(), [IrBlock::Para(_)]));
 }
 
 #[test]
 fn classic_dialect_reads_a_hash_run_glued_to_text_as_a_heading() {
-    // With space_in_atx_header off, a hash run needs no following space.
     for input in ["#heading\n", "##heading\n", "###heading\n"] {
         let blocks = markdown_with(input, presets::MARKDOWN_STRICT_READ);
         assert_eq!(
@@ -118,7 +110,6 @@ fn classic_dialect_reads_a_hash_run_glued_to_text_as_a_heading() {
 
 #[test]
 fn classic_dialect_strips_a_glued_closing_hash_run() {
-    // space_in_atx_header off: a trailing hash run terminates even glued; interior hashes stay.
     let cases = [
         ("#foo#\n", "foo"),
         ("#foo ###\n", "foo"),
@@ -135,7 +126,6 @@ fn classic_dialect_strips_a_glued_closing_hash_run() {
 
 #[test]
 fn extended_dialect_requires_a_space_after_the_hash_run() {
-    // space_in_atx_header is on in the extended dialect: a glued run is a paragraph.
     let blocks = markdown_with("#heading\n", presets::MARKDOWN);
     assert!(matches!(blocks.as_slice(), [IrBlock::Para(_)]));
 }
@@ -148,7 +138,6 @@ fn commonmark_requires_a_space_after_the_hash_run() {
 
 #[test]
 fn markdown_rejects_an_indented_atx_heading() {
-    // The Markdown dialect requires the hash run to start at the left margin.
     for input in ["  # h\n", "   ###### h\n", "   ####### h\n"] {
         let blocks = markdown_with(input, presets::MARKDOWN);
         assert!(
@@ -183,7 +172,6 @@ fn list_item_count(blocks: &[IrBlock]) -> usize {
 
 #[test]
 fn markdown_reads_a_multi_letter_roman_list() {
-    // `II.`/`III.` are unambiguously roman: the list is UpperRoman starting at two.
     let blocks = markdown_with("II. two\nIII. three\n", presets::MARKDOWN);
     assert_eq!(
         ordered_attrs(&blocks),
@@ -203,7 +191,6 @@ fn markdown_reads_a_lowercase_roman_paren_list() {
 
 #[test]
 fn markdown_computes_the_start_ordinal_from_the_roman_value() {
-    // `IV` is four; the list begins there.
     let blocks = markdown_with("IV. a\nV. b\n", presets::MARKDOWN);
     assert_eq!(
         ordered_attrs(&blocks),
@@ -213,7 +200,6 @@ fn markdown_computes_the_start_ordinal_from_the_roman_value() {
 
 #[test]
 fn markdown_reads_a_two_place_roman_numeral() {
-    // `XII` is twelve: the tens and ones places combine.
     let blocks = markdown_with("XII. a\nXIII. b\n", presets::MARKDOWN);
     assert_eq!(
         ordered_attrs(&blocks),
@@ -232,7 +218,6 @@ fn markdown_reads_a_thousands_roman_numeral() {
 
 #[test]
 fn markdown_keeps_a_lone_capital_letter_marker_as_a_paragraph() {
-    // One uppercase letter, period, one space is ambiguous with an initial: stays a paragraph.
     let blocks = markdown_with("I. only\n", presets::MARKDOWN);
     assert!(
         matches!(blocks.as_slice(), [IrBlock::Para(_)]),
@@ -242,7 +227,6 @@ fn markdown_keeps_a_lone_capital_letter_marker_as_a_paragraph() {
 
 #[test]
 fn markdown_reads_a_lone_capital_letter_marker_with_two_spaces_as_a_list() {
-    // Two spaces after the marker disambiguate from an initial: `I` opens a roman list at one.
     let blocks = markdown_with("I.  only\n", presets::MARKDOWN);
     assert_eq!(
         ordered_attrs(&blocks),
@@ -275,7 +259,6 @@ fn markdown_reads_a_hash_paren_list() {
 
 #[test]
 fn commonmark_does_not_read_a_hash_marker_as_a_list() {
-    // The fancy hash marker is a Markdown-dialect feature; CommonMark keeps it literal.
     let blocks = strict_with("#. one\n#. two\n", presets::COMMONMARK);
     assert!(
         ordered_attrs(&blocks).is_none(),

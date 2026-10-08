@@ -1,8 +1,6 @@
-//! Regenerates carta's committed documentation artifacts from `docs/status.toml`.
+//! Generate status documentation.
 //!
-//! `--write` refreshes them on disk; `--check` regenerates in memory and fails on the first file
-//! that has drifted. Both modes run the same rendering code, so a passing `--check` means the
-//! committed artifacts are exactly what `--write` would produce.
+//! `--write` updates files; `--check` fails if generated content differs.
 
 mod bench;
 mod cli;

@@ -498,12 +498,10 @@ mod tests {
         assert_eq!(escape_uri("http://e.com/a b"), "http://e.com/a%20b");
         assert_eq!(escape_uri("a^b|c"), "a%5Eb%7Cc");
         assert_eq!(escape_uri("<>[]{}\"`"), "%3C%3E%5B%5D%7B%7D%22%60");
-        // Sub-delims, percent, backslash, tilde and all non-ASCII pass through unchanged.
         assert_eq!(
             escape_uri("a+b@c:d/e#f?g&h%20~café"),
             "a+b@c:d/e#f?g&h%20~café"
         );
-        // Idempotent: a second pass leaves an already-escaped string alone.
         assert_eq!(escape_uri(&escape_uri("a b^c")), escape_uri("a b^c"));
     }
 
@@ -511,10 +509,10 @@ mod tests {
     fn is_uri_requires_scheme_and_valid_charset() {
         assert!(is_uri("https://example.com/path"));
         assert!(is_uri("mailto:user@example.com"));
-        assert!(!is_uri("example.com")); // no scheme
-        assert!(!is_uri("notascheme:value")); // scheme not recognized
-        assert!(!is_uri("http://e.com/a b")); // unescaped space
-        assert!(is_uri("http://e.com/café")); // non-ASCII is permitted
+        assert!(!is_uri("example.com"));
+        assert!(!is_uri("notascheme:value"));
+        assert!(!is_uri("http://e.com/a b"));
+        assert!(is_uri("http://e.com/café"));
     }
 
     #[test]

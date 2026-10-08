@@ -55,11 +55,11 @@ expect_used = "warn"
 panic = "warn"
 indexing_slicing = "warn"
 
-# Optimize dependencies in debug builds so test runs are not dominated by unoptimized deps.
+# Optimize dependencies to reduce test run time.
 [profile.dev.package."*"]
 opt-level = 2
 
-# Kept on in release (off by default there): a silent wrap in offset/count arithmetic is a latent parser bug.
+# Detect overflow in parser offsets and counts in release builds too.
 [profile.release]
 overflow-checks = true
 lto = true

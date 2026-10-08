@@ -1,13 +1,6 @@
-//! Format-name dispatch. Every format is declared once inside a [`format_dispatch!`] block; the
-//! macro expands that single declaration into the views that must agree: the resolver (name/alias →
-//! boxed trait object), the `supported_*` enumerator (canonical names), the `*_format_names`
-//! enumerator (canonical names plus aliases, for introspection), and a `*_recognizes` predicate over
-//! the full name set that separates "disabled" from "unknown". Because the views share one source,
-//! they cannot drift as formats are added.
+//! Resolve format names and aliases through shared format tables.
 //!
-//! Each constructor is `#[cfg]`-gated on its per-direction feature, so only formats compiled into
-//! the build resolve. A recognized name whose feature is off yields [`Error::FormatNotEnabled`]; an
-//! unrecognized name yields [`Error::UnsupportedFormat`].
+//! Disabled formats return [`Error::FormatNotEnabled`]; unknown formats return [`Error::UnsupportedFormat`].
 
 use carta_core::{AnyReader, AnyWriter, Error, Reader, Result, Writer};
 

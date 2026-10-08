@@ -1,14 +1,4 @@
-//! Outline reader: parses a nested outline of `<outline>` elements into the document model.
-//!
-//! Each outline becomes a header whose level is its nesting depth (a top-level outline is level 1,
-//! its child level 2, and so on). The header inlines come from the outline's `text` attribute,
-//! parsed as a fragment of HTML inline markup (so `<strong>`, `<em>`, `<code>`, links, and the like
-//! become their inline constructs); the outline's `_note` attribute is parsed as markdown blocks. An
-//! outline of `type="link"` wraps its heading content in a link to its `url`. The document metadata
-//! is drawn from the document head: `title`, `ownerName` (as the author list), and `dateModified`
-//! (as the date), each taken as plain text.
-//!
-//! XML parsing is permissive: malformed or unbalanced markup is kept where possible.
+//! Read nested `<outline>` elements into the document model.
 
 use std::collections::BTreeMap;
 

@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# Fetch pandoc's TEST CORPUS (data only) into .oracle/tests/ (gitignored, local-only) for
-# differential testing; see AGENTS.md "Testing against pandoc's own tests".
-#
-# Clean-room: this does a SPARSE checkout of only `test/`, at the git tag matching the pinned binary,
-# then DELETES every .hs file, so pandoc's implementation (src/, Haskell test harness) never lands
-# on disk. You may read the resulting `test/` data; you must never read pandoc source.
-#
-# Usage:
-#   tools/fetch-pandoc-tests.sh           # fetch corpus at the pinned pandoc version
-#   tools/fetch-pandoc-tests.sh --update  # re-fetch (e.g. after pinning a new pandoc version)
+# Fetch pinned test data with a sparse test/ checkout; remove Haskell files to exclude source.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,7 +29,6 @@ done
 }
 version="$(cat "$version_file")"
 
-# pandoc release tags are the bare version (e.g. 3.10), matching what install-pandoc.sh pins.
 if [ -d "$dest/.git" ] && [ "$update" -eq 0 ] &&
   [ -f "$tag_file" ] && [ "$(cat "$tag_file")" = "$version" ]; then
   echo "pandoc test corpus for $version already present at $dest"

@@ -1,11 +1,4 @@
-//! The `word/numbering.xml` part and the plan that drives it.
-//!
-//! Every document carries two scaffold definitions: a no-glyph bulleted definition (`990`) whose
-//! concrete instance `1000` numbers the continuation paragraphs of multi-paragraph list items, and,
-//! when a bulleted list appears, the visible bullet definition (`991`). Each ordered list
-//! contributes a definition keyed by its marker style, delimiter and start number, so lists that
-//! share those settings share one definition. Every list *instance* in the body binds to a definition
-//! through its own concrete number, allocated in document order from `1001` upward.
+//! Plan list numbering and render `word/numbering.xml`.
 
 use carta_ast::{ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::container::xml::Element;

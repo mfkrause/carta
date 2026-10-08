@@ -33,7 +33,6 @@ pub(super) fn parse_greater_block(
     ids: &mut IdRegistry,
     meta: &mut BTreeMap<Text, MetaValue>,
 ) -> (Option<Block>, usize) {
-    // `name` came from this open line, so header arguments are whatever follows it there.
     let open_line = lines.get(start).copied().unwrap_or("");
     let header_args = strip_prefix_ci(open_line.trim_start(), "#+begin_")
         .unwrap_or("")

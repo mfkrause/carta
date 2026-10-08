@@ -1,9 +1,4 @@
-//! `carta`: command-line interface.
-//!
-//! Parses `--from`/`--to` and pipes the input through the `carta` library's [`convert`], or, when
-//! a `--list-*`/`-D` flag is given, reports what this build supports. Format selection, aliases, the
-//! recognized-but-unsupported error, and the introspection data all live in the library; this binary
-//! only handles argument parsing, metadata/variable inputs, and stdin/file I/O.
+//! The `carta` command-line interface.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -41,7 +36,7 @@ use resources::{extract_media, resolve_resource, resource_search_path};
     about = "Document converter",
     disable_version_flag = true
 )]
-// One flag per field; a sub-struct would obscure the mapping clap relies on.
+// CLI flags need a direct field mapping for clap.
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Input format, inferred from input filenames when omitted (default: markdown).
@@ -328,8 +323,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     if cli.self_contained {
         eprintln!("carta: --self-contained is deprecated; use --embed-resources --standalone");
     }
-    // Only the HTML family renders `data:`-URI embedding; other targets drop the request
-    // (containers pack their media differently).
+    // Only HTML targets inline data URIs; containers package media separately.
     #[cfg(feature = "write-html")]
     let embed_resources = (cli.embed_resources || cli.self_contained) && to.starts_with("html");
 
@@ -371,8 +365,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     }
     let (mut document, resources) = input::read_documents(from, &cli.input, &reader_options)?;
 
-    // Fold metadata layers before filters so they see what the writer will and can rewrite it;
-    // clearing the layers keeps rendering from resurrecting a filter-deleted `-M` key.
+    // Merge metadata before filters, then clear layers so removed keys stay removed.
     carta::merge_metadata(&mut document, &writer_options);
     writer_options.metadata.clear();
     writer_options.metadata_defaults.clear();
@@ -386,8 +379,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         None => resources,
     };
 
-    // Filters run after extraction (they see rewritten references) and before a container packs
-    // its media (resources a filter introduces are still gathered).
+    // Filters see extracted paths; gather newly introduced resources before packaging.
     filters::run(&mut document, &cli.filter, &to_base, data_dir.as_deref())?;
 
     // Re-levelling comes after the filters so they see the levels the document was read with.
@@ -395,8 +387,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         carta_core::sections::shift_heading_levels(&mut document, by);
     }
 
-    // Containers embed referenced resources, so pull local ones off disk here. Self-contained HTML
-    // instead inlines after rendering, reaching raw-HTML and stylesheet references the tree omits.
+    // Containers gather tree resources; HTML embedding also reads rendered tags and styles.
     if cli.extract_media.is_none() && embeds_resources(to) {
         let search_path = resource_search_path(cli);
         media::embed_referenced_media(&mut document.blocks, &mut resources, |reference| {

@@ -1,10 +1,4 @@
-//! Reader for Jira wiki markup, the line-oriented "text formatting notation" used in Jira
-//! issue fields and comments.
-//!
-//! Blocks are recognised by a line prefix (`hN.`, `bq.`, list markers, table pipes, `----`) or a
-//! paired brace macro (`{code}`, `{noformat}`, `{quote}`, `{panel}`). Inline markup (text effects
-//! with flanking delimiters, links, images, monospaced and coloured spans, anchors, symbols, and
-//! emoticons) is applied to the text of each line; markup does not span a line boundary.
+//! Read Jira wiki markup into the document model.
 
 use carta_ast::Document;
 use carta_core::{Reader, ReaderOptions, Result};

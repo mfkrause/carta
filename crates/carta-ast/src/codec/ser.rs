@@ -1,7 +1,4 @@
-//! Compact JSON writer for [`Document`]: appends the whole tree into one growable [`String`].
-//!
-//! Structural bytes and escape sequences are ASCII, and payload text is copied as whole UTF-8
-//! slices, so the buffer stays valid UTF-8 throughout and never needs a revalidation pass.
+//! Compact JSON encoding for [`Document`].
 
 use crate::ast::{
     Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,

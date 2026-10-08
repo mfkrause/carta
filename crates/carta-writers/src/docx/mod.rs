@@ -1,11 +1,6 @@
-//! The DOCX container writer: it renders a document as an Office Open XML word-processing package,
-//! a ZIP archive of XML parts holding the main document body, its relationships, list numbering,
-//! footnotes, comments, the styling design, and the package metadata.
+//! Render deterministic DOCX packages.
 //!
-//! Output is byte-reproducible: the archive stamps fixed timestamps, property dates come from a
-//! fixed epoch unless one is supplied, and every part is generated deterministically. A reference
-//! document, when given, supplies the styling parts (styles, settings, fonts, theme) so the generated
-//! content adopts its look while the body itself stays carta's.
+//! A supplied reference document replaces styling parts. Property dates use a fixed or supplied epoch.
 
 mod document;
 mod metadata;
@@ -75,7 +70,6 @@ fn write_docx(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
     let docx = &options.docx;
     let epoch = docx.source_date_epoch.unwrap_or(1);
 
-    // A reference document is parsed once; its styling parts stand in for carta's defaults.
     let reference = match docx.reference_doc.as_deref() {
         Some(bytes) => Some(zip::read(bytes)?),
         None => None,

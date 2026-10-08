@@ -1,9 +1,4 @@
-//! Behavioral coverage of the tokenizer against small, purpose-built syntax definitions.
-//!
-//! Each test registers a minimal definition that exercises one rule type or one piece of the context
-//! machinery, then asserts the classified spans a line tokenizes to. Building definitions by hand,
-//! rather than using the bundled catalog, keeps every rule's behavior pinned independently of any
-//! one language's quirks, and reaches the matchers the bundled grammars happen not to use.
+//! Test tokenizer rules with minimal grammars independent of the bundled catalog.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

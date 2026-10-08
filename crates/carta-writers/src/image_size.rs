@@ -281,8 +281,7 @@ mod tests {
     fn jpeg_dpi_scales_centimeter_density_to_inches() {
         // 118 dots per centimeter is 299.72 dpi, resolving to 300.
         let bytes = [
-            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, //
-            b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01, //
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01,
             0x02, // units: dots per centimeter
             0x00, 0x76, 0x00, 0x76, // x, y density 118
             0x00, 0x00,
@@ -294,8 +293,7 @@ mod tests {
     fn jpeg_dpi_without_units_falls_back_to_default() {
         // Units 0 marks the density pair as a bare aspect ratio, carrying no absolute resolution.
         let bytes = [
-            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, //
-            b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01, //
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01,
             0x00, // units: none (aspect ratio only)
             0x00, 0x01, 0x00, 0x01, // x, y density 1
             0x00, 0x00,

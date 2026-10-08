@@ -10,8 +10,7 @@ fn reads_ok(input: &str) -> bool {
 
 #[test]
 fn adversarial_footnotes_under_open_emphasis_do_not_stall() {
-    // Overlapping footnotes and unclosed `//` openers would re-parse regions super-linearly;
-    // the inline backtracking budget bounds it.
+    // Overlapping notes and unclosed delimiters must stay within the scan budget.
     let input = format!("(({}))", "//((x)) ".repeat(400));
     assert!(reads_ok(&input));
 }
@@ -24,8 +23,7 @@ fn adversarially_nested_footnotes_do_not_stall() {
 
 #[test]
 fn a_delimiter_dense_run_does_not_blow_up() {
-    // Unclosed `//` openers with whitespace-led closers would re-scan from every position
-    // (quadratic); the backtracking budget keeps it linear.
+    // Repeated unclosed delimiters must not cause quadratic scans.
     let input = "//a ".repeat(4_000);
     assert!(reads_ok(&input));
 }

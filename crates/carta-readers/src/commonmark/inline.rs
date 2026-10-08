@@ -1,9 +1,4 @@
-//! Inline phase: parse the raw text of leaf blocks into inline nodes.
-//!
-//! Implements the spec's inline algorithm: a left-to-right scan that resolves code spans,
-//! autolinks, raw HTML, entities and escapes immediately, records `*`/`_`/`[`/`![` runs on a
-//! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
-//! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
+//! Parse leaf text into inline nodes, resolving links before emphasis.
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,7 +37,6 @@ pub(super) enum Node {
     Empty,
 }
 
-// The flags are independent properties of a delimiter run, not a state enum.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub(super) struct Delimiter {
@@ -68,7 +62,6 @@ pub(super) struct Delimiter {
     pub(super) cite_count_at_open: i32,
 }
 
-// `notes` (footnote context) and `nodes` (inline list) unavoidably read alike.
 /// Run the gated highlight-mark pass and emphasis resolution over a node list, then collapse it into
 /// inlines, the shared finishing sequence for a parsed inline run, a span body, and a link label.
 fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -> Vec<Inline> {
@@ -379,11 +372,9 @@ pub(super) fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
 /// Split a text run into `Str` tokens separated by `Space` inlines, collapsing each run of
 /// spaces to a single `Space`.
 fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
-    // Boundaries are single ASCII spaces, so byte scanning is exact and each word copies in one
-    // step (one memcpy per word).
+    // ASCII spaces permit byte scanning and one copy per word.
     let bytes = text.as_bytes();
-    // One `Space` per space plus one `Str` per word bounds the additions, so the vector grows once
-    // rather than doubling repeatedly while words are appended.
+    // Reserve once for at most one `Space` per space and one `Str` per word.
     let spaces = memchr::memchr_iter(b' ', bytes).count();
     out.reserve(spaces * 2 + 1);
     let mut i = 0;

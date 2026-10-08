@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Highlight surface: live carta-vs-oracle byte diffs of the highlighting catalog, printed styles,
-# rendered HTML/LaTeX per style (--wrap=none isolates colorized code), and the none/idiomatic modes.
+# Compare catalogs, themes, rendered highlighting, and none/idiomatic modes.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -8,7 +7,6 @@ require_tools
 # built-in styles taken from the oracle so the sweep tracks what it ships
 STYLES=$("$ORACLE" --list-highlight-styles 2>/dev/null)
 
-# multi-grammar document: keywords, comments, strings, numbers, plus a line-numbered block
 DOC="$WORK/.hl.md"
 cat >"$DOC" <<'EOF'
 ```python

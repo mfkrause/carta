@@ -1,27 +1,4 @@
-//! Reader for `OpenDocument` Text (`.odt`), the zipped-XML office document package.
-//!
-//! An `.odt` file is a ZIP archive of XML parts. The prose lives in `content.xml`; shared style
-//! definitions live in `styles.xml`, and embedded images live under `Pictures/` and are carried
-//! into the media bag. Each part is unzipped and parsed into an element tree by a small permissive
-//! XML scan (the format ships no DTD the reader must honor).
-//!
-//! Reading proceeds in two stages. First the style tables are indexed from both parts: character
-//! styles (`style:family="text"`) contribute their own formatting toggles and name, paragraph
-//! styles (`style:family="paragraph"`) contribute a parent link, a left margin, and a name, and list
-//! styles (`text:list-style`) describe marker shapes per nesting level. Then the body is walked once.
-//!
-//! Each paragraph's block kind is decided by resolving its paragraph style through the full parent
-//! chain: a style named `Preformatted Text` anywhere in the chain makes a code block, a resolved left
-//! margin past the quote threshold makes a block quote (except directly inside a list item, where that
-//! margin is the list's own indentation), and everything else is a plain paragraph; consecutive quote
-//! or code paragraphs merge. A heading (`text:h`) becomes a section header whose level is its
-//! outline level and whose identifier is the slug of its text, disambiguated against every identifier
-//! already issued. Character spans toggle the emphasis, strong, strikeout, superscript, and subscript
-//! wrappers (nested in a fixed order) from the directly referenced style's own properties, while a
-//! span named `Source Text` becomes inline code. Lists, tables, hyperlinks, note references, and
-//! framed images are handled in place. Paragraph text collapses each run of ASCII whitespace to a
-//! single space, with a run containing a line ending becoming a soft break; every other space-like
-//! character is content and survives verbatim.
+//! Read `OpenDocument` Text ZIP packages into the document model.
 
 use std::collections::BTreeMap;
 
@@ -359,12 +336,10 @@ impl<'a> Converter<'a> {
         in_list_item: bool,
     ) -> Vec<Block> {
         let mut out = Vec::new();
-        // Consecutive quote/preformatted paragraphs gather into one block; a different kind flushes.
         let mut quote: Vec<Block> = Vec::new();
         let mut code: Vec<String> = Vec::new();
         for element in container.elements() {
-            // Block-anchored drawing shapes are floating layout, not body flow; dropped whole so
-            // the transparent-container fallback below cannot lift their prose.
+            // Drop floating shapes whole so the container fallback cannot extract their text.
             if is_drawing_shape(&element.name) {
                 continue;
             }
@@ -416,13 +391,11 @@ impl<'a> Converter<'a> {
                     flush_quote(&mut out, &mut quote);
                     out.push(self.convert_table(element));
                 }
-                // No rendered content: stray notes, breaks, declarations, forms, change records;
-                // and generated indexes, whose stale cached entries would surface as orphans.
+                // Drop non-rendered markers and generated indexes with stale entries.
                 "soft-page-break" | "sequence-decls" | "forms" | "tracked-changes" | "note"
                 | "table-of-content" | "table-of-contents" | "bibliography"
                 | "alphabetical-index" | "illustration-index" | "table-index" | "object-index"
                 | "user-index" => {}
-                // Transparent containers lift their block children in place, dropping nothing.
                 _ => {
                     flush_code(&mut out, &mut code);
                     flush_quote(&mut out, &mut quote);
@@ -500,8 +473,7 @@ impl<'a> Converter<'a> {
         depth: i32,
         style_name: Option<&str>,
     ) -> Vec<Block> {
-        // Like body content, but a left margin is list indentation, not a quote; a nested list
-        // starts one level deeper inheriting this list's style.
+        // List margins are indentation; nested lists inherit the style at the next level.
         compact(self.convert_blocks(item, depth + 1, style_name, true))
     }
 
@@ -529,13 +501,11 @@ impl<'a> Converter<'a> {
                 _ => {}
             }
         }
-        // Width comes from the widest real row, not the declared columns: a repeat count can be
-        // arbitrarily large, and the ceiling keeps it from exhausting memory.
+        // Bound widths by real rows because declared repeat counts can exhaust memory.
         let columns = row_width(&header_rows)
             .max(row_width(&body_rows))
             .min(MAX_TABLE_COLUMNS);
-        // Short rows are squared off with empty trailing cells; columns covered by an overhanging
-        // row span are not filled, so a merged cell leaves no spurious placeholder.
+        // Fill short rows except where carried row spans already cover columns.
         square_rows(&mut header_rows, columns);
         square_rows(&mut body_rows, columns);
         let col_specs = (0..columns)
@@ -571,7 +541,6 @@ impl<'a> Converter<'a> {
     fn convert_row(&mut self, row: &Element) -> Row {
         let mut cells = Vec::new();
         for child in row.elements() {
-            // A covered cell is the shadow of a neighbor's span and carries no content of its own.
             if local_name(&child.name) != "table-cell" {
                 continue;
             }
@@ -632,12 +601,10 @@ impl<'a> Converter<'a> {
             "bookmark" | "bookmark-start" => self.push_bookmark(element, out),
             "reference-mark-start" => self.push_reference_mark(element, out),
             "bookmark-ref" | "reference-ref" => self.convert_cross_reference(element, out),
-            // Metadata markers with no rendered content.
             "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
             | "reference-mark" | "reference-mark-end" | "soft-page-break" => {}
             "note" => out.push(self.convert_note(element)),
             "frame" => self.convert_frame(element, out),
-            // Unrecognized inline wrappers contribute their display text, so wrapped words survive.
             _ => {
                 let inner = self.convert_inlines(&element.children);
                 out.extend(inner);
@@ -733,7 +700,7 @@ impl<'a> Converter<'a> {
         ));
     }
 
-    /// A note reference becomes a `Note` carrying its body's blocks. A note that supplies only a
+    /// A note reference becomes a `Note` carrying its body's blocks. A body supplying only a
     /// citation and no body is kept as an empty note, so its anchor point still separates the text
     /// around it rather than the whole note vanishing.
     fn convert_note(&mut self, element: &Element) -> Inline {
@@ -751,7 +718,6 @@ impl<'a> Converter<'a> {
             out.push(Inline::Math(MathType::DisplayMath, tex.into()));
             return;
         }
-        // A directly wrapped image: title from `svg:title`, no alternate text.
         if element.child("image").is_some() {
             let title = element
                 .child("title")
@@ -769,7 +735,6 @@ impl<'a> Converter<'a> {
         {
             out.push(image);
         }
-        // Other embedded objects have no inline equivalent and degrade to nothing.
     }
 
     /// The inline image an image frame denotes: the referenced media is carried into the media bag,

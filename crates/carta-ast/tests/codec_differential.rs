@@ -1,7 +1,4 @@
-//! Differential coverage for the hand-written JSON codec: it must serialize byte-for-byte like the
-//! derived serde path and accept exactly the same inputs. Every check runs the hand-written codec
-//! alongside `serde_json` over the shared AST corpus and a battery of adversarial documents and
-//! inputs, so any divergence in bytes or acceptance fails a test.
+//! Compare JSON codec bytes and accepted inputs with the derived Serde codecs.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -470,12 +467,10 @@ fn nested_emph(depth: usize) -> String {
 fn adversarial_inputs_accept_identically() {
     let inline = |body: &str| document_with_inline(body);
     let cases: Vec<(String, String)> = vec![
-        // Whitespace handling.
         ("leading_ws".into(), "   {\"pandoc-api-version\":[1],\"blocks\":[]}".into()),
         ("trailing_ws".into(), "{\"pandoc-api-version\":[1],\"blocks\":[]}   \n".into()),
         ("inner_ws".into(), "{ \"pandoc-api-version\" : [ 1 , 2 ] , \"blocks\" : [ ] }".into()),
         ("trailing_junk".into(), "{\"pandoc-api-version\":[1],\"blocks\":[]}x".into()),
-        // Document shape.
         ("meta_absent".into(), r#"{"pandoc-api-version":[1],"blocks":[]}"#.into()),
         ("meta_before_version".into(), r#"{"meta":{},"pandoc-api-version":[1],"blocks":[]}"#.into()),
         ("no_version".into(), r#"{"meta":{},"blocks":[]}"#.into()),
@@ -487,7 +482,6 @@ fn adversarial_inputs_accept_identically() {
         ("empty_object".into(), "{}".into()),
         ("empty_input".into(), String::new()),
         ("just_ws".into(), "   ".into()),
-        // Tagged-enum ordering and content presence.
         ("tag_only".into(), inline(r#"{"t":"Space"}"#)),
         ("tag_null".into(), inline(r#"{"t":"Space","c":null}"#)),
         ("unit_with_content".into(), inline(r#"{"t":"Space","c":5}"#)),
@@ -501,7 +495,6 @@ fn adversarial_inputs_accept_identically() {
         ("missing_t".into(), inline(r#"{"c":"x"}"#)),
         ("empty_enum".into(), inline("{}")),
         ("unknown_variant".into(), inline(r#"{"t":"Nope","c":1}"#)),
-        // Strings and escapes.
         ("valid_escapes".into(), inline(r#"{"t":"Str","c":"\"\\\/\b\f\n\r\tX"}"#)),
         ("unicode_escape".into(), inline(r#"{"t":"Str","c":"Aé中"}"#)),
         ("surrogate_pair".into(), inline(r#"{"t":"Str","c":"😀"}"#)),
@@ -518,7 +511,6 @@ fn adversarial_inputs_accept_identically() {
         ("str_number".into(), inline(r#"{"t":"Str","c":5}"#)),
         ("str_bool".into(), inline(r#"{"t":"Str","c":true}"#)),
         ("unterminated_string".into(), inline(r#"{"t":"Str","c":"abc}]}"#)),
-        // Numbers.
         ("neg_version".into(), r#"{"pandoc-api-version":[-1],"blocks":[]}"#.into()),
         ("float_version".into(), r#"{"pandoc-api-version":[1.0],"blocks":[]}"#.into()),
         ("exp_version".into(), r#"{"pandoc-api-version":[1e2],"blocks":[]}"#.into()),
@@ -538,20 +530,16 @@ fn adversarial_inputs_accept_identically() {
         ("colwidth_float".into(), colwidth_input("0.5")),
         ("colwidth_exp".into(), colwidth_input("1e-7")),
         ("colwidth_neg".into(), colwidth_input("-0.5")),
-        // Array-shaped records.
         ("attr_short".into(), inline_block(r#"{"t":"CodeBlock","c":[["",[]],"x"]}"#)),
         ("attr_long".into(), inline_block(r#"{"t":"CodeBlock","c":[["",[],[],[]],"x"]}"#)),
         ("tuple_short".into(), inline_block(r#"{"t":"CodeBlock","c":[["",[],[]]]}"#)),
         ("tuple_long".into(), inline_block(r#"{"t":"CodeBlock","c":[["",[],[]],"x","y"]}"#)),
-        // Caption optional short.
         ("caption_null_short".into(), table_input("[null,[]]")),
         ("caption_some_short".into(), table_input(r#"[[{"t":"Str","c":"s"}],[]]"#)),
-        // Citation object.
         ("citation_ok".into(), citation_input(false, false)),
         ("citation_unknown".into(), citation_input(true, false)),
         ("citation_dup".into(), citation_input(false, true)),
         ("citation_reordered".into(), citation_reordered()),
-        // Meta.
         ("dup_meta_key".into(), r#"{"pandoc-api-version":[1],"meta":{"k":{"t":"MetaBool","c":true},"k":{"t":"MetaBool","c":false}},"blocks":[]}"#.into()),
         // Nesting depth: shallow accepted, deep rejected by both.
         ("nested_50".into(), nested_emph(50)),

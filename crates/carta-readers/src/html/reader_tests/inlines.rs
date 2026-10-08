@@ -239,7 +239,6 @@ fn textarea_content_is_read_as_text() {
 
 #[test]
 fn cdata_reads_as_text_and_processing_instruction_is_dropped() {
-    // CDATA contributes character data; a processing instruction contributes nothing
     let inlines = para_inlines("<p>a<![CDATA[ junk ]]><?pi here?>b</p>");
     assert_eq!(
         inlines.as_slice(),

@@ -166,7 +166,6 @@ fn trailing_glue_widths(cells: &[(String, CellBody)], suffix: &str) -> Vec<usize
     for (prefix, body) in cells.iter().rev() {
         widths.push(glue);
         let (run, breaks) = leading_run(body);
-        // `]` + `, ` + prefix + `[` + the run, then this cell's own `]` when nothing broke.
         glue = 4 + display_width(prefix) + run + if breaks { 0 } else { glue };
     }
     widths.reverse();
@@ -277,7 +276,6 @@ fn render_cell_body(
             trailing_space,
         } => {
             let filled = fill_cell(fragments, bracket_column + 1, indent, width, wrap, glue);
-            // A trailing space inline is cell content the fill drops; restore it before `]`.
             let closing = if *trailing_space { " ]" } else { "]" };
             format!("[{}{closing}", indent_continuation(&filled, &pad))
         }

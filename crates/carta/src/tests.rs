@@ -1,4 +1,3 @@
-// Indexing by a just-inserted key: a missing key should fail the test loudly.
 #![allow(clippy::indexing_slicing)]
 
 use super::{Cli, parse_metadata, parse_toc_depth, parse_variables, parse_wrap, template_dir};
@@ -18,7 +17,6 @@ fn bare_variable_defaults_to_true() {
         vec![
             ("flag".to_owned(), "true".to_owned()),
             ("k".to_owned(), "v".to_owned()),
-            // Only the first `=` splits, so a value may itself contain `=`.
             ("eq".to_owned(), "a=b".to_owned()),
         ]
     );
@@ -30,7 +28,6 @@ fn variable_splits_on_the_first_colon_or_equals() {
         vars(&["k:v", "colon:a=b", "equals=a:b"]),
         vec![
             ("k".to_owned(), "v".to_owned()),
-            // The first separator wins: a `:` before an `=` keeps the `=` in the value.
             ("colon".to_owned(), "a=b".to_owned()),
             ("equals".to_owned(), "a:b".to_owned()),
         ]
@@ -62,13 +59,11 @@ fn metadata_typing_distinguishes_booleans_from_strings() {
     assert_eq!(map["b"], MetaValue::MetaBool(false));
     assert_eq!(map["c"], MetaValue::MetaString("text".into()));
     assert_eq!(map["d"], MetaValue::MetaBool(true));
-    // Only lowercase `true`/`false` are booleans; anything else stays a string.
     assert_eq!(map["e"], MetaValue::MetaString("True".into()));
 }
 
 #[test]
 fn repeated_metadata_key_accumulates_into_a_list() {
-    // Two occurrences promote the key to a two-element list, in order.
     let two = parse_metadata(&["k=first".to_owned(), "k=second".to_owned()]);
     assert_eq!(
         two["k"],
@@ -77,7 +72,6 @@ fn repeated_metadata_key_accumulates_into_a_list() {
             MetaValue::MetaString("second".into()),
         ])
     );
-    // Further occurrences append; a bare first occurrence keeps its boolean element.
     let mixed = parse_metadata(&["k".to_owned(), "k=a".to_owned(), "k=b".to_owned()]);
     assert_eq!(
         mixed["k"],
@@ -104,7 +98,6 @@ fn template_dir_is_the_file_parent_or_current_dir() {
 
 #[test]
 fn cli_definition_is_valid() {
-    // Catches a clap configuration error (e.g. a duplicate short flag) at test time.
     Cli::command().debug_assert();
 }
 

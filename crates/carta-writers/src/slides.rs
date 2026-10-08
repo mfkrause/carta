@@ -1,14 +1,4 @@
-//! Slide segmentation shared by the presentation writers.
-//!
-//! A presentation's block sequence is partitioned into a flat list of [`Slide`] units against a
-//! computed *slide level*: headers shallower than that level are standalone sectioning markers,
-//! headers at that level open a titled frame, and everything else gathers into the current frame.
-//! A top-level horizontal rule forces a frame break. The segmentation is purely structural and
-//! holds no target-format detail, so each presentation writer renders the same units its own way.
-//!
-//! Headers deeper than the slide level stay inside a frame's body for the writer to interpret;
-//! [`group_headings`] offers the same hierarchical grouping over those inner headers for writers
-//! that nest them (such as block environments).
+//! Split document blocks into presentation slides and sections.
 
 use carta_ast::{Attr, Block, Inline};
 
@@ -156,8 +146,7 @@ pub(crate) fn group_headings(blocks: &[Block], level: i64) -> Vec<Heading<'_>> {
             });
             index = end;
         } else {
-            // A header shallower than `level` (or other stray block) is left as a loose run so no
-            // content is dropped; deeper headers are folded into the preceding section's body.
+            // Keep shallower headers as loose content; deeper headers join the preceding section.
             let start = index;
             let end = heading_end(blocks, start + 1, level);
             groups.push(Heading::Loose(blocks.get(start..end).unwrap_or(&[])));
@@ -275,7 +264,6 @@ mod tests {
         let level = slide_level(&blocks);
         assert_eq!(level, 2);
         let slides = segment(&blocks, level);
-        // Frame(C body), Section(A), Frame(B body).
         assert!(
             matches!(slides.first(), Some(Slide::Frame { title: None, body }) if body.len() == 2)
         );

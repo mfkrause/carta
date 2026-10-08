@@ -1,14 +1,6 @@
-//! The EPUB container writer: it lays a document out as a reflowable e-book, a ZIP archive of
-//! XHTML chapter files, a package document, navigation, a stylesheet and any embedded resources.
+//! Render deterministic EPUB 2 and EPUB 3 packages with chapters and embedded resources.
 //!
-//! Both EPUB dialects are produced from the same pipeline. The document body is split into chapter
-//! files at a chosen heading level; each chapter is rendered to XHTML and wrapped in a page; the
-//! metadata becomes the package's Dublin Core record; and two tables of contents (the XHTML
-//! navigation document and the NCX) are derived from the chapter headings. EPUB 3 and EPUB 2 differ
-//! only in the package version, the navigation primacy, and the XHTML dialect of each page.
-//!
-//! Output is byte-reproducible: the archive uses fixed timestamps, maps are ordered, and a missing
-//! publication identifier is derived from the content rather than generated at random.
+//! Missing publication identifiers derive from content. Archive timestamps are fixed.
 
 mod metadata;
 mod navigation;
@@ -116,8 +108,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .map_or(1, |level| i64::try_from(level).unwrap_or(i64::MAX));
     let toc_depth = options.toc_depth.unwrap_or(3);
 
-    // Image references are rewritten to stored paths before the chapter split so both the chapters
-    // and the navigation see them; fragment links are rewritten to resolve across the split.
+    // Rewrite images before splitting chapters; rewrite fragments across the split.
     let mut sectioned = build_sectioned(document, options);
     let (media, cover, fonts) = gather_media(epub, &mut sectioned, options);
     let mut chapters = build_chapter_files(&sectioned, split_level);
@@ -384,7 +375,6 @@ fn gather_media(
     let mut media: Vec<Asset> = Vec::new();
     collect_images(body, options, &mut media);
 
-    // The cover image takes the next media slot; its page is built once the metadata is known.
     let cover = epub.cover_image.as_ref().map(|(name, bytes)| {
         let extension = file_extension(name);
         let index = media.len();
@@ -582,7 +572,6 @@ fn build_manifest(
             properties: None,
         });
     }
-    // Cover before content images, both before fonts; manifest `properties` is EPUB 3 only.
     for asset in media.iter().filter(|asset| asset.properties.is_some()) {
         let mut item = asset.manifest_item();
         if !epub3 {
@@ -614,8 +603,7 @@ fn build_spine(
             linear: None,
         });
     }
-    // An empty title page leaves the linear order only when another linear resource remains: a
-    // publication must keep at least one.
+    // Remove an empty title page only if another linear resource remains.
     let another_linear = has_cover || toc || !chapters.is_empty();
     spine.push(SpineItem {
         idref: String::from("title_page_xhtml"),
@@ -904,9 +892,7 @@ mod tests {
             mime: Some(String::from("image/gif")),
             bytes: Vec::new(),
         };
-        // A plain word extension on the URL is kept, lowercased.
         assert_eq!(image_extension("photo.JPG", &gif), "jpg");
-        // A URL without a usable extension falls back to the one its MIME type implies.
         assert_eq!(
             image_extension("noextension", &gif),
             extension_for_mime("image/gif")
@@ -944,9 +930,7 @@ mod tests {
     fn item_id_for_yields_a_valid_xml_name() {
         // A dot becomes an underscore, keeping ordinary names stable.
         assert_eq!(item_id_for("ch001.xhtml"), "ch001_xhtml");
-        // Spaces and other reserved characters are replaced.
         assert_eq!(item_id_for("Source Serif.otf"), "Source_Serif_otf");
-        // A name an XML id may not begin with gains a leading underscore.
         assert_eq!(item_id_for("2023.png"), "_2023_png");
         assert_eq!(item_id_for("-dash"), "_-dash");
     }

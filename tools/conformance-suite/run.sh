@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Conformance-suite dispatcher: `run.sh <surface> [arg]` (arg narrows to a format/target/group) or `run.sh all`.
-# Prints `RESULT <surface> <group> pass=N fail=N err=N skip=N` per group, exits non-zero on any fail/err; needs .oracle/ and a built carta binary (see lib.sh).
+# Run format surfaces and print RESULT counts; see README.md for usage.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx odt highlight"
 
-# One exported scratch dir per invocation: surface children share the extracted-spec cache, concurrent runs stay disjoint; explicit CONF_WORK wins.
+# Share a scratch dir within one run; explicit CONF_WORK overrides the isolated default.
 if [ -z "${CONF_WORK:-}" ]; then
   CONF_WORK="$(mktemp -d "${TMPDIR:-/tmp}/carta-conformance.XXXXXX")"
   export CONF_WORK
@@ -25,7 +24,6 @@ run_one() {
 
 [ $# -ge 1 ] || { echo "usage: run.sh <surface|all> [arg]" >&2; exit 2; }
 
-# Package-shaped targets have dedicated surfaces; the writer text diff cannot compare them, so redirect.
 if [ "$1" = "writer" ] && [ $# -ge 2 ]; then
   case "$2" in
     epub*) echo "error: $2 targets are exercised by the epub surface: run.sh epub" >&2; exit 2 ;;

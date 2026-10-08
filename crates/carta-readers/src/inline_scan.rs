@@ -1,11 +1,4 @@
-//! Inline scanners and scan bounds shared across readers.
-//!
-//! These are stateless scanning utilities: each takes the source as a `&[char]` or `&str` and a
-//! cursor position (or a length), so readers can drive them from their own inline machinery
-//! without coupling to any parser's state. The `CommonMark` reader works over byte offsets into a
-//! `&str` (the `_bytes` variants) while the HTML reader works over a `&[char]`. The TeX-math scanners
-//! recognize the same delimiter shapes the readers gate behind their math extensions; the shared
-//! step budget bounds the forward scans of the emphasis-resolving readers.
+//! Inline scanners and scan budgets shared by readers.
 
 #[cfg(any(feature = "commonmark", feature = "html"))]
 use carta_ast::MathType;
@@ -94,8 +87,7 @@ pub(crate) fn scan_backslash_math(
             };
             return Some((math_type, content, i + slashes + 1));
         }
-        // Single-backslash form only: `\` escapes the next char, so an escaped delimiter cannot
-        // close (a real closer was caught above); the double-backslash form has no escaping.
+        // Only single-backslash math treats an escaped delimiter as content.
         if slashes == 1 && chars.get(i) == Some(&'\\') && chars.get(i + 1).is_some() {
             i += 2;
             continue;

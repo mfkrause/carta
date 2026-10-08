@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# ODT surface: unpack both tools' packages and diff the body-content parts after XML
-# canonicalization; each tool's own styling/packaging parts are skipped. Usage: surfaces/odt.sh
+# Compare normalized ODT body parts. Usage: surfaces/odt.sh
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 # pin SOURCE_DATE_EPOCH so both sides stamp identical metadata dates
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
-# each tool's own look and container bookkeeping, not body content
 odt_skip_part() {
   case "$1" in
     styles.xml | meta.xml | manifest.rdf | META-INF/manifest.xml | mimetype) return 0 ;;
@@ -15,14 +13,12 @@ odt_skip_part() {
   return 1
 }
 
-# Canonicalize one XML part to a comparable form on stdout: sort attributes, fold whitespace, pin
-# namespace prefixes, drop scripting/graphic-style elements, fold list-style names and the timestamp.
+# Normalize XML order, whitespace, namespaces, styles, and dates; drop scripts.
 odt_canon() {
   python3 - "$1" <<'PY'
 import sys, re
 import xml.etree.ElementTree as ET
 
-# each namespace pinned to a fixed prefix so both sides serialize identically
 NS = {
     'urn:oasis:names:tc:opendocument:xmlns:office:1.0': 'office',
     'urn:oasis:names:tc:opendocument:xmlns:style:1.0': 'style',
@@ -115,13 +111,11 @@ s = re.sub(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', 'TIMESTAMP', s)
 # fold both spellings of the free automatic list-style name so only structure and wiring compare
 s = re.sub(r'Pandoc_5f_Numbering_5f_(\d+)', r'AUTOLIST_\1', s)
 s = re.sub(r'"L(\d+)"', r'"AUTOLIST_\1"', s)
-# One element per line keeps a divergence diff readable.
 s = re.sub(r'><', '>\n<', s)
 sys.stdout.write(s + '\n')
 PY
 }
 
-# Diff one case's two unpacked packages; prints the differing parts, empty when they agree.
 odt_diff() {
   local odir="$1" xdir="$2" rel bad="" d fl
   fl=$(diff <(cd "$odir" && find . -type f | sort) <(cd "$xdir" && find . -type f | sort))
@@ -144,7 +138,6 @@ $d"
   printf '%s' "$bad"
 }
 
-# The oracle takes normalization flags; carta takes the bare spec.
 odt_case() {
   local label="$1" target="$2" input="$3" onorm="$4" work detail repro
   work="$WORK/odt/${label//\//-}"
@@ -177,7 +170,6 @@ run_odt() {
   local onorm input feature stem
   conf_reset "odt"
   onorm=$(oracle_norm odt)
-  # Bare-format cases render with the default extension set.
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
@@ -187,7 +179,6 @@ run_odt() {
     fi
     odt_case "odt/$feature/$stem" odt "$input" "$onorm"
   done
-  # Extension-toggle cases render with the spec their directory names (e.g. odt+empty_paragraphs).
   for input in "$CORPUS"/ast-ext/odt*/*.json; do
     [ -e "$input" ] || continue
     feature=$(basename "$(dirname "$input")")

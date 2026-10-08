@@ -3,8 +3,7 @@ import benchmarks from '../data/generated/benchmarks.json';
 
 const { provenance, results, headline } = benchmarks;
 
-// The four conversions this page leads with. The generated data covers every surface; the choice of
-// what a first-time visitor sees is editorial, so it lives here rather than in the measurements.
+// Choose landing-page conversions independently of generated measurements.
 const FEATURED = [
   { surface: 'reader', group: 'commonmark → json' },
   { surface: 'reader', group: 'html → json' },
@@ -12,8 +11,7 @@ const FEATURED = [
   { surface: 'writer', group: 'json → latex' },
 ];
 
-// The largest input measured for each, which is where the parsing and rendering work dominates
-// process start-up and the numbers say the most.
+// Use the largest input to reduce the effect of process startup.
 const cases = FEATURED.map(({ surface, group }) => {
   const largest = results
     .filter((entry) => entry.surface === surface && entry.group === group)
@@ -24,9 +22,7 @@ const cases = FEATURED.map(({ surface, group }) => {
   return largest;
 });
 
-// Bars are scaled within their own row: pandoc fills the track and carta takes its share of it, so
-// a bar's length is the speedup. Across rows the absolute times span ~200x, and one shared scale
-// would flatten every fast case into an unreadable sliver.
+// Scale each row separately so faster conversions remain visible.
 const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs) * 100;
 
 const times = (value: number) => `${value.toFixed(0)}×`;
@@ -116,7 +112,6 @@ const range = (span: { low: number; high: number }) =>
     margin-bottom: 0.3rem;
   }
 
-  /* Labels stay in text ink; the mark beside them carries identity. */
   .who,
   .ms,
   .size,
@@ -139,7 +134,7 @@ const range = (span: { low: number; high: number }) =>
     display: block;
     height: 100%;
     width: var(--w);
-    /* A rendering floor so a 44x row still shows a mark; far below any readable length. */
+    /* Keep a visible mark even for large speedups. */
     min-width: 2px;
     border-radius: 4px;
   }

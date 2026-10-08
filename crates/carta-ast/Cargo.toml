@@ -31,12 +31,9 @@ arbitrary = ["dep:arbitrary", "compact_str/arbitrary"]
 arbitrary = { version = "1", features = ["derive"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-# Float/integer formatting for the JSON codec; pulled in only alongside it.
 ryu = { version = "1", optional = true }
 itoa = { version = "1", optional = true }
-# Vectorized byte search for the JSON codec's string scans.
 memchr = { workspace = true, optional = true }
-# On-demand stack growth for the JSON codec's recursion over nested values.
 stacker = { workspace = true, optional = true }
 unicode-general-category = { workspace = true }
 compact_str = { workspace = true }

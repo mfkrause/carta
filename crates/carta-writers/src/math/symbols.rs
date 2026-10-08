@@ -1,8 +1,4 @@
-//! Lookup tables for TeX math conversion: symbols, Greek letters, named functions, accents,
-//! spacing, and the styled-alphabet codepoint mapping.
-//!
-//! Every entry is keyed by the command name *without* its leading backslash. The unicode targets
-//! are taken from the Unicode standard's mathematical character assignments.
+//! TeX math symbols, functions, accents, spacing, and styled-alphabet mappings.
 
 /// The math class of a token, which governs inter-token spacing in inline output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,7 +136,6 @@ pub(super) fn greek(name: &str) -> Option<(&'static str, bool)> {
         "Phi" => ("\u{03A6}", true),
         "Psi" => ("\u{03A8}", true),
         "Omega" => ("\u{03A9}", true),
-        // Capital Greek letters whose glyph coincides with a Latin capital.
         "Alpha" => ("\u{0391}", true),
         "Beta" => ("\u{0392}", true),
         "Epsilon" => ("\u{0395}", true),
@@ -154,7 +149,6 @@ pub(super) fn greek(name: &str) -> Option<(&'static str, bool)> {
         "Rho" => ("\u{03A1}", true),
         "Tau" => ("\u{03A4}", true),
         "Chi" => ("\u{03A7}", true),
-        // The upright-Greek family renders to the same letters as the plain Greek commands.
         "upalpha" => ("\u{03B1}", true),
         "upbeta" => ("\u{03B2}", true),
         "upgamma" => ("\u{03B3}", true),
@@ -211,7 +205,6 @@ pub(super) fn named_function(name: &str) -> Option<(&'static str, bool)> {
         "hom" => ("hom", false),
         "ker" => ("ker", false),
         "arg" => ("arg", false),
-        // Limit-class operators: stacked sub+sup forces fallback.
         "lim" => ("lim", true),
         "limsup" => ("limsup", true),
         "liminf" => ("liminf", true),

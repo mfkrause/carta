@@ -20,7 +20,6 @@ pub(super) fn command_nucleus(name: &str, style: Style) -> Option<Vec<Element>> 
 
 /// A single source character's glyph text and ink.
 pub(super) fn char_glyph(c: char) -> (String, Ink) {
-    // In math a hyphen-minus is the subtraction/negation operator, drawn with the minus-sign glyph.
     if c == '-' {
         return ("\u{2212}".to_string(), Ink::Upright);
     }

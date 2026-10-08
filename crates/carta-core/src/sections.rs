@@ -1,12 +1,4 @@
-//! Section numbering and table-of-contents construction over the document model.
-//!
-//! [`number_sections`] splices a section number into each numbered heading: a leading
-//! `header-section-number` span carrying the number, a following space, and a `number` key/value
-//! attribute. [`build_toc`] produces a nested bullet list linking to the document's headings, which a
-//! writer renders into the `toc` template variable. Both number headings the same way (a counter per
-//! level, the result joined from the document's shallowest heading level), so a heading and its
-//! contents entry always carry the same number. [`shift_heading_levels`] re-levels the whole document
-//! ahead of either, so numbering sees the levels the writer will.
+//! Heading level shifts, section numbering, and table-of-contents construction.
 
 use crate::walk;
 use carta_ast::{Attr, Block, Document, Inline, MetaValue, Target, Text};
@@ -131,8 +123,7 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
         match block {
             Block::Header(level, attr, inlines) => {
                 if let Some(computed) = counters.advance(*level, &attr.classes) {
-                    // an authored `number` override keeps its slot (counters still advance) but is
-                    // shown instead, with no second attribute added
+                    // An authored number overrides the display but still advances counters.
                     let number = if let Some((_, value)) =
                         attr.attributes.iter().find(|(key, _)| key == "number")
                     {
@@ -451,7 +442,6 @@ mod tests {
             header(2, &[], "D"),
         ];
         number_sections(&mut blocks);
-        // authored number shows verbatim without a duplicate attribute; the next sibling keeps counting
         assert_eq!(number_at(&blocks, 2), Some("7.3".to_owned()));
         assert_eq!(number_at(&blocks, 3), Some("1.3".to_owned()));
         let Some(Block::Header(_, attr, inlines)) = blocks.get(2) else {
@@ -480,7 +470,6 @@ mod tests {
         let Some(Block::BulletList(items)) = build_toc(&blocks, 2, false, true) else {
             panic!("expected a contents list");
         };
-        // One top-level item ("One") with a single nested item ("Two"); "Three" is past depth 2.
         assert_eq!(items.len(), 1);
         let Some(Block::BulletList(children)) = items.first().and_then(|item| item.get(1)) else {
             panic!("expected a nested list");

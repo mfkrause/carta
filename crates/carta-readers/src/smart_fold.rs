@@ -10,7 +10,7 @@ pub(crate) fn fold_ellipsis_run(len: usize) -> String {
 }
 
 /// Fold a run of `n` hyphens into em and en dashes, greedily preferring em dashes: every three
-/// become an em dash (`—`), a remaining two a single en dash (`–`), a remaining one a literal
+/// become an em dash (U+2014), a remaining two a single en dash (U+2013), a remaining one a literal
 /// hyphen.
 #[cfg(any(
     feature = "rst",
@@ -28,7 +28,7 @@ pub(crate) fn fold_dash_run_greedy(n: usize) -> String {
     s
 }
 
-/// Fold a run of `len` hyphens (`len >= 2`) into the fewest em (`—`) and en (`–`) dashes that sum to
+/// Fold a run of `len` hyphens (`len >= 2`) into the fewest em (U+2014) and en (U+2013) dashes that sum to
 /// its length: a multiple of three is all em dashes, an even length is all en dashes, and an odd
 /// length that is not a multiple of three takes one or two en dashes (whichever leaves a multiple of
 /// three) with the rest em dashes.

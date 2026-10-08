@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fast gate: formatting only. Heavier checks (clippy, tests) run pre-push.
 # Enable with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
 set -euo pipefail
 

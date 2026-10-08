@@ -52,8 +52,7 @@ pub(super) fn parse_list(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usi
         items.push((list_level(indent), ordered, text));
         *index += 1;
     }
-    // A level jump of more than one ends the list (rest parsed afresh); an over-indented marker
-    // becomes indented code.
+    // A level jump ends the list; over-indented markers become code.
     let cutoff = list_cutoff(&items);
     let consumed = items.get(..cutoff).unwrap_or(&[]);
     let mut pos = 0;

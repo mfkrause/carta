@@ -58,12 +58,10 @@ pub(super) fn image_drawing_for(
 fn image_extent(bytes: &[u8], attributes: &[(carta_ast::Text, carta_ast::Text)]) -> (i64, i64) {
     const EMU_PER_PX: f64 = 9525.0;
     const EMU_PER_INCH: i64 = 914_400;
-    // Page text width: fractional widths are measured against it and capped by it.
     const DEFAULT_WIDTH: f64 = 5_334_000.0;
     let (natural_px_w, natural_px_h) = image_dimensions(bytes);
     let natural_w = f64::from(natural_px_w);
     let natural_h = f64::from(natural_px_h);
-    // Percent width scales the text width, capped at natural width; height follows the aspect ratio.
     if let Some(fraction) = dimension_fraction(attributes, "width") {
         let (dpi_x, _) = image_dpi(bytes);
         let intrinsic_w = i64::from(natural_px_w) * EMU_PER_INCH / i64::from(dpi_x.max(1));

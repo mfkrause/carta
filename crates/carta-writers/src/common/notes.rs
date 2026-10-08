@@ -53,8 +53,7 @@ pub(crate) trait NotesHost {
         let marker = format!("[{}]", index + 1);
         let field = marker.chars().count() + 1;
         let body = self.offset_note_body(blocks, field);
-        // The body shares the marker's line only when it opens with a paragraph; a leading block of
-        // any other kind (a code block, a list) begins on the line below the marker.
+        // Only paragraph-led note bodies share the marker line.
         let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
         let rendered = if body.is_empty() {
             marker.clone()

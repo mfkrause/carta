@@ -168,12 +168,10 @@ pub(super) fn parse_command(
                 None => None,
             }
         }
-        // A bare radical sign takes the single following atom as its radicand.
         "surd" => {
             let radicand = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Sqrt(None, radicand)))
         }
-        // A nested environment wraps its content in one transparent group; at run top it is spliced.
         "begin" => {
             let spliced = parse_environment(tokens, pos, depth)?;
             Some(Atom::new(Body::Group(spliced)))
@@ -216,7 +214,6 @@ pub(super) fn parse_command(
             let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pmod, Some(arg))))
         }
-        // `\mod` leads its operand (kept a separate atom); invalid with none.
         "mod" => {
             skip_spaces(tokens, pos);
             if tokens.get(*pos).is_none_or(|t| {
@@ -233,7 +230,6 @@ pub(super) fn parse_command(
             let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pod, Some(arg))))
         }
-        // `\not` strikes the following relation: a command name or a single character like `=`.
         "not" => {
             skip_spaces(tokens, pos);
             // A braced base negates the whole group; a bare command or character negates one token.
@@ -242,8 +238,7 @@ pub(super) fn parse_command(
                 let inner = parse_atoms(tokens, pos, depth + 1, true)?;
                 return Some(Atom::new(Body::NegatedGroup(inner)));
             }
-            // A literal character always strikes; a command only when it composes into a struck
-            // form, so `\not\|` and the like are left verbatim.
+            // Literal characters strike; commands need a known struck form.
             let base = match tokens.get(*pos)? {
                 Token::Command(c) if symbols::command_negatable(c) => c.clone(),
                 Token::Char(c) => c.to_string(),
@@ -380,14 +375,12 @@ fn is_styled_command(name: &str) -> bool {
             | "mathsf"
             | "mathtt"
             | "pmb"
-            // Composed styled alphabets (bold-italic, sans-italic, bold script/fraktur).
             | "mathbfit"
             | "mathsfit"
             | "mathbfsfit"
             | "mathbfcal"
             | "mathbfscr"
             | "mathbffrak"
-            // Alternative alphabet-wrapper spellings; of the `\sym…` family only `\symbf` changes glyphs.
             | "mathds"
             | "symbf"
             | "mathup"
@@ -441,7 +434,6 @@ pub(super) fn parse_required_group(
             *pos += 1;
             parse_atoms(tokens, pos, depth + 1, true)
         }
-        // An unbraced number yields only its first digit; the rest stays in `tail` (`\sqrt12`).
         Token::Number(digits) => {
             let mut chars = digits.chars();
             let first = chars.next()?;
@@ -452,7 +444,6 @@ pub(super) fn parse_required_group(
             }
             Some(vec![Atom::new(Body::Number(first.to_string()))])
         }
-        // A single token also serves as the argument (e.g. `\bar x`).
         Token::Char(_) | Token::Command(_) => {
             let mut group = Vec::new();
             parse_atom_into(tokens, pos, depth + 1, &mut group)?;

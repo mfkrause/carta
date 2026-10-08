@@ -1,10 +1,4 @@
-//! Shared raw-text scanners over string slices, used by both parsing phases.
-//!
-//! These are pure functions: given a `&str` and a start byte offset, each recognizes one construct
-//! (an autolink, a raw inline HTML tag, a character reference, a link destination / title / label,
-//! or a full link reference definition) and returns the parsed value together with the byte offset
-//! just past it. They hold no parser state. The inline phase drives most of them; the block phase
-//! reuses the link-reference-definition and unescaping scanners while collecting definitions.
+//! Raw-text scanners shared by block and inline parsing.
 
 use carta_ast::{Inline, Target};
 
@@ -351,7 +345,6 @@ fn decode_entity(body: &str) -> Option<String> {
         return Some(crate::entities::code_point(code).to_string());
     }
     if let Some(num) = body.strip_prefix('#') {
-        // A decimal reference is one to seven digits.
         if num.is_empty() || num.len() > 7 || !num.bytes().all(|b| b.is_ascii_digit()) {
             return None;
         }
@@ -897,7 +890,6 @@ mod tests {
             parse_abbreviation_definition("*[HTML]: markup\nrest\n"),
             Some("rest\n")
         );
-        // Empty label, nested brackets, and an absent definition all still open one.
         assert_eq!(parse_abbreviation_definition("*[]: x\nrest"), Some("rest"));
         assert_eq!(
             parse_abbreviation_definition("*[a[b]]: x\nrest"),
@@ -911,7 +903,6 @@ mod tests {
 
     #[test]
     fn a_malformed_line_opens_no_definition() {
-        // Leading space, double star, gap before the colon, unclosed label, or missing colon disqualify.
         assert_eq!(parse_abbreviation_definition(" *[HTML]: x"), None);
         assert_eq!(parse_abbreviation_definition("**[HTML]: x"), None);
         assert_eq!(parse_abbreviation_definition("*[HTML] : x"), None);
@@ -927,10 +918,8 @@ mod tests {
         assert_eq!(normalize_label("Foo"), "foo");
         assert_eq!(normalize_label("SS"), "ss");
         assert_eq!(normalize_label("\u{1e9e}"), "ss");
-        // Internal, leading, and trailing whitespace collapse to single spaces and trim.
         assert_eq!(normalize_label("  Foo   Bar\tBaz\n"), "foo bar baz");
         assert_eq!(normalize_label("no\u{2003}break"), "no break");
-        // A label that is only whitespace collapses to empty.
         assert_eq!(normalize_label("  \t\n "), "");
     }
 }

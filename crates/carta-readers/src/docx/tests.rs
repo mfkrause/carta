@@ -37,8 +37,7 @@ fn docx_from_parts(body: &str, styles: Option<&str>, numbering: Option<&str>) ->
 
 #[test]
 fn deeply_nested_hyperlinks_do_not_overflow_the_stack() {
-    // Depth sits above the inline walk's ceiling but within the XML nesting limit, proving a
-    // pathological hyperlink chain reads to completion without exhausting the call stack.
+    // Exceed the inline depth limit within the XML limit to check stack safety.
     let depth = 2_000;
     let body = format!(
         "<w:p>{}<w:r><w:t>x</w:t></w:r>{}</w:p>",
@@ -86,8 +85,7 @@ fn descend_tables(blocks: &[Block]) -> (usize, &[Block]) {
 
 #[test]
 fn deeply_nested_tables_are_preserved_to_the_scanner_ceiling() {
-    // 1000 nested tables sit just under the scanner ceiling: every level must survive intact.
-    // Assertions run on a roomy stack: dropping this tree overruns the test-runner stack.
+    // Use a large stack to drop 1000 nested tables below the scanner limit.
     let outcome = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
         .spawn(|| {
@@ -202,7 +200,6 @@ fn tbl_look_hex_val_first_row_bit_promotes_the_header() {
     };
     // Bit 0x0020 of the packed look bitmask selects the first row for header promotion.
     assert_eq!(head_rows("04A0"), 1);
-    // The same bitmask with that bit clear leaves every row in the body.
     assert_eq!(head_rows("0480"), 0);
 }
 
@@ -222,9 +219,7 @@ fn tbl_header_row_marker_honors_an_explicit_off_value() {
             other => panic!("expected a table, found {other:?}"),
         }
     };
-    // A bare marker promotes its row to the header.
     assert_eq!(head_rows("<w:tblHeader/>"), 1);
-    // An explicit `w:val` of `0` switches the marker off, leaving the row in the body.
     assert_eq!(head_rows("<w:tblHeader w:val=\"0\"/>"), 0);
     // Only the literal `0` disables the marker; it lacks the run toggles' broader off spellings.
     assert_eq!(head_rows("<w:tblHeader w:val=\"false\"/>"), 1);

@@ -1,11 +1,4 @@
-//! reStructuredText reader.
-//!
-//! Parsing runs in two structural passes. The first pass scans the whole input for the explicit
-//! markup that defines document-global references (hyperlink targets, substitution definitions,
-//! footnotes, and citations), since a reference may resolve against a definition that appears later.
-//! The second pass walks the line structure block by block, building the document tree and resolving
-//! each reference against the collected definitions. Inline markup is parsed from the raw text of
-//! each leaf during the second pass.
+//! Read reStructuredText into the document model.
 
 use crate::heading_ids::IdRegistry;
 use crate::tabs::expand_tabs;
@@ -65,7 +58,7 @@ impl Reader for RstReader {
     }
 }
 
-// --- preprocessing -----------------------------------------------------------------------------
+// preprocessing
 
 const TAB_STOP: usize = 8;
 
@@ -179,7 +172,7 @@ fn dedent(line: &str, count: usize) -> String {
     String::new()
 }
 
-// --- block parsing (pass two) ------------------------------------------------------------------
+// block parsing (pass two)
 
 /// The role applied to interpreted text written without an explicit role, until a `default-role`
 /// directive selects another.

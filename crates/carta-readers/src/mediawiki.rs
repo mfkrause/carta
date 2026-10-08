@@ -1,13 +1,4 @@
-//! Reader for `MediaWiki`'s wikitext markup.
-//!
-//! Heading identifiers follow the enabled identifier scheme: with `gfm_auto_identifiers` the GitHub
-//! algorithm (hyphen separators), otherwise `auto_identifiers` lowercases the text, keeps
-//! alphanumerics together with `_` and `.`, turns spaces and `-` into single `_`, and drops a
-//! leading run of non-letters; duplicates gain a numeric suffix and an empty result becomes
-//! `section`. With neither enabled, headings carry no identifier.
-//!
-//! The scanner is panic-free on malformed input: unbalanced or unterminated constructs degrade to
-//! literal text rather than being rejected.
+//! Read `MediaWiki` wikitext into the document model.
 
 use std::collections::BTreeMap;
 

@@ -1,18 +1,7 @@
-//! Bare-URI autolinking: a post-pass that turns plain URLs, `www.` hosts, and email addresses found
-//! in ordinary text into `Link` inlines.
+//! Turn bare URLs and email addresses into links without nesting existing links.
 //!
-//! A URL begins with a lowercase `http://`, `https://`, or `ftp://` scheme, or a `www.` host (which
-//! is given an `http://` destination); both must sit at a non-alphanumeric boundary. The run extends
-//! to the next space or `<`, with parentheses balanced and an unbalanced `)` or a `]` ending it;
-//! trailing punctuation and a trailing entity reference are then dropped. A scheme URL's authority
-//! must be a usable domain (at least two dot-separated labels, none ending in `-`/`_`); a `www.` host
-//! is taken as-is. An email address is a local part of `[A-Za-z0-9._+-]` and an `@`, followed by a
-//! domain, and is given a `mailto:` destination. Links are not nested, so an existing `Link` is left
-//! untouched rather than rescanned.
-//!
-//! In the Markdown dialect each produced link carries a `uri` or `email` class, an email's domain
-//! need only be a single non-empty label, and bare `www.` hosts are not linked; the strict dialect
-//! leaves the link unclassed, requires a dotted email domain, and links `www.` hosts.
+//! Markdown adds `uri`/`email` classes, accepts single-label email domains, and leaves `www.` literal.
+//! Strict mode leaves links unclassed, requires dotted email domains, and links `www.` hosts.
 
 use carta_ast::{Attr, Inline, Target};
 
@@ -43,8 +32,7 @@ pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>, markdown: bool) {
     let mut out = Vec::with_capacity(taken.len());
     for inline in taken {
         match inline {
-            // Every match needs `://`, `www.`, or `@`; a token with none cannot autolink and
-            // passes through unscanned. A new scheme without `//` must extend this trigger set.
+            // Any new URL scheme without `//` must extend this trigger set.
             Inline::Str(s) => {
                 if s.contains("://") || s.contains('@') || s.contains("www.") {
                     split_text(&s, markdown, &mut out);
@@ -384,13 +372,13 @@ mod tests {
     fn valid_host_needs_two_well_formed_labels() {
         assert!(host("example.com"));
         assert!(host("a.b.c.com"));
-        assert!(host("-a.com")); // a leading hyphen is fine
-        assert!(host("ex_ample.com")); // an interior underscore is fine
-        assert!(!host("localhost")); // a single label is not a domain
-        assert!(!host("a-.com")); // a label may not end in '-'
-        assert!(!host("example.com_")); // ...nor in '_'
-        assert!(!host(".com")); // an empty leading label
-        assert!(!host("a..com")); // an empty interior label cuts the prefix to one label
+        assert!(host("-a.com"));
+        assert!(host("ex_ample.com"));
+        assert!(!host("localhost"));
+        assert!(!host("a-.com"));
+        assert!(!host("example.com_"));
+        assert!(!host(".com"));
+        assert!(!host("a..com"));
     }
 
     #[test]
@@ -398,23 +386,23 @@ mod tests {
         // The domain is a prefix; trailing junk past two good labels does not invalidate it.
         assert!(host("a.com..post"));
         assert!(host("example.com:8080/path"));
-        assert!(host("example.com./x")); // a trailing dot then path
+        assert!(host("example.com./x"));
     }
 
     #[test]
     fn forward_scan_balances_parens_and_stops_at_boundaries() {
-        assert_eq!(scan("http://e.com/a b"), 14); // stops at the space
-        assert_eq!(scan("http://e.com/a(b)c)"), 18); // closes the balanced pair, stops at the loose ')'
-        assert_eq!(scan("http://e.com]x"), 12); // a ']' at depth zero ends the run
-        assert_eq!(scan("http://e.com<x"), 12); // so does a '<'
+        assert_eq!(scan("http://e.com/a b"), 14);
+        assert_eq!(scan("http://e.com/a(b)c)"), 18);
+        assert_eq!(scan("http://e.com]x"), 12);
+        assert_eq!(scan("http://e.com<x"), 12);
     }
 
     #[test]
     fn trim_trailing_drops_punctuation_and_entities() {
         let url = "http://e.com/p.,";
-        assert_eq!(trim_trailing(url, 7, url.len()), 14); // drops the trailing '.' and ','
+        assert_eq!(trim_trailing(url, 7, url.len()), 14);
         let ent = "http://e.com/p&amp;";
-        assert_eq!(trim_trailing(ent, 7, ent.len()), 14); // a trailing '&entity;' goes whole
+        assert_eq!(trim_trailing(ent, 7, ent.len()), 14);
     }
 
     #[test]
@@ -460,7 +448,6 @@ mod tests {
 
     #[test]
     fn existing_links_are_not_rescanned() {
-        // A link is never nested inside another link: a pre-formed Link is passed through verbatim.
         let inner = Inline::Link(
             Box::default(),
             vec![Inline::Str("http://example.com".to_owned().into())],
@@ -484,7 +471,6 @@ mod tests {
 
     #[test]
     fn markdown_dialect_classes_links_and_accepts_single_label_email() {
-        // A URL is tagged `uri`, an email `email`, and a single-label domain links in the dialect.
         assert_eq!(
             classed_links("see http://example.com and 5@home now", true),
             vec![
@@ -500,7 +486,6 @@ mod tests {
                 ),
             ]
         );
-        // The strict dialect leaves links unclassed and never links a single-label email domain.
         assert!(classed_links("ping 5@home now", false).is_empty());
         assert_eq!(
             classed_links("at www.example.com today", false),
@@ -540,7 +525,6 @@ mod tests {
                 "http://www.example.com".to_owned()
             )]
         );
-        // Markdown does not link bare `www.` hosts: the token must survive as one unchanged `Str`.
         assert_eq!(
             autolinked("www.example.com", true),
             vec![Inline::Str("www.example.com".to_owned().into())]

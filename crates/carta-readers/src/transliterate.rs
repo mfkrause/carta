@@ -1,25 +1,6 @@
-//! ASCII-transliteration folds shared by the readers that build identifiers under an
-//! `ascii_identifiers` extension.
+//! Format-specific ASCII folds for heading identifiers.
 //!
-//! The five folds here have **different semantics by design**, so each reader's identifier output
-//! stays byte-stable; they are co-located, not unified:
-//!
-//! - [`fold_to_ascii`] (the broad Latin `match`): folds an accented Latin letter to its base,
-//!   covering the Latin-Extended-Additional block, and drops every character with no single-letter
-//!   ASCII base (including whole non-Latin scripts).
-//! - [`rst_asciify`] (the narrow Latin `match`): the same mechanism with a smaller table; it omits
-//!   the Latin-Extended-Additional block and several accent rows, so its output differs from
-//!   [`fold_to_ascii`] for the characters it does not list.
-//! - [`docx_asciify`] (the stroked-letter `match`): the same mechanism with its own table; it
-//!   omits the Latin-Extended-Additional block and the combining-accent rows but folds the stroked
-//!   letters (`Đ`, `Ħ`, `Ł`, `Ø`, `Ŧ`) that every other fold drops.
-//! - [`transliterate_ascii`] (the code-point table): binary-searches a per-code-point base and drops
-//!   any character absent from the table.
-//! - [`dokuwiki_asciify`] (the decomposition strip): folds via canonical decomposition and keeps
-//!   only the ASCII characters, so a combining mark is dropped in any script.
-//!
-//! Any future unification must be a deliberate change, verified per format, because these differences
-//! are observable in committed identifier output.
+//! The folds have different character coverage. Keep each format's identifier behavior unchanged.
 
 #[cfg(feature = "dokuwiki")]
 use unicode_normalization::UnicodeNormalization;

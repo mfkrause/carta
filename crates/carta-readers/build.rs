@@ -2,7 +2,6 @@
 //! `entities.json` (see the data directory's README). Only the semicolon-terminated names are
 //! recognized, keyed here without the leading `&` or trailing `;`.
 
-// A failed build script should abort the build loudly; panicking is the intended behavior here.
 #![allow(clippy::expect_used)]
 
 use std::collections::BTreeMap;

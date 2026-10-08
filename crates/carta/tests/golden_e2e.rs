@@ -1,20 +1,7 @@
-//! Layer 1 end-to-end golden tests: snapshot carta's full-pipeline output for each `corpus/text/<fmt>/*`
-//! case rendered across a bounded set of targets, composing a real reader with a real writer offline.
+//! Snapshot offline reader-to-writer conversions from the text corpus.
 //!
-//! The reader and writer golden suites split the pipeline at JSON: `golden_reader.rs` freezes
-//! `text -> json` and `golden_writer.rs` freezes `json -> target`. Neither exercises a reader composed
-//! with a non-JSON writer, so a defect that only surfaces when a specific reader's AST shape meets a
-//! specific writer stays invisible. This suite closes that gap: it freezes `text -> target` for every
-//! text corpus case across the target set below. Snapshots run fully offline and are reviewed with
-//! `cargo insta review`; never hand-edit the `.snap` files.
-//!
-//! Each reader format gets its own `#[test]` so a single failing case cannot abort the rest and nextest
-//! can run and parallelize them independently. A guard test asserts the macro's format list still
-//! equals the `corpus/text/` directory set, so a new corpus directory without a matching test fails
-//! loudly. Each `(format, target)` pair is snapshotted only when both sides are compiled into the
-//! build; a pair whose reader or writer is absent is skipped at runtime.
+//! Run pairs only when both features are enabled. Review changes with `cargo insta review`.
 
-// Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -77,7 +64,7 @@ fn e2e_snapshots_for(fmt: &str) {
 }
 
 /// Assert the macro's covered-format list equals the `corpus/text/` directory set, so a new corpus
-/// directory without a matching test entry fails loudly.
+/// directory without a matching test entry fails.
 fn assert_formats_partitioned(covered: &[&str]) {
     let mut expected = corpus_groups("text");
     expected.sort();

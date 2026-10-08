@@ -3,7 +3,6 @@
 use super::{Symbol, bin, close, op, open, ord, punct, rel, var};
 
 /// Look up a command (without backslash) in the symbol table.
-// One arm per command keeps the table scannable; distinct keys legitimately map to equal bodies.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 pub(crate) fn symbol(name: &str) -> Option<Symbol> {
     let s = match name {
@@ -518,8 +517,7 @@ pub(crate) fn symbol(name: &str) -> Option<Symbol> {
         "wr" => ord("\u{2240}"),
         "yen" => ord("\u{A5}"),
         "yinyang" => ord("\u{262F}"),
-        // Escaped literals yield the glyph as an ordinary atom; `\,`/`\;` are spacing commands
-        // handled separately, so they map to nothing here.
+        // Escaped literals are ordinary atoms; spacing commands are handled separately.
         "{" => open("{"),
         "}" => close("}"),
         "|" => ord("\u{2225}"),

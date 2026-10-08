@@ -151,7 +151,6 @@ mod xml_sanitize_tests {
 
     #[test]
     fn strips_forbidden_c0_controls_and_keeps_whitespace() {
-        // tab, newline and carriage return are the only permitted controls
         let input = String::from("a\u{0}b\u{1}\u{7}c\u{1f}\td\r\ne");
         assert_eq!(strip_xml_invalid(input), "abc\td\r\ne");
     }

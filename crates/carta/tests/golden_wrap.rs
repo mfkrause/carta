@@ -1,13 +1,7 @@
-//! Layer 1 wrap golden tests: snapshot carta's output for the wrap-sensitive corpus cases under the
-//! non-default wrap modes (`none` and `preserve`) across the text writers that lay paragraphs out to
-//! a column.
+//! Snapshot `none` and `preserve` wrapping for paragraphs, soft breaks, and table cells.
 //!
-//! The everyday `golden_writer` suite renders every case under the default `auto` wrap; this file
-//! pins the other two modes for the cases where they diverge: a long reflowed paragraph, a source
-//! soft break, and a long table cell (whose layout differs between bordered-grid and free-flowing
-//! cell writers). Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! Review changes with `cargo insta review`.
 
-// Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The corpus is JSON AST, so the JSON reader is the interchange every case is read through.
 #![cfg(feature = "read-json")]

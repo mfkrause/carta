@@ -5,7 +5,7 @@ use crate::inline_text::trim_inline_ends;
 use crate::smart_fold::{QuoteCtx, can_open_quote};
 use carta_ast::{Inline, QuoteType, Target};
 
-// --- inline text helpers -----------------------------------------------------------------------
+// inline text helpers
 
 /// Append raw text to an inline sequence, splitting on the regular space into words and single
 /// spaces, with embedded newlines becoming soft breaks and space runs collapsing. Other whitespace
@@ -220,7 +220,7 @@ pub(super) fn split_embedded_uri(text: &str) -> (String, Option<String>) {
     (text.to_string(), None)
 }
 
-// --- bare URI and email autolinking ------------------------------------------------------------
+// bare URI and email autolinking
 
 /// Whether the character before a candidate autolink permits it to begin: a boundary, whitespace, or
 /// an opening bracket. This keeps an address that is already part of larger markup (an angle-bracket
@@ -266,7 +266,6 @@ fn try_uri_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
         return None;
     }
     let url: String = chars.get(pos..end)?.iter().collect();
-    // The link text shows the URL as written; the destination is percent-encoded.
     Some((
         Inline::Link(
             Box::default(),
@@ -422,7 +421,7 @@ fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
     end
 }
 
-// --- typographic punctuation (smart) -----------------------------------------------------------
+// typographic punctuation (smart)
 
 /// The number of consecutive `ch` at `pos`.
 pub(super) fn run_length(chars: &[char], pos: usize, ch: char) -> usize {

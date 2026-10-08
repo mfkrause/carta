@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Benchmark-suite dispatcher: time carta against the pinned pandoc binary on equivalent work.
-# Usage: run.sh <surface [filter]|pair <from> <to>|all> [--json <path>]; needs hyperfine, jq,
-# .oracle/; see README.md.
+# Time carta against the pinned binary; see README.md for usage and requirements.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,7 +53,6 @@ run_surface() {
   bash "$script" "$@"
 }
 
-# Merges the recorded rows with a provenance header describing what produced them.
 write_json() {
   local runs="$BENCH_RUNS"
   [ -n "$runs" ] || runs=$(jq -s '[.[] | select(.kind == "timing") | .runs] | min // 0' "$BENCH_ROWS")

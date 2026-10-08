@@ -1,13 +1,4 @@
-//! Delimiter-separated value readers (CSV and TSV).
-//!
-//! Both formats render to a single [`Block::Table`]: the first record becomes the table head and
-//! every later record a body row. The first record also fixes the column count: wider records are
-//! truncated, narrower ones padded with empty cells.
-//!
-//! The two formats differ only in how records split into fields. CSV uses a comma delimiter and
-//! honors double-quote quoting (a quoted field may contain the delimiter, line breaks, and `""`
-//! escapes for a literal quote). TSV uses a tab delimiter and has no quoting: every byte is literal
-//! and a line break always ends a record. Both share the field-to-inlines tokenizer below.
+//! Read CSV and TSV documents as delimiter-separated tables.
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, Row, Table,

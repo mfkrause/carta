@@ -13,7 +13,7 @@ use super::tables::{build_table, parse_column_spec, parse_key_values};
 use super::{InlineStop, Parser, Stop};
 
 impl Parser {
-    // --- Sectioning ------------------------------------------------------------------------------
+    // Sectioning
 
     pub(super) fn parse_section(&mut self, intrinsic: i32) -> Block {
         self.consume_control_word();
@@ -24,7 +24,6 @@ impl Parser {
                 self.bump();
             }
         }
-        // An optional `[short title]` is ignored.
         let _ = self.read_optional_raw();
         let mut label = None;
         let title = self.parse_group_inlines_capturing_label(&mut label);
@@ -108,7 +107,7 @@ impl Parser {
         self.ids.assign_native(base)
     }
 
-    // --- Environments ----------------------------------------------------------------------------
+    // Environments
 
     pub(super) fn parse_environment(&mut self, env: &str) -> Vec<Block> {
         self.consume_env_marker("\\begin");
@@ -227,7 +226,7 @@ impl Parser {
         self.consume_env_marker("\\end");
     }
 
-    // --- Lists -----------------------------------------------------------------------------------
+    // Lists
 
     pub(super) fn parse_list(&mut self, env: &str) -> Block {
         let items = self.parse_items(env);
@@ -286,7 +285,7 @@ impl Parser {
         Block::DefinitionList(entries)
     }
 
-    // --- Verbatim --------------------------------------------------------------------------------
+    // Verbatim
 
     pub(super) fn parse_verbatim_env(&mut self, env: &str) -> Vec<Block> {
         let mut classes = Vec::new();
@@ -339,7 +338,7 @@ impl Parser {
         body.trim_matches('\n').to_owned()
     }
 
-    // --- Figures & tables ------------------------------------------------------------------------
+    // Figures & tables
 
     pub(super) fn parse_figure(&mut self, env: &str) -> Block {
         let _ = self.read_optional_raw(); // float placement

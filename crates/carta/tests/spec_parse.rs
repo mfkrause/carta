@@ -1,11 +1,7 @@
-//! Offline panic-safety net: parse every worked example from the vendored `CommonMark` spec and
-//! require the reader to return `Ok`. The spec text is embedded at build time, so this runs fully
-//! offline. It does not assert *what* the AST is, only that no spec example makes the reader error
-//! or panic.
+//! Check that every vendored CommonMark example parses without an error or panic.
 
 // The whole suite drives the CommonMark reader, so it only applies when that reader is built in.
 #![cfg(feature = "read-commonmark")]
-// Integration-test harness code: panicking on a known example is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use carta::ReaderOptions;

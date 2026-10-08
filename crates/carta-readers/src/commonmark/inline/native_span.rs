@@ -4,19 +4,10 @@ use carta_ast::{Attr, Inline};
 
 use super::super::scan::{char_at, scan_entity};
 
-/// Pair literal `<span …>` / `</span>` raw-inline tags into [`Inline::Span`] nodes.
+/// Pair raw `<span>` tags into [`Inline::Span`] nodes.
 ///
-/// The inline phase first leaves both tags as raw inline HTML, so emphasis and links resolve around
-/// them exactly as they would around any other tag. This pass then walks the resolved tree and,
-/// at each nesting level independently, matches an opening tag with the nearest later closing tag,
-/// wrapping the inlines between them in a span whose attributes come from the opening tag. Matching
-/// stays within one level: a `<span>` that emphasis pulled inside an `Emph` only pairs with a
-/// `</span>` that landed inside that same `Emph`. The content between a matched pair is itself
-/// re-paired, so nested spans nest. Unmatched tags keep their raw-inline form.
-///
-/// Known limitation: when an emphasis run straddles exactly one of the two tags (the run opens
-/// before a `<span>` and its closing marker sits just before the matching `</span>`), the two tags
-/// can land at different levels and stay raw even though a span could have formed.
+/// Pairs must be at the same inline nesting level; nested pairs become nested spans.
+/// Unmatched tags remain raw. Emphasis that separates the two tags prevents pairing.
 pub(super) fn pair_native_spans(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut input = inlines.into_iter().peekable();
     pair_spans_level(&mut input, false)
@@ -112,7 +103,6 @@ fn classify_span_tag(raw: &str) -> SpanTag {
         return SpanTag::Other;
     }
     if char_at(raw, 1) == Some('/') {
-        // `</span>` with optional trailing whitespace before `>`.
         let mut i = 2;
         if !matches_name(raw, &mut i, "span") {
             return SpanTag::Other;
@@ -168,7 +158,6 @@ fn parse_span_attributes(text: &str, start: usize) -> Option<Attr> {
         }
         match char_at(text, i) {
             Some('>') if i + 1 == text.len() => return Some(attr),
-            // A self-closing tag has no content to wrap.
             Some('/') => return None,
             _ => {}
         }
@@ -188,7 +177,6 @@ fn parse_span_attributes(text: &str, start: usize) -> Option<Attr> {
         }
         let name = text.get(name_start..i)?.to_owned();
         let mut value = String::new();
-        // Optional `= value` with whitespace allowed around `=`.
         let mut after = i;
         while matches!(char_at(text, after), Some(' ' | '\t' | '\n')) {
             after += 1;

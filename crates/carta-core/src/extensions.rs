@@ -1,8 +1,6 @@
-//! Format extensions: the set of optional syntax features a reader or writer may honor.
+//! Optional format features and deterministic extension sets.
 //!
-//! [`Extension`] is one named feature; [`Extensions`] is a deterministic, allocation-free set of them
-//! backed by a fixed array of 64-bit words. [`presets`] holds the per-flavor sets; strict
-//! `CommonMark` is the empty set.
+//! [`Extension`] names one feature; [`Extensions`] holds a set; [`presets`] defines dialect defaults.
 
 /// Generates the [`Extension`] enum together with the `ALL`/`COUNT`/`name` metadata, keeping the
 /// variant list as the single source of truth for the bitset sizing in [`Extensions`].
@@ -213,8 +211,7 @@ define_extensions! {
 const WORD_BITS: usize = u64::BITS as usize;
 const WORDS: usize = Extension::COUNT.div_ceil(WORD_BITS);
 
-// `from_list` indexing is sound only while each discriminant equals its `ALL` position; the
-// assertion turns a contiguity break into a build failure, not an out-of-bounds index.
+// Contiguous discriminants make `from_list` indexing safe.
 #[allow(clippy::indexing_slicing)]
 const _: () = {
     let mut i = 0;
@@ -480,8 +477,7 @@ pub mod presets {
     /// unescaped.
     pub const MARKDOWN_STRICT: Extensions = Extensions::from_list(&[Extension::RawHtml]);
 
-    // Reader defaults are broader than writer presets: readers enable every parseable construct.
-    // Some entries are not yet branched on by the engine; recorded so they take effect once modeled.
+    // Readers enable all parseable constructs, including features not yet handled.
 
     /// Reader defaults for the extended Markdown dialect (`markdown`): the broad writer set plus the
     /// two constructs the writer preset omits, user-defined `LaTeX` macro expansion and the shortcut
@@ -668,7 +664,6 @@ mod tests {
 
     #[test]
     fn words_cover_every_variant() {
-        // Every variant's bit index must land inside the backing array.
         for ext in Extension::ALL {
             assert!((*ext as usize) / super::WORD_BITS < super::WORDS);
         }
@@ -691,7 +686,6 @@ mod tests {
     fn from_list_and_iter_follow_declaration_order() {
         let set = Extensions::from_list(&[Extension::PipeTables, Extension::Smart]);
         let collected: Vec<Extension> = set.iter().collect();
-        // `iter` yields in `ALL` order, regardless of `from_list` argument order.
         assert_eq!(collected, vec![Extension::Smart, Extension::PipeTables]);
     }
 
@@ -713,7 +707,6 @@ mod tests {
         assert!(presets::MARKDOWN.contains(Extension::Smart));
         assert!(presets::COMMONMARK_X.contains(Extension::FencedDivs));
         assert!(presets::COMMONMARK_X.contains(Extension::Attributes));
-        // The strict CommonMark dialect keeps none of these.
         assert!(presets::COMMONMARK.is_empty());
     }
 
@@ -723,7 +716,6 @@ mod tests {
             let ext = Extension::from_name(token).expect("a declared variant");
             assert_eq!(ext.name(), token);
         }
-        // The Markdown dialect fences code with both backtick and tilde forms.
         assert!(presets::MARKDOWN.contains(Extension::FencedCodeBlocks));
         assert!(presets::MARKDOWN.contains(Extension::BacktickCodeBlocks));
         // GFM fences with backticks and renders math in its own surface; it has no tilde-fence form.

@@ -1,8 +1,4 @@
-//! End-to-end tests for the `carta` binary: format dispatch, aliases, file vs stdin/stdout I/O,
-//! and the error paths. The binary is invoked as a subprocess (`CARGO_BIN_EXE_carta`); outputs are
-//! the writer's own deterministic text, so these run fully offline.
-//!
-//! Gated on `cli`: without that feature the binary is not built, so `CARGO_BIN_EXE_carta` is unset.
+//! Offline CLI tests for format selection, I/O, and errors; requires the `cli` feature.
 
 #![cfg(feature = "cli")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -136,7 +132,6 @@ fn reads_input_file_and_writes_output_file() {
 fn unsupported_input_format_fails() {
     let result = run(&["-f", "notaformat", "-t", "html"], "x");
     assert!(!result.success);
-    // generic failure, distinct from the dedicated unsupported-extension code 23
     assert_eq!(result.code, Some(1));
     assert!(
         result.stderr.contains("unsupported format: notaformat"),
@@ -652,7 +647,6 @@ fn list_extensions_reflects_the_requested_format() {
     let result = run(&["--list-extensions=commonmark"], "");
     assert!(result.success, "stderr: {}", result.stderr);
     let extensions = lines(&result.stdout);
-    // Strict CommonMark enables only raw HTML.
     assert!(extensions.contains(&"+raw_html"), "{extensions:?}");
     assert!(extensions.contains(&"-smart"), "{extensions:?}");
     assert!(extensions.contains(&"-pipe_tables"), "{extensions:?}");
@@ -671,7 +665,6 @@ fn list_extensions_rejects_an_unknown_format() {
 
 #[test]
 fn list_extensions_rejects_a_toggle_outside_the_format_set() {
-    // rst admits no pipe-table toggle; the failure names both extension and format
     let result = run(&["--list-extensions=rst+pipe_tables"], "");
     assert!(!result.success);
     assert!(
@@ -732,8 +725,7 @@ fn extract_media_writes_files_and_rewrites_references() {
     );
     assert!(result.success, "stderr: {}", result.stderr);
 
-    // the rewritten reference is URL-style (forward slash on every platform), so build it with the
-    // writer's join, not `Path::join`
+    // Resource references use forward slashes on every platform; avoid `Path::join`.
     let extracted = media_dir.join(&name);
     let extracted_ref = carta::media::extracted_path(&media_dir.to_string_lossy(), &name);
     assert!(
@@ -748,7 +740,6 @@ fn extract_media_writes_files_and_rewrites_references() {
 #[cfg(feature = "write-html")]
 #[test]
 fn embed_resources_inlines_local_images_as_data_uris() {
-    // `--resource-path` is honored just as for the container writers
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("embed-resources");
     let assets = dir.join("assets");
     let _ = fs::remove_dir_all(&dir);
@@ -829,7 +820,6 @@ fn embed_resources_fetches_a_remote_image_over_http() {
     let addr = listener.local_addr().expect("local addr");
     let handle = std::thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept connection");
-        // Drain the request line and headers up to the blank line; the body of a GET is empty.
         let mut request = Vec::new();
         let mut byte = [0u8; 1];
         while stream.read(&mut byte).unwrap_or(0) == 1 {
@@ -1093,7 +1083,6 @@ fn wrap_auto_reflows_at_columns() {
         "{}",
         result.stdout
     );
-    // Only line breaks change: the words survive reflow untouched.
     assert_eq!(
         result.stdout.replace('\n', " ").trim_end(),
         input.trim_end()
@@ -1172,7 +1161,6 @@ fn template_flag_overrides_default() {
         "body text\n",
     );
     assert!(result.success, "stderr: {}", result.stderr);
-    // A custom template implies standalone: the body is rendered inside it.
     assert_eq!(
         result.stdout,
         "MARKER-BEFORE <p>body text</p> MARKER-AFTER\n"
@@ -1208,7 +1196,6 @@ fn closed_stdout_pipe_exits_cleanly() {
         .expect("stdin")
         .write_all(big.as_bytes())
         .ok();
-    // Read a little, then drop the handle to close the read end of the pipe.
     let mut stdout = child.stdout.take().expect("stdout");
     let mut buf = [0u8; 64];
     let _ = stdout.read(&mut buf);

@@ -637,7 +637,7 @@ fn adversarially_nested_refs_do_not_panic() {
 
 #[test]
 fn stacked_header_lines_do_not_blow_up() {
-    // without the memoized region scan, stacked `=` lines would recompute each region per enclosing region, exponential in depth
+    // Memoize stacked heading regions to prevent exponential scanning.
     let input = "== ~iT\n= w e\n= J".repeat(4000);
     assert!(reads_ok(&input));
 }

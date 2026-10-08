@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Writer surface: time `json -> <target>` rendering for carta vs pandoc, per size. Input is the
-# curated AST (corpus/ast subset cycled to size); pandoc is normalized so both do equivalent work.
-# Usage: surfaces/writer.sh [target]   (no arg = every writer target)
+# Time curated AST rendering. Usage: surfaces/writer.sh [target]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 

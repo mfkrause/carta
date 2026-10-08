@@ -1,9 +1,4 @@
-//! Standalone output: wrap a rendered body in the target format's template.
-//!
-//! This builds the variable context a template renders against (document metadata rendered through
-//! the target writer, the body, a derived plain-text `pagetitle`, and the raw `-V` overlay) and
-//! merges the extra metadata layers (`-M` above the document, metadata-file defaults below it) into
-//! the document before the body is produced.
+//! Build standalone template contexts from document metadata, rendered content, and overrides.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -59,7 +54,6 @@ pub(crate) fn render(
     to_base: &str,
     toc_source: TocSource,
 ) -> Result<String> {
-    // Structural standalone forms embed metadata and blocks in one value, bypassing templates.
     if let Some(structural) = writer.standalone_document(document, options)? {
         return Ok(structural);
     }
@@ -75,14 +69,12 @@ pub(crate) fn render(
 
     let dir = options.template_dir.clone();
     let datadir = options.template_datadir.clone();
-    // Partials inherit the including template's extension; a built-in default has no file, so the format name stands in.
     let ext = options
         .template_ext
         .clone()
         .unwrap_or_else(|| to_base.to_owned());
     let resolve = move |name: &str| resolve_partial(dir.as_deref(), datadir.as_deref(), &ext, name);
     let mut output = template.render(&context, &resolve)?;
-    // Block values can pile up trailing newlines; collapse to one, but never add one to glyph-ending output.
     let kept = output.trim_end_matches('\n').len();
     if kept < output.len() {
         output.truncate(kept);
@@ -102,7 +94,7 @@ fn build_context(
     template: &Template,
 ) -> Result<Value> {
     let line_oriented = writer.body_ends_with_newline();
-    // Line-oriented writers: block metadata carries two trailing newlines, `meta-json` keeps one; glyph-ending writers add neither.
+    // Block metadata ends in two newlines, JSON in one; glyph-ending formats add neither.
     let context_trailing = if line_oriented { "\n\n" } else { "" };
     let json_trailing = if line_oriented { "\n" } else { "" };
 
@@ -110,11 +102,9 @@ fn build_context(
     let mut meta_json = serde_json::Map::new();
     let mut scoped = options.clone();
     for (key, value) in &document.meta {
-        // The value is laid out for the place the template interpolates it, not for the margin.
         scoped.slot = template.slot(key).unwrap_or_default();
         let options = &scoped;
-        // Flattening writers build the two forms from different content, so each renders on its
-        // own; other writers render each leaf once, the forms differing only in the trailing.
+        // Flattening writers render both forms; others differ only in trailing newlines.
         let (context_value, json) = if writer.flatten_block_metadata() {
             let context_value = meta_to_value(value, writer, options, BlockMode::Inline)?;
             let json_value = meta_to_value(
@@ -155,7 +145,6 @@ fn build_context(
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
     overlay_variables(&mut context, &options.variables);
-    // Applied here, uniformly: a property of the assembled context, not of any one writer.
     enable_colorlinks(&mut context);
     Ok(Value::Map(context))
 }
@@ -362,7 +351,6 @@ fn insert_identity_vars(
     options: &WriterOptions,
     template: &Template,
 ) -> Result<()> {
-    // Plain-text forms decide presence; inline forms carry the quotation into the rendered variable.
     let title_text = plain_meta(document, "title");
     let title = plain_meta_inlines(document, "title");
     let authors = author_plain_inlines(document);
@@ -372,7 +360,7 @@ fn insert_identity_vars(
     match writer.meta_var_style() {
         MetaVarStyle::None => {}
         MetaVarStyle::Web => {
-            // `pagetitle` falls back to the source name; `date-meta` requires a date; `author-meta` is always defined (possibly empty).
+            // Default `pagetitle` to the source name; require a date, but always define `author-meta`.
             let page = if title_text.is_empty() {
                 options
                     .source_name

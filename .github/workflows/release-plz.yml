@@ -1,7 +1,6 @@
 name: release-plz
 
-# A GitHub App token stands in for GITHUB_TOKEN so the release PR and release trigger downstream
-# workflows (default-token events do not); crates.io uses Trusted Publishing (OIDC), no stored token.
+# An App token lets release events trigger other workflows; GITHUB_TOKEN cannot.
 
 on:
   push:

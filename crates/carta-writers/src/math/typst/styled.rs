@@ -23,10 +23,8 @@ pub(super) fn styled_str(display: bool, name: &str, arg: &[Atom]) -> Option<Stri
         "mathbffrak" => format!("bold(frak({inner}))"),
         "mathrm" | "mathup" => format!("upright({inner})"),
         "pmb" => format!("bold({inner})"),
-        // Math-class wrappers re-class their argument but add no glyph: the content renders directly.
         "mathord" | "mathrel" | "mathbin" | "mathopen" | "mathclose" | "mathpunct" => inner,
-        // `\mathop`: a multi-letter run becomes a known operator identifier or a quoted name;
-        // anything else renders directly
+        // `\mathop` names multi-letter operators; other content renders directly.
         "mathop" => match operator_name(arg) {
             Some(name) if super::super::symbols::named_function(&name).is_some() => name,
             Some(name) => format!("\"{name}\""),
@@ -64,8 +62,7 @@ fn operator_name(atoms: &[Atom]) -> Option<String> {
 }
 
 pub(super) fn text_str(display: bool, name: &str, content: &[TextPiece]) -> Option<String> {
-    // `\operatorname`(*) folds spacing into one identifier or quoted string; other wrappers format
-    // each run, spacing emitted as tokens between
+    // Operator names merge spacing; other wrappers format runs independently.
     if name == "operatorname" || name == "operatorname*" {
         let text = text_run_text(content);
         let s = if super::super::symbols::named_function(&text).is_some() {
@@ -87,18 +84,15 @@ pub(super) fn text_str(display: bool, name: &str, content: &[TextPiece]) -> Opti
     for piece in content {
         match piece {
             TextPiece::Run(run) if run.is_empty() => {
-                // an empty segment still occupies a join position: contribute an empty token
                 parts.push(String::new());
             }
             TextPiece::Run(run) => {
                 parts.push(format!("{wrapper}(\"{}\")", escape_typst_string(run)));
             }
             TextPiece::Space(space) => parts.push(space.typst_token().to_string()),
-            // A `$…$` segment is math, rendered unaffected by the wrapper's own formatting.
             TextPiece::Math(atoms) => parts.push(lower(display, atoms)?),
         }
     }
-    // An empty wrapper still renders as the empty quoted form, matching a bare `\text{}`.
     if parts.is_empty() {
         return Some(format!("{wrapper}(\"\")"));
     }
@@ -113,7 +107,6 @@ fn text_run_text(content: &[TextPiece]) -> String {
         match piece {
             TextPiece::Run(run) => out.push_str(run),
             TextPiece::Space(space) => out.push(space.codepoint()),
-            // A `$…$` cannot occur in an operator-name group, which is already math mode.
             TextPiece::Math(_) => {}
         }
     }

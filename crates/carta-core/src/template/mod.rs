@@ -1,10 +1,6 @@
-//! A small string-template engine: variables, conditionals, loops, pipes, and partials over a
-//! [`Value`] context. The language uses `$`-delimited directives; see `parse` for the grammar and
-//! the surrounding module docs for whitespace handling.
+//! A `$`-delimited template engine over [`Value`] contexts.
 //!
-//! The engine is format-agnostic and does no I/O: partial inclusion is delegated to a caller-supplied
-//! resolver, so the same parsed [`Template`] renders identically whether partials come from disk, an
-//! embedded set, or a test fixture.
+//! Supports variables, conditionals, loops, pipes, and partials. The caller resolves partials.
 
 mod node;
 mod parse;

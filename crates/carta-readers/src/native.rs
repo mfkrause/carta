@@ -1,16 +1,4 @@
-//! Native reader: parses the document model's printed textual form back into the model.
-//!
-//! The native format is the human-readable rendering of the AST: constructor names applied to
-//! their arguments, with strings, tuples, lists, and records written in a small constructor-
-//! application value syntax (`Para [ Str "x" ]`, `("id", ["class"], [("k","v")])`). Parsing has two
-//! stages: a
-//! lexer (`tokenize`) splits the source into `Token`s, and a recursive-descent `Parser`
-//! consumes them type-directedly: each AST shape has a dedicated method, so the same `(…, …, …)`
-//! tuple is read as the type the position calls for.
-//!
-//! Top level accepts, in order of preference, a whole document (`Pandoc <meta> <blocks>`), a block
-//! list, a single block, an inline list, or a single inline; the last three are wrapped to form a
-//! document (a lone inline or inline list becomes a `Plain` block).
+//! Parse the document model from its native textual representation.
 
 use std::collections::BTreeMap;
 

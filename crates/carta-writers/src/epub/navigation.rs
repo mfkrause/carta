@@ -132,8 +132,7 @@ pub(crate) fn nav_xhtml(
         format!("<div id=\"toc\">{heading}{list}</div>")
     };
 
-    // The `<title>` falls back to the source name for an untitled document, unlike the visible
-    // heading, which shows the publication title; stdin (`-`) has no name and keeps the placeholder.
+    // An untitled document uses its source name for `<title>`; stdin keeps the placeholder.
     let head_title = match source_name {
         Some(name) if doc_meta.title_text.is_empty() && name != "-" => name,
         _ => doc_meta.display_title(),
@@ -276,7 +275,7 @@ pub(crate) fn toc_ncx(
 
     let mut counter = 0usize;
     let mut nav_map = Element::new("navMap");
-    // The label uses the document's own title (blank when none), even where `docTitle` shows a fragment-supplied one.
+    // Use the document title for labels; fragment titles affect only `docTitle`.
     nav_map.push(nav_point(
         &mut counter,
         TITLE_PAGE_HREF,

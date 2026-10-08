@@ -94,7 +94,6 @@ pub(super) fn push_text(out: &mut Vec<Inline>, text: &str) {
 /// Fuses runs of adjacent text into one, so a marker that carries no content of its own (a bookmark
 /// end, a reference-mark point, an unstyled span) leaves no seam between the words around it.
 pub(super) fn coalesce_text(inlines: &mut Vec<Inline>) {
-    // The common run has no adjacent text pieces to fuse; skip the rebuild and its allocation then.
     if !inlines
         .windows(2)
         .any(|pair| matches!(pair, [Inline::Str(_), Inline::Str(_)]))
@@ -370,7 +369,6 @@ pub(super) fn square_rows(rows: &mut [Row], columns: i64) {
     for row in rows {
         let overhang =
             i64::try_from(covered.iter().filter(|count| **count > 0).count()).unwrap_or(i64::MAX);
-        // Walk real cells across the grid, skipping covered columns, to find this row's new spans.
         let mut new_cover = vec![0i64; width];
         let mut column = 0usize;
         for cell in &row.cells {

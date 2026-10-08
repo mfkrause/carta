@@ -34,8 +34,7 @@ workspace = true
 
 [features]
 default = ["full", "cli", "fetch"]
-# The `carta` binary. Default so `cargo install carta` yields the tool; library-only users set
-# `default-features = false`. Pair with format features (or `full`) to choose what it converts.
+# Library users disable defaults; the CLI also needs format features or `full`.
 cli = [
     "dep:clap",
     "dep:clap_complete",
@@ -45,14 +44,14 @@ cli = [
     "carta-ast/serde",
     "carta-core/serde",
 ]
-# HTTP(S) fetching of remote resources for `--embed-resources`; without it a remote reference is left external.
+# Without `fetch`, remote resources remain external.
 fetch = ["dep:ureq"]
 full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "read-typst", "read-docbook", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "write-docbook", "highlight", "standalone", "metadata-file"]
-# Syntax highlighting for code blocks, plus the CLI's language/style listings and idiomatic mode.
+# Syntax highlighting and CLI catalog commands.
 highlight = ["dep:carta-highlight", "carta-core/highlight", "carta-writers?/highlight"]
 # Embeds the copyleft-or-unspecified-license grammar set, which is an explicit choice.
 embed-copyleft-grammars = ["highlight", "carta-highlight/embed-copyleft-grammars"]
-# Standalone output: template engine, context builder, wrapping, and the `-s`/`--template`/`-V`/`-M` inputs.
+# Templates and standalone metadata inputs.
 standalone = ["carta-core/template", "dep:serde_json"]
 # `--metadata-file` parses metadata through the commonmark machinery, so it must pull in that reader.
 metadata-file = ["standalone", "read-commonmark"]
@@ -107,33 +106,25 @@ write-rtf = ["dep:carta-writers", "carta-writers/rtf"]
 [dependencies]
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
-# The syntax-highlighting catalog behind the `highlight` feature.
 carta-highlight = { workspace = true, optional = true }
-# By path (not the workspace table) so this crate owns their feature selection; `version` makes the
-# published package depend on the registry release.
+# Direct paths retain per-crate feature selection; versions support registry publication.
 carta-readers = { path = "../carta-readers", version = "0.0.11", default-features = false, optional = true }
 carta-writers = { path = "../carta-writers", version = "0.0.11", default-features = false, optional = true }
-# `meta-json`: serializes the rendered metadata into the standalone template context.
 serde_json = { workspace = true, optional = true }
-# CLI-only; kept out of a library build via the optional `cli` feature.
 clap = { workspace = true, optional = true }
-# Generators behind the binary's `--completions <shell>` and `--man` flags.
 clap_complete = { version = "4", optional = true }
 clap_mangen = { version = "0.3", optional = true }
 # HTTP client behind `fetch`; rustls keeps the build free of a system OpenSSL dependency.
 ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
-# Grows the thread's stack on demand during serialization so a deep tree cannot exhaust it;
-# same-thread (not a worker) because writer options may hold thread-affine state.
+# Grow the stack on the same thread because writer options can hold thread-affine state.
 stacker = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 criterion = { workspace = true }
 serde = { workspace = true }
-# Reads docs/status.toml for the registry cross-check.
 toml = "1.1"
 
-# Gated on `cli` so a library-only build neither compiles the binary nor pulls its dependencies.
 [[bin]]
 name = "carta"
 path = "src/main.rs"

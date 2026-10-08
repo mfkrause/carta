@@ -1,17 +1,7 @@
-//! Layer 1 writer golden tests: snapshot carta's own output for each `corpus/ast/<feature>/*` case
-//! rendered to every target, minus the `(target, feature)` pairs listed in `corpus/exclusions.tsv`.
+//! Snapshot AST corpus rendering across targets, applying `corpus/exclusions.tsv`.
 //!
-//! The corpus is full-model AST-JSON, so this exercises writer node shapes no reader can produce.
-//! Snapshots freeze current output and run offline. Reviewed with `cargo insta review`; never
-//! hand-edit the `.snap` files.
-//!
-//! Each target and each extension spec gets its own `#[test]` so a single failing case cannot abort
-//! the rest and nextest can run and parallelize them independently. A guard test asserts the target
-//! macro's list equals `TARGETS`, and another asserts the ext macro's list equals the
-//! `corpus/ast-ext/` directory set. The `assert_snapshot!` first argument fixes each `.snap`
-//! filename.
+//! Review changes with `cargo insta review`; do not edit snapshot files directly.
 
-// Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The corpus is JSON AST: without the JSON reader there is nothing to render.
 #![cfg(feature = "read-json")]
@@ -184,7 +174,6 @@ fn writer_output_snapshots_all_targets_partitioned() {
 
 #[test]
 fn targets_match_registry_text_writers() {
-    // Text-shaped writers: writer_for(name) succeeds; byte writers return Error::BinaryFormat.
     let mut text: Vec<&str> = carta::supported_output_formats()
         .into_iter()
         .filter(|name| carta::writer_for(name).is_ok())

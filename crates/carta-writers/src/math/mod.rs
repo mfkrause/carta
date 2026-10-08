@@ -1,18 +1,7 @@
-//! TeX math conversion shared by every writer.
+//! Shared TeX math parsing and conversion.
 //!
-//! A single tokenizer/parser ([`parse`]) turns TeX math source into one small expression tree;
-//! backends lower that tree:
-//!
-//! - [`to_inlines`] produces a writer-agnostic [`carta_ast::Inline`] list (variables italicised,
-//!   sub/superscripts, unicode symbols and Greek letters, styled alphabets, accents, atom-class
-//!   spacing). Each writer renders that list with its own inline machinery, so the conversion logic
-//!   lives in exactly one place. It returns `None` for any construct that cannot be laid out on a
-//!   single line (fractions, radicals, stacked operator limits, environments, unknown commands), so
-//!   the caller can emit the source verbatim.
-//! - [`to_typst`] produces Typst math markup (the inner content, no surrounding `$`). Typst has
-//!   native math, so this translation succeeds for almost all well-formed input.
-//!
-//! All entry points are panic-free and bounded against pathological nesting.
+//! [`to_inlines`] returns `None` for content that needs a verbatim fallback.
+//! [`to_typst`] returns math content without surrounding `$` delimiters. Nesting is bounded.
 
 // Text writers render the inline lowering; container-only builds compile it but never call it.
 #[cfg_attr(
@@ -109,14 +98,12 @@ pub(crate) fn to_typst_display(tex: &str) -> Option<String> {
 /// the closing `$`. Returns `None` when the expression cannot be translated. With `display` set, the
 /// markup is lowered for display context: a prime on a limit operator stacks as a superscript
 /// (`\sum'` → `sum^(')`) the way display math sets primes above the operator.
-// Only the Typst writer calls this; other builds compile it unused.
 #[cfg_attr(not(feature = "typst"), allow(dead_code))]
 pub(crate) fn to_typst_labeled(tex: &str, display: bool) -> Option<TypstMath> {
     let atoms = parse::parse(tex)?;
     if is_bare_binary_operator(&atoms) {
         return None;
     }
-    // Empty math lowers to the empty string, rendered as bare `$$`.
     let (body, label) = typst::lower_labeled(&atoms, display)?;
     Some(TypstMath { body, label })
 }

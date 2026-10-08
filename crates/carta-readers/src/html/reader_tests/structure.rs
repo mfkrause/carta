@@ -149,7 +149,6 @@ fn definition_list_pairs_terms_and_definitions() {
 
 #[test]
 fn definition_list_sees_through_grouping_divs() {
-    // wrapping each dt/dd pair in a div is valid HTML5; the grouping is transparent
     let Block::DefinitionList(items) =
         first_block("<dl><div><dt>t1</dt><dd>d1</dd></div><div><dt>t2</dt><dd>d2</dd></div></dl>")
     else {
@@ -163,7 +162,6 @@ fn definition_list_sees_through_grouping_divs() {
 
 #[test]
 fn block_level_anchor_splits_into_link_and_blocks() {
-    // an <a> may wrap block content: the leading inline run becomes a link, block children follow
     let result = blocks("<a href=\"u\">before<p>inside</p>after</a>");
     let Some(Block::Para(lead)) = result.first() else {
         panic!("expected a leading paragraph");
@@ -241,8 +239,7 @@ fn table_reads_sections_alignment_and_spans() {
 
 #[test]
 fn oversized_cell_spans_are_clamped() {
-    // spans are clamped to the HTML spec limits: each spanned slot materialises, so an
-    // unclamped colspan="90000000" would force a multi-gigabyte allocation
+    // Clamp spans to spec limits to prevent large allocations.
     let input =
         r#"<table><tr><td colspan="90000000" rowspan="2">x</td></tr><tr><td>y</td></tr></table>"#;
     let Block::Table(table) = first_block(input) else {

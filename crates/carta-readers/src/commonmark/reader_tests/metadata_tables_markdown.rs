@@ -19,7 +19,6 @@ fn a_yaml_metadata_block_populates_meta_and_is_removed_from_the_body() {
         doc.meta.get("empty"),
         Some(&MetaValue::MetaString(carta_ast::Text::default()))
     );
-    // An unquoted numeric scalar is canonicalized before it is parsed as inline markdown.
     assert_eq!(
         doc.meta.get("revision"),
         Some(&MetaValue::MetaInlines(vec![Inline::Str(
@@ -89,7 +88,6 @@ fn a_pipe_table_takes_a_below_caption() {
 
 #[test]
 fn an_indented_simple_table_header_aligns_against_its_own_column() {
-    // Alignment reads the header against each column's own ruling, not the ruling's left margin.
     let doc = read_markdown(
         "  Right     Left     Center\n-------   ------   ----------\n     12     12        12\n",
         &[Extension::SimpleTables],
@@ -114,7 +112,6 @@ fn an_indented_simple_table_header_aligns_against_its_own_column() {
 
 #[test]
 fn a_paragraph_interrupted_by_an_html_block_reads_tight() {
-    // No blank before the div: it interrupts, and the paragraph reads tight (`Plain`).
     let doc = read_markdown(
         "text before\n<div>\ninside\n</div>\n",
         &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
@@ -125,7 +122,6 @@ fn a_paragraph_interrupted_by_an_html_block_reads_tight() {
         doc.blocks
     );
 
-    // A blank line before the element leaves the paragraph loose, so it stays a full paragraph.
     let loose = read_markdown(
         "text before\n\n<div>\ninside\n</div>\n",
         &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
@@ -159,7 +155,6 @@ fn a_multiline_caption_folds_across_lines() {
 
 #[test]
 fn a_bare_colon_below_a_pipe_table_is_a_caption_not_a_definition() {
-    // Below a pipe table `:` is the caption, not a definition marker.
     let doc = document(
         "| a | b |\n|---|---|\n| 1 | 2 |\n\n: A bare-colon caption.\n",
         &[
@@ -275,7 +270,6 @@ fn commonmark_angle_autolink_carries_no_class() {
 fn markdown_link_destination_keeps_balanced_inner_parentheses() {
     let inlines = md_para("[c](/u (d))\n", &[]);
     let (_, target) = single_link(&inlines).expect("a single link");
-    // The space is percent-encoded and the inner `(d)` is part of the destination.
     assert_eq!(target.url, "/u%20(d)");
     assert_eq!(target.title, "");
 }
@@ -315,7 +309,6 @@ fn markdown_double_tilde_pair_is_a_strikeout() {
 
 #[test]
 fn markdown_triple_tilde_run_collapses_to_a_single_subscript() {
-    // The whole odd run is consumed into one subscript; no strikeout nests inside it.
     let inlines = md_para(
         "z ~~~triple~~~\n",
         &[Extension::Subscript, Extension::Strikeout],

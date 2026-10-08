@@ -121,7 +121,7 @@ impl UserDefinition {
     }
 
     /// The parsed grammar, reading and parsing the definition on first use. `None` when the file
-    /// cannot be read or does not parse, so a broken definition simply does not resolve.
+    /// cannot be read or does not parse, so a broken definition does not resolve.
     fn grammar(&self) -> Option<Rc<Grammar>> {
         match &self.source {
             DefinitionSource::Parsed(grammar) => Some(Rc::clone(grammar)),
@@ -292,16 +292,13 @@ impl Registry {
         Ok(name)
     }
 
-    /// Register every `*.xml` in `directory` as a definition resolvable by its file stem, without
-    /// opening any of them: a definition is read only when a lookup selects it or needs metadata a
-    /// stem cannot answer. Returns how many were registered.
+    /// Register `*.xml` definitions by file stem and return the number registered.
     ///
-    /// Definitions registered here override bundled ones of the same name, and a directory added
-    /// earlier wins a collision with one added later. A file that cannot be read, or does not parse,
-    /// is ignored when it would be resolved.
+    /// Files load only when lookup needs them. User definitions override bundled ones;
+    /// earlier directories win collisions. Unreadable or invalid definitions are skipped.
     ///
     /// # Errors
-    /// The [`std::io::Error`] from listing `directory`.
+    /// Returns the [`std::io::Error`] from listing `directory`.
     pub fn add_directory(&mut self, directory: &Path) -> std::io::Result<usize> {
         let mut paths: Vec<PathBuf> = std::fs::read_dir(directory)?
             .filter_map(Result::ok)
@@ -435,8 +432,7 @@ impl Registry {
     }
 
     fn by_extension(&self, lower: &str) -> Option<Rc<Grammar>> {
-        // When several definitions claim an extension, the highest priority wins; hidden helpers are
-        // not selected by extension. User definitions take precedence over the bundled catalog.
+        // User definitions win; extension lookup excludes hidden helpers and uses priority.
         self.read_headers();
         let mut claimants: Vec<&UserDefinition> = self
             .user
@@ -558,7 +554,6 @@ mod tests {
         assert!(langs.contains(&"cpp".to_string()));
         assert!(langs.contains(&"bash".to_string()));
         assert!(langs.iter().all(|l| l == &l.to_lowercase()));
-        // The hidden helper is resolvable but not listed.
         assert!(!langs.contains(&"alert".to_string()));
     }
 
@@ -569,9 +564,7 @@ mod tests {
             reg.resolve("rust").map(|g| g.name.clone()).as_deref(),
             Some("Rust")
         );
-        // Full display name (case-insensitive).
         assert!(reg.resolve("Rust").is_some());
-        // Hyphenated stems only resolve without the hyphen.
         assert!(reg.resolve("fortranfree").is_some());
         assert!(reg.resolve("fortran-free").is_none());
     }
@@ -582,18 +575,15 @@ mod tests {
         add_from_pack(&mut reg, "cpp");
         add_from_pack(&mut reg, "python");
         add_from_pack(&mut reg, "makefile");
-        // Stem-derived short name, even though the language name is `C++`.
         assert_eq!(
             reg.resolve("cpp").map(|g| g.name.clone()).as_deref(),
             Some("C++")
         );
-        // Full display name (case-insensitive).
         assert!(reg.resolve("C++").is_some());
         assert_eq!(
             reg.resolve("python").map(|g| g.name.clone()).as_deref(),
             Some("Python")
         );
-        // The file-extension fallback consults user definitions (`makefile.*` is a Makefile glob).
         assert_eq!(
             reg.resolve("makefile.inc")
                 .map(|g| g.name.clone())
@@ -648,24 +638,20 @@ mod tests {
         let added = reg.add_directory(&pack_directory()).expect("list pack");
         assert!(added > 100, "expected the whole pack, saw {added}");
 
-        // A file stem, answered without reading any other definition.
         assert_eq!(
             reg.resolve("cpp").map(|g| g.name.clone()).as_deref(),
             Some("C++")
         );
-        // The display name, which is only known once headers are read.
         assert_eq!(
             reg.resolve("C++").map(|g| g.name.clone()).as_deref(),
             Some("C++")
         );
-        // The file-extension fallback, which needs the extension lists.
         assert_eq!(
             reg.resolve("makefile.inc")
                 .map(|g| g.name.clone())
                 .as_deref(),
             Some("Makefile")
         );
-        // A fixed alias still routes through the pack.
         assert_eq!(
             reg.resolve("csharp").map(|g| g.name.clone()),
             reg.resolve("cs").map(|g| g.name.clone())
@@ -681,7 +667,6 @@ mod tests {
             std::thread::current().id()
         ));
         std::fs::create_dir_all(&directory).expect("create temp directory");
-        // `rust` is bundled, so a broken same-named definition must not hide it.
         std::fs::write(directory.join("rust.xml"), b"not xml at all").expect("write definition");
 
         let mut reg = Registry::new();

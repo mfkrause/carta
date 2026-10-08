@@ -57,7 +57,6 @@ pub(super) fn latex_length_to_percent(value: &str) -> Option<String> {
     {
         return None;
     }
-    // Multiply by 100 by shifting the decimal point two places to the right.
     let mut digits = format!("{int_part}{frac_part}");
     let point = int_part.len() + 2;
     while digits.len() < point {
@@ -189,7 +188,6 @@ pub(super) fn build_table(parser: &Parser, aligns: &[Alignment], body: &str) -> 
         rule_pending = false;
         rows.push(build_row(parser, &strip_rules(&content), ncols));
     }
-    // A rule trailing the sole row also makes that row a header.
     if rows.len() == 1 && rule_pending {
         first_row_ruled = true;
     }

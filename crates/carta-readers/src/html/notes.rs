@@ -1,17 +1,4 @@
-//! Footnote reconstruction for the HTML reader.
-//!
-//! A footnote rendered to HTML leaves a reference anchor at the cite site and an endnotes container
-//! at the end of the document:
-//!
-//! ```html
-//! text<a href="#fn1" role="doc-noteref"><sup>1</sup></a>
-//! <section role="doc-endnotes"><ol><li id="fn1"><p>the note</p></li></ol></section>
-//! ```
-//!
-//! Reading it back reverses that shaping: the note bodies are indexed by id so each reference can be
-//! spliced into an [`carta_ast::Inline::Note`] at its cite site, and the container is dropped. The
-//! anchors and container are recognized by their ARIA `role`, and reconstruction is always on: no
-//! extension toggle controls it.
+//! Reconstruct HTML footnotes from references and note bodies.
 
 use std::collections::BTreeMap;
 

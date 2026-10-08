@@ -38,8 +38,7 @@ struct Inlines<'a> {
     notes: &'a BTreeMap<String, Vec<Block>>,
     out: Vec<Inline>,
     word: String,
-    // Unclosable openers make failed forward scans quadratic; a span-proportional step budget
-    // keeps them linear, far above any real construct, so only pathological runs give up.
+    // Charge scan steps by span length to keep failed opener searches linear.
     budget: ScanBudget<usize>,
 }
 
@@ -219,7 +218,7 @@ impl Inlines<'_> {
         }
     }
 
-    // -- Emphasis ------------------------------------------------------------------------------
+    // Emphasis
 
     /// Finds the closing marker for markup emphasis opened at `i`, honoring the pre/post border
     /// rules and the single-newline body limit.
@@ -255,7 +254,7 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Sub/superscript -----------------------------------------------------------------------
+    // Sub/superscript
 
     /// Parses a subscript (`_`) or superscript (`^`) at `i`. Requires a preceding non-space base and
     /// accepts either a `{…}` group or a bare token ending in an alphanumeric.
@@ -328,7 +327,7 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Backslash: line break, math, entities -------------------------------------------------
+    // Backslash: line break, math, entities
 
     fn scan_backslash(&mut self, i: usize) -> usize {
         match self.at(i + 1) {
@@ -373,7 +372,6 @@ impl Inlines<'_> {
             }
             j += 1;
         }
-        // Unterminated: emit the opening delimiter literally.
         self.word.push('\\');
         fallback + 1
     }
@@ -384,7 +382,6 @@ impl Inlines<'_> {
             j += 1;
         }
         let name: String = self.chars.get(i + 1..j).unwrap_or(&[]).iter().collect();
-        // An optional `{}` terminates the entity and is consumed.
         let mut end = j;
         if self.at(j) == Some('{') && self.at(j + 1) == Some('}') {
             end = j + 2;
@@ -400,7 +397,7 @@ impl Inlines<'_> {
         end
     }
 
-    // -- Brackets: links, footnotes, citations -------------------------------------------------
+    // Brackets: links, footnotes, citations
 
     fn scan_bracket(&self, i: usize) -> Option<(Inline, usize)> {
         if self.at(i + 1) == Some('[') {
@@ -419,7 +416,6 @@ impl Inlines<'_> {
     }
 
     fn scan_link(&self, i: usize) -> Option<(Inline, usize)> {
-        // `[[` … `]]`, with an optional `][description]`.
         let inner_start = i + 2;
         let close = self.find_double_close(inner_start)?;
         let inner: String = self
@@ -468,7 +464,6 @@ impl Inlines<'_> {
     }
 
     fn scan_footnote(&self, i: usize) -> Option<(Inline, usize)> {
-        // `[fn:label]`, `[fn:label:text]`, or `[fn::text]`.
         let close = self.match_bracket(i)?;
         let inner: String = self.chars.get(i + 1..close).unwrap_or(&[]).iter().collect();
         let body = inner.strip_prefix("fn:")?;
@@ -524,11 +519,10 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Angle brackets: targets and autolinks -------------------------------------------------
+    // Angle brackets: targets and autolinks
 
     fn scan_angle(&self, i: usize) -> Option<(Inline, usize)> {
         if self.at(i + 1) == Some('<') {
-            // Target `<<name>>`.
             let name_start = i + 2;
             let mut j = name_start;
             while matches!(self.at(j), Some(c) if c != '<' && c != '>' && c != '\n') {
@@ -554,7 +548,6 @@ impl Inlines<'_> {
             }
             return None;
         }
-        // Autolink `<uri>`.
         let mut j = i + 1;
         while matches!(self.at(j), Some(c) if c != '>' && c != '\n') {
             j += 1;
@@ -572,11 +565,10 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Dollar math ---------------------------------------------------------------------------
+    // Dollar math
 
     fn scan_math_dollar(&self, i: usize, prev: Option<char>) -> Option<(Inline, usize)> {
         if self.at(i + 1) == Some('$') {
-            // Display `$$…$$`.
             let start = i + 2;
             let mut j = start;
             while j + 1 < self.chars.len() {
@@ -616,10 +608,9 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Inline export ---------------------------------------------------------------------------
+    // Inline export
 
     fn scan_export(&self, i: usize) -> Option<(Inline, usize)> {
-        // `@@format:content@@`.
         if self.at(i + 1) != Some('@') {
             return None;
         }
@@ -652,7 +643,7 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Smart quotes --------------------------------------------------------------------------
+    // Smart quotes
 
     fn scan_quote(&self, i: usize, quote: char) -> (Option<Inline>, usize) {
         let (kind, close) = if quote == '"' {
@@ -682,7 +673,7 @@ impl Inlines<'_> {
         (None, i + 1)
     }
 
-    // -- Special strings -----------------------------------------------------------------------
+    // Special strings
 
     /// Replaces `---`/`--` with em/en dashes and `...` with an ellipsis.
     fn scan_special_string(&self, i: usize) -> Option<(&'static str, usize)> {
@@ -701,7 +692,7 @@ impl Inlines<'_> {
         None
     }
 
-    // -- Bare autolinks ------------------------------------------------------------------------
+    // Bare autolinks
 
     fn scan_bare_url(&self, i: usize) -> Option<(String, usize)> {
         const SCHEMES: [&str; 3] = ["https://", "http://", "ftp://"];
@@ -711,7 +702,6 @@ impl Inlines<'_> {
         {
             j += 1;
         }
-        // Trim trailing sentence punctuation.
         while j > i + scheme.chars().count()
             && self
                 .at(j - 1)
@@ -723,7 +713,7 @@ impl Inlines<'_> {
         Some((url, j))
     }
 
-    // -- Low-level matching --------------------------------------------------------------------
+    // Low-level matching
 
     fn matches_at(&self, i: usize, pat: &[char]) -> bool {
         pat.iter()

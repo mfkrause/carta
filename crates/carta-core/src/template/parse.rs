@@ -1,28 +1,9 @@
-//! Parsing the `$`-delimited template language into a [`Template`] tree.
+//! Parse `$`-delimited templates into a [`Template`] tree.
 //!
-//! Three passes: a lexer splits the source into literal text and directive tokens (handling `$$`
-//! escapes and `$-- …` comments inline); a whitespace pass strips the lines occupied by the
-//! directives of a block construct; and a tree builder folds the flat token list into nested
-//! `$if$`/`$for$` nodes.
-//!
-//! ## Comments
-//!
-//! `$-- …` runs to the end of its line. When the comment begins at the very start of a line (column
-//! zero, no preceding character on the line) the line's newline is swallowed with it; otherwise the
-//! preceding content and the newline survive.
-//!
-//! ## Block control directives
-//!
-//! Whether a `$if$…$endif$` or `$for$…$endfor$` construct is laid out as a block is decided by its
-//! opening directive: if `$if$`/`$for$` is the last non-whitespace on its line, the construct is a
-//! block. In a block construct, the opening's trailing newline is swallowed, and every other
-//! directive of that same construct (`$elseif$`/`$else$`/`$sep$` and the closing `$endif$`/
-//! `$endfor$`) that likewise ends its own line has its trailing newline removed. Any indentation
-//! *before* the directive survives and prefixes onto the following content, so an indented control
-//! line shifts its body rightward. When the opening shares its line with other content the construct
-//! is inline: every one of its directives (even a closing one alone on its line) keeps its
-//! surrounding whitespace and newline verbatim, so an inline `$for$` whose `$endfor$` sits on its
-//! own line emits the blank line that follows it.
+//! A `$--` comment at column zero also consumes its newline; other comments preserve it.
+//! An opening `$if$` or `$for$` that ends its line selects block whitespace handling:
+//! all directives of that construct that end their lines consume their trailing newlines.
+//! Indentation before directives remains. Inline constructs preserve surrounding whitespace.
 
 use super::TemplateError;
 use super::node::{Align, Expr, Node, Pipe, Template};
@@ -107,7 +88,7 @@ fn lex(source: &str) -> Result<Vec<Token>, TemplateError> {
                     if chars.get(j) == Some(&'\n') {
                         j += 1;
                     }
-                } // else the newline reads as ordinary text next.
+                }
                 i = j;
             }
             _ => {
@@ -315,25 +296,13 @@ fn pipe_args(text: &str) -> Vec<String> {
     out
 }
 
-/// Strip the trailing newline on the line occupied by each block construct's directives.
+/// Remove trailing newlines from block directives and standalone partials.
 ///
-/// A `$if$`/`$for$` whose opening ends its line opens a block: its trailing newline is swallowed,
-/// and each later directive of that construct (`$elseif$`/`$else$`/`$sep$`, the closing) that ends
-/// its own line is likewise dropped. The block flag rides a nesting stack, so each construct's
-/// interior directives consult the construct they belong to, not whichever directive came last.
-///
-/// Any indentation *preceding* the directive on its line is left in place: it then sits directly
-/// in front of the following content, so an indented control line shifts its body rightward.
-///
-/// A plain `$name()$` partial is treated as standalone under a stricter rule: when only blanks
-/// precede it back to the previous newline and a newline immediately follows it, that single
-/// newline is absorbed (trailing blanks before the newline, or any non-blank, leave it in place).
-///
-/// All decisions are taken over the original token text in a first pass, then applied, so trimming
-/// one directive's line never perturbs the line analysis of its neighbours.
+/// A line-ending opener enables newline removal for all line-ending directives in its construct.
+/// Leading indentation remains. Partials consume a newline only after a blank-only prefix
+/// and with no trailing blanks. Decisions use the original tokens so trimming stays independent.
 fn trim_standalone(tokens: &mut [Token]) {
-    // `drop_newline` swallows a block directive's trailing line, `absorb_partial` the newline glued
-    // to a standalone partial; both computed pre-trim so neighbours never perturb one another.
+    // Compute both newline decisions before trimming to keep them independent.
     let mut blocks: Vec<bool> = Vec::new();
     let drop_newline: Vec<bool> = tokens
         .iter()
@@ -494,8 +463,7 @@ impl Builder<'_> {
             return Err(TemplateError::new("expected `for`"));
         };
         self.pos += 1;
-        // A single-segment loop expression also binds its name to the element (`$for(xs)$…$xs$`);
-        // `$it$` always refers to the element regardless.
+        // A single-segment loop binds its name as well as `it`.
         let bind = match expr.path.as_slice() {
             [only] => Some(only.clone()),
             _ => None,

@@ -44,7 +44,7 @@ pub(super) fn strip_comments(input: &str) -> String {
                             comment_end
                         };
                     } else if preceded || followed {
-                        // At a line boundary the comment leaves nothing behind: no leading space (would mark preformatted), no trailing one.
+                        // Remove boundary comments without spaces to avoid creating preformatted lines.
                         i = comment_end;
                     } else {
                         // Between text, the comment collapses to a single space.
@@ -117,8 +117,7 @@ pub(super) fn extract_behavior_switches(input: &str) -> (String, Vec<String>) {
                 found.push(key);
             }
             i = after;
-            // A line-leading switch is removed with its following spaces/tabs so the line gains no
-            // leading space (would mark it preformatted); the line break itself stays.
+            // Remove spaces after a line-leading switch to avoid creating preformatted text.
             if out.is_empty() || out.ends_with('\n') {
                 while matches!(at(&chars, i), Some(' ' | '\t')) {
                     i += 1;

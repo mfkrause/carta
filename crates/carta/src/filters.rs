@@ -1,13 +1,7 @@
-//! JSON filters: transform the document by piping it, as JSON, through external programs.
+//! Apply JSON filters in order.
 //!
-//! Each filter is a program that reads the document as JSON on standard input and writes the
-//! transformed document as JSON on standard output, receiving the output format name as its sole
-//! argument. Filters apply in order, each one seeing the previous one's result.
-//!
-//! A bare filter name (one with no path component) is resolved against the working directory first,
-//! then the data directory's `filters/`, then the executable search path. A resolved file that lacks
-//! the executable bit is run through an interpreter chosen from its extension, so a `filter.py` runs
-//! even without a shebang or `+x`.
+//! Filters read JSON from stdin, write JSON to stdout, and receive the target format as an argument.
+//! Bare names search cwd, the data directory, then PATH; known script extensions select interpreters.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -52,8 +46,7 @@ fn run_one(
         .spawn()
         .map_err(|error| Error::Filter(format!("could not run filter '{filter}': {error}")))?;
 
-    // Feed stdin on a separate thread while draining stdout here: a filter emitting a large
-    // document fills its output pipe mid-read, deadlocking a write-then-read single thread.
+    // Feed stdin while draining stdout to prevent pipe deadlock.
     let mut stdin = child
         .stdin
         .take()
@@ -107,8 +100,7 @@ enum Target {
 }
 
 fn resolve(filter: &str, data_dir: Option<&Path>) -> Target {
-    // A path addresses a file directly; a bare name tries the working directory, then the data
-    // directory's `filters/`, then the executable search path.
+    // Bare names search cwd, the data directory, then PATH; explicit paths bypass the search.
     if has_separator(filter) {
         return Target::File(PathBuf::from(filter));
     }
@@ -134,7 +126,6 @@ fn command_for_file(path: &Path) -> Command {
         command.arg(path);
         return command;
     }
-    // Not executable and no known interpreter: run it directly and let the OS report why it cannot.
     Command::new(path)
 }
 
@@ -168,8 +159,7 @@ fn is_executable(path: &Path) -> bool {
 
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
-    // Only a native executable image runs directly; a script must return false here or the
-    // interpreter fallback in `command_for_file` is never reached.
+    // Scripts need the interpreter fallback, so only native executable images return true.
     let extension = path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -216,7 +206,6 @@ mod tests {
 
     #[test]
     fn a_name_with_a_path_addresses_a_file_directly() {
-        // A separator bypasses the data directory and working-directory search entirely.
         match resolve("./nested/f", Some(Path::new("/data"))) {
             Target::File(path) => assert_eq!(path, PathBuf::from("./nested/f")),
             Target::Search(_) => panic!("a path should resolve to a file"),
@@ -225,7 +214,6 @@ mod tests {
 
     #[test]
     fn a_bare_name_falls_through_to_the_search_path() {
-        // No data directory and no working-directory file: left for the executable search path.
         let missing = Path::new("/does/not/exist");
         match resolve("cite-filter", Some(missing)) {
             Target::Search(name) => assert_eq!(name, "cite-filter"),

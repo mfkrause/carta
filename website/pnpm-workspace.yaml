@@ -1,4 +1,3 @@
-# esbuild unpacks a platform binary in its install script; without this pnpm skips it and the
-# Astro build fails.
+# Allow the esbuild install script to unpack its platform binary.
 allowBuilds:
   esbuild: true

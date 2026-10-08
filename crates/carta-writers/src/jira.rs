@@ -1,8 +1,4 @@
-//! Jira writer: renders the document model to Jira wiki markup.
-//!
-//! Inline content is not wrapped: a soft break renders as a single space and block structure is
-//! conveyed through Jira's line-oriented markup. Output carries no trailing newline; the caller
-//! appends one. This format has no public specification, so its rules are stated directly here.
+//! Render Jira wiki markup from the document model.
 
 use std::fmt::Write as _;
 
@@ -280,7 +276,6 @@ impl State {
                 let text = normalize_whitespace(text);
                 format!("{{{{{}}}}}", escape_text_with(&text, None, None))
             }
-            // A soft break stays a line break only under Preserve; otherwise inter-word space.
             Inline::SoftBreak if self.wrap == WrapMode::Preserve => "\n".to_owned(),
             Inline::Space | Inline::SoftBreak => " ".to_owned(),
             Inline::LineBreak => "\n".to_owned(),
@@ -555,7 +550,6 @@ fn normalize_whitespace(text: &str) -> String {
 /// elsewhere Jira would consume it as an escape. The `prev`/`after` neighbors are supplied by the
 /// caller so the tests reflect the surrounding inline stream, not just this string's own ends.
 fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> String {
-    // Only these characters open markup; text without any of them is returned verbatim.
     if !text.contains([
         '{', '}', '?', '\\', '(', ':', ';', '*', '_', '+', '-', '^', '~', '!', '|', '[', ']', '&',
     ]) {
@@ -563,7 +557,6 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
     }
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
-    // Char at offset, falling back to the supplied neighbor past the trailing end.
     let at = |offset: usize| -> Option<char> { chars.get(offset).copied().or(after) };
     let mut offset = 0;
     while let Some(&ch) = chars.get(offset) {
@@ -573,8 +566,7 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
         };
         let next = at(offset + 1);
         if ch == '\\' {
-            // Literal between like-category neighbors, else the `&bsol;` entity; an
-            // emoticon-escaped neighbor reads as ordinary content.
+            // Escaped emoticon neighbors count as content when choosing literal backslashes.
             let effective_before = if neutralized_before(&chars, offset) {
                 Some('a')
             } else {
@@ -619,7 +611,6 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
             continue;
         }
         if (ch == ':' || ch == ';') && opens_emoticon(ch, next, at(offset + 2), before) {
-            // Escape the emoticon's lead; the body stays bare, the emoticon is now neutralized.
             out.push('\\');
             out.push(ch);
             if let Some(&body) = chars.get(offset + 1) {
@@ -678,7 +669,6 @@ fn neutralized_before(chars: &[char], marker: usize) -> bool {
     match chars.get(pos) {
         Some(&(':' | ';')) => opens_emoticon_at(chars, pos),
         Some(&'(') => {
-            // The parenthesis body of a `:(`/`;(` emoticon, or the open parenthesis of an icon.
             let opens_smiley = pos
                 .checked_sub(1)
                 .is_some_and(|lead| smiley_follows(chars, lead));
@@ -866,8 +856,7 @@ fn needs_escape(ch: char, prev: Option<char>, next: Option<char>) -> bool {
     match ch {
         '{' | '}' => true,
         '?' => next == Some('?'),
-        // Significant at the string edge, a content transition, or abutting another significant
-        // char; the last case escapes every member of a marker run, not just its edges.
+        // Adjacent significant characters require escaping every marker in a run.
         _ if is_marker(ch) => {
             prev.is_none()
                 || next.is_none()

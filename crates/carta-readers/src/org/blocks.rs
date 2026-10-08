@@ -121,7 +121,6 @@ pub(super) fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        // Dispatch proved this line is neither blank nor a block opener; continuation starts next line.
         let start = i;
         i += 1;
         while let Some(&l) = lines.get(i) {

@@ -1,8 +1,4 @@
-//! Grid tables: a block ruled by `+`/`|` whose columns are fixed by the `+` positions on its border
-//! lines. The top border `+---+---+` sets the column boundaries; a `+===+` divider, when present,
-//! splits the rows above it into a header. Each cell holds its raw text, sliced out by column and
-//! left for the inline phase to parse as block content; column widths and alignments come from the
-//! border lines.
+//! Parse border-ruled grid tables with fixed column positions and optional header dividers.
 
 use carta_ast::{Alignment, Attr};
 
@@ -103,8 +99,7 @@ pub(crate) fn parse(text: &str) -> Option<GridTable> {
 
     for (idx, line) in lines.iter().enumerate() {
         if is_ruling(line, true) {
-            // Pluses off the shared boundaries, or alignment colons anywhere but the top border and
-            // `=` divider, imply a span; spans are not modeled, so leave the candidate as prose.
+            // Off-grid borders or misplaced colons imply unsupported spans; keep them as prose.
             if border_columns(line) != boundaries {
                 return None;
             }
@@ -318,9 +313,7 @@ mod tests {
         assert!(is_top_border("+:--+--:+"));
         assert!(is_top_border("+-+"));
         assert!(is_top_border("   +---+"));
-        // A `=` belongs to the header divider, not the top border.
         assert!(!is_top_border("+===+"));
-        // A bullet marker, an empty segment, and bare runs are not borders.
         assert!(!is_top_border("+ item"));
         assert!(!is_top_border("++"));
         assert!(!is_top_border("+++"));
@@ -338,11 +331,8 @@ mod tests {
 
     #[test]
     fn parse_rejects_incomplete_tables() {
-        // No closing border.
         assert!(parse("+---+\n| a |").is_none());
-        // A lone border has no content row.
         assert!(parse("+---+").is_none());
-        // A stray non-grid line breaks the structure.
         assert!(parse("+---+\nplain\n+---+").is_none());
     }
 
@@ -377,7 +367,6 @@ mod tests {
 
     #[test]
     fn the_header_divider_overrides_the_top_border_for_alignment() {
-        // The `=` divider's colons win; the top border's are ignored once a header is present.
         let table = parse("+:--+:--+\n| a | b |\n+==:+==:+\n| c | d |\n+---+---+").unwrap();
         assert!(matches!(col_align(&table, 0), Some(Alignment::AlignRight)));
         assert!(matches!(col_align(&table, 1), Some(Alignment::AlignRight)));
@@ -385,14 +374,12 @@ mod tests {
 
     #[test]
     fn a_colon_bearing_closing_border_is_not_a_table() {
-        // Alignment colons are valid on the top border and the header divider, never the close.
         assert!(parse("+---+\n| a |\n+:-:+").is_none());
         assert!(parse("+---+\n| a |\n+--:+").is_none());
     }
 
     #[test]
     fn deep_cell_indentation_survives_as_code() {
-        // Only the one padding space is stripped, so five leading spaces stay an indented block.
         let table = parse("+----------+\n|     code |\n+----------+").unwrap();
         assert_eq!(text_at(&table.body, 0, 0), "    code");
     }
@@ -428,7 +415,6 @@ mod tests {
         assert_eq!(text_at(&table.head, 0, 0), "h");
         assert_eq!(text_at(&table.body, 0, 0), "b");
         assert_eq!(text_at(&table.foot, 0, 0), "f");
-        // A plain `-` closing border keeps the trailing rows in the body, with no footer.
         let no_foot = parse("+---+\n| h |\n+===+\n| b |\n+===+\n| f |\n+---+").unwrap();
         assert!(no_foot.foot.is_empty());
         assert_eq!(no_foot.body.len(), 2);
@@ -436,15 +422,12 @@ mod tests {
 
     #[test]
     fn spanning_candidates_are_declined() {
-        // A content line missing a `|` at a boundary would merge columns (a column span).
         assert!(parse("+---+---+\n| ab    |\n+---+---+").is_none());
-        // A border whose pluses fall off the column boundaries implies a span.
         assert!(parse("+---+---+\n| a | b |\n+-------+\n| cd    |\n+---+---+").is_none());
     }
 
     #[test]
     fn adjacent_borders_make_an_empty_row() {
-        // Two borders with no content line between them frame an empty row.
         let table = parse("+---+\n| a |\n+---+\n+---+\n| b |\n+---+").unwrap();
         assert_eq!(table.body.len(), 3);
         assert_eq!(text_at(&table.body, 0, 0), "a");

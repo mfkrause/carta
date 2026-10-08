@@ -1,16 +1,7 @@
-//! Layer 1 reader golden tests: snapshot carta's own JSON AST for each `corpus/text/<fmt>/*` case.
+//! Snapshot reader ASTs from text, extension, and binary corpora.
 //!
-//! These freeze current reader output and run fully offline; this layer is the regression net and
-//! the offline guarantee. Snapshots are reviewed with `cargo insta review`; never hand-edit the
-//! `.snap` files.
-//!
-//! Each reader format, extension spec, and byte-container group gets its own `#[test]` so a single
-//! failing case cannot abort the rest and nextest can run and parallelize them independently. A
-//! per-kind guard test asserts the macro's group list equals the `corpus/` directory set, so a
-//! new corpus directory without a matching test fails loudly. The `assert_snapshot!` first
-//! argument fixes each `.snap` filename.
+//! Review changes with `cargo insta review`; do not edit snapshot files directly.
 
-// Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // reader output is snapshotted as JSON; without the writer there is nothing to freeze
 #![cfg(feature = "write-json")]
@@ -101,7 +92,7 @@ fn reader_ext_snapshots_for(spec: &str) {
 }
 
 /// Assert the macro's covered-group list equals the `corpus/<kind>/` directory set, so a new corpus
-/// directory without a matching test entry fails loudly.
+/// directory without a matching test entry fails.
 fn assert_groups_partitioned(kind: &str, covered: &[&str]) {
     let mut expected = corpus_groups(kind);
     expected.sort();

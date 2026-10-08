@@ -1,13 +1,4 @@
-//! A permissive read-only XML parser shared by the container-format readers.
-//!
-//! Zipped-XML packages ship no DTD a reader must honor, so a permissive well-formed-XML scan
-//! suffices. The parser is iterative and never recurses, so adversarially deep markup cannot
-//! overflow the stack; a caller-supplied depth ceiling bounds the materialized tree instead:
-//! content nested past the ceiling is kept but not descended into. Two entry points serve the two
-//! shapes callers need: [`parse`] returns the single root element or `None` when the input holds no
-//! element, while [`parse_tolerant`] never fails, folding every top-level node (and anything left
-//! open by truncated input) into a synthetic root whose children are the document's top-level
-//! nodes.
+//! Permissive XML parsing for container readers.
 
 use crate::xml_entities::decode_entities;
 

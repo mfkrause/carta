@@ -1,14 +1,4 @@
-//! Slide-deck writer: renders the document model to an html5 presentation of nested `<section>`s.
-//!
-//! The block sequence is split into slides at a computed slide level (see `crate::slides`):
-//! headers above it are sectioning markers, the header at it (or a bare content run, or a horizontal
-//! rule) opens a frame, and the rest gathers into frame bodies. A frame is a `<section>` holding the
-//! slide's title heading and its html5-rendered body. Sectioning markers shallower than the slide
-//! level group the frames that follow them: the shallowest such level forms the horizontal axis,
-//! wrapping each group in an outer `<section>`, while deeper markers and the frames themselves are
-//! the vertical axis inside it. Footnotes from every frame collect into one trailing section. The
-//! result is a body fragment with no surrounding document scaffolding and no trailing newline; this
-//! format has no public specification.
+//! Render slide decks as nested HTML5 `<section>` elements.
 
 use std::fmt::Write;
 
@@ -31,8 +21,7 @@ impl Writer for RevealjsWriter {
         if slides.is_empty() {
             deck.empty_frame();
         } else {
-            // The shallowest sectioning marker forms the horizontal axis; with none, every slide is
-            // a standalone frame and there is no axis to anchor outer sections.
+            // Without sectioning headers, every slide is a standalone frame.
             let top = slides
                 .iter()
                 .filter_map(section_level)

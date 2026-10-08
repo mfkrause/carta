@@ -1,8 +1,4 @@
-//! Golden snapshots of the stylesheet and macro preambles the writers embed for each built-in color
-//! theme: the HTML/EPUB `<style>` body (`theme_css`) and the LaTeX per-token macros
-//! (`theme_latex_macros`). These freeze the exact bytes offline, independent of any command line, so
-//! the layout rules, background and line-number colors, and per-kind token rules stay stable.
-//! Reviewed with `cargo insta review`; never hand-edit the `.snap`s.
+//! Snapshot built-in theme CSS and LaTeX macros; review with `cargo insta review`.
 
 #![cfg(all(feature = "highlight", feature = "write-html"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

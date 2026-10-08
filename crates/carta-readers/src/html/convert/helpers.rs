@@ -35,7 +35,6 @@ pub(super) fn merge_adjacent_formatting(out: &mut Vec<Inline>, inline: Inline) {
         out.push(inline);
         return;
     }
-    // Both sides are the same formatting variant, so the children concatenate onto the previous.
     let next = match inline {
         Inline::Emph(children)
         | Inline::Strong(children)
@@ -256,8 +255,7 @@ pub(super) fn inlines_from_text(text: &str) -> Vec<Inline> {
 /// Append `text` to an inline run, collapsing each whitespace span to a single break: a span that
 /// spans a line is a soft break, otherwise a space. Non-whitespace merges into the trailing string.
 pub(super) fn push_text(out: &mut Vec<Inline>, text: &str) {
-    // Boundaries are ASCII whitespace, so byte scanning is exact and each non-whitespace span
-    // appends in one step.
+    // ASCII whitespace permits byte scanning without splitting characters.
     let bytes = text.as_bytes();
     let mut i = 0;
     while let Some(&byte) = bytes.get(i) {

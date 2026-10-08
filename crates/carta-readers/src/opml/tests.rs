@@ -348,7 +348,6 @@ fn text_attribute_curls_an_apostrophe() {
 #[test]
 fn text_attribute_folds_dashes_and_ellipsis() {
     let inlines = first_header_inlines(&outline("a---b--c...d"));
-    // Three hyphens fold to an em dash, two to an en dash, three dots to an ellipsis.
     assert_eq!(
         inlines,
         vec![Inline::Str(
@@ -359,7 +358,6 @@ fn text_attribute_folds_dashes_and_ellipsis() {
 
 #[test]
 fn text_attribute_resolves_an_unpaired_double_quote_directionally() {
-    // an opener-context quote before a word becomes the left glyph; otherwise the right
     let opener = first_header_inlines(&outline("&quot;open only"));
     assert_eq!(
         opener.first(),
@@ -374,7 +372,6 @@ fn text_attribute_resolves_an_unpaired_double_quote_directionally() {
 
 #[test]
 fn double_quotes_do_not_nest_within_their_own_kind() {
-    // The inner double quote closes the outer span rather than nesting; the rest stay glyphs.
     let inlines = first_header_inlines(&outline("&quot;a &quot;b&quot; c&quot;"));
     assert_eq!(
         inlines,
@@ -423,7 +420,6 @@ fn two_straight_single_quotes_stay_apostrophes() {
 #[test]
 fn code_span_curls_quotes_into_glyph_pairs() {
     let inlines = first_header_inlines(&outline("&lt;code&gt;&apos;q&apos;&lt;/code&gt;"));
-    // A matched pair inside a code span renders as its left and right glyphs, not a Quoted node.
     assert_eq!(
         inlines,
         vec![Inline::Code(
@@ -482,7 +478,6 @@ fn note_body_applies_smart_typography() {
 
 #[test]
 fn metadata_keeps_straight_quotes_dashes_and_dots() {
-    // Document metadata is not smart-transformed: its punctuation stays verbatim.
     let document = read(
         "<opml><head><title>&quot;a&quot; --- it&apos;s ...</title></head><body></body></opml>",
     );
@@ -534,7 +529,6 @@ fn metadata_turns_an_internal_newline_into_a_soft_break() {
 
 #[test]
 fn present_but_empty_owner_contributes_an_empty_author() {
-    // a present `ownerName`, even empty, yields one author entry; an absent element yields none
     let document = read("<opml><head><ownerName></ownerName></head><body></body></opml>");
     let Some(MetaValue::MetaList(authors)) = document.meta.get("author") else {
         panic!("expected an author list");

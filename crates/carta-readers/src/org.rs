@@ -1,15 +1,4 @@
-//! Org reader: parses Org markup into the document model.
-//!
-//! Parsing is two-phase. A line-oriented block pass consumes the input into [`Block`]s, dispatching
-//! on each line's opening: headlines (`* `), greater blocks (`#+begin_…`/`#+end_…`), keyword lines
-//! (`#+key: value`), tables (`|`), lists, drawers, fixed-width (`: `) and comment (`# `) lines, and
-//! everything else as a paragraph. A second, per-fragment pass then scans each paragraph, headline,
-//! cell, and item into [`Inline`](carta_ast::Inline)s: emphasis, verbatim, sub/superscripts, links,
-//! footnotes, math,
-//! entities, and citations.
-//!
-//! Footnote definitions are gathered up front and their references resolved inline, so a `[fn:label]`
-//! reference expands to a [`Inline::Note`](carta_ast::Inline::Note) carrying the definition's blocks.
+//! Read Org markup and resolve gathered footnote definitions.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -52,7 +41,6 @@ impl Reader for OrgReader {
 
         let (body_lines, defs) = collect_footnotes(&lines);
 
-        // Bodies parse first so references carry definition blocks; nested references see an empty table.
         let empty_notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
         let mut notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
         for (label, text) in &defs {
@@ -91,7 +79,7 @@ fn normalize(input: &str) -> Cow<'_, str> {
     }
 }
 
-// -- Footnote gathering ------------------------------------------------------------------------
+// Footnote gathering
 
 /// Splits block-level footnote definitions (`[fn:label] …`) out of the line stream, returning the
 /// remaining body lines and the ordered `(label, joined-body)` definitions. A definition's body
@@ -145,7 +133,7 @@ fn is_footnote_label_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '_' | '-')
 }
 
-// -- Identifier derivation ---------------------------------------------------------------------
+// Identifier derivation
 
 /// A fresh heading-identifier registry with `section` reserved from the start, so the first heading
 /// that reduces to it is already `section-1`.
@@ -176,7 +164,7 @@ fn assign_id(ids: &mut IdRegistry, text: &str, ext: Extensions) -> String {
     ids.assign_native(base)
 }
 
-// -- Prefix helpers ----------------------------------------------------------------------------
+// Prefix helpers
 
 fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
     if s.len() >= prefix.len() && s.get(..prefix.len())?.eq_ignore_ascii_case(prefix) {

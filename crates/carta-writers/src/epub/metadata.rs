@@ -1,8 +1,4 @@
-//! Reading a document's metadata map into the Dublin Core fields an EPUB package records.
-//!
-//! The document model carries free-form metadata; an EPUB package needs a fixed set of publication
-//! fields: title, authors, language, identifier, date and the rest. This module projects the map
-//! onto that set, filling in the deterministic defaults a container needs when a field is absent.
+//! Project document metadata into Dublin Core fields with deterministic defaults.
 
 use carta_ast::{Inline, MetaValue, QuoteType, Text};
 use carta_core::media::sha1_hex;
@@ -299,7 +295,7 @@ fn onix_code(scheme: &str) -> String {
 }
 
 /// The plain-text values a list-shaped field (subjects, …) contributes, empty entries included so a
-/// deliberately blank value keeps its place.
+/// blank value keeps its place.
 fn collect_texts(value: Option<&MetaValue>) -> Vec<String> {
     value
         .into_iter()
@@ -394,8 +390,7 @@ impl BookMeta {
         let mut identifiers = Vec::new();
         for element in parse_fragment(fragment) {
             match element.name.as_str() {
-                // empty elements are dropped: applying them would blank a projected default or emit
-                // an empty, schema-invalid Dublin Core element
+                // Drop empty metadata elements to preserve defaults and valid Dublin Core values.
                 "dc:identifier" => {
                     if !element.text.is_empty() {
                         let scheme = element.attribute("opf:scheme").map(str::to_owned);
@@ -524,7 +519,6 @@ fn parse_fragment(input: &str) -> Vec<XmlElement> {
             continue;
         }
         index += 1;
-        // A comment, processing instruction, declaration or stray close tag carries no element.
         if matches!(chars.get(index), Some('!' | '?' | '/')) {
             while index < chars.len() && chars.get(index) != Some(&'>') {
                 index += 1;
@@ -592,7 +586,6 @@ fn take_attributes(chars: &[char], index: &mut usize) -> (Vec<(String, String)>,
                     value = take_quoted(chars, index);
                 }
                 if key.is_empty() {
-                    // No progress would be made; bail rather than spin.
                     *index += 1;
                 } else {
                     attributes.push((key, unescape(&value)));

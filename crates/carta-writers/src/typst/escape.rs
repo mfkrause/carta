@@ -70,7 +70,6 @@ pub(super) fn math(kind: &MathType, text: &str, smart: bool) -> String {
         return escape_text(&verbatim, false, true, smart);
     };
     let crate::math::TypstMath { body, label } = math;
-    // An equation `\label` is set as a Typst reference label immediately after the closing `$`.
     let label = label.as_deref().unwrap_or("");
     match kind {
         MathType::InlineMath => format!("${body}${label}"),

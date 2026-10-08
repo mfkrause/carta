@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Pre-push gate: lint
 # Enable with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
 set -euo pipefail
 

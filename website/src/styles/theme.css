@@ -1,5 +1,4 @@
-/* One palette for both the standalone landing route and the Starlight docs theme. The `--carta-*`
-   tokens stand alone; the `--sl-*` mappings hand the same colors to Starlight. */
+/* Share the landing-page palette with Starlight through --sl-* mappings. */
 :root {
   --carta-accent-hue: 24;
   --carta-radius: 0.75rem;
@@ -72,7 +71,7 @@
   --sl-color-accent-high: var(--carta-accent-strong);
 }
 
-/* Status glyphs carry meaning in the matrices; keep them legible against both themes. */
+/* Keep status glyphs legible in both themes. */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -94,14 +93,12 @@
   color: var(--carta-muted);
 }
 
-/* Starlight header adjustments. The nav gap is sized for a wordmark; carta's logo is a square
-   glyph, so it reads as a gulf between the mark and the title. */
+/* Reduce the wordmark-sized gap for a square logo. */
 .site-title {
   gap: 0.55rem;
 }
 
-/* Chrome reserves room for its own dropdown arrow on top of Starlight's caret, which strands the
-   caret well right of the label. `appearance: none` reclaims that space. */
+/* Remove Chrome's native arrow space beside the Starlight caret. */
 starlight-theme-select select {
   appearance: none;
   width: auto;

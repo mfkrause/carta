@@ -29,8 +29,7 @@ impl Parser<'_> {
                 i += 1;
                 continue;
             }
-            // No destination: internal target pointing at the next block's identifier. A trailing-underscore
-            // destination is indirect, kept verbatim so the chain can be followed; others are percent-encoded URLs.
+            // Empty targets attach to the next block; indirect names stay raw, URLs are encoded.
             if matches!(classify_explicit(line), Some(Explicit::Target)) {
                 let indent = indent_of(line);
                 let end = explicit_extent(lines, i, indent);
@@ -56,7 +55,6 @@ impl Parser<'_> {
             i = self.block_at(lines, i, &mut out);
             // Force progress so a construct that yields nothing cannot stall the scan.
             i = i.max(scanned_from + 1);
-            // A preceding empty `class` directive wraps the block just produced.
             if let Some(classes) = pending_classes.take()
                 && out.len() > before
             {
@@ -71,7 +69,6 @@ impl Parser<'_> {
                     std::mem::take(&mut pending_targets),
                 ));
             }
-            // An empty `class` directive leaves a marker whose classes wrap the next block.
             if let Some(Block::Div(attr, content)) = out.last()
                 && content.is_empty()
                 && attr.classes.first().map(Text::as_str) == Some(PENDING_CLASS)
@@ -100,8 +97,7 @@ impl Parser<'_> {
         }
 
         if let Some(c) = adornment_char(line) {
-            // Overline and underline must match and be at least title length; a mismatch falls
-            // through (a single-column simple table opens the same way).
+            // Mismatched title rules fall through because a simple table can open the same way.
             let title = line_at(lines, i + 1);
             let under = line_at(lines, i + 2);
             let overline_len = line.trim().chars().count();
@@ -122,7 +118,6 @@ impl Parser<'_> {
             }
         }
 
-        // Underline section header.
         let next = line_at(lines, i + 1);
         if let Some(c) = adornment_char(next)
             && next.trim().chars().count() >= line.trim().chars().count()
@@ -161,8 +156,7 @@ impl Parser<'_> {
             return self.explicit(lines, i, out);
         }
 
-        // Line block: `|` then space or EOL, checked after dropping indentation so the character
-        // after the pipe decides, not the line's second column.
+        // Read the character after `|` after indentation, not at a fixed line column.
         if let Some(after_pipe) = line.trim_start().strip_prefix('|')
             && matches!(after_pipe.chars().next(), Some(' ') | None)
         {
@@ -173,7 +167,6 @@ impl Parser<'_> {
             return self.option_list(lines, i, out);
         }
 
-        // Definition list: a single-line term immediately followed by a more-indented definition.
         if !is_blank(next) && indent_of(next) > 0 {
             return self.definition_list(lines, i, out);
         }
@@ -264,7 +257,6 @@ impl Parser<'_> {
             if is_blank(line) {
                 break;
             }
-            // A title underline below an earlier line ends the paragraph at that line.
             if i > start && adornment_char(line).is_some() {
                 let prev = line_at(lines, i - 1).trim();
                 if line.trim().chars().count() >= prev.chars().count() {
@@ -573,7 +565,7 @@ impl Parser<'_> {
     }
 }
 
-// --- list looseness ----------------------------------------------------------------------------
+// list looseness
 
 /// Tighten a list: when no item holds two or more paragraphs, each item's paragraphs become plain
 /// blocks so the list renders compactly.

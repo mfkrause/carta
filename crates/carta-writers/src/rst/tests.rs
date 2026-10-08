@@ -10,7 +10,6 @@ fn unit(simple: bool, text: &str) -> (bool, String) {
 
 #[test]
 fn escape_flanking_tests_see_the_neighbor_before_a_trigger() {
-    // space before makes a potential start-string, word char before whitespace a potential end-string, buried star neither
     assert_eq!(escape("text *star", false), "text \\*star");
     assert_eq!(escape("text* tail", false), "text\\* tail");
     assert_eq!(escape("a*b", false), "a*b");
@@ -43,7 +42,6 @@ fn all_multi_line_units_join_loosely() {
 
 #[test]
 fn the_gap_below_a_unit_follows_that_unit_not_the_whole_list() {
-    // a single-line unit joins tightly even when a later unit is multi-line; a multi-line unit forces a blank after it
     let joined = join_loose_items(vec![
         unit(true, "one"),
         unit(false, "two\n\n  - sub"),
@@ -60,7 +58,6 @@ fn empty_units_are_dropped_and_do_not_set_the_gap() {
 
 #[test]
 fn show_dimension_normalizes_lengths() {
-    // whole lengths drop the trailing zero, percentages keep one decimal, unitless renders in px, unknown units dropped
     assert_eq!(show_dimension("1.0in"), Some("1in".to_owned()));
     assert_eq!(show_dimension("2in"), Some("2in".to_owned()));
     assert_eq!(show_dimension("0.5in"), Some("0.5in".to_owned()));
@@ -73,7 +70,6 @@ fn show_dimension_normalizes_lengths() {
 #[test]
 fn substitution_names_stay_unique() {
     let mut state = State::default();
-    // repeats and empty labels fall back to a counter name so every reference resolves uniquely
     assert_eq!(state.substitution_name("image".to_owned()), "image");
     assert_eq!(state.substitution_name("image".to_owned()), "image1");
     assert_eq!(state.substitution_name("logo".to_owned()), "logo");
@@ -83,7 +79,7 @@ fn substitution_names_stay_unique() {
 
 #[test]
 fn image_run_names_dedupe_across_registrations() {
-    // link-embedding alt text registers each run as a substitution; a later image sharing the name must fall back so no two definitions share a label
+    // Shared image labels need distinct substitution names.
     let link = Inline::Link(
         Box::default(),
         vec![Inline::Str("L".into())],
@@ -295,7 +291,6 @@ fn only_the_first_math_directive_hands_a_spaced_run_back_the_flow() {
     let out = RstWriter.write(&doc, &WriterOptions::default()).unwrap();
     assert_eq!(out, "a\n\n.. math:: x\n\n\\ b\n\n.. math:: y\n\nc");
 
-    // A line break parts the run from the directive, and no marker opens it.
     let broken = spaced(vec![Block::Para(vec![
         Inline::Str("a".into()),
         Inline::Space,

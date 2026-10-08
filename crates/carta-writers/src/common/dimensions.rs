@@ -322,7 +322,6 @@ mod tests {
     fn parse_dimension_classifies_pixels_percent_and_length() {
         assert_eq!(parse_dimension("200"), Some(Dimension::Pixels(200)));
         assert_eq!(parse_dimension("200px"), Some(Dimension::Pixels(200)));
-        // A fractional pixel value truncates toward zero.
         assert_eq!(parse_dimension("200.99px"), Some(Dimension::Pixels(200)));
         assert_eq!(parse_dimension("0.6"), Some(Dimension::Pixels(0)));
         assert_eq!(parse_dimension("0"), Some(Dimension::Pixels(0)));
@@ -331,7 +330,6 @@ mod tests {
         assert_eq!(parse_dimension("5cm"), Some(Dimension::Length(5.0, "cm")));
         assert_eq!(parse_dimension("72pt"), Some(Dimension::Length(72.0, "pt")));
         assert_eq!(parse_dimension("3em"), Some(Dimension::Length(3.0, "em")));
-        // `inch` normalizes to the `in` unit.
         assert_eq!(
             parse_dimension("10inch"),
             Some(Dimension::Length(10.0, "in"))
@@ -342,7 +340,6 @@ mod tests {
     #[cfg(feature = "html")]
     #[test]
     fn parse_dimension_rejects_unrecognized_shapes() {
-        // Every unrecognized shape yields no dimension, so the attribute is dropped.
         assert_eq!(parse_dimension("4ex"), None);
         assert_eq!(parse_dimension("50vw"), None);
         assert_eq!(parse_dimension("3rem"), None);
@@ -375,7 +372,6 @@ mod tests {
         assert_eq!(format_length_dimension(100.0, "pt"), "100pt");
         assert_eq!(format_length_dimension(2.54, "in"), "2.54in");
         assert_eq!(format_length_dimension(12.3, "cm"), "12.3cm");
-        // Rounded to five fractional digits.
         assert_eq!(format_length_dimension(12.345_678_9, "cm"), "12.34568cm");
         assert_eq!(format_length_dimension(1.123_456, "cm"), "1.12346cm");
     }
@@ -383,12 +379,9 @@ mod tests {
     #[cfg(feature = "mediawiki")]
     #[test]
     fn dimension_pixels_resolves_lengths_at_ninety_six_dpi() {
-        // A pixel or unitless value passes through unchanged.
         assert_eq!(dimension_pixels(&Dimension::Pixels(200)), Some(200));
         assert_eq!(dimension_pixels(&Dimension::Pixels(0)), Some(0));
-        // A percentage has no absolute pixel size.
         assert_eq!(dimension_pixels(&Dimension::Percent(50.0)), None);
-        // Physical and font-relative lengths scale through their size in inches, flooring the result.
         assert_eq!(dimension_pixels(&Dimension::Length(1.0, "in")), Some(96));
         assert_eq!(dimension_pixels(&Dimension::Length(0.5, "in")), Some(48));
         assert_eq!(dimension_pixels(&Dimension::Length(2.0, "in")), Some(192));
@@ -423,7 +416,6 @@ mod tests {
     #[cfg(feature = "html")]
     #[test]
     fn normalize_image_attr_orders_style_then_rest_then_pixels() {
-        // The combined style leads, regular pairs keep their order, the pixel attribute trails.
         let attr = Attr {
             attributes: vec![
                 ("data-a".into(), "1".into()),
@@ -447,7 +439,6 @@ mod tests {
     #[cfg(feature = "html")]
     #[test]
     fn normalize_image_attr_emits_width_before_height() {
-        // Height precedes width in the source, yet width renders first.
         let attr = Attr {
             attributes: vec![
                 ("height".into(), "100".into()),
@@ -489,7 +480,6 @@ mod tests {
             normalize_image_attr(&attr).attributes,
             vec![("style".into(), "color:red;width:50.0%".into())]
         );
-        // A source style with no dimensions still moves ahead of the remaining pairs.
         let style_only = Attr {
             attributes: vec![
                 ("data-a".into(), "1".into()),
@@ -522,7 +512,6 @@ mod tests {
         let normalized = normalize_image_attr(&attr);
         assert_eq!(normalized.id, "x");
         assert_eq!(normalized.classes, vec!["c".to_owned()]);
-        // The unparsable width is dropped; the pixel height survives.
         assert_eq!(normalized.attributes, vec![("height".into(), "100".into())]);
     }
 

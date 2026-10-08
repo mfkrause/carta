@@ -62,7 +62,6 @@ fn native_span_tag_name_is_case_insensitive() {
 
 #[test]
 fn native_span_keeps_non_span_tags_raw() {
-    // An unrelated tag inside a span stays raw inline HTML.
     assert_eq!(
         pe(r#"<span class="a">x <b>y</b></span>"#, native()),
         vec![span(
@@ -80,7 +79,6 @@ fn native_span_keeps_non_span_tags_raw() {
 
 #[test]
 fn native_span_attribute_values_and_booleans() {
-    // Single-quoted, unquoted, and valueless attributes; a duplicate id/class keeps the first.
     assert_eq!(
         pe("<span data-x='y z'>q</span>", native()),
         vec![span(attr("", &[], &[("data-x", "y z")]), vec![str("q")])]
@@ -108,7 +106,6 @@ fn native_span_decodes_entities_in_attribute_values() {
 
 #[test]
 fn native_span_self_closing_stays_raw() {
-    // `<span/>` has no content to wrap.
     assert_eq!(
         pe("a <span/> b", native()),
         vec![
@@ -205,7 +202,6 @@ fn mark_off_leaves_double_equals_literal() {
 #[test]
 fn mark_opener_needs_no_following_space() {
     let on = exts(&[Extension::Mark]);
-    // A space just inside either delimiter blocks the run; both sides stay literal.
     assert_eq!(pe("== x==", on), vec![str("=="), Inline::Space, str("x==")]);
     assert_eq!(pe("==x ==", on), vec![str("==x"), Inline::Space, str("==")]);
 }
@@ -222,11 +218,9 @@ fn mark_lone_equals_stays_literal() {
 #[test]
 fn mark_run_pairs_once_and_leaves_excess_literal() {
     let on = exts(&[Extension::Mark]);
-    // four-on-four pairs only the innermost two per side; the outer `==` never re-pair into a nested mark
     assert_eq!(
         pe("====x====", on),
         vec![str("=="), mark(vec![str("x")]), str("==")]
     );
-    // Two-on-four consumes two from each, leaving the surplus `==` literal.
     assert_eq!(pe("==x====", on), vec![mark(vec![str("x")]), str("==")]);
 }

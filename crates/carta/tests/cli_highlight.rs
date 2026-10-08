@@ -1,7 +1,4 @@
-//! End-to-end tests for the `carta` binary's syntax-highlighting command surface: the language and
-//! style catalogs, the theme printer, the presentation modes (`default`/`none`/`idiomatic`), the
-//! style override, and loading an extra language definition. The binary is invoked as a subprocess;
-//! outputs are deterministic, so these run fully offline.
+//! Offline CLI tests for highlighting catalogs, themes, modes, and extra definitions.
 
 #![cfg(all(feature = "cli", feature = "highlight", feature = "write-html"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -68,7 +65,6 @@ fn list_highlight_styles_names_the_builtins() {
     let styles: Vec<&str> = result.stdout.lines().collect();
     assert!(styles.contains(&"pygments"), "got: {styles:?}");
     assert!(styles.contains(&"breezedark"), "got: {styles:?}");
-    // Each style is a bare name on its own line.
     assert!(
         styles
             .iter()
@@ -99,7 +95,6 @@ fn print_highlight_style_emits_a_json_theme() {
     );
     assert!(json.contains("\"text-styles\""), "carries token styles");
     assert!(json.contains("\"background-color\""));
-    // A print-only invocation converts nothing, so it emits the theme and only the theme.
     assert!(!json.contains("sourceCode"));
 }
 
@@ -112,7 +107,6 @@ fn print_highlight_style_round_trips_through_a_file() {
     let path = dir.join("espresso.theme");
     std::fs::write(&path, &printed.stdout).expect("write theme");
 
-    // A theme file supplied to --highlight-style colors code exactly as the built-in name does.
     let from_file = run_with_pack(
         &[
             "-f",
@@ -254,8 +248,6 @@ fn syntax_highlighting_none_matches_no_highlight() {
 
 #[test]
 fn idiomatic_mode_uses_the_targets_own_listing() {
-    // The HTML family has no distinct listing construct, so idiomatic code stays a plain, classed
-    // block with no color spans, while LaTeX switches to its listing environment.
     let html = run(
         &[
             "-f",

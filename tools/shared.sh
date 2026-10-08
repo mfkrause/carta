@@ -6,9 +6,7 @@ ROOT="$(cd "$SHARED_DIR/.." && pwd)"
 ORACLE="$ROOT/.oracle/bin/pandoc"
 CORPUS="$ROOT/corpus"
 
-# pandoc flags that neutralize target nondeterminism carta does not reproduce, so both tools do the
-# same work: HTML renders math via MathJax. Syntax highlighting is left on; carta highlights code
-# blocks to parity, so both sides colorize. Applied to the pandoc side only.
+# Normalize HTML math with MathJax; both tools keep syntax highlighting enabled.
 oracle_norm() {
   case "$1" in
     html | html5 | html4 | revealjs) echo "--mathjax" ;;

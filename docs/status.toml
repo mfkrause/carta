@@ -1,5 +1,4 @@
-# Canonical per-format status data. `docs/STATUS.md` and the documentation site's
-# format matrices are generated from this file by `tools/docgen`.
+# Source for generated status docs and website format matrices.
 
 [meta]
 oracle-version = "3.10"

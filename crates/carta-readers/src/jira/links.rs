@@ -25,8 +25,7 @@ pub(super) fn parse_link(
     let pipes: Vec<usize> = (i + 1..close)
         .filter(|&k| chars.get(k) == Some(&'|'))
         .collect();
-    // A third `|`-segment is allowed only when it names a smart-link style, which becomes a class on
-    // the link; any other third segment, or a fourth, is not a link.
+    // A third link segment must name a smart-link style; a fourth invalidates the link.
     let (label_range, target_start, target_end, smart_class) = match pipes.as_slice() {
         [] => (None, i + 1, close, None),
         [p] => (Some((i + 1, *p)), p + 1, close, None),

@@ -91,14 +91,10 @@ pub(super) fn is_opendocument(format: &Format) -> bool {
     name.eq_ignore_ascii_case("opendocument") || name.eq_ignore_ascii_case("odt")
 }
 
-/// The byte offset at which a link target takes a `../` step toward the package root, or `None` when
-/// the target resolves without one. A relative reference resolves against the directory that holds
-/// the content part, so its path component gains one `../`; the step is spliced in front of the path,
-/// after any `//authority`, leaving scheme, authority, query, and fragment untouched. The step is
-/// withheld from a target with a URI scheme (already absolute), from one whose path component is
-/// empty (a bare query or fragment addresses the document itself), and from one carrying a character
-/// no URI reference admits (a non-ASCII letter, a control byte, a stray backslash, a space, a
-/// bracket, or a malformed percent escape), since that cannot be resolved as a path.
+/// Return the insertion offset for a relative target's package-root `../` step.
+///
+/// Insert after any authority, before the path. Targets with schemes, empty paths,
+/// or invalid URI syntax return `None`; queries and fragments remain unchanged.
 pub(super) fn parent_prefix_index(url: &str) -> Option<usize> {
     if has_scheme(url) || !is_relative_reference(url) {
         return None;
@@ -119,14 +115,10 @@ fn authority_end(url: &str) -> usize {
     }
 }
 
-/// Whether `url` is a well-formed relative reference that a `../` prefix can resolve.
+/// Check whether `url` is a valid relative URI reference.
 ///
-/// Every byte must be admissible in the URI grammar: ASCII within `0x21..=0x7E`, none of the
-/// characters the grammar excludes (space, `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`,
-/// `}`), and every `%` the start of a two-digit hexadecimal escape. The brackets `[` and `]` are
-/// admitted only within a `//authority`, where they delimit an IP-literal host. The first path
-/// segment (the run before the first `/`, `?`, or `#`) additionally admits no colon, since a colon
-/// there would parse as a scheme delimiter rather than as part of the path.
+/// Require URI-admissible ASCII and valid percent escapes. Brackets are permitted only
+/// in an authority, and a colon in the first path segment would instead name a scheme.
 fn is_relative_reference(url: &str) -> bool {
     let authority = authority_end(url);
     let bytes = url.as_bytes();
@@ -195,9 +187,7 @@ mod tests {
     #[test]
     fn parent_prefix_index_marks_relative_paths() {
         assert_eq!(parent_prefix_index("images/logo.png"), Some(0));
-        // The step is spliced in after a `//authority`.
         assert_eq!(parent_prefix_index("//host/images/logo.png"), Some(6));
-        // Brackets are admitted inside the authority as an IP-literal host.
         assert_eq!(parent_prefix_index("//[::1]/img.png"), Some(7));
     }
 
@@ -210,11 +200,8 @@ mod tests {
 
     #[test]
     fn parent_prefix_index_declines_malformed_references() {
-        // A space is inadmissible in a URI reference.
         assert_eq!(parent_prefix_index("a file.png"), None);
-        // A truncated percent escape is malformed.
         assert_eq!(parent_prefix_index("a%2.png"), None);
-        // A colon in the first path segment would parse as a scheme delimiter.
         assert_eq!(parent_prefix_index("a_b:c/d.png"), None);
     }
 

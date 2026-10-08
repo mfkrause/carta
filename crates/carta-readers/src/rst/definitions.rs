@@ -12,7 +12,7 @@ use carta_ast::{Attr, Block, Inline};
 use carta_core::Extensions;
 use std::collections::BTreeMap;
 
-// --- definitions (pass one) --------------------------------------------------------------------
+// definitions (pass one)
 
 #[derive(Default)]
 pub(super) struct Definitions {

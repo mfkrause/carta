@@ -1,10 +1,4 @@
-//! Org-mode writer: renders the document model to Org text.
-//!
-//! Block structure is conveyed through Org's `#+begin_…`/`#+end_…` blocks, heading asterisks, and
-//! list markers; inline emphasis maps to `/…/`, `*…*`, `_…_`, and `+…+`, inline code to `=…=`, and
-//! sub/superscripts and math to their brace and `\(…\)` forms. Footnotes are collected while
-//! rendering and emitted as a trailing section. Output carries no trailing newline; the caller
-//! appends one. Content is wrapped at a fill column of 72.
+//! Render the document model as Org markup.
 
 use std::borrow::Cow;
 
@@ -342,8 +336,7 @@ impl State {
                 if column >= columns {
                     break;
                 }
-                // Clamp spans to real slots: an out-of-range span would loop over millions of
-                // absent slots to no effect.
+                // Clamp spans to real slots to avoid iterating over absent cells.
                 let row_span = usize::try_from(cell.row_span.max(1))
                     .unwrap_or(1)
                     .min(rows.len() - index);

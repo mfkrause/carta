@@ -643,7 +643,6 @@ fn match_monospace_close_within(
     budget: &mut usize,
     depth: usize,
 ) -> Option<usize> {
-    // Nesting cap keeps deeply stacked braces off the call stack.
     if depth > MAX_INLINE_DEPTH {
         return None;
     }

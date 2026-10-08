@@ -1,18 +1,6 @@
-//! RTF writer: renders the document model to Rich Text Format.
+//! Render Rich Text Format without a trailing newline.
 //!
-//! Each block becomes a `{\pard … \par}` paragraph carrying its own alignment, spacing, and left
-//! indent, and blocks are concatenated with the paragraph newlines that separate them; the final
-//! trailing newline is trimmed since the caller appends its own. Inline emphasis maps to RTF
-//! character-formatting groups (`{\i …}`, `{\b …}`, …), literal text is escaped so the control
-//! characters `\`, `{`, and `}` render as themselves and every non-ASCII character becomes a
-//! `\uN`-escaped UTF-16 code unit, links become `HYPERLINK` fields, and footnotes are emitted inline
-//! as auto-numbered `\footnote` groups. Lists thread a left indent that deepens by 360 twips per
-//! level and close with the trailing paragraph spacing RTF omits between items. Tables lay their
-//! cells out in `\trowd` rows sized in twips. Output carries no trailing newline.
-//!
-//! Only one extension bears on this format, `east_asian_line_breaks`, and it governs line-fill
-//! behavior that RTF does not expose (every paragraph is a single physical line), so it makes no
-//! difference to the output and is left unobserved.
+//! Non-ASCII text uses escaped UTF-16 units. Line-fill extensions do not change RTF output.
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -239,7 +227,6 @@ impl State {
                     out.push_str(&self.block(block));
                 }
             }
-            // An item with no blocks still carries its marker on an otherwise-empty paragraph.
             None => out.push_str(&self.paragraph(0, "")),
         }
         self.pending = None;
@@ -324,10 +311,8 @@ impl State {
     ) -> String {
         let mut grid = RowSpanGrid::new(columns);
         let mut out = String::new();
-        // The head's bottom border sits below its first row only.
         let mut border = header;
         for row in rows {
-            // An all-blank header row is layout scaffolding, not content; drop it.
             if header && row.cells.iter().all(cell_is_blank) {
                 continue;
             }
@@ -357,7 +342,6 @@ impl State {
                 widths.get(index).copied().unwrap_or(0)
             );
         }
-        // Exactly one cell per column: placed, covered filler, or trailing filler.
         let mut cells = String::new();
         let mut emitted = 0usize;
         for slot in slots.iter().take(columns) {

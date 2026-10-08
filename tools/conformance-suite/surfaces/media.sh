@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Media surface: diff --extract-media output (native AST plus media/ tree), notebook re-embedding
-# (output metadata and attachment tables), and --embed-resources HTML inlining against the oracle.
+# Compare extraction, notebook embedding, and HTML resource inlining.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -14,7 +13,6 @@ for input in "$dir"/*; do
   rm -rf "$work"
   mkdir -p "$work/oracle" "$work/ox"
   repro="repro: (cd DIR && \$TOOL -f ipynb -t native --extract-media=media <$input)"
-  # each tool extracts to its own bare media/ so the trees never collide
   if ! ( cd "$work/oracle" && "$ORACLE" -f ipynb -t native --extract-media=media <"$input" >out.native 2>err ); then
     SKIP=$((SKIP + 1))
     continue
@@ -70,8 +68,7 @@ done
 report media reembed
 tally_group
 
-# Embed group: diff --embed-resources HTML with wrapping off; a notebook whose plain HTML already
-# diverges (an unrelated writer gap) is skipped so only the embedding behavior is judged.
+# Skip notebook HTML with unrelated writer differences to isolate embedding.
 conf_reset "media-embed"
 for input in "$dir"/*; do
   [ -f "$input" ] || continue

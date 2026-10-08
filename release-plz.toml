@@ -1,5 +1,4 @@
 [changelog]
-# Hand-written preamble; release tooling inserts version sections below it.
 header = """# Changelog
 
 All notable changes to carta are documented in this file.
@@ -22,7 +21,6 @@ commit_parsers = [
   { message = ".*", group = "<!-- 5 -->other" },
 ]
 
-# Stock body template plus `striptags` so the ordering prefixes never reach the changelog.
 body = """
 ## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
 {% for group, commits in commits | group_by(attribute="group") %}
@@ -37,8 +35,7 @@ body = """
 {% endfor -%}
 {% endfor %}"""
 
-# All crates share one version; `carta` is the sole release representative: it owns the root
-# CHANGELOG.md (folding in the other crates), the `v<version>` tag, and the GitHub release.
+# All crates share a version; `carta` owns the combined changelog, tag, and release.
 [[package]]
 name = "carta"
 version_group = "carta"
@@ -46,7 +43,6 @@ changelog_path = "CHANGELOG.md"
 changelog_include = ["carta-ast", "carta-core", "carta-highlight", "carta-readers", "carta-writers"]
 git_tag_name = "v{{ version }}"
 
-# Remaining crates publish to crates.io but delegate changelog, tag, and release to `carta`.
 [[package]]
 name = "carta-ast"
 version_group = "carta"

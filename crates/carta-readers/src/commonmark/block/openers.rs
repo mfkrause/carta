@@ -8,7 +8,6 @@ use super::{
 
 impl Parser {
     /// Try to open a new block at the current cursor position inside `container`.
-    // A flat dispatch over the block openers, tried in precedence order; it reads best as one sequence.
     #[allow(clippy::too_many_lines)]
     pub(super) fn try_open(
         &mut self,
@@ -49,7 +48,6 @@ impl Parser {
                 let parent = self.place(container, &Kind::FootnoteDef(key.clone()));
                 return Some(self.append_child(parent, Node::new(Kind::FootnoteDef(key))));
             }
-            // The whole fence line is consumed, so the div opens empty.
             if !gates.foldable && self.extensions.contains(Extension::FencedDivs) {
                 let opener = div_open_fence(cursor.remaining());
                 if let Some((count, attr)) = opener {
@@ -64,8 +62,7 @@ impl Parser {
                     return Some(self.append_child(parent, Node::new(kind)));
                 }
             }
-            // Markdown dialect: hashes at the left margin, and without `space_in_atx_header` a hash
-            // run glued to text opens a heading; CommonMark allows indent <= 3 and needs the space.
+            // CommonMark needs a spaced hash run; Markdown may accept unspaced hashes at column zero.
             let require_space =
                 !self.greedy_paragraphs || self.extensions.contains(Extension::SpaceInAtxHeader);
             if !gates.heading
@@ -124,8 +121,7 @@ impl Parser {
                 }
                 return Some(index);
             }
-            // A dash ruling in a fresh block opens a header-less table candidate, preempting the
-            // thematic break it would otherwise be (restored when no table forms).
+            // Try dash-led tables before thematic breaks; restore the break if no table forms.
             if self.text_tables_enabled()
                 && !in_paragraph
                 && texttable::opens_dash_table(cursor.remaining())
@@ -147,7 +143,6 @@ impl Parser {
             if let Some(block) = self.open_line_block(container, indent, in_paragraph, cursor) {
                 return Some(block);
             }
-            // Turns the preceding paragraph into a term, or adds a definition to the open entry.
             if self.extensions.contains(Extension::DefinitionLists)
                 && let Some(body) = self.open_definition(container, indent, cursor)
             {
@@ -158,8 +153,7 @@ impl Parser {
             {
                 return Some(list);
             }
-            // A definition, example, or enumerator shape breaks a greedy paragraph even when no
-            // construct opens there; `2)`-style decimal enumerators stay prose.
+            // Disabled list markers can end greedy paragraphs; `2)` stays prose.
             if in_paragraph
                 && self
                     .extensions
@@ -322,8 +316,7 @@ impl Parser {
             return None;
         }
 
-        // Interrupting a bare paragraph (a direct child, not inside a list): no empty item, and
-        // only a decimal `1.`/`1)` enumerator; other enumerators read too easily as prose.
+        // Only non-empty decimal lists starting at 1 may interrupt a bare paragraph.
         let in_paragraph = self
             .last_open_child(container)
             .is_some_and(|child| matches!(self.kind(child), Some(Kind::Paragraph)));
@@ -456,7 +449,6 @@ impl Parser {
             return;
         }
 
-        // Continue an open paragraph (lazily) or start a fresh one in the matched container.
         let deepest = self.deepest_open(0);
         if matches!(self.kind(deepest), Some(Kind::Paragraph)) {
             self.append_line(deepest, cursor);

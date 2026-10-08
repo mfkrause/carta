@@ -1,12 +1,4 @@
-//! Native writer: renders the document model to the textual form of its data structure.
-//!
-//! The output is the document's block sequence rendered as a parenthesized, comma-led data literal:
-//! constructor names applied to their arguments, with tuples, lists, and records laid out by a
-//! pretty-printer with a line width of 72 and a ribbon width of 60. Strings are escaped with
-//! backslash escapes, using symbolic names for control characters. A fragment renders the block
-//! list alone; a standalone document renders the whole value, the top-level constructor applied to
-//! the metadata and blocks, with the metadata as `Meta { unMeta = fromList [ … ] }`. The result
-//! carries no trailing newline; the caller appends one. This format has no public specification.
+//! Render the document model in its native textual representation.
 
 use std::collections::BTreeMap;
 

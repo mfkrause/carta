@@ -134,17 +134,11 @@ impl Parser {
         self.append_line(index, cursor);
     }
 
-    /// How a greedy paragraph (the markdown dialect) absorbs a following block opener. The foldable
-    /// openers (a block quote, heading, thematic break, fenced div, or footnote definition)
-    /// continue an open paragraph as a lazy line rather than interrupting it, even across a container
-    /// the line did not match (`> a` then `# b`); only a blank line, a fenced code block, or an HTML
-    /// block ends it. The block-quote and heading folds are gated further on the
-    /// `blank_before_blockquote` and `blank_before_header` toggles, so dropping a toggle lets that
-    /// opener interrupt again. A list marker is structural: it still opens a sibling item in an open
-    /// list or a sublist inside an item, and folds only where it would otherwise *start* a fresh list:
-    /// when the paragraph is the container's own last child and the container is not itself a list
-    /// item or other indented item body. The `lists_without_preceding_blankline` toggle drops that
-    /// last fold, so a fresh list interrupts the paragraph instead.
+    /// Decide whether a greedy paragraph absorbs a following block opener.
+    ///
+    /// Quote and heading folds require their `blank_before_*` toggles. Blanks, code fences,
+    /// and HTML blocks end the paragraph. Existing list items and sublists remain structural;
+    /// fresh lists fold unless `lists_without_preceding_blankline` permits interruption.
     pub(super) fn greedy_gates(&self, container: usize, in_paragraph: bool) -> GreedyGates {
         if !self.greedy_paragraphs {
             return GreedyGates::default();
@@ -187,8 +181,7 @@ impl Parser {
         if !marker_allowed {
             return false;
         }
-        // Attribute or raw-output extensions give non-bare info strings meaning; else only a bare
-        // language token is accepted.
+        // Only attribute or raw-output extensions permit non-bare info strings.
         if self.extensions.contains(Extension::FencedCodeAttributes)
             || self.extensions.contains(Extension::Attributes)
             || self.extensions.contains(Extension::RawAttribute)
@@ -202,14 +195,10 @@ impl Parser {
             .any(|ch| ch.is_whitespace() || ch == '{' || ch == '}')
     }
 
-    /// Whether an opening code fence has a matching closing fence ahead, within the same container.
-    /// In the Markdown dialect a fenced code block must be closed: an unclosed fence (one that would
-    /// run to the container's end) does not open, and its lines fold into a paragraph instead. Pure
-    /// `CommonMark` lets an unclosed fence run to the end, so there a fence always opens.
+    /// Check for a closing code fence within the same container.
     ///
-    /// The closing fence is judged at the fence's own container level, so each look-ahead line first
-    /// replays the open containers' continuation markers; a line that breaks the chain (a block quote
-    /// losing its `>`, a list item losing its indent) cannot carry the close.
+    /// Markdown rejects unclosed fences; CommonMark lets them run to the end.
+    /// A closing line must retain the opening container prefixes.
     pub(super) fn fence_reaches_close(
         &self,
         container: usize,
@@ -221,8 +210,7 @@ impl Parser {
             return true;
         }
         let path = self.container_path(container);
-        // At the root no prefix breaks the chain, so the candidate index answers in O(log n);
-        // nested containers keep the linear replay.
+        // Root fences use the index; nested fences need container-prefix replay.
         if let (Some(opener), [_root]) = (line_index, path.as_slice()) {
             return self
                 .fence_close_candidates

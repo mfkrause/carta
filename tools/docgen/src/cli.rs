@@ -1,8 +1,4 @@
-//! Renders the CLI reference by converting the binary's own man page with carta itself.
-//!
-//! `carta --man` emits roff from the clap command definition; carta's man reader and GFM writer
-//! turn that into the published page. The reference therefore describes the binary that exists,
-//! not a hand-maintained copy of it.
+//! Generate the CLI reference from the binary's man page.
 
 use std::error::Error;
 use std::path::Path;
@@ -16,7 +12,6 @@ const FRONT_MATTER: &str = "---\ntitle: CLI reference\ndescription: Every carta 
 pub fn reference(root: &Path) -> Result<String, Box<dyn Error>> {
     let roff = man_page(root)?;
     let mut writer_options = WriterOptions::default();
-    // One line per paragraph: the page is read rendered, and unwrapped source diffs cleanly.
     writer_options.wrap = WrapMode::None;
 
     let markdown = convert_text(
@@ -52,12 +47,9 @@ fn drop_version_section(markdown: &str) -> String {
     kept.join("\n")
 }
 
-/// Builds the workspace's `carta` and runs `--man` on it.
+/// Build the workspace binary and return its man page.
 ///
-/// Cargo both builds and runs, so the roff always comes from the current sources. Resolving a
-/// path under `target/` instead would reuse whichever artifact happened to be lying there, and a
-/// stale one describes flags the binary no longer has. Cargo writes its own progress to stderr,
-/// leaving stdout to the man page alone.
+/// Building first keeps the reference consistent with the current CLI. Cargo progress goes to stderr.
 fn man_page(root: &Path) -> Result<String, Box<dyn Error>> {
     let output = Command::new(cargo())
         .args(["run", "--quiet", "-p", "carta", "--", "--man"])

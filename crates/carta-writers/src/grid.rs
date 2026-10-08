@@ -144,7 +144,6 @@ fn place(table: &GridTable, columns: usize) -> Layout {
         }
     }
 
-    // A position no cell covers becomes a blank single cell of its own.
     for row in 0..occupancy.len() {
         for col in 0..columns {
             let vacant = occupancy
@@ -210,7 +209,6 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
     let columns = table.col_widths.len();
     let section_above = boundary.checked_sub(1).and_then(|r| layout.sections.get(r));
     let section_below = layout.sections.get(boundary);
-    // Arms stay separate per boundary kind (top / intra-section / inter-section / bottom).
     #[allow(clippy::match_same_arms)]
     let fill = match (section_above, section_below) {
         (None, _) => '-',
@@ -236,12 +234,10 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
             .copied()
     };
     let exposes = |row: usize, col: usize| cell_at(row, col - 1) != cell_at(row, col);
-    // A section-leading separator divides wherever any row of the section below splits the column;
-    // an interior boundary uses only the row immediately below.
+    // Section separators use every row below; interior separators use only the next row.
     let leads_section = boundary < row_count
         && (boundary == 0 || layout.sections.get(boundary - 1) != layout.sections.get(boundary));
-    // A divider passes between `col - 1` and `col` when the flanking cells differ above or below,
-    // or when an adjacent alignment colon must not be swallowed by a merged run.
+    // Split borders where adjacent cells differ or an alignment colon must remain visible.
     let divider = |col: usize| -> bool {
         let aligned = marks_alignment
             && table.aligns.is_some_and(|aligns| {
@@ -429,8 +425,7 @@ pub(crate) fn merged_width(content: &[usize], start: usize, span: usize) -> usiz
 
 /// The content width a fractional column spec maps to in a grid table, scaled against the fill
 /// column.
-// `floor` truncation intended; the fraction clamps to the line width so an out-of-range spec
-// cannot inflate the column into a huge allocation.
+// Clamp fractional widths to prevent large column allocations.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn explicit_grid_width(fraction: f64, width: usize) -> i64 {
     let scaled = (fraction * width as f64).floor().min(width as f64);

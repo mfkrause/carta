@@ -1,9 +1,4 @@
-//! carta's own styling parts: the style catalogue, document settings, web settings, font table and
-//! theme. They are the visual design a generated document ships with. A reference document may
-//! replace any of them (see the writer's part substitution), so the generated body adopts that
-//! document's look while the content stays carta's.
-//!
-//! Each is a complete, well-formed part held as a string constant.
+//! Default DOCX styles, settings, fonts, and theme parts that a reference document can replace.
 
 /// The style catalogue with a per-token character style appended for each token style the theme
 /// defines. Each derives from the plain code character style and carries the theme's weight, slant

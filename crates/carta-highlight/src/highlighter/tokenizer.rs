@@ -137,7 +137,6 @@ impl<'a> Tokenizer<'a> {
         if self.line_continuation {
             return;
         }
-        // Apply the end-of-line switch, chaining while it keeps changing the context.
         for _ in 0..self.stack.len().saturating_add(1) {
             let (owner, switch) = match self.stack.last() {
                 Some(frame) => match frame.grammar.contexts.get(frame.context) {
@@ -175,7 +174,6 @@ impl<'a> Tokenizer<'a> {
             }
         }
 
-        // Nothing matched: fall through or consume ordinary text.
         let fallthrough = ctx.fallthrough;
         let fallthrough_ctx = &ctx.fallthrough_context;
         let active = fallthrough && !(fallthrough_ctx.pops == 0 && fallthrough_ctx.push.is_none());
@@ -227,8 +225,7 @@ impl<'a> Tokenizer<'a> {
             return self.include_rules(target, *include_attribute, ctx_attr, grammar, depth);
         }
 
-        // Reject on the leading byte before entering the matcher: at any given position most of a
-        // context's rules cannot match, and this is one bit test rather than a matcher dispatch.
+        // A leading-byte test skips most rules without calling their matchers.
         if let Some(byte) = self.remaining().as_bytes().first() {
             let first = rule.first_bytes.get_or_init(|| {
                 FirstBytes::of_matcher(&rule.matcher, &grammar.keywords, rule.dynamic)
@@ -244,8 +241,7 @@ impl<'a> Tokenizer<'a> {
         }
 
         let matched = self.run_matcher(rule, grammar)?;
-        // A zero-width match (unless look-ahead only) would switch contexts without consuming,
-        // pre-empting the intended fall-through.
+        // A consuming rule with an empty match would preempt fall-through.
         if matched.bytes == 0 && !rule.look_ahead && matches!(rule.matcher, Matcher::RegExpr { .. })
         {
             return None;

@@ -19,7 +19,6 @@ pub(super) fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, inde
     let has_foot = !table.foot.rows.is_empty();
 
     let mark = open_bookmark(table.attr.id.as_str(), out, ctx);
-    // A table opens a fresh first/body run; a preceding caption takes the opening slot.
     ctx.prev_paragraph = false;
     render_caption(
         &table.caption.long,
@@ -36,7 +35,6 @@ pub(super) fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, inde
     tbl.push(table_properties(table, has_head, has_foot, indent));
     tbl.push(table_grid(&table.col_specs));
 
-    // Carried row-spans leave a merge-continuation cell in each row below, at the covered width.
     let mut carried = vec![0u32; columns];
     let mut carried_span = vec![1u32; columns];
 
@@ -108,7 +106,6 @@ fn table_properties(table: &Table, has_head: bool, has_foot: bool, indent: Optio
         );
     }
 
-    // A list-nested table shifts one indent step per level to sit under its item's text.
     if let Some(depth) = indent {
         properties.push(Element::new("w:jc").attr("w:val", "left"));
         properties.push(
@@ -257,8 +254,7 @@ fn render_normal_cell(
         wrote |= render_cell_block(block, &mut tc, jc, ctx);
         previous = Some(block);
     }
-    // A cell must hold a paragraph and must not end on a table: empty content gets a compact
-    // filler, content that rendered nothing or ended on a table gets a bare filler paragraph.
+    // Cells require a paragraph and must not end on a table; add filler as needed.
     if !wrote {
         if cell.content.is_empty() {
             tc.push(Element::new("w:p").child(paragraph_props(Some("Compact"), None, None)));
@@ -275,8 +271,7 @@ fn render_normal_cell(
 /// Returns whether it emitted anything.
 fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mut Ctx) -> bool {
     match block {
-        // Cell paragraphs join the table's first/body run; display equations lift onto their own
-        // centred paragraph in the same style.
+        // Cell paragraphs and display equations share the table's first/body style sequence.
         Block::Para(inlines) => {
             if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
                 return false;
@@ -296,7 +291,6 @@ fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mu
                 return false;
             }
             tc.push(styled_paragraph(Some("Compact"), None, jc, inlines, ctx));
-            // A compact paragraph still advances the table's first/body run.
             ctx.prev_paragraph = true;
             true
         }

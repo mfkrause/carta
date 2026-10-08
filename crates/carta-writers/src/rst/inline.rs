@@ -294,7 +294,7 @@ impl State {
             }
             self.token(inline, true, out);
         }
-        // Markers fuse to the first and last words; the words between stay separately breakable so long phrases reflow.
+        // Attach markers to edge words but retain internal wrap points.
         let opening = format!("{open}{}", split.lead_sep);
         let closing = format!("{}{close}", split.trail_sep);
         let body = self.tokens_nested(split.middle, true);
@@ -341,7 +341,7 @@ impl State {
             out.push(word(target.url.to_string(), true));
             return;
         }
-        // Render the label once, then classify: a separate probing render would compound exponentially down a chain of nested links.
+        // Render labels once to prevent exponential work in nested links.
         let breakouts: Vec<usize> = label
             .iter()
             .enumerate()
@@ -364,7 +364,6 @@ impl State {
             let segment = label.get(run_start..).unwrap_or(&[]);
             self.link_run(segment, target, &mut rendered);
         }
-        // A wordless label cannot anchor a reference; collapse to an empty-label reference.
         if rendered.iter().any(is_word_token) {
             out.extend(rendered);
         } else {
@@ -745,7 +744,6 @@ pub(super) fn escape(text: &str, smart: bool) -> Text {
                 }
                 out.push(ch);
             }
-            // With `smart`, Unicode punctuation collapses to its ASCII form.
             _ => match smart.then(|| ascii_punctuation(ch)).flatten() {
                 Some(ascii) => out.push_str(ascii),
                 None => out.push(ch),

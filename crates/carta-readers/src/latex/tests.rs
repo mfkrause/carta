@@ -39,14 +39,12 @@ fn attr(attributes: Vec<(String, String)>) -> Attr {
     }
 }
 
-// `#0` is not a parameter reference (only `#1`…`#9` are) and is emitted verbatim
 #[test]
 fn substitute_macro_preserves_non_parameter_hash_zero() {
     let expanded = substitute_macro("a#0b", &["Y".to_owned()]);
     assert_eq!(expanded, "a#0b");
 }
 
-// a numbered display environment keeps its full `\begin`…`\end` source so numbering markup survives
 #[test]
 fn equation_environment_is_display_math_with_verbatim_body() {
     let blocks = parse("\\begin{equation}\n  f(x) = x + 1\n\\end{equation}\n");
@@ -61,8 +59,6 @@ fn equation_environment_is_display_math_with_verbatim_body() {
     );
 }
 
-// a cross-reference becomes a link tagged with the reference kind; a preceding `~` tie is a
-// non-breaking space
 #[test]
 fn ref_becomes_tagged_link_with_bracketed_label() {
     let blocks = parse("See Section~\\ref{sec:intro}.\n");
@@ -88,7 +84,6 @@ fn ref_becomes_tagged_link_with_bracketed_label() {
     );
 }
 
-// `\cref` and `\autoref` request a lowercase label, `\Cref` an uppercase one
 #[test]
 fn cref_variants_carry_their_reference_kind() {
     let kinds = |input: &str| match parse(input).into_iter().next() {
@@ -110,7 +105,6 @@ fn cref_variants_carry_their_reference_kind() {
     assert_eq!(kinds("\\Cref{a}"), vec!["ref+Label".to_owned()]);
 }
 
-// a `\textwidth`-fraction width becomes a percentage attribute; default alt text is `image`
 #[test]
 fn includegraphics_textwidth_fraction_becomes_percent_width() {
     let blocks = parse("x \\includegraphics[width=0.5\\textwidth]{diagram.png} y\n");
@@ -133,7 +127,6 @@ fn includegraphics_textwidth_fraction_becomes_percent_width() {
     );
 }
 
-// with expansion off, a definition passes through verbatim as a raw block
 #[test]
 fn macro_definition_preserved_verbatim_when_expansion_disabled() {
     let ext = Extensions::from_list(&[Extension::Smart, Extension::AutoIdentifiers]);
@@ -210,8 +203,6 @@ fn self_recursive_macro_terminates() {
     let _ = parse("\\newcommand{\\x}{\\x}\n\n\\x\n");
 }
 
-// an expansion ending mid-construct reads its argument across the frame boundary, matching
-// the flattened source
 #[test]
 fn expansion_completed_by_following_source_matches_flattened() {
     assert_eq!(
@@ -220,7 +211,6 @@ fn expansion_completed_by_following_source_matches_flattened() {
     );
 }
 
-// a frame emptying right before `\end{...}` pops cleanly at the environment boundary
 #[test]
 fn expansion_ending_at_environment_boundary_matches_flattened() {
     assert_eq!(
@@ -229,8 +219,7 @@ fn expansion_ending_at_environment_boundary_matches_flattened() {
     );
 }
 
-// Every construct that deepens the parse is bounded by the same nesting ceiling, so input nested
-// far past it is read to completion instead of exhausting the stack.
+// Test every nesting construct beyond the shared depth limit for stack safety.
 #[test]
 fn adversarially_nested_input_does_not_overflow_the_stack() {
     for opener in [

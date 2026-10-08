@@ -36,7 +36,6 @@ fn a_lone_i_opens_a_roman_list() {
 
 #[test]
 fn an_alphabetic_list_absorbs_a_following_i() {
-    // `i` continues the alphabetic run as the ninth letter, not a fresh roman list.
     assert_eq!(
         ordered_lists("h. eight\ni. nine\nj. ten\n"),
         [(8, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 3)]
@@ -56,7 +55,6 @@ fn a_multi_letter_roman_does_not_continue_an_alphabetic_list() {
 
 #[test]
 fn a_lone_i_after_a_list_reads_as_the_ninth_letter() {
-    // Following another list, the ambiguous `i` resolves to the alphabetic reading.
     assert_eq!(
         ordered_lists("1. one\ni. two\n"),
         [
@@ -85,7 +83,6 @@ fn parenthesized_and_single_paren_delimiters_are_distinguished() {
 
 #[test]
 fn an_uppercase_letter_and_period_need_two_spaces() {
-    // One space reads as an ordinary sentence; two spaces make it a list.
     assert!(matches!(
         blocks_with("B. Franklin\n", Extension::FancyLists).as_slice(),
         [Block::Para(_)]
@@ -98,7 +95,6 @@ fn an_uppercase_letter_and_period_need_two_spaces() {
 
 #[test]
 fn an_uppercase_letter_with_one_space_is_a_list_under_other_delimiters() {
-    // The two-space rule guards only the period; a paren delimiter is unambiguous.
     assert_eq!(
         ordered_lists("B) item\n"),
         [(2, ListNumberStyle::UpperAlpha, ListNumberDelim::OneParen, 1)]
@@ -152,7 +148,6 @@ fn a_bare_reference_drops_the_parentheses() {
 
 #[test]
 fn the_counter_skips_ordinary_ordered_lists() {
-    // A plain decimal list between two examples does not advance the example counter.
     assert_eq!(
         example_lists("(@a) x\n\n1. p\n2. q\n\n(@b) y\n"),
         [
@@ -171,7 +166,6 @@ fn the_counter_skips_ordinary_ordered_lists() {
 fn a_repeated_label_reuses_its_number() {
     use ListNumberDelim::{OneParen, Period, TwoParens};
     use ListNumberStyle::Example;
-    // A repeated label neither takes a fresh number nor advances the counter.
     assert_eq!(
         example_lists("(@a) x\n\n@a. y\n\n@b) z\n"),
         [
@@ -188,7 +182,6 @@ fn a_repeated_label_reuses_its_number() {
 
 #[test]
 fn an_anonymous_example_advances_the_counter() {
-    // The unreferenceable `(@)` takes number one, so the following labelled example is two.
     assert_eq!(
         example_lists("(@) x\n\n@a. y\n"),
         [
@@ -211,14 +204,12 @@ fn an_undefined_reference_stays_literal() {
 
 #[test]
 fn a_reference_resolves_within_emphasis_but_not_within_code() {
-    // Emphasis content is parsed, so the reference resolves; a code span is verbatim.
     assert_eq!(example_text("(@a) x\n\n*em (@a)*\n"), "em (1)");
     assert_eq!(example_text("(@a) x\n\n`(@a)`\n"), "(@a)");
 }
 
 #[test]
 fn the_counter_spans_nested_example_lists() {
-    // Reading order crosses container boundaries: the example nested in a bullet is two.
     assert_eq!(
         example_text("(@a) x\n\n- bullet\n\n    (@b) nested\n\nRefs (@a) and (@b)\n"),
         "Refs (1) and (2)"

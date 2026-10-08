@@ -64,7 +64,6 @@ fn dimension_parses_units() {
     );
     assert!(matches!(Dimension::parse("2in"), Some(Dimension::Length(s)) if s == "2in"));
     assert!(matches!(Dimension::parse("3cm"), Some(Dimension::Length(s)) if s == "3cm"));
-    // The unit's match key is case-folded, but the original spelling is preserved verbatim.
     assert!(matches!(Dimension::parse("3CM"), Some(Dimension::Length(s)) if s == "3CM"));
     for unit in ["mm", "pt", "pc", "em"] {
         assert!(matches!(
@@ -104,7 +103,6 @@ fn escape_text_metacharacters_and_glyphs() {
     assert_eq!(escape("\u{a0}", EscapeMode::Text), "~");
     assert_eq!(escape("\u{2026}", EscapeMode::Text), "\\ldots{}");
     assert_eq!(escape("\u{2013}\u{2014}", EscapeMode::Text), "-----");
-    // A hyphen before a smart dash is guarded against ligature merging; after a dash no guard is needed.
     assert_eq!(escape("-\u{2013}", EscapeMode::Text), "-\\/--");
     assert_eq!(escape("-\u{2014}", EscapeMode::Text), "-\\/---");
     assert_eq!(escape("\u{2013}-", EscapeMode::Text), "---");
@@ -358,7 +356,6 @@ fn link_inside_underline_or_strikeout_is_boxed() {
         render(vec![Block::Para(vec![Inline::Strikeout(vec![link()])])])
             .contains("\\st{\\mbox{\\href{http://x.com}{txt}}}")
     );
-    // A link that merely follows a soul span is not boxed: the context does not leak to siblings.
     let sibling = render(vec![Block::Para(vec![
         Inline::Underline(str_inlines("u")),
         Inline::Space,
@@ -402,9 +399,7 @@ fn footnote_with_code_block_closes_on_own_line() {
     assert!(out.contains("\n}"));
 }
 
-// A captioned table prints its head twice, so a table nested through head cells doubles the output
-// at every level. The write is refused rather than allowed to render gigabytes from a few hundred
-// bytes of document.
+// Repeated table heads double nested output per level; enforce the size limit.
 #[test]
 fn a_table_nested_through_captioned_heads_is_refused_past_the_output_ceiling() {
     use carta_ast::{Alignment, Caption, Cell, ColSpec, ColWidth, Row, Table, TableHead};

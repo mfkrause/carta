@@ -1,9 +1,4 @@
-//! Turns a syntax-definition XML document into a [`Grammar`].
-//!
-//! The definition format allows the DOCTYPE to declare entities that are then referenced inside
-//! rule patterns (`&int;`, `&float;`, …). Those are expanded up front, since standard XML tooling
-//! leaves document-defined entities untouched. The expanded text is then read into a small element
-//! tree and projected onto the grammar model.
+//! Parse syntax-definition XML into a [`Grammar`], expanding document-defined entities.
 
 use std::collections::BTreeMap;
 
@@ -167,8 +162,7 @@ fn build_context(node: &Node) -> Context {
     let line_empty_context = node.attr("lineEmptyContext").map(ContextSwitch::parse);
     let fallthrough_context =
         ContextSwitch::parse(node.attr("fallthroughContext").unwrap_or("#stay"));
-    // A real fallthrough target enables fallthrough on its own; the boolean form (with no target)
-    // is honored too, taking a single pop.
+    // A target enables fallthrough; a bare boolean requests one pop.
     let fallthrough = node.attr("fallthrough").is_some_and(is_truthy)
         || !(fallthrough_context.pops == 0 && fallthrough_context.push.is_none());
     let dynamic = node.attr("dynamic").is_some_and(is_truthy);
@@ -514,7 +508,6 @@ mod tests {
         assert_eq!(g.contexts.len(), 2);
         assert_eq!(g.keyword_lists.get("kw").map(Vec::len), Some(2));
         assert_eq!(g.item_styles.get("Keyword"), Some(&TokenKind::Keyword));
-        // The entity inside the RegExpr pattern is expanded.
         let normal = &g.contexts[0];
         let has_expanded = normal.rules.iter().any(|r| {
             matches!(
@@ -523,7 +516,6 @@ mod tests {
             )
         });
         assert!(has_expanded);
-        // The &quot; char attribute resolves to a double quote.
         let has_quote = normal
             .rules
             .iter()

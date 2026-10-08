@@ -336,7 +336,6 @@ fn push_named_styles(out: &mut String, language: &str, country: &str) {
     push_text_style(out, "Numbering_20_Symbols", "");
     push_text_style(out, "Bullet_20_Symbols", "");
 
-    // Named list styles.
     out.push_str("<text:list-style style:name=\"List_20_1\">");
     for level in 1..=10 {
         let space = format!("{:.4}in", f64::from(level) * 0.25);

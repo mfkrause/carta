@@ -1,10 +1,4 @@
-//! A tab-aware cursor over a single input line, plus the small value types it parses out.
-//!
-//! The block phase scans each line through a `Cursor`: it tracks a byte offset and the
-//! corresponding visual column (so tab stops expand correctly) and exposes the line-level probes
-//! the open-block algorithm needs: indentation width, ATX/setext headings, thematic breaks, fenced
-//! code openers, and list markers. It holds no tree state; recognizing a construct and acting on it
-//! are separate concerns owned by the block phase.
+//! Tab-aware line cursors and parsed block markers.
 
 use carta_ast::{ListNumberDelim, ListNumberStyle};
 
@@ -348,7 +342,6 @@ impl<'a> Cursor<'a> {
         let rest = self.bytes.get(self.offset..).unwrap_or(&[]);
         let mut count = 0;
         let mut index = 0;
-        // Skip leading indentation already handled by caller via indent() check.
         while rest.get(index).copied() == Some(b' ') {
             index += 1;
         }
@@ -493,8 +486,7 @@ impl<'a> Cursor<'a> {
         if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
             return None;
         }
-        // a lone capital plus `.` needs two spaces before content ("B. Franklin" is prose, and an
-        // empty item needs no gap); a multi-letter roman numeral like "II." needs only one
+        // `B.` needs two spaces before content; `II.` needs one; empty items need none.
         if delim == ListNumberDelim::Period
             && len == 1
             && matches!(

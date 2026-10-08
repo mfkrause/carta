@@ -21,9 +21,7 @@ fn bare_citation_is_author_in_text() {
 
 #[test]
 fn bare_citation_needs_a_non_word_before_the_at() {
-    // Glued to a preceding word, the `@` is literal: no citation, no email autolink here.
     assert_eq!(pe("foo@bar", cites()), vec![str("foo@bar")]);
-    // A space before the `@` lets it open a citation.
     assert_eq!(
         pe("a @b", cites()),
         vec![
@@ -77,7 +75,6 @@ fn dash_before_at_suppresses_author() {
             vec![str("[-@k]")],
         )]
     );
-    // A `-` glued to a preceding word is part of the prefix, not a suppression marker.
     assert_eq!(
         pe("[a-@b]", cites()),
         vec![cite(
@@ -109,7 +106,6 @@ fn semicolon_separates_entries_sharing_one_number() {
 
 #[test]
 fn comma_nests_a_bare_citation_in_the_suffix() {
-    // `@b` after a comma is a bare citation inside `a`'s suffix; the group takes the higher number
     assert_eq!(
         pe("[@a, @b]", cites()),
         vec![cite(
@@ -147,7 +143,6 @@ fn document_order_numbers_each_group() {
 
 #[test]
 fn malformed_bracket_falls_back_to_inline_citations() {
-    // a trailing empty segment voids the citation list; the bare `@a` becomes author-in-text
     assert_eq!(
         pe("[@a;]", cites()),
         vec![
@@ -163,7 +158,6 @@ fn malformed_bracket_falls_back_to_inline_citations() {
 
 #[test]
 fn segment_without_a_key_is_not_a_citation_list() {
-    // no `@` in the first segment voids the bracket; only the bare `@b` citation survives
     assert_eq!(
         pe("[no key; @b]", cites()),
         vec![
@@ -182,7 +176,6 @@ fn segment_without_a_key_is_not_a_citation_list() {
 
 #[test]
 fn key_charset_keeps_internal_punctuation() {
-    // Internal `_ : - . /` belong to a key only when more key characters follow.
     assert_eq!(
         pe("[@foo_bar:baz-qux.v/1]", cites()),
         vec![cite(
@@ -196,7 +189,6 @@ fn key_charset_keeps_internal_punctuation() {
             vec![str("[@foo_bar:baz-qux.v/1]")],
         )]
     );
-    // A trailing `-` is not part of the key; it falls to the suffix.
     assert_eq!(
         pe("[@a-]", cites()),
         vec![cite(
@@ -235,7 +227,6 @@ fn escaped_at_is_not_a_citation() {
 
 #[test]
 fn citation_does_not_steal_a_link() {
-    // An explicit link target wins; the key inside becomes a bare citation in the link text.
     assert_eq!(
         pe("[@a](http://x.com)", cites()),
         vec![link(
@@ -281,7 +272,6 @@ fn a_context_independent_heading_is_parsed_once_and_reused_by_the_body_pass() {
     let mut out = Vec::new();
     resolve_block(heading, &refs, no_notes(), no_ext(), &mut cache, &mut out);
 
-    // The body pass popped the pre-pass's parse instead of running the inline scan again.
     assert!(cache.get("Installation").is_none_or(VecDeque::is_empty));
     assert_eq!(
         out,
@@ -355,8 +345,7 @@ fn cite_nesting_depth(inlines: &[Inline]) -> usize {
 
 #[test]
 fn nested_citations_resolve_exactly_via_the_memo() {
-    // Every level's suffix carries the next group; the memo keeps the work linear where the old
-    // re-parse doubled per level, so a depth far past real documents still resolves in full.
+    // The citation memo prevents nested suffixes from doubling parse work per level.
     let depth = 30;
     let source = format!("{}{}", "[@a ".repeat(depth), "]".repeat(depth));
     let blocks = read_citations(&source);
@@ -364,7 +353,6 @@ fn nested_citations_resolve_exactly_via_the_memo() {
         panic!("expected a single paragraph");
     };
     assert_eq!(cite_nesting_depth(inlines), depth);
-    // The outermost group takes the highest number any nested citation reached.
     let Some(Inline::Cite(citations, _)) = inlines.first() else {
         panic!("expected the paragraph to open with the outermost citation");
     };
@@ -373,8 +361,7 @@ fn nested_citations_resolve_exactly_via_the_memo() {
 
 #[test]
 fn prefix_nested_citations_share_the_group_number() {
-    // Nesting through prefixes replays the inner brackets at shifted citation counts, so this
-    // exercises the memo's count-keyed misses; the group number covers every nested citation.
+    // Nested prefixes change citation counts and exercise count-keyed memo misses.
     fn collect(inlines: &[Inline], out: &mut Vec<(String, i64)>) {
         for inline in inlines {
             if let Inline::Cite(citations, _) = inline {

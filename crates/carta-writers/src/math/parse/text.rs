@@ -36,17 +36,11 @@ fn finish_text_run(run: String, mode: TextMode) -> String {
     }
 }
 
-/// Apply TeX's text-mode input ligatures to a literal character run. The TeX tokenizer folds straight
-/// quote and dash runs into their curly/dash punctuation as the input is read, independent of any
-/// smart-typography toggle:
+/// Apply TeX text-mode quote and dash ligatures to a literal run.
 ///
-/// - a run of backticks pairs into left double quotes `“` with a trailing lone backtick as a left
-///   single quote `‘`; a run of apostrophes pairs into right double quotes `”` with a trailing lone
-///   apostrophe as a right single quote `’`;
-/// - a run of hyphens is consumed greedily, three at a time as an em dash `—`, then two as an en
-///   dash `–`, then one as a literal hyphen.
-///
-/// Other characters pass through unchanged, so a run with no quote or dash is returned as written.
+/// Backticks and apostrophes form opening and closing quotes, pairing double before single.
+/// Hyphens form em dashes in groups of three, then en dashes in pairs, then literal hyphens.
+/// Other characters remain unchanged; smart-typography toggles do not affect these ligatures.
 fn apply_text_ligatures(run: &str) -> String {
     let chars: Vec<char> = run.chars().collect();
     let mut out = String::with_capacity(run.len());
@@ -139,7 +133,6 @@ fn is_text_accent_command(name: &str) -> bool {
 /// The text-mode accent command applied to a base character, resolving to the composed Latin letter.
 /// A base with no composed form for the accent returns the bare base character; an accent/base pair
 /// outside the recognized set returns `None`, leaving the wrapper to fall back to verbatim.
-// One cohesive accent-to-letter lookup table; splitting into helpers would only scatter it.
 #[allow(clippy::too_many_lines)]
 fn text_accent(name: &str, base: char) -> Option<&'static str> {
     if !is_text_accent_command(name) {
@@ -420,7 +413,6 @@ fn accent_dotless_base(tokens: &[Token], from: usize) -> Option<(&'static str, u
 /// spacing pieces that break the run (unless `fold_spacing`, in which case they collapse into the run
 /// as their spacing codepoint). Returns `None` if the group contains a math-mode switch, an
 /// unrecognized control sequence, or a nested script/group, which we do not attempt to render.
-// The `$` arm must precede the general-character arm, so it cannot fold into the unhandled-token arm.
 #[allow(clippy::match_same_arms, clippy::too_many_lines)]
 pub(super) fn parse_verbatim_group(
     tokens: &[Token],
@@ -445,8 +437,7 @@ pub(super) fn parse_verbatim_group(
                 }
                 return Some(pieces);
             }
-            // `$…$` in a text wrapper re-enters math mode; in an operator-name group (already math)
-            // a `$` has no meaning and is unhandled.
+            // `$` re-enters math in text wrappers but is invalid in operator-name groups.
             Token::Char('$') if math => return None,
             Token::Char('$') => {
                 let inner_start = probe + 1;
@@ -474,8 +465,7 @@ pub(super) fn parse_verbatim_group(
                     probe += 1;
                 }
             }
-            // Bare `"` or backtick is unparsable in math mode (verbatim fallback); in a text
-            // wrapper both are ordinary literals.
+            // Bare quotes and backticks are invalid in math mode but literal in text wrappers.
             Token::Char('"' | '`') if math => return None,
             Token::Char(c) => run.push(*c),
             Token::Number(digits) => run.push_str(digits),
@@ -485,11 +475,9 @@ pub(super) fn parse_verbatim_group(
                     run.push(' ');
                 }
             }
-            // Subscript/superscript markers are literal characters in text mode.
             Token::Sub => run.push('_'),
             Token::Sup => run.push('^'),
-            // `\(…\)`/`\[…\]` in a text wrapper re-enter math mode like `$…$`; the markers mean
-            // nothing in an operator-name group (already math).
+            // Backslash math delimiters re-enter math only from text wrappers.
             Token::Command(name) if !math && (name == "(" || name == "[") => {
                 let close = if name == "(" { ")" } else { "]" };
                 let inner_start = probe + 1;
@@ -524,8 +512,7 @@ pub(super) fn parse_verbatim_group(
                     &mut pieces,
                 )?;
             }
-            // In a text wrapper an inner group is transparent (ligatures kept per group); in math
-            // mode a nested group is unhandled.
+            // Nested groups are transparent in text wrappers but unsupported in math mode.
             Token::GroupOpen if !math => {
                 if !run.is_empty() {
                     pieces.push(TextPiece::Run(finish_text_run(
@@ -536,7 +523,6 @@ pub(super) fn parse_verbatim_group(
                 let mut nested = probe;
                 let inner = parse_verbatim_group(tokens, &mut nested, mode)?;
                 if inner.is_empty() {
-                    // An empty inner group is still a distinct (empty) text segment.
                     pieces.push(TextPiece::Run(String::new()));
                 } else {
                     pieces.extend(inner);
@@ -586,7 +572,6 @@ fn apply_text_command(
         run.push(pushed);
         Some(swallow(probe))
     } else if name == "ldots" {
-        // `\ldots` is the only ellipsis command resolved here; others leave the expression verbatim.
         run.push('\u{2026}');
         Some(swallow(probe))
     } else if let Some(space) = text_space(name) {
@@ -617,7 +602,6 @@ fn apply_text_command(
         run.push(c);
         Some(swallow(probe))
     } else if !math && name == "quad" {
-        // A text-mode `\quad` folds into the run as a single en quad.
         run.push('\u{2000}');
         Some(swallow(probe))
     } else {

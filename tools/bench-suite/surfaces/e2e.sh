@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end surface: time a full `from -> to` conversion (the command users actually run) for carta
-# vs pandoc, per size. pandoc is normalized so both do equivalent work.
-# Usage: surfaces/e2e.sh [from:to]   (no arg = curated default pairs)
+# Time end-to-end conversions. Usage: surfaces/e2e.sh [from:to]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 

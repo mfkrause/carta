@@ -157,7 +157,6 @@ fn integers_canonicalize_across_radixes() {
 
 #[test]
 fn whole_numbers_past_the_64_bit_range_render_in_scientific_form() {
-    // The largest magnitudes the signed 64-bit range holds stay plain integers.
     assert_eq!(
         canonicalize_number("9223372036854775807").as_deref(),
         Some("9223372036854775807")
@@ -166,7 +165,6 @@ fn whole_numbers_past_the_64_bit_range_render_in_scientific_form() {
         canonicalize_number("-9223372036854775808").as_deref(),
         Some("-9223372036854775808")
     );
-    // One step past either bound switches to scientific notation, full precision preserved.
     assert_eq!(
         canonicalize_number("9223372036854775808").as_deref(),
         Some("9.223372036854775808e18")
@@ -179,12 +177,10 @@ fn whole_numbers_past_the_64_bit_range_render_in_scientific_form() {
         canonicalize_number("100000000000000000000").as_deref(),
         Some("1.0e20")
     );
-    // The same threshold applies to hexadecimal and octal whole numbers.
     assert_eq!(
         canonicalize_number("0x8000000000000000").as_deref(),
         Some("9.223372036854775808e18")
     );
-    // A signed radix token is not a number at all; it stays a verbatim string.
     assert_eq!(canonicalize_number("-0xF"), None);
     assert_eq!(canonicalize_number("+0o17"), None);
 }
@@ -206,7 +202,6 @@ fn floats_canonicalize_to_fixed_or_scientific() {
     assert_eq!(canonicalize_number("6.022e23").as_deref(), Some("6.022e23"));
     assert_eq!(canonicalize_number("0.09").as_deref(), Some("9.0e-2"));
     assert_eq!(canonicalize_number("0.1").as_deref(), Some("0.1"));
-    // A fractional value stays plain up to a leading digit at 10^6, then turns scientific.
     assert_eq!(
         canonicalize_number("1234567.5").as_deref(),
         Some("1234567.5")
@@ -215,13 +210,10 @@ fn floats_canonicalize_to_fixed_or_scientific() {
         canonicalize_number("12345678.5").as_deref(),
         Some("1.23456785e7")
     );
-    // Below 10^-1 it likewise turns scientific.
     assert_eq!(canonicalize_number("0.9").as_deref(), Some("0.9"));
     assert_eq!(canonicalize_number("0.05").as_deref(), Some("5.0e-2"));
-    // An integral float that fits stays a plain integer, however it is written.
     assert_eq!(canonicalize_number("2.5e8").as_deref(), Some("250000000"));
     assert_eq!(canonicalize_number("1.5e19").as_deref(), Some("1.5e19"));
-    // Scientific notation keeps every significant digit rather than rounding to a float.
     assert_eq!(
         canonicalize_number("1234567890123456.5").as_deref(),
         Some("1.2345678901234565e15")

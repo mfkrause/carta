@@ -20,7 +20,6 @@ fn construct_goldens() {
 
 #[test]
 fn xml_special_characters_are_escaped() {
-    // A less-than in a leaf is escaped in element content, never emitted raw.
     let rendered = to_mathml("a<b", false, false).unwrap_or_default();
     assert!(rendered.contains("&lt;"));
     assert!(!rendered.contains("<mo><"));

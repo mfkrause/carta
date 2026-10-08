@@ -103,7 +103,6 @@ impl InlineParser<'_> {
     /// past the closing `:` and `true` is returned. An unrecognized name (or no closing `:`) leaves
     /// the leading `:` untouched and returns `false`, so the run reparses as literal text.
     pub(super) fn try_emoji(&mut self) -> bool {
-        // The `:` delimiters and every name character (`[0-9A-Za-z_+-]`) are ASCII.
         let name_start = self.pos + 1;
         let mut index = name_start;
         while matches!(
@@ -157,8 +156,7 @@ impl InlineParser<'_> {
         if preceding % 2 == 1 {
             return false;
         }
-        // A matching delimiter ahead in-span pairs into the delimited form instead; `~`/`^` are
-        // ASCII, so the span begins one byte past the cursor.
+        // An in-span delimiter takes precedence over the short script form.
         let mut ahead = self.pos + 1;
         while let Some(ch) = char_at(self.text, ahead) {
             if ch.is_whitespace() {
@@ -194,18 +192,15 @@ impl InlineParser<'_> {
     }
 
     pub(super) fn backslash(&mut self) {
-        // TeX math and raw TeX outrank a plain escape; `\\(`/`\\[` tried before `\(`/`\[` so the
-        // longer opener wins.
+        // TeX outranks escapes; try longer openers first.
         if self.try_backslash_math() || self.try_raw_tex() {
             return;
         }
         self.pos += 1;
-        // Broad escaping (`all_symbols_escapable`, always on in bare CommonMark) covers all ASCII
-        // punctuation; without it the markdown dialect escapes only the classic set.
+        // Broad escaping accepts all ASCII punctuation; Markdown otherwise uses the classic set.
         let broad = !self.notes.markdown || self.ext.contains(Extension::AllSymbolsEscapable);
         match self.peek() {
-            // Without `escaped_line_breaks` the markdown dialect keeps the backslash literal and
-            // soft-breaks; bare CommonMark always hard-breaks here.
+            // CommonMark always hard-breaks; Markdown needs `escaped_line_breaks`.
             Some('\n')
                 if self.notes.markdown && !self.ext.contains(Extension::EscapedLineBreaks) =>
             {
@@ -271,20 +266,12 @@ impl InlineParser<'_> {
         }
     }
 
-    /// Try a raw inline TeX command at the cursor (on the leading `\`), gated behind `raw_tex`. A
-    /// command is a backslash, an ASCII letter, and any following ASCII alphanumerics, optionally
-    /// followed by balanced `{…}` and `[…]` argument groups. A `{`-group that opens but cannot be
-    /// balance-closed reverts the whole command to literal text; an unclosable `[`-group ends
-    /// the group run, leaving the command captured so far. A command with no argument groups and an
-    /// all-letter name absorbs any run of trailing spaces and tabs (but not a newline). On a match the
-    /// verbatim source becomes a `RawInline (Format "tex")` and the cursor advances past it.
+    /// Try a raw TeX command at the leading `\`, requiring `raw_tex`.
     ///
-    /// Known limitations:
-    /// - Every group is consumed greedily, so a command takes all the `{…}`/`[…]` groups that
-    ///   directly follow it. Some commands accept only a fixed number of arguments and leave the
-    ///   rest as text; that per-command arity is not modeled here.
-    /// - A paragraph that is wholly a `\begin{env}…\end{env}` environment is recognized in the block
-    ///   phase; here every `\begin`/`\end` is treated as an ordinary inline command.
+    /// Names start with an ASCII letter and continue with alphanumerics. Balanced argument groups
+    /// are consumed greedily; an unclosed brace invalidates the command, while an unclosed bracket
+    /// ends its arguments. Argument-free letter names absorb trailing spaces and tabs.
+    /// Per-command arity is not modeled. Matched environments are handled as a separate form.
     fn try_raw_tex(&mut self) -> bool {
         if !self.ext.contains(Extension::RawTex) {
             return false;
@@ -317,7 +304,6 @@ impl InlineParser<'_> {
         if name == Some("end") {
             return false;
         }
-        // Consume argument groups. A `{`-group must balance or the entire command reverts to text.
         let mut had_group = false;
         loop {
             match char_at(self.text, i) {
@@ -370,7 +356,6 @@ impl InlineParser<'_> {
         let Some(group_end) = self.scan_balanced_group(name_end, '{', '}') else {
             return false;
         };
-        // `group_end - 1` is the closing `}` (ASCII); `name_end + 1` is past the opening `{`.
         let Some(env) = self.text.get(name_end + 1..group_end - 1) else {
             return false;
         };
@@ -395,8 +380,7 @@ impl InlineParser<'_> {
         if self.raw_tex_budget == 0 {
             return None;
         }
-        // A close cannot lie past the buffer's last `\end{ENV}` marker: the depth counter only
-        // delays accepting a close, never conjures one, so the bound is exact and this is O(1).
+        // No matching close can occur past the last `\end{ENV}`; reject later opens in O(1).
         if self
             .last_environment_close(env)
             .is_none_or(|last| from > last)
@@ -477,8 +461,7 @@ impl InlineParser<'_> {
         if self.raw_tex_budget == 0 {
             return None;
         }
-        // A group opened past the buffer's last `close` can never balance: fail in O(1) without
-        // charging the budget. Only `}` and `]` arise as raw-TeX group closers.
+        // An opener past the last group closer cannot balance; reject it in O(1).
         let last_close = match close {
             '}' => *self.last_brace.get_or_init(|| self.text.rfind('}')),
             ']' => *self.last_bracket.get_or_init(|| self.text.rfind(']')),
@@ -555,7 +538,6 @@ impl InlineParser<'_> {
             let bytes = text.as_bytes();
             let mut scan = 0;
             while scan < bytes.len() {
-                // Backtick is ASCII: one-byte steps over non-backtick bytes never land mid-run.
                 if bytes.get(scan) == Some(&b'`') {
                     let run = backtick_run_len(text, scan);
                     index.entry(run).or_default().push(scan);
@@ -607,8 +589,7 @@ impl InlineParser<'_> {
     pub(super) fn left_angle(&mut self) {
         if let Some((inline, next)) = scan_autolink(self.text, self.pos) {
             self.pos = next;
-            // Markdown dialect classes (`uri`/`email`) and percent-encodes angle autolinks;
-            // classify first, it compares shown text against the still-raw destination.
+            // Classify against the raw destination before percent-encoding it.
             let inline = if self.notes.markdown {
                 escape_link_destination(classify_angle_autolink(inline))
             } else {
@@ -619,8 +600,7 @@ impl InlineParser<'_> {
         }
         if let Some((html, next)) = scan_html_tag(self.text, self.pos) {
             self.pos = next;
-            // With `raw_html` off the markdown dialect keeps the recognized tag as literal text;
-            // bare CommonMark always emits raw HTML.
+            // With `raw_html` off, Markdown keeps tags literal; CommonMark emits raw HTML.
             if self.notes.markdown && !self.ext.contains(Extension::RawHtml) {
                 self.push_str(&html);
             } else {
@@ -671,12 +651,10 @@ impl InlineParser<'_> {
         while self.peek() == Some(ch as char) {
             self.pos += 1;
         }
-        // The delimiter is ASCII, so the run's byte length equals its character count.
         let count = self.pos - start;
         let before = char_before(self.text, start);
         let after = self.peek();
-        // With `intraword_underscores` off in the markdown dialect, `_` pairs like `*` even
-        // between word characters.
+        // With `intraword_underscores` off, Markdown pairs `_` like `*` inside words.
         let relax_underscore =
             self.notes.markdown && !self.ext.contains(Extension::IntrawordUnderscores);
         let (can_open, can_close) = run_flanking(ch, before, after, relax_underscore);
@@ -693,8 +671,8 @@ impl InlineParser<'_> {
     }
 
     /// Replace a run of two or more `-` with em/en dashes; a lone `-` stays literal. A run folds
-    /// into the fewest dashes that reproduce its length: groups of three become em dashes (`—`)
-    /// and groups of two become en dashes (`–`), preferring em dashes for any odd remainder.
+    /// into the fewest dashes that reproduce its length: groups of three become em dashes (U+2014)
+    /// and groups of two become en dashes (U+2013), preferring em dashes for any odd remainder.
     pub(super) fn smart_dash(&mut self) {
         let mut len = 0;
         while self.peek() == Some('-') {

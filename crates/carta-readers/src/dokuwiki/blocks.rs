@@ -33,7 +33,6 @@ pub(super) fn parse_blocks(
                 inline_content(&title, ctx, depth),
             ));
             *index += 1;
-            // Content after the closing run is re-parsed as a fresh block of its own.
             if !trailing.trim().is_empty() && depth < MAX_DEPTH {
                 let tail = [trailing.as_str()];
                 let mut tail_index = 0;

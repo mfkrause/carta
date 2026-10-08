@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Templates surface: render each carta-authored corpus/templates/<case>/ (doc.<ext>, input.md,
-# optional flags and skip-targets) through both tools, comparing every byte. Usage: surfaces/templates.sh [target]
+# Compare corpus template output byte for byte. Usage: surfaces/templates.sh [target]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -20,7 +19,6 @@ for target in $TARGETS; do
     [ -d "$case" ] || continue
     name="$(basename "$case")"
     case_abs="$(cd "$case" && pwd)"
-    # The entry template is the lone `doc.<ext>` file; its extension drives partial resolution.
     tmpl=""
     for candidate in "$case"doc.*; do
       [ -f "$candidate" ] && tmpl="$candidate" && break

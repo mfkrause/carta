@@ -4,7 +4,7 @@ use super::{dedent, indent_of, is_blank, line_at};
 use crate::roman::roman_value_loose_reverse;
 use carta_ast::{ListNumberDelim, ListNumberStyle};
 
-// --- adornments and markers --------------------------------------------------------------------
+// adornments and markers
 
 pub(super) const ADORNMENT_CHARS: &str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
@@ -301,7 +301,6 @@ fn valid_option_group(text: &str) -> bool {
 fn parse_one_option(chars: &[char], i: usize) -> Option<usize> {
     match chars.get(i) {
         Some('-') if chars.get(i + 1) == Some(&'-') => {
-            // Long option: a name of letters, digits, and hyphens.
             let mut j = i + 2;
             let name_start = j;
             while chars
@@ -316,7 +315,6 @@ fn parse_one_option(chars: &[char], i: usize) -> Option<usize> {
             parse_optional_arg(chars, j)
         }
         Some('-') => {
-            // Short option: a hyphen and exactly one alphanumeric character.
             let ch = chars.get(i + 1)?;
             if !ch.is_ascii_alphanumeric() {
                 return None;
@@ -324,7 +322,6 @@ fn parse_one_option(chars: &[char], i: usize) -> Option<usize> {
             parse_optional_arg(chars, i + 2)
         }
         Some('/') => {
-            // DOS/VMS-style option: a slash and exactly one alphanumeric character.
             let ch = chars.get(i + 1)?;
             if !ch.is_ascii_alphanumeric() {
                 return None;
@@ -365,7 +362,7 @@ fn parse_optional_arg(chars: &[char], i: usize) -> Option<usize> {
     Some(j)
 }
 
-// --- explicit markup blocks --------------------------------------------------------------------
+// explicit markup blocks
 
 /// The extent of an explicit-markup block (a `..` or `__` construct, a directive, or a comment):
 /// the index one past its last content line. The block runs over its first line plus all following

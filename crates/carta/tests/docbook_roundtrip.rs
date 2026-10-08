@@ -1,11 +1,5 @@
-//! Offline round-trip identity for the `DocBook` reader/writer pair, driven through the facade.
-//!
-//! The corpus holds documents whose shapes survive a full render and reparse unchanged, so
-//! `read(write(doc)) == doc` pins the two directions against each other without any external tool.
-//! `DocBook` has no vocabulary for several AST distinctions (raw blocks, citations, cell spans, the
-//! attributes carried by many wrappers), so those shapes are deliberately absent.
+//! Check `DocBook` round-trip identity for representable document shapes.
 
-// This whole file is test code, where panicking on a known case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![cfg(all(feature = "read-docbook", feature = "write-docbook"))]
 
@@ -190,7 +184,6 @@ fn document_corpus() -> Vec<Document> {
                 rows: vec![],
             },
         }))]),
-        // Payloads exercising the writer's escaping and the reader's un-escaping.
         document(vec![
             Block::Para(vec![str_inline("café")]),
             Block::Para(vec![str_inline("a<b>c")]),

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Generate benchmark inputs into $FIXTURES (gitignored); idempotent unless BENCH_REGEN=1. Per size:
-# commonmark.<size>.md (seed repeated), derived html/native/json.<size>.*, ast.<size>.json, plus startup inputs.
+# Generate cached benchmark inputs; BENCH_REGEN=1 rebuilds them.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

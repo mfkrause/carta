@@ -19,7 +19,7 @@ use super::tables::image_attributes;
 use super::{Frame, InlineStop, MAX_NEST_DEPTH, Parser, Stop};
 
 impl Parser {
-    // --- Paragraph & inline ----------------------------------------------------------------------
+    // Paragraph & inline
 
     pub(super) fn parse_paragraph(&mut self) -> Vec<Inline> {
         let inlines = self.parse_inlines(InlineStop::Paragraph);
@@ -93,8 +93,7 @@ impl Parser {
                         self.apply_switch(switch, stop, &mut out, &mut buf);
                         break;
                     }
-                    // a command flushes the buffer only when it emits an inline; accents and
-                    // symbols append so they join the surrounding word
+                    // Flush only for an emitted inline; accents and symbols join the current word.
                     self.exec_control(&mut out, &mut buf);
                 }
                 '{' => {
@@ -109,7 +108,6 @@ impl Parser {
                     }
                 }
                 '}' => {
-                    // A stray close brace outside a group is treated as a literal.
                     buf.push('}');
                     self.bump();
                 }
@@ -247,11 +245,10 @@ impl Parser {
         }
     }
 
-    // --- Inline commands -------------------------------------------------------------------------
+    // Inline commands
 
     /// Dispatches a control sequence in inline context, appending inlines to `out` or text to `buf`.
     pub(super) fn exec_control(&mut self, out: &mut Vec<Inline>, buf: &mut String) {
-        // A control symbol: a backslash followed by a single non-letter.
         if self.at(1).is_some_and(|c| !c.is_ascii_alphabetic()) {
             self.exec_control_symbol(out, buf);
             return;
@@ -288,7 +285,6 @@ impl Parser {
             }
             // An explicit inter-word space is a non-breaking space.
             ' ' | '\n' | '\t' => buf.push('\u{a0}'),
-            // A thin space.
             ',' => buf.push('\u{2006}'),
             '&' | '%' | '#' | '$' | '_' | '{' | '}' => buf.push(c),
             '~' => self.read_accent_symbol(Accent::Tilde, buf),
@@ -334,12 +330,10 @@ impl Parser {
             }
             return;
         }
-        // Accent commands spelled as control words apply to their argument's base character.
         if let Some(accent) = word_accent(name) {
             self.read_accent_symbol(accent, buf);
             return;
         }
-        // Font family/shape/series switches wrap their argument in a single-class span.
         if let Some(class) = font_span_class(name) {
             let inner = self.parse_group_inlines();
             emit_all(out, buf, extract_spaces(inner, |i| span_class(i, class)));
@@ -507,9 +501,7 @@ impl Parser {
             | "LARGE" | "huge" | "Huge" | "normalsize" | "rmfamily" | "sffamily" | "ttfamily"
             | "mdseries" | "upshape" | "normalfont" | "sc" | "rm" | "sf" | "boldmath"
             | "unboldmath" | "clearpage" | "newpage" | "nolinebreak" | "sloppy" | "raggedright"
-            | "item" => {
-                // no-argument font-switch/spacing commands contribute nothing; a stray `\item` is dropped
-            }
+            | "item" => {}
             "linebreak" => {
                 let _ = self.read_optional_raw();
                 emit(out, buf, Inline::LineBreak);
@@ -530,7 +522,6 @@ impl Parser {
                         Inline::RawInline(Format("latex".into()), raw.into()),
                     );
                 } else {
-                    // Unknown command: drop it along with any adjacent bracket/brace arguments.
                     self.skip_adjacent_arguments();
                 }
             }
@@ -690,7 +681,7 @@ impl Parser {
         inner
     }
 
-    // --- Math ------------------------------------------------------------------------------------
+    // Math
 
     pub(super) fn read_dollar_math(&mut self) -> Inline {
         if self.cur() == Some('$') && self.at(1) == Some('$') {

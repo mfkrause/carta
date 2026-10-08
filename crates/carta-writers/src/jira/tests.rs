@@ -81,7 +81,6 @@ fn integral_lowers_to_symbol_with_scripts_and_thin_space() {
 
 #[test]
 fn inline_math_threads_surrounding_text_into_edge_guards() {
-    // Flanking word text forces braced emphasis markers.
     let out = render(vec![para(vec![
         str_inline("x"),
         math(MathType::InlineMath, "a^2"),
@@ -92,7 +91,6 @@ fn inline_math_threads_surrounding_text_into_edge_guards() {
 
 #[test]
 fn display_math_stands_on_its_own_line() {
-    // Framed by a newline on each side; the document writer adds the trailing one.
     assert_eq!(display("a^2"), "\n_a_^2^\n");
 }
 
@@ -141,7 +139,6 @@ fn empty_display_math_emits_an_empty_framed_line() {
 
 #[test]
 fn preceding_emphasis_guards_against_convertible_math_starting_with_a_letter() {
-    // Math opening with an alphanumeric (`ℝ`) forces braces on the preceding closing marker.
     let out = render(vec![para(vec![
         Inline::Emph(vec![str_inline("word")]),
         math(MathType::InlineMath, "\\mathbb{R}"),
@@ -153,7 +150,6 @@ fn preceding_emphasis_guards_against_convertible_math_starting_with_a_letter() {
 fn only_plain_space_and_newline_are_word_boundaries() {
     assert!(is_word_boundary(' '));
     assert!(is_word_boundary('\n'));
-    // Typographic and non-breaking spaces are word-like, so a marker resting on one is braced.
     assert!(!is_word_boundary('\u{00a0}'));
     assert!(!is_word_boundary('\u{2004}'));
     assert!(!is_word_boundary('\u{2005}'));
@@ -182,27 +178,22 @@ fn lone_backslash_between_words_stays_literal() {
 
 #[test]
 fn backslash_at_an_edge_becomes_the_entity() {
-    // At the string edge a backslash would read as an escape, so the `&bsol;` entity.
     assert_eq!(text("\\start"), "&bsol;start");
     assert_eq!(text("end\\"), "end&bsol;");
 }
 
 #[test]
 fn backslash_between_spaces_stays_literal() {
-    // Both neighbors are plain spaces, the same category, so the backslash is kept literal.
     assert_eq!(text("a \\ b"), "a \\ b");
 }
 
 #[test]
 fn consecutive_backslashes_become_entities() {
-    // Each backslash neighbors another backslash, a differing category, so both are entities.
     assert_eq!(text("x\\\\y"), "x&bsol;&bsol;y");
 }
 
 #[test]
 fn backslash_before_a_marker_becomes_the_entity() {
-    // Word-vs-marker is a category mismatch, so entity; the entity's `&` then makes the
-    // following marker markup-significant.
     assert_eq!(text("a\\*b"), "a&bsol;\\*b");
     assert_eq!(text("\\*end"), "&bsol;\\*end");
 }
@@ -215,7 +206,6 @@ fn open_paren_inside_a_word_stays_bare() {
 
 #[test]
 fn open_paren_before_an_emoticon_body_is_escaped() {
-    // An icon body escapes the opening `(`; the matching `)` stays bare.
     assert_eq!(text("(x)"), "\\(x)");
     assert_eq!(text("(y)"), "\\(y)");
     assert_eq!(text("f(x)"), "f\\(x)");
@@ -224,7 +214,6 @@ fn open_paren_before_an_emoticon_body_is_escaped() {
 
 #[test]
 fn space_flanked_open_paren_escapes_only_at_the_trailing_edge() {
-    // Space-flanked `(` stays bare while content follows; on the trailing edge it escapes.
     assert_eq!(text("a ( b"), "a ( b");
     assert_eq!(text("a ( ( b"), "a ( ( b");
     assert_eq!(text("a ( )"), "a ( )");
@@ -255,7 +244,6 @@ fn space_flanked_open_paren_consults_the_inline_stream_for_the_trailing_edge() {
         str_inline("("),
     ])]);
     assert_eq!(document_edge, "a \\(");
-    // A markup inline directly after puts the `(` against a boundary: escaped.
     let before_markup = render(vec![para(vec![
         str_inline("a"),
         Inline::Space,
@@ -273,13 +261,11 @@ fn open_paren_at_an_edge_is_escaped() {
 
 #[test]
 fn open_paren_does_not_over_escape_a_following_marker() {
-    // The `!` after the escaped `(` is content here and must not itself be escaped.
     assert_eq!(text("z(!)"), "z\\(!)");
 }
 
 #[test]
 fn text_emoticons_escape_their_leading_punctuation() {
-    // The leading `:`/`;` is escaped so the literal characters render, not an icon.
     assert_eq!(text(":)"), "\\:)");
     assert_eq!(text(":("), "\\:(");
     assert_eq!(text(":P"), "\\:P");
@@ -291,15 +277,12 @@ fn text_emoticons_escape_their_leading_punctuation() {
 
 #[test]
 fn colon_emoticon_escapes_when_followed_by_a_word() {
-    // The `:`-family reads as an emoticon whenever a markup boundary follows, even mid-word.
     assert_eq!(text("a:)"), "a\\:)");
-    // A following word character keeps the sequence from being an emoticon.
     assert_eq!(text(":)x"), ":)x");
 }
 
 #[test]
 fn wink_letter_emoticon_needs_a_boundary_on_both_sides() {
-    // `;P`/`;D` need a boundary on both sides; a word char or `)` suppresses the escape.
     assert_eq!(text("a;P"), "a;P");
     assert_eq!(text(";P)"), ";P)");
     assert_eq!(text(" ;P "), " \\;P");
@@ -307,22 +290,18 @@ fn wink_letter_emoticon_needs_a_boundary_on_both_sides() {
 
 #[test]
 fn colon_open_paren_emoticon_escapes_the_colon_only() {
-    // `:(` at a boundary is a sad-face emoticon: the `:` is escaped and the parenthesis is bare.
     assert_eq!(text(":("), "\\:(");
-    // Followed by a word it is no emoticon: `:` stays bare, `(` escapes against the significant `:`.
     assert_eq!(text(":(x"), ":\\(x");
 }
 
 #[test]
 fn slash_adjacent_open_paren_stays_bare() {
-    // A slash is ordinary content for the parenthesis rule.
     assert_eq!(text("a(/"), "a(/");
     assert_eq!(text("/(x"), "/(x");
 }
 
 #[test]
 fn run_of_markers_escapes_every_member() {
-    // Adjoining markers each open or close markup, so every member escapes, not just the edges.
     assert_eq!(text("a -- b"), "a \\-\\- b");
     assert_eq!(text("a---b"), "a\\-\\-\\-b");
     assert_eq!(text("__x"), "\\_\\_x");
@@ -332,7 +311,6 @@ fn run_of_markers_escapes_every_member() {
 
 #[test]
 fn interior_marker_of_a_long_run_is_escaped() {
-    // A marker flanked by markers escapes even without a content transition across it.
     assert_eq!(text("*_*"), "\\*\\_\\*");
     assert_eq!(text("-+-"), "\\-\\+\\-");
     assert_eq!(text("a*-+b"), "a\\*\\-\\+b");
@@ -340,14 +318,12 @@ fn interior_marker_of_a_long_run_is_escaped() {
 
 #[test]
 fn marker_against_punctuation_is_escaped() {
-    // `:` is markup-significant punctuation; `)` is ordinary content and leaves the marker bare.
     assert_eq!(text("a:*:b"), "a:\\*:b");
     assert_eq!(text("a)*)b"), "a)*)b");
 }
 
 #[test]
 fn marker_against_an_entity_backslash_is_escaped() {
-    // The `&bsol;` entity's `&` is a markup boundary, so the marker escapes on that side.
     assert_eq!(text("a*\\"), "a\\*&bsol;");
     assert_eq!(text("x*\\y"), "x\\*&bsol;y");
     assert_eq!(text("\\*a"), "&bsol;\\*a");
@@ -355,11 +331,9 @@ fn marker_against_an_entity_backslash_is_escaped() {
 
 #[test]
 fn marker_against_a_neutralized_emoticon_stays_bare() {
-    // An escaped emoticon opener reads as content, so the abutting marker stays bare.
     assert_eq!(text("a_:)"), "a_\\:)");
     assert_eq!(text(":(*<>:"), "\\:(*<>:");
     assert_eq!(text("a_(x)"), "a_\\(x)");
-    // When the colon does not open an emoticon it is markup-significant and the marker is escaped.
     assert_eq!(text("a_:x"), "a\\_:x");
 }
 
@@ -380,7 +354,6 @@ fn code(value: &str) -> String {
 
 #[test]
 fn inline_code_escapes_its_boundary_markers() {
-    // Boundary markup characters inside a monospaced span are still escaped.
     assert_eq!(code("(x)"), "{{\\(x)}}");
     assert_eq!(code("[y]"), "{{\\[y\\]}}");
     assert_eq!(code("*x*"), "{{\\*x\\*}}");
@@ -389,7 +362,6 @@ fn inline_code_escapes_its_boundary_markers() {
 
 #[test]
 fn inline_code_leaves_interior_content_markers_bare() {
-    // Content-flanked markers stay bare; an abutting run escapes throughout.
     assert_eq!(code("a*b"), "{{a*b}}");
     assert_eq!(code("a|b"), "{{a|b}}");
     assert_eq!(code("a--b"), "{{a\\-\\-b}}");
@@ -397,7 +369,6 @@ fn inline_code_leaves_interior_content_markers_bare() {
 
 #[test]
 fn inline_code_handles_backslashes_like_running_text() {
-    // Same as running text: literal between content, the `&bsol;` entity at the edge.
     assert_eq!(code("a\\b"), "{{a\\b}}");
     assert_eq!(code("a\\"), "{{a&bsol;}}");
 }

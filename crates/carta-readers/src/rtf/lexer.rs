@@ -110,8 +110,7 @@ fn lex_backslash(chars: &[char], start: usize, tokens: &mut Vec<Token>) -> usize
             if matches!(chars.get(i), Some(&c) if is_control_delimiter(c)) {
                 i += 1;
             }
-            // `\binN`'s N raw bytes are captured at the lexer so a `{`, `}`, or `\` among them
-            // is data, not structure, and cannot desync brace nesting.
+            // Capture binary bytes before brace parsing so payload delimiters cannot change nesting.
             if word == "bin"
                 && let Some(count) = param.and_then(|value| usize::try_from(value).ok())
                 && count > 0

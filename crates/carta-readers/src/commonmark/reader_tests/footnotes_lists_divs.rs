@@ -17,8 +17,7 @@ fn footnote_reference_resolves_to_a_note_and_lifts_the_definition() {
 
 #[test]
 fn deeply_nested_containers_do_not_overflow_the_stack() {
-    // The resolve passes recurse through the block tree, so container nesting is capped.
-    // 8 MiB thread: exercise the cap, not the harness's small (512 KiB) per-test stacks.
+    // Use 8 MiB to test the nesting cap without hitting the test thread stack limit.
     std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024)
         .spawn(|| {
@@ -36,7 +35,6 @@ fn deeply_nested_containers_do_not_overflow_the_stack() {
 
 #[test]
 fn grid_cell_inlines_honor_the_markdown_dialect() {
-    // Markdown-dialect superscript rejects an inner space, so `^a b^` stays literal.
     let input = "+-------+\n| ^a b^ |\n+-------+\n";
     let doc = read_markdown(input, &[Extension::GridTables, Extension::Superscript]);
     let table = match doc.blocks.as_slice() {
@@ -62,7 +60,6 @@ fn grid_cell_inlines_honor_the_markdown_dialect() {
 #[test]
 fn metadata_values_honor_the_markdown_dialect() {
     use carta_ast::MetaValue;
-    // A YAML metadata value parses under the document's dialect too.
     let input = "---\ntitle: ^a b^ `  x  `\n---\n\nbody\n";
     let doc = read_markdown(
         input,
@@ -86,7 +83,6 @@ fn metadata_values_honor_the_markdown_dialect() {
 
 #[test]
 fn attribute_only_table_caption_carries_no_blocks() {
-    // An empty caption parses to no blocks, never a `Plain` wrapping an empty inline list.
     let input = "| a | b |\n|---|---|\n| 1 | 2 |\n\n: {#tid}\n";
     let blocks = blocks_with_many(
         input,
@@ -117,7 +113,6 @@ fn undefined_footnote_reference_stays_literal() {
 
 #[test]
 fn footnote_extension_off_produces_no_note() {
-    // Without the toggle `[^a]: body` is an ordinary link reference definition.
     let result = blocks("text[^a]\n\n[^a]: body\n");
     let [Block::Para(inlines)] = result.as_slice() else {
         panic!("expected a single paragraph, got {result:?}");
@@ -144,7 +139,6 @@ fn footnote_definition_spans_indented_continuation_blocks() {
 
 #[test]
 fn nested_footnote_reference_inside_a_definition_does_not_nest() {
-    // A reference inside a definition's own body collapses to an empty string, not a nested note.
     let inlines = para_inlines(
         "ref[^a]\n\n[^a]: see [^b]\n\n[^b]: inner\n",
         Extension::Footnotes,
@@ -170,7 +164,6 @@ fn footnote_labels_fold_case_and_whitespace() {
 
 #[test]
 fn defined_footnote_reference_wins_over_a_following_inline_target() {
-    // A defined reference consumes nothing past `]`, so the `(url)` stays literal text.
     let inlines = para_inlines("[^a](url)\n\n[^a]: body\n", Extension::Footnotes);
     assert!(inlines.iter().any(|i| matches!(i, Inline::Note(_))));
     assert!(
@@ -192,7 +185,6 @@ fn empty_list_marker_below_an_unmatched_container_starts_a_list() {
 
 #[test]
 fn bare_marker_trailed_by_spaces_leaves_an_empty_item() {
-    // Trailing whitespace is not a non-blank line, so no indented code block opens in the item.
     assert!(matches!(
         blocks("-     \n").as_slice(),
         [Block::BulletList(items)] if items.as_slice() == [Vec::new()]
@@ -265,7 +257,6 @@ fn fenced_divs_nest_with_the_inner_closing_first() {
 
 #[test]
 fn a_shorter_colon_run_does_not_close_a_longer_fence() {
-    // A three-colon line cannot close a four-colon fence.
     let result = blocks_with(
         ":::: wide\n:::\nstill inside\n::::\n",
         Extension::FencedDivs,
@@ -289,7 +280,6 @@ fn blank_after_a_div_in_a_list_item_makes_the_list_loose() {
         "- ::: note\n  inside\n  :::\n\n  after\n",
         Extension::FencedDivs,
     );
-    // The blank inside the item makes the list loose, so the trailing paragraph stays `Para`.
     let [Block::BulletList(items)] = result.as_slice() else {
         panic!("expected a single bullet list, got {result:?}");
     };
@@ -304,7 +294,6 @@ fn blank_after_a_div_in_a_list_item_makes_the_list_loose() {
 
 #[test]
 fn blank_ending_a_nested_block_quote_makes_the_list_loose() {
-    // The blank ends the unmatched quote and counts toward looseness, keeping paragraphs `Para`.
     let result = blocks("- item\n  > q\n\n- item2\n");
     let [Block::BulletList(items)] = result.as_slice() else {
         panic!("expected a single bullet list, got {result:?}");
@@ -345,7 +334,6 @@ fn image_only_paragraph_becomes_a_figure_captioned_by_its_alt_text() {
 
 #[test]
 fn an_empty_alt_image_stays_a_paragraph() {
-    // The decisive condition is a non-empty alt; a title does not change that.
     let result = blocks_with("![](spacer.png \"t\")\n", Extension::ImplicitFigures);
     let [Block::Para(inlines)] = result.as_slice() else {
         panic!("expected a paragraph, got {result:?}");
@@ -367,12 +355,10 @@ fn the_image_title_is_not_used_as_the_caption() {
 
 #[test]
 fn an_extra_inline_or_a_wrapper_keeps_the_paragraph() {
-    // A second inline disqualifies the paragraph.
     assert!(matches!(
         blocks_with("look at ![this](i.png)\n", Extension::ImplicitFigures).as_slice(),
         [Block::Para(_)]
     ));
-    // A link wrapping the image makes the link the sole inline, not the image.
     let linked = blocks_with("[![a](i.png)](u)\n", Extension::ImplicitFigures);
     let [Block::Para(inlines)] = linked.as_slice() else {
         panic!("expected a paragraph, got {linked:?}");

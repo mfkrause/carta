@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Startup surface: time a near-empty conversion to isolate process spin-up, the bulk of any small-input gap.
-# Usage: surfaces/startup.sh [from:to]   (no arg = curated default pairs)
+# Time near-empty conversions to measure startup. Usage: surfaces/startup.sh [from:to]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 

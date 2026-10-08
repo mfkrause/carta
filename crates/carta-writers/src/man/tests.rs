@@ -295,7 +295,6 @@ fn custom_columns_bound_the_filled_width() {
     for line in wide.lines().skip(1) {
         assert!(visible_width(line) <= 80, "line too wide: {line}");
     }
-    // The narrower budget needs strictly more physical lines.
     assert!(narrow.lines().count() > wide.lines().count());
 }
 
@@ -332,7 +331,6 @@ fn display_math(tex: &str) -> Inline {
 
 #[test]
 fn inline_math_lowers_to_font_and_scripts() {
-    // A variable renders in italics; a superscript uses `^..^`.
     assert_eq!(
         render(vec![para(vec![inline_math("a^2")])]),
         ".PP\n\\f[I]a\\f[R]^2^"
@@ -379,7 +377,6 @@ fn display_math_resumes_following_text_on_the_close_line() {
 
 #[test]
 fn nonconvertible_inline_math_falls_back_to_escaped_source() {
-    // `\frac` has no single-line form: source emitted between `$` delimiters, roff-escaped
     assert_eq!(
         render(vec![para(vec![inline_math("\\frac{1}{2}")])]),
         ".PP\n$\\(rsfrac{1}{2}$"
@@ -396,7 +393,6 @@ fn nonconvertible_display_math_falls_back_inside_the_group() {
 
 #[test]
 fn fallback_source_is_roff_escaped() {
-    // Characters with roff meaning in the kept source are escaped: `-` and `^` here.
     assert_eq!(
         render(vec![para(vec![inline_math("\\sqrt{a-b}")])]),
         ".PP\n$\\(rssqrt{a\\-b}$"
@@ -433,7 +429,6 @@ fn empty_display_math_keeps_an_empty_group() {
 
 #[test]
 fn math_threads_the_surrounding_font() {
-    // A bold variable nested in math keeps the surrounding bold weight on its toggle.
     assert_eq!(
         render(vec![para(vec![Inline::Strong(vec![inline_math("a^2")])])]),
         ".PP\n\\f[B]\\f[BI]a\\f[B]^2^\\f[R]"
@@ -442,7 +437,6 @@ fn math_threads_the_surrounding_font() {
 
 #[test]
 fn display_math_sets_off_inside_an_unwrapped_run() {
-    // In a heading (an unwrapped run) the group still takes its own lines.
     assert_eq!(
         render(vec![Block::Header(
             1,

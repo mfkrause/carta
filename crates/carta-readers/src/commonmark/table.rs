@@ -1,10 +1,4 @@
-//! Pipe-table recognition for the `pipe_tables` extension.
-//!
-//! A pipe table is a header row, a delimiter row that fixes the column count and per-column
-//! alignment, and zero or more body rows. Recognition is purely textual and runs on a paragraph's
-//! raw lines before inline parsing; the column-bearing cell text is parsed into inlines later. A
-//! table never interrupts a paragraph, which falls out of only inspecting the first two lines of a
-//! paragraph block.
+//! Recognize pipe tables when the `pipe_tables` extension is enabled.
 
 use carta_ast::Alignment;
 
@@ -58,17 +52,10 @@ pub(crate) enum Continuation {
     NotTable,
 }
 
-/// Decide how `line` extends an open paragraph holding `paragraph` text, so an established table can
-/// keep claiming its rows before the block openers would split them.
+/// Decide whether a new line continues an established pipe table.
 ///
-/// Only a table whose header and delimiter rows are both already present takes over: a following
-/// pipe row is a body row and anything else ends the table. While only the header is present the
-/// candidate delimiter is left to the ordinary block rules, so a delimiter that begins with a list
-/// marker (`- |`) opens a list rather than a table: a table must not interrupt those.
-///
-/// Once the header and delimiter have validated the caller passes `established`, and only the new
-/// line is inspected: the header and delimiter rows never change, so re-verifying them for every
-/// body line is wasted work.
+/// Only a valid header/delimiter pair claims body rows. A candidate delimiter remains subject
+/// to ordinary block rules. `established` skips repeated validation of the unchanged header.
 pub(crate) fn classify_continuation(
     paragraph: &str,
     line: &str,
@@ -108,18 +95,10 @@ pub(crate) fn opens_table(header_line: &str, delimiter_line: &str, code_spans: b
     )
 }
 
-/// Split one table row into its trimmed cell texts, alongside the count of unescaped `|` that act as
-/// cell structure (every edge and separator pipe, excluding escaped and code-span pipes).
+/// Split a table row into trimmed cells and count structural pipes.
 ///
-/// A single leading or trailing `|` is an edge delimiter and yields no cell; a doubled edge pipe
-/// (or an interior `||`) yields an empty cell. A backslash-escaped `\|` is a literal pipe within a
-/// cell, not a split point. When `code_spans` is set, a backtick code span is kept whole, so a `|`
-/// inside it does not split the row.
-///
-/// The scan runs over the trimmed line's bytes: the structural characters (`|`, `\`, `` ` ``) are
-/// ASCII, so cell boundaries land on byte offsets that are valid `&str` slice points even for
-/// multibyte content. A cell that carries no escaped pipe is emitted as a single trimmed sub-slice;
-/// only an escaped `\|` forces the cell to be assembled in a buffer with the backslash dropped.
+/// Single edge pipes add no cell; doubled pipes add empty cells. Escaped pipes remain literal.
+/// With `code_spans`, pipes inside code spans do not split cells.
 fn split_cells(line: &str, code_spans: bool) -> (Vec<String>, usize) {
     let trimmed = line.trim();
     let bytes = trimmed.as_bytes();
@@ -290,7 +269,6 @@ mod tests {
         assert_eq!(split_cells("| a | b |", false).1, 3);
         assert_eq!(split_cells("a | b", false).1, 1);
         assert_eq!(split_cells("||b|", false).1, 3);
-        // Escaped and code-span pipes are not structural.
         assert_eq!(split_cells("x\\|y | z", false).1, 1);
         assert_eq!(split_cells("`a|b` | c", true).1, 1);
     }
@@ -302,13 +280,10 @@ mod tests {
 
     #[test]
     fn a_code_span_pipe_splits_the_row_only_without_code_span_awareness() {
-        // Code spans honored keep the pipe whole; otherwise the span is torn across two cells.
         assert_eq!(cells("`a|b` | c", true), ["`a|b`", "c"]);
         assert_eq!(cells("`a|b` | c", false), ["`a", "b`", "c"]);
-        // A doubled backtick run is a span too; an unclosed run is not, so its pipe still splits.
         assert_eq!(cells("``x|y`` | z", true), ["``x|y``", "z"]);
         assert_eq!(cells("`a | b", true), ["`a", "b"]);
-        // Only pipes strictly inside the span are protected.
         assert_eq!(cells("`x` | `y|z`", true), ["`x`", "`y|z`"]);
     }
 
@@ -365,10 +340,8 @@ mod tests {
 
     #[test]
     fn a_code_span_cell_keeps_its_pipe_and_one_column() {
-        // Code spans honored keep one column; without, the pipe splits and the surplus is truncated.
         let (_, _, rows) = try_parse("| h |\n| - |\n| `a|b` |\n", true).unwrap();
         assert_eq!(rows, vec![vec!["`a|b`"]]);
-        // A line whose only pipe sits inside a span is not a pipe row, so it opens no table.
         assert!(try_parse("`x|y`\n| - |\n", true).is_none());
     }
 
@@ -394,13 +367,11 @@ mod tests {
         assert!(pipe_row("| |", false));
         assert!(pipe_row("a | b", false));
         assert!(pipe_row("| a", false));
-        // A pipe held inside a code span is not cell structure.
         assert!(!pipe_row("`a|b`", true));
     }
 
     #[test]
     fn header_only_does_not_absorb_a_list_marker_delimiter() {
-        // With only a header, a `- |` delimiter opens a list rather than being claimed as a table.
         assert!(matches!(
             classify_continuation("| a | b |\n", "- | -", false, false),
             Continuation::NotTable
@@ -418,7 +389,6 @@ mod tests {
             classify_continuation(paragraph, "plain text", false, false),
             Continuation::Terminate
         ));
-        // Once established the header/delimiter are not re-inspected; only the new line decides.
         assert!(matches!(
             classify_continuation("", "| 1 | 2 |", false, true),
             Continuation::Absorb

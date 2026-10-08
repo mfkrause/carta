@@ -1,11 +1,6 @@
-//! `DocBook` writer: renders the document model to `DocBook` 5 XML.
+//! Render `DocBook` 5 XML with nested sections and reflowed paragraphs.
 //!
-//! Elements nest two columns per level and paragraph text is reflowed so a line's full width, its
-//! indent included, stays within the fill column. Verbatim constructs (code listings, and
-//! paragraphs carrying a hard break) are flushed to column zero instead, so their own line
-//! structure survives untouched. Headings sectionize the block sequence: each one opens a
-//! `<section>` holding the blocks that follow it up to the next heading of the same or shallower
-//! level. Output carries no trailing newline; the caller appends one.
+//! Verbatim content preserves line structure at column zero. Output has no trailing newline.
 
 use std::fmt::Write as _;
 
@@ -53,8 +48,7 @@ pub struct DocbookWriter;
 
 impl Writer for DocbookWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        // A wrapping template seats the content inside an enclosing element, which already declares
-        // the namespaces and indents the slot the body lands in.
+        // A wrapping template supplies the namespaces and body indentation.
         let wrapped = options.standalone || options.template.is_some();
         let slot = options.slot;
         let renderer = Renderer {
@@ -71,8 +65,7 @@ impl Writer for DocbookWriter {
             namespaced: !wrapped,
         };
         let body = renderer.blocks(&document.blocks, 0, Nesting::SECTIONED);
-        // Nothing closes the document, so the last line the content opened is the one the newline
-        // written after the render stands for, and a second break falls away with it.
+        // The render supplies the final line break; drop a redundant second break.
         let body = closed_up(closed_up(&body));
         // A template resolves the marks itself, after adding the indentation they have to survive.
         Ok(if wrapped {
@@ -260,7 +253,6 @@ impl Renderer {
                 if rendered.is_empty() {
                     continue;
                 }
-                // A block ending on a break of its own already opened the line the next one takes.
                 if !out.is_empty() && !out.ends_with('\n') {
                     out.push('\n');
                 }
@@ -460,8 +452,7 @@ impl Renderer {
         if let Some(last) = layout.last_mut() {
             last.push(Piece::text("</literallayout>"));
         }
-        // Spacing that opens a line here is dropped outright: a verbatim line already stands on its
-        // own, so it never moves its first word down to keep the gap.
+        // Verbatim lines retain their position; discard leading breakable space.
         let body: Vec<String> = layout
             .iter()
             .map(|line| fill(line, self.available(indent), self.wrap))
@@ -891,7 +882,6 @@ impl Renderer {
 
     fn push_inline(&self, pieces: &mut Vec<Piece>, inline: &Inline, indent: usize) {
         match inline {
-            // An empty run is no word at all, so the spaces around it stay one run of space.
             Inline::Str(text) if text.as_str().is_empty() => {}
             Inline::Str(text) => pieces.push(Piece::text(escaped(text.as_str()))),
             Inline::Emph(content) => self.wrap_inline(pieces, "emphasis", "", content, indent),
@@ -977,7 +967,6 @@ impl Renderer {
     ) {
         if let Some(address) = target.url.as_str().strip_prefix("mailto:") {
             let element = format!("<email>{}</email>", escaped(address));
-            // The address written out stands for itself; any other wording keeps it beside.
             let speaks_for_itself = matches!(content, [Inline::Str(shown)]
                 if percent_encoded(shown.as_str()) == address);
             if speaks_for_itself {
@@ -985,7 +974,6 @@ impl Renderer {
                 return;
             }
             let shown = self.pieces(content, indent);
-            // Wording that came out empty is no wording, so nothing stands beside it.
             let beside = carries_text(&shown);
             pieces.extend(shown);
             if beside {
@@ -1002,8 +990,7 @@ impl Renderer {
         }
         push_attribute(&mut attrs, "id", &identifier(&attr.id));
         push_attribute(&mut attrs, "role", &role(attr));
-        // A cross-reference within the document names its own destination when the document gave it
-        // no wording of its own.
+        // An empty cross-reference label uses its destination.
         let name = if anchor.is_some() && content.is_empty() {
             "xref"
         } else {

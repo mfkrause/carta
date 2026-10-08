@@ -83,8 +83,7 @@ fn table_measurement_stays_within_the_fill_column() {
         }))
     }
 
-    // A fraction far past the whole line, on a table nested inside a cell being measured at the
-    // unconstrained sizing width, once scaled its column to that width instead of the fill column.
+    // Check oversized fractions against the fill width during nested measurement.
     let inner = table(
         ColWidth::ColWidth(1e300),
         vec![Block::Para(vec![Inline::Str("inner".into())])],
@@ -99,8 +98,7 @@ fn table_measurement_stays_within_the_fill_column() {
     let mut options = WriterOptions::default();
     options.columns = Some(40);
     let rendered = MarkdownWriter.write(&doc, &options).expect("write");
-    // The framing each nesting level adds puts the total slightly over the fill column; what matters
-    // is that the width tracks the fill column rather than the sizing width.
+    // Nested borders can exceed the fill width; the measuring width must not determine output.
     let widest = rendered.lines().map(str::len).max().unwrap_or(0);
     assert!(widest < 80, "widest line was {widest} columns");
 }
@@ -134,7 +132,6 @@ fn yaml_quotes_only_scalars_that_would_reparse_wrongly() {
         );
     }
 
-    // Plain text, bare-valid interior punctuation, numbers, and non-keyword words stay unquoted.
     for bare in [
         "plain words",
         "interior-dash here",
@@ -233,7 +230,6 @@ mod raw_blocks {
 
     use crate::markdown::MarkdownWriter;
 
-    // The fence outgrows any backtick run in the body, so a ``` line inside cannot close it early.
     #[test]
     fn raw_attribute_fence_outgrows_a_backtick_run_in_the_body() {
         let document = Document {
@@ -282,7 +278,6 @@ mod escaping {
 
     #[test]
     fn a_leading_ordered_marker_is_escaped_only_when_a_list_would_open() {
-        // A digit run then `.`/`)` followed by a space or the line end would open a list.
         assert_eq!(
             render(vec![Block::Para(vec![s("1."), Inline::Space, s("Item")])]),
             "1\\. Item"
@@ -296,7 +291,6 @@ mod escaping {
             "12\\. Item"
         );
         assert_eq!(render(vec![Block::Para(vec![s("1.")])]), "1\\.");
-        // No following break: the token cannot start a list and stays bare.
         assert_eq!(render(vec![Block::Para(vec![s("1.Item")])]), "1.Item");
     }
 
@@ -310,7 +304,6 @@ mod escaping {
             render(vec![Block::Para(vec![s("+"), Inline::Space, s("x")])]),
             "\\+ x"
         );
-        // A plain block (e.g. a tight list item) is at the same risk.
         assert_eq!(
             render(vec![Block::Plain(vec![s("-"), Inline::Space, s("x")])]),
             "\\- x"
@@ -319,7 +312,6 @@ mod escaping {
 
     #[test]
     fn a_marker_past_the_first_token_is_left_alone() {
-        // Only the opening token can start a list; a marker on a wrapped continuation cannot.
         assert_eq!(
             render(vec![Block::Para(vec![
                 s("text"),
@@ -334,7 +326,6 @@ mod escaping {
 
     #[test]
     fn a_double_tilde_is_escaped_under_strikeout() {
-        // With subscript off, only the strikeout-opening tilde of each pair is escaped.
         assert_eq!(
             render_with(
                 vec![Block::Para(vec![s("~~foo~~")])],
@@ -342,7 +333,6 @@ mod escaping {
             ),
             "\\~~foo\\~~"
         );
-        // With strikeout also off, the tildes are literal.
         let mut bare = presets::MARKDOWN;
         bare.remove(Extension::Subscript);
         bare.remove(Extension::Strikeout);
@@ -354,7 +344,6 @@ mod escaping {
 
     #[test]
     fn a_trailing_backslash_run_pads_to_an_even_length() {
-        // An odd trailing backslash run doubles its last member, never ending on a stray escape.
         let exts = without(Extension::RawTex);
         assert_eq!(
             render_with(vec![Block::Para(vec![s("a\\")])], exts),
@@ -368,7 +357,6 @@ mod escaping {
             render_with(vec![Block::Para(vec![s("a\\\\\\")])], exts),
             "a\\\\\\\\"
         );
-        // An interior backslash is emitted verbatim.
         assert_eq!(
             render_with(vec![Block::Para(vec![s("a\\b")])], exts),
             "a\\b"
@@ -423,7 +411,6 @@ mod escaping {
 
     #[test]
     fn an_unwritable_display_math_falls_back_on_its_own_line() {
-        // With no math surface, a display expression linearizes to markup set off by line breaks.
         assert_eq!(
             render_with(
                 vec![Block::Para(vec![

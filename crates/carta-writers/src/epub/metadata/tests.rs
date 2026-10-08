@@ -30,7 +30,6 @@ fn onix_code_maps_known_schemes_case_sensitively() {
     assert_eq!(onix_code("ISBN-13"), "15");
     assert_eq!(onix_code("ISBN-10"), "02");
     assert_eq!(onix_code("URN"), "22");
-    // A miscased or unlisted scheme falls back to the proprietary code.
     assert_eq!(onix_code("doi"), "01");
     assert_eq!(onix_code("ISBN13"), "01");
     assert_eq!(onix_code("something-else"), "01");
@@ -217,7 +216,6 @@ fn plain_text_flattens_formatting_and_drops_opaque_inlines() {
             Box::<Target>::default(),
         ),
         Inline::Code(Box::default(), Text::from("d")),
-        // A raw span and a footnote carry no plain-text value into a package field.
         Inline::RawInline(Format(Text::from("html")), Text::from("<x>")),
         Inline::Note(Vec::new()),
     ];
@@ -248,7 +246,6 @@ fn apply_metadata_xml_projects_every_dublin_core_element() {
     );
     meta.apply_metadata_xml(fragment);
 
-    // A supplied identifier replaces the generated one and carries its scheme's ONIX code.
     assert_eq!(meta.identifiers.len(), 1);
     assert_eq!(meta.primary_identifier(), "10.1000/xyz");
     let identifier = meta.identifiers.first().expect("an identifier");
@@ -257,7 +254,6 @@ fn apply_metadata_xml_projects_every_dublin_core_element() {
     assert_eq!(meta.title_text, "Overridden & Titled");
     assert_eq!(meta.date.as_deref(), Some("2020-01-02"));
     assert_eq!(meta.language, "fr");
-    // Every predefined entity resolves; a bare `&` and an unknown entity are left as written.
     assert_eq!(meta.description.as_deref(), Some("A short <book> & more"));
     assert_eq!(meta.publisher.as_deref(), Some("Press &frac; House"));
     assert_eq!(meta.rights_text.as_deref(), Some("\"Quoted\" 'x'"));
@@ -276,7 +272,6 @@ fn apply_metadata_xml_projects_every_dublin_core_element() {
     let contributor = meta.contributors.first().expect("a contributor");
     assert_eq!(contributor.role.as_deref(), Some("edt"));
 
-    // Elements with no dedicated field are carried through verbatim, self-closing ones included.
     assert_eq!(meta.extra.len(), 2);
     let cover = meta.extra.first().expect("first extra");
     assert_eq!(cover.name, "meta");
@@ -312,7 +307,6 @@ fn apply_metadata_xml_ignores_empty_overrides() {
     use super::BookMeta;
     let source = meta_with("title", meta_string("Original"));
     let mut meta = BookMeta::from_meta(&source, "seed", DEFAULT_LANGUAGE);
-    // an empty recognized element is dropped: it neither blanks the projected title nor pushes empty entries
     meta.apply_metadata_xml(concat!(
         "<dc:title></dc:title>\n",
         "<dc:subject></dc:subject>\n",

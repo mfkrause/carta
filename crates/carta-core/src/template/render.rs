@@ -1,14 +1,7 @@
-//! Rendering a parsed [`Template`] against a [`Value`] context.
+//! Render a [`Template`] against a [`Value`] context.
 //!
-//! ## Indentation
-//!
-//! When a variable, partial, or loop-item value spans multiple lines and the current output line so
-//! far is entirely ASCII spaces, those spaces become the indent prefixed to every continuation line
-//! of the value. A line prefix containing anything else (a tab, any non-space character) suppresses
-//! the indent. Literal template text is always emitted verbatim.
-//!
-//! A value line opening with [`FLUSH_LINE`] (under its own leading spaces) claims column zero: the
-//! indent, those spaces, and the mark itself all come off.
+//! An ASCII-space-only line prefix indents multiline values; other prefixes do not.
+//! Literal text stays verbatim. [`FLUSH_LINE`] removes its mark and leading indentation.
 
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -68,15 +61,10 @@ impl<'a> Partials<'a> {
     }
 }
 
-/// The growing output, plus a one-bit memory of how the last text reached it.
+/// Rendered output with trailing-value newline absorption.
 ///
-/// A block-level value (a rendered body or block metadata) carries a trailing blank line. When such
-/// a value sits on its own line in the template (`$body$` followed by a newline), that line's own
-/// break would stack onto the value's trailing blank line and open an extra empty line. So a value
-/// that ends in a newline absorbs every newline that immediately follows it: its own trailing blank
-/// line stands, and the line break (or blank lines) written after it in the template are dropped.
-/// Literal template text never arms this, so blank lines an author writes between literals are
-/// preserved exactly.
+/// A value ending in a newline consumes immediately following template newlines.
+/// Literal text does not enable absorption, so authored blank lines between literals remain.
 #[derive(Default)]
 struct Sink {
     buf: String,

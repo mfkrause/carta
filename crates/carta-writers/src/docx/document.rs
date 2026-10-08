@@ -299,7 +299,6 @@ fn section_properties() -> Element {
 fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: Option<&str>) {
     match block {
         Block::Para(inlines) | Block::Plain(inlines) => {
-            // A display equation lifts onto its own line; the paragraph splits around it.
             if ambient.is_none() && inlines.iter().any(is_display_equation) {
                 render_split_paragraph(inlines, body, ctx);
                 return;
@@ -316,8 +315,7 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
             body.push(line_block_paragraph(style, lines, ctx));
             ctx.prev_paragraph = true;
         }
-        // A div is transparent to the first/body alternation; a custom-style div restyles its
-        // direct paragraphs (a nested one overrides).
+        // Custom-style divs style direct paragraphs; nested divs override them.
         Block::Div(attr, blocks) => {
             let mark = open_bookmark(attr.id.as_str(), body, ctx);
             let child_ambient = custom_style(attr)
@@ -625,7 +623,6 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
                 out.push(paragraph(style.plain, inlines, ctx));
             }
         }
-        // A nested heading is not an outline section: styled paragraph, no bookmark.
         Block::Header(level, _, inlines) => {
             out.push(paragraph(heading_style(*level), inlines, ctx));
         }
@@ -651,7 +648,6 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
             render_figure(attr.id.as_str(), caption, blocks, out, ctx);
         }
         Block::Table(table) => render_table(table, out, ctx, None),
-        // A custom-style div restyles its paragraphs and loose lists; a plain one is transparent.
         Block::Div(attr, blocks) => {
             let inner = match custom_style(attr).or_else(|| bibliography_style(attr)) {
                 Some(name) => FlowStyle {

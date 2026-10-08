@@ -1,11 +1,4 @@
-//! End-to-end tests for JSON filters and the data directory: the `carta` binary is invoked as a
-//! subprocess, transforming the document through external programs between reading and writing.
-//!
-//! Filters are written as `sh` scripts (identity via `cat`, transforms via `sed` on the compact JSON)
-//! so the tests need no language interpreter and run fully offline. Unix-only: the scripts rely on a
-//! shebang and the executable bit.
-//!
-//! Gated on `cli`: without that feature the binary is not built, so `CARGO_BIN_EXE_carta` is unset.
+//! Offline Unix CLI tests for shell filters and data-directory lookup.
 
 #![cfg(all(feature = "cli", unix))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -106,7 +99,6 @@ fn an_identity_filter_leaves_the_output_unchanged() {
 fn a_filter_receives_the_output_format_name() {
     let dir = work_dir("filter-format-arg");
     let filter = dir.join("echo-format");
-    // Report the first-argument format name on stderr and pass the document on.
     write_exec(&filter, "#!/bin/sh\necho \"format=$1\" >&2\ncat\n");
 
     let result = run(
@@ -204,7 +196,6 @@ fn a_working_directory_filter_takes_precedence_over_the_data_directory() {
     let data = dir.join("data");
     let filters = data.join("filters");
     fs::create_dir_all(&filters).unwrap();
-    // Same bare name in data dir and cwd, each tagging differently; the cwd copy must win.
     write_exec(&filters.join("dup"), "#!/bin/sh\nsed 's/TOKEN/DATADIR/g'\n");
     let cwd = dir.join("cwd");
     fs::create_dir_all(&cwd).unwrap();
@@ -292,7 +283,6 @@ fn a_filter_sees_merged_command_line_metadata() {
     let dir = work_dir("filter-meta-seen");
     let template = dir.join("marker.html");
     fs::write(&template, "[$marker$]\n").unwrap();
-    // Metadata is folded in before the filter runs, so it observes and can rewrite the `-M` value.
     let filter = dir.join("rewrite");
     write_exec(&filter, "#!/bin/sh\nsed 's/PRESENT/SEEN/g'\n");
 
@@ -323,7 +313,6 @@ fn a_filters_metadata_edit_survives_rendering() {
     let filter = dir.join("rewrite");
     write_exec(&filter, "#!/bin/sh\nsed 's/BEFORE/AFTER/g'\n");
 
-    // The `-M` layer is cleared once merged: the output reflects the filter, not the command line.
     let result = run(
         &[
             "-f",
@@ -348,7 +337,6 @@ fn a_data_directory_default_template_overrides_the_built_in() {
     let dir = work_dir("template-datadir-default");
     let templates = dir.join("templates");
     fs::create_dir_all(&templates).unwrap();
-    // `-t html` writes through the html5 writer, whose default template file is `default.html5`.
     fs::write(templates.join("default.html5"), "OVERRIDE|$body$|END\n").unwrap();
 
     let result = run(

@@ -1,11 +1,4 @@
-//! Typst writer: renders the document model to Typst markup.
-//!
-//! Block structure is conveyed through Typst's line-oriented markup; paragraph text is wrapped to a
-//! fill column. Constructs that have no native markup form are emitted as code-mode function calls
-//! (`#strong[..]`, `#link("..")[..]`, `#figure(..)`, `#table(..)`, …). Markup-significant characters
-//! in literal text are backslash-escaped, some only where they could open a block or line marker.
-//! Output carries no trailing newline; the caller appends one. The targeted syntax is described in
-//! `vendor/typst/spec.md`.
+//! Render Typst markup, using code-mode functions for constructs without markup syntax.
 
 use carta_ast::{
     Attr, Block, Caption, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,

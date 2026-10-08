@@ -10,8 +10,7 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq not found on PATH" >&2; exit 
 
 # Buffered, so a field rejected halfway through leaves no half-written TOML behind.
 toml=$(jq -r '
-  # Required fields fail the conversion rather than reaching the TOML as "null" or 0, which would
-  # publish a plausible-looking figure nobody measured.
+  # Reject missing fields to avoid publishing unmeasured values as zero.
   def q(field): if type == "string" then gsub("\\\\"; "\\\\") | gsub("\""; "\\\"") | "\"" + . + "\""
                 else error("missing or non-string \(field)") end;
   def n(field): if type == "number" then tostring else error("missing or non-numeric \(field)") end;

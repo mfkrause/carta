@@ -1,8 +1,4 @@
-//! Shared scaffolding for the writer fuzz targets.
-//!
-//! Each writer target synthesizes a `Document` via `Arbitrary` and drives one format's writers
-//! through these checks: rendering must never panic, and rendering the same document twice must
-//! produce identical output (writers guarantee byte-reproducible output).
+//! Writer fuzz checks for panic safety and deterministic output.
 
 use carta_ast::Document;
 use carta_core::{BytesWriter, Writer, WriterOptions};

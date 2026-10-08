@@ -6,14 +6,11 @@ use super::lookup::glyph_typst;
 use super::{is_atomic_script, is_lone_ascii_symbol, lower, lower_loose, wrap_script};
 
 pub(super) fn char_str(c: char) -> String {
-    // escaped so Typst treats them as literal symbols that attach without spacing
     match c {
         // the slash is escaped so it reads as division, not the fraction operator
         '(' | ')' | '[' | ']' | '|' | ',' | ';' | '/' => format!("\\{c}"),
         '\'' => "'".to_string(),
-        // An active tie renders as a medium space.
         '~' => "med".to_string(),
-        // a raw Unicode math glyph maps to its named Typst token, or renders verbatim if none
         c => glyph_typst(c).map_or_else(|| c.to_string(), ToString::to_string),
     }
 }
@@ -28,8 +25,7 @@ pub(super) fn stack_str(
 ) -> Option<String> {
     let base_str = lower(display, base)?;
     let mark_lowered = lower(display, mark)?;
-    // single-token marks (dotted ones like `tilde.op` included) stand alone; anything else is
-    // parenthesised so it attaches as one unit
+    // Parenthesize compound marks so they attach as one unit.
     let bare =
         mark.len() == 1 && is_atomic_script(&mark_lowered) && !is_lone_ascii_symbol(&mark_lowered);
     let mark_str = if bare {
@@ -66,8 +62,7 @@ pub(super) fn ext_arrow_str(
 pub(super) fn grid_str(display: bool, kind: GridKind, rows: &[Vec<Vec<Atom>>]) -> Option<String> {
     match kind {
         GridKind::Cases => {
-            // all-single-cell rows render as a bare `{` plus alignment-style rows; any multi-cell
-            // row keeps `cases(..)` so each cell becomes an argument
+            // One-cell rows use bare cases alignment; multi-cell rows need `cases(..)`.
             if rows.iter().all(|row| row.len() == 1) {
                 let mut row_strs = Vec::new();
                 for row in rows {
@@ -230,7 +225,6 @@ fn fused_grid_str(
     }
     let delim = fusing_delim_str(open)?;
     let atom = sole_unscripted_atom(content)?;
-    // peel the transparent group a `\begin{…}` splice adds around the grid
     let atom = match &atom.body {
         Body::Group(inner) => sole_unscripted_atom(inner)?,
         _ => atom,
@@ -309,27 +303,22 @@ pub(super) fn delimited_str(
     close: Option<Delim>,
     content: &[Atom],
 ) -> Option<String> {
-    // a grid sole inside a matched `\left … \right` pair fuses into one `mat`/`vec`, the pair's
-    // delimiter supplying the bracket
+    // Fuse a bare grid with a matching fence into one matrix using the fence's delimiter.
     if let Some(fused) = fused_grid_str(display, open, close, content) {
         return Some(fused);
     }
     let inner = lower_loose(display, content)?;
-    // mismatched sides cannot auto-pair: escape lone parens/brackets so Typst prints them verbatim
-    // (distinct paired delimiters are pinned in `lr(..)` below; this covers the remaining mismatches)
+    // Escape mismatched parentheses and brackets to prevent automatic pairing.
     let unpaired = open != close;
     let o = open.map_or("", |d| one_sided_paren(d, DelimSide::Open, unpaired));
     let c = close.map_or("", |d| one_sided_paren(d, DelimSide::Close, unpaired));
     if open == Some(Delim::Bar) && close == Some(Delim::Bar) {
-        // Inside `lr(..)` the stretchy bars are bare, not escaped.
         return Some(format!("lr(|{inner}|)"));
     }
     if open == Some(Delim::DoubleBar) && close == Some(Delim::DoubleBar) {
-        // A balanced double bar stretches to its content as the named double-line glyph.
         return Some(format!("lr(bar.v.double {inner} bar.v.double)"));
     }
-    // two distinct paired delimiters are pinned with `lr(..)`, raw glyphs; mismatches involving
-    // angle/floor/ceil/double-bar/`.` fall through to the direct-glyph path below
+    // Pin distinct pairable delimiters with `lr(..)`; other mismatches use glyphs.
     if open != close
         && let (Some(o), Some(c)) = (open, close)
         && let (Some(og), Some(cg)) = (
@@ -342,7 +331,6 @@ pub(super) fn delimited_str(
     if has_colliding_middle(open, close, content) {
         return Some(format!("lr({o}{inner}{c})"));
     }
-    // Each delimiter is a single glyph that attaches directly to the content with no space.
     Some(format!("{o}{inner}{c}"))
 }
 
@@ -512,7 +500,6 @@ fn typst_delim(delim: Delim, side: DelimSide) -> &'static str {
         (Delim::Brace, DelimSide::Close) => "}",
         (Delim::Bar, _) => "\\|",
         (Delim::BarVert | Delim::DoubleBar, _) => "\u{2225}",
-        // balanced double bars render via `lr(bar.v.double …)`; this glyph covers unbalanced sides
         (Delim::Angle, DelimSide::Open) => "\u{27E8}",
         (Delim::Angle, DelimSide::Close) => "\u{27E9}",
         (Delim::Floor, DelimSide::Open) => "\u{230A}",
@@ -527,8 +514,7 @@ fn typst_delim(delim: Delim, side: DelimSide) -> &'static str {
 pub(super) fn frac_str(display: bool, num: &[Atom], den: &[Atom]) -> Option<String> {
     let n = lower(display, num)?;
     let d = lower(display, den)?;
-    // inline slash only when both operands are single atoms; multi-atom operands keep `frac(.., ..)`
-    // so grouping stays unambiguous
+    // Only single-atom operands use an inline slash; compound operands retain `frac`.
     if is_inline_frac_operand(num) && is_inline_frac_operand(den) {
         Some(format!("{n} / {d}"))
     } else {

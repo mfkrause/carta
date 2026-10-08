@@ -1,15 +1,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
-//! carta: a document converter library.
+//! Document conversion with compile-time reader and writer selection.
 //!
-//! The public entry points: [`convert`] handles any format pair, taking raw bytes and returning an
-//! [`Output`] that is text or bytes depending on the target format's wire shape; [`convert_text`] is
-//! a shortcut for when both sides are text. Formats are selected
-//! at compile time via per-direction Cargo features (`read-*`/`write-*`);
-//! [`supported_input_formats`]/[`supported_output_formats`] report what this build contains. For
-//! lower-level use, the document model is re-exported as [`ast`], and [`reader_for`]/[`writer_for`]
-//! hand back the [`Reader`]/[`Writer`] trait objects so callers can inspect or transform the
-//! [`Document`] directly.
+//! [`convert`] accepts bytes and returns [`Output`]; [`convert_text`] handles text formats.
+//! Use [`read_document`] and [`render_document`] to transform documents between reading and writing.
 
 pub use carta_ast as ast;
 pub use carta_ast::Document;
@@ -154,8 +148,7 @@ pub fn render_document(
     media: MediaBag,
     writer_options: &WriterOptions,
 ) -> Result<Output> {
-    // Writers recurse per nesting level, so a pathologically deep document could exhaust the
-    // caller's stack; grow one on demand. Same thread, so options need not cross threads.
+    // Grow the caller stack on demand; same-thread rendering permits thread-affine options.
     stacker::maybe_grow(RENDER_STACK, RENDER_STACK, || {
         render_body(to, document, media, writer_options)
     })
@@ -207,8 +200,7 @@ fn render_body(
 
     let mut document = document;
     let body = if writer_options.number_sections && writer.numbers_sections_in_body() {
-        // Numbering splices into the heading inlines the contents builder reads, so the TOC is
-        // built from the unnumbered tree first; typesetting-counter formats use a template flag.
+        // Build the TOC before heading numbers are spliced into the tree.
         #[cfg(feature = "standalone")]
         if wraps_standalone && writer_options.toc && matches!(writer.toc_style(), TocStyle::List) {
             toc_source = standalone::TocSource::Prebuilt(carta_core::sections::build_toc(
@@ -242,15 +234,10 @@ fn render_body(
     Ok(Output::Text(body))
 }
 
-/// Folds the extra metadata layers carried in `writer_options` into `document.meta`: the
-/// metadata-file defaults sit below the document's own values, and the `-M` layer above them.
+/// Merge metadata defaults, document values, and writer overrides in that order.
 ///
-/// [`render_document`] does this itself just before writing, so a direct conversion needs no separate
-/// call. It is exposed for a caller that transforms the document between [`read_document`] and
-/// [`render_document`] (running it through a filter) and wants the transform to observe the same
-/// merged metadata the writer will. Such a caller merges here, then clears
-/// [`WriterOptions::metadata`] and [`WriterOptions::metadata_defaults`] so rendering does not layer
-/// them a second time.
+/// [`render_document`] merges automatically. Call this before transforms that need merged metadata,
+/// then clear [`WriterOptions::metadata`] and [`WriterOptions::metadata_defaults`] to avoid reapplying them.
 #[cfg(feature = "standalone")]
 #[cfg_attr(docsrs, doc(cfg(feature = "standalone")))]
 pub fn merge_metadata(document: &mut Document, writer_options: &WriterOptions) {

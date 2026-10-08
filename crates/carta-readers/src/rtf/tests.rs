@@ -102,7 +102,6 @@ fn default_style_applies_to_unstyled_paragraphs() {
 
 #[test]
 fn style_formatting_overlays_default_style() {
-    // `\s0` sets bold for every paragraph and `\s1` adds italic, so the run is both.
     let doc = read(r"{\rtf1\ansi{\stylesheet{\s0\b Normal;}{\s1\i Emphasis;}}\pard\s1 word\par}");
     assert_eq!(
         doc.blocks,
@@ -114,7 +113,6 @@ fn style_formatting_overlays_default_style() {
 
 #[test]
 fn whole_heading_emphasis_is_stripped() {
-    // A fully bold heading drops the emphasis; the level already conveys prominence.
     let doc =
         read(r"{\rtf1\ansi{\stylesheet{\s1\outlinelevel0\b Heading;}}\pard\s1 the title\par}");
     assert_eq!(
@@ -187,19 +185,15 @@ fn line_break_and_tab() {
 
 #[test]
 fn trailing_line_break_at_paragraph_boundary_is_dropped() {
-    // A single break just before the paragraph mark carries no line and is removed.
     let doc = read(r"{\rtf1\ansi a\line\par}");
     assert_eq!(doc.blocks, vec![para(vec![s("a")])]);
-    // Only one trailing break is removed; the earlier break stays.
     let doc = read(r"{\rtf1\ansi a\line\line\par}");
     assert_eq!(doc.blocks, vec![para(vec![s("a"), Inline::LineBreak])]);
-    // A paragraph holding only a break becomes empty and is emitted as nothing.
     let doc = read(r"{\rtf1\ansi first\par\line\par second\par}");
     assert_eq!(
         doc.blocks,
         vec![para(vec![s("first")]), para(vec![s("second")])]
     );
-    // The same trimming applies where a paragraph is closed by a cell or footnote boundary.
     let doc = read(r"{\rtf1\ansi x{\footnote note\line}\par}");
     assert_eq!(
         doc.blocks,
@@ -552,7 +546,6 @@ fn small_caps_wraps() {
 
 #[test]
 fn down_level_numbering_placeholder_is_skipped() {
-    // The down-level rendering placeholders drop out; the words on either side join directly.
     let doc = read(r"{\rtf1\ansi before{\pntxtb X}{\pntxta Y}after\par}");
     assert_eq!(doc.blocks, vec![para(vec![s("beforeafter")])]);
 
@@ -569,8 +562,7 @@ fn binary_data_is_consumed_by_byte_count() {
 
 #[test]
 fn binary_picture_decodes_into_media() {
-    // The payload includes 0x7d (`}`): captured as data at the lexer, it must not end the
-    // picture group early.
+    // A binary `}` is picture data and must not close the group.
     let (doc, media) = read_media_bytes(
         b"{\\rtf1\\ansi before {\\pict\\pngblip\\bin4 \x89\x7d\x50\x47}after\\par}",
     );
@@ -596,7 +588,6 @@ fn binary_picture_decodes_into_media() {
 
 #[test]
 fn hyperlink_display_keeps_edge_space() {
-    // Edge spaces in display text are preserved so the link does not fuse with its neighbor.
     let doc = read(
         r#"{\rtf1\ansi {\field{\*\fldinst{HYPERLINK "http://x.com"}}{\fldrslt link }}after\par}"#,
     );

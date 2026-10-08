@@ -47,18 +47,15 @@ impl Parser {
 
     fn build_table(&mut self, region: &str) -> Block {
         let (mut rows, caption_text) = scan_table_region(region);
-        // The first row may omit its leading `|-`, so one seen before any cell opens the first row
-        // rather than closing an empty one; every later `|-` closes a row, keeping empty rows.
+        // The first `|-` can open the first row; later markers close rows, including empty ones.
         if rows.first().is_some_and(Vec::is_empty) {
             rows.remove(0);
         }
         if rows.is_empty() {
-            // A table with no cells still yields one empty row.
             rows.push(Vec::new());
         }
 
         let n_rows = rows.len();
-        // The first row fixes the column count; cells that overflow it in later rows are dropped.
         let ncols = rows.first().map_or(0, |r| {
             r.iter().map(|c| col_count(c.col_span)).sum::<usize>()
         });
@@ -463,7 +460,7 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
                 "center" => align = Alignment::AlignCenter,
                 _ => attributes.push(("align".to_string(), value)),
             },
-            // One grid slot per spanned column: clamp to the HTML spec's span limits, or an attacker-supplied span forces a huge allocation.
+            // Clamp spans to HTML limits to bound grid-slot allocation.
             "colspan" => match value.trim().parse::<i32>() {
                 Ok(v) if v >= 1 => col_span = v.min(1000),
                 _ => attributes.push(("colspan".to_string(), value)),

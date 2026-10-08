@@ -1,10 +1,4 @@
-//! Presentation MathML for HTML documents and embedded formula objects.
-//!
-//! The tree is the same one the other backends consume; here it is walked into a small element tree
-//! and serialized. A single-element sequence renders bare, a longer one inside an `<mrow>`, which
-//! keeps grouping minimal the way MathML expects. The walk is total and panic-free (every construct
-//! renders to some valid MathML, falling back to a text node for input with no structural form) and
-//! is bounded against pathological nesting by an explicit depth limit.
+//! Render presentation MathML for HTML and embedded formula objects.
 
 use super::parse::{self, Atom, Body, FracStyle, ScriptKind, Sibling, TextPiece};
 use super::symbols::{self, Class};
@@ -293,7 +287,6 @@ pub(super) fn nucleus(body: &Body, display: bool, depth: usize) -> Vec<Node> {
         Body::ExtArrow(arrow, below, above) => {
             vec![ext_arrow(arrow, below.as_deref(), above, display, depth)]
         }
-        // A brace is resolved before the generic nucleus pass, so it never reaches here.
         Body::Brace(_, group) => vec![self::group(lower_seq(group, display, depth + 1))],
     }
 }

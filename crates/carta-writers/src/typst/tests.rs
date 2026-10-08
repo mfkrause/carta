@@ -337,7 +337,6 @@ fn display_math_uses_spaced_delimiters() {
 
 #[test]
 fn untranslatable_inline_math_falls_back_to_escaped_verbatim() {
-    // No native form: source kept, TeX delimiters reconstructed, whole run escaped as text.
     assert_eq!(inline_math("\\unknowncmd"), "\\$\\\\unknowncmd\\$");
     assert_eq!(
         inline_math("\\foo #h _u *s"),

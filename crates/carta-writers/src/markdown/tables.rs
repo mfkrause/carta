@@ -40,8 +40,7 @@ impl State {
         if table.col_specs.is_empty() {
             return String::new();
         }
-        // A fractional column spec is relative to the line the table occupies, so a table laid out
-        // at the unconstrained measuring width would scale to it; keep it within the fill column.
+        // Bound fractional widths by the fill column even during unconstrained measurement.
         let width = width.min(self.width);
         let form = table_form(table);
         self.table_depth += 1;
@@ -270,8 +269,7 @@ impl State {
             .map(
                 |index| match table.col_specs.get(index).map(|spec| &spec.width) {
                     Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                        // `floor`/`max(0.0)` keep the conversion exact and non-negative; `min(width)`
-                        // clamps a fraction past the whole line, which would allocate a rule that long.
+                        // Clamp fractions to the line width before allocating a rule.
                         #[allow(
                             clippy::cast_precision_loss,
                             clippy::cast_possible_truncation,
@@ -338,8 +336,7 @@ impl State {
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
         if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
-            // Column measurement re-renders every cell, compounding per nesting level; past the cap,
-            // columns take an even share of the fill width, keeping total work linear.
+            // Cap recursive measurement; deeper tables split the fill width evenly.
             let share = (width / columns.max(1)).max(1);
             natural.fill(share);
             minword.fill(1);

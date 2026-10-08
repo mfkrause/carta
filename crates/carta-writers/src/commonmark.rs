@@ -1,11 +1,6 @@
-//! `CommonMark` writer: renders the document model to `CommonMark` text.
+//! Render CommonMark text, using HTML for constructs without native syntax.
 //!
-//! Inline markup is kept (emphasis, strong, links, inline code, …) and block structure is conveyed
-//! with `CommonMark` constructs (ATX headers, fenced or indented code, blockquotes, lists). Inline
-//! content is wrapped at a fill column of 72. Constructs `CommonMark` has no native syntax for fall
-//! back to inline HTML: underline, strikeout, super/subscript, small caps, and any link, image,
-//! span, or div that carries attributes. Output carries no trailing newline; the caller appends one.
-//! This format has no public specification.
+//! Output has no trailing newline.
 
 use carta_ast::{
     Attr, Block, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
@@ -203,7 +198,6 @@ impl State {
         width: usize,
     ) -> String {
         let loose = is_loose(items);
-        // Only decimal numbering with `.` or `)` exists; other styles and delimiters collapse.
         let delim = match attrs.delim {
             ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
             ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
@@ -351,8 +345,7 @@ impl State {
                 out.push(Piece::Hard);
             }
             Inline::Math(MathType::DisplayMath, tex) => {
-                // Breaks are emitted unconditionally; paragraph-edge breaks are dropped or
-                // trimmed later, so the boundary cases self-correct.
+                // Paragraph-edge breaks are trimmed after inline rendering.
                 out.push(Piece::Hard);
                 self.math_content(&MathType::DisplayMath, tex, out);
                 out.push(Piece::Hard);
@@ -534,8 +527,7 @@ impl State {
             ),
             true,
         );
-        // A raw `<img>` tag is one atom so breaks fall between tags; a linked image already
-        // belongs to the link's atom.
+        // Keep each raw image tag in one wrap atom; linked images use the link atom.
         if !self.in_anchor {
             self.groups.push((start, out.len()));
         }

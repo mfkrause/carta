@@ -20,7 +20,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
-  # Pinned so the corpus round-trip tests are reproducible and don't drift.
   CONFORMANCE_PIN: "3.10"
 
 jobs:
@@ -38,8 +37,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features
       - name: Docs
-        # Fail on any rustdoc warning. --lib matches what docs.rs publishes and sidesteps
-        # the `carta` library/binary name collision.
+        # --lib avoids the library/binary name collision and matches docs.rs output.
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --no-deps --workspace --lib --all-features
@@ -176,11 +174,9 @@ jobs:
           tool: cargo-fuzz
       - name: List fuzz targets
         id: targets
-        # Derive the target set from fuzz/Cargo.toml so it never drifts from the [[bin]] table.
         run: echo "list=$(grep '^name = ' fuzz/Cargo.toml | grep -v 'carta-fuzz' | cut -d'"' -f2 | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - name: Build and replay all seed corpora
-        # PR gate: replay committed seeds only (-runs=0; -timeout since -max_total_time misses a hanging
-        # unit); discovery is scheduled in fuzz.yml. Gnu target: the sanitizer cannot instrument musl.
+        # -timeout catches hangs that -max_total_time misses; musl lacks sanitizer support.
         run: |
           test -d fuzz/seeds || { echo "no seeds dir" >&2; exit 1; }
           failed=""

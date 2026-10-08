@@ -72,7 +72,6 @@ pub(super) fn grid(
             display,
             depth,
         ),
-        // A `cases` block is fenced by a single left brace with no closing delimiter.
         GridKind::Cases => {
             let table = table_element(
                 &ColumnScheme::Uniform(ColumnAlign::Left),

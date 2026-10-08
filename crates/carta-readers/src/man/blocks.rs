@@ -160,11 +160,9 @@ impl Parser {
                     self.advance();
                     let args = split_args(rest);
                     match args.first() {
-                        // No designator at all: an unmarked inset.
                         None => {
                             flush_pending(&mut pending, &mut out);
                             let body = self.parse_blocks(Ctx::ITEM);
-                            // An unmarked inset with no body contributes nothing.
                             if !body.is_empty() {
                                 out.push(Block::BlockQuote(body));
                             }

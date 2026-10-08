@@ -162,14 +162,12 @@ impl Parser {
         if trails {
             self.process_line(before, &[], None);
         }
-        // A native div tightens only when the close tag trails content on its line; a raw element
-        // tightens when a paragraph is still open at the close (no blank line before it).
+        // Divs tighten at a content-trailed close; raw elements tighten without a preceding blank.
         let tighten = if as_div {
             trails
         } else {
             matches!(self.kind(self.deepest_open(element)), Some(Kind::Paragraph))
         };
-        // The deepest open block under the element is the close boundary's chain tip.
         let tip = self.deepest_open(container);
         self.close_chain(tip, element);
         if let Some(node) = self.nodes.get_mut(element)

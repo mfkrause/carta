@@ -86,8 +86,7 @@ impl Converter<'_> {
         // The role resolves through the `basedOn` chain, so a custom style inherits its base's role.
         let role = style_id.map_or(ParaRole::Normal, |id| self.paragraph_role(id));
         let custom = !style_name.is_empty() && !is_builtin_style(&canonical);
-        // `styles` extension: a non-builtin style becomes a `custom-style` container; its role still
-        // shapes the inner block.
+        // Custom styles wrap the role-shaped block in a `custom-style` container.
         let wrap_custom = self.styles_ext && custom;
 
         // A heading is never a custom-style container; a custom heading style adds its name as a class.
@@ -511,8 +510,7 @@ impl Converter<'_> {
             .map(|element| element.attr("w").and_then(parse_int).map_or(0, i64::from))
             .collect();
         let total: i64 = grid.iter().sum();
-        // Column width is a fraction of a default page's printable width minus a per-boundary
-        // allowance, floored at the grid's own total so an over-wide table stays normalized to itself.
+        // Subtract boundary space from page width, but normalize oversized grids to their own width.
         let column_count = i64::try_from(grid.len()).unwrap_or(i64::MAX);
         let reference_width =
             (DEFAULT_TEXT_WIDTH_TWIPS - INTER_COLUMN_TWIPS * (column_count - 1).max(0)).max(total);
@@ -523,8 +521,7 @@ impl Converter<'_> {
             .and_then(|pr| pr.child("tblLook"))
             .is_some_and(table_look_first_row);
 
-        // Column count is fixed by the grid (widest row absent one); spans are validated against it,
-        // so a malformed `gridSpan` cannot overflow a column position or inflate the width.
+        // Validate spans against the grid width to prevent overflow or excess allocation.
         let columns = if grid.is_empty() {
             table
                 .elements()

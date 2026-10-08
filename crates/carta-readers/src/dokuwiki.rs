@@ -1,17 +1,4 @@
-//! Reader for the `DokuWiki` markup language.
-//!
-//! The grammar is line-oriented at the block level and recursive-descent at the inline level. A
-//! block is recognised by its first line: a heading (`=` runs), a code or raw passthrough region
-//! (`<code>`, `<file>`, `<HTML>`, `<PHP>`), a table (rows opening with `|` or `^`), a list (`*` for
-//! bullets, `-` for ordered, indented at least two columns), an indented code block, a thematic
-//! break, a blockquote (`>` runs), or, failing all of those, a paragraph. Inline content is scanned
-//! left to right with a small pending-text buffer: emphasis (`//`), strong (`**`), underline
-//! (`__`), monospace (`''`), the `<sub>`/`<sup>`/`<del>` spans, links (`[[…]]`), media (`{{…}}`),
-//! footnotes (`((…))`), bare URLs, and angle-bracket email addresses each form their own node.
-//!
-//! When the `Smart` extension is enabled, straight quotes fold into curly
-//! [`Inline::Quoted`](carta_ast::Inline::Quoted) runs,
-//! `--`/`---` fold into en/em dashes, and `...` folds into an ellipsis.
+//! Read `DokuWiki` markup into the document model.
 
 use carta_ast::Document;
 use carta_core::{Extension, Reader, ReaderOptions, Result};

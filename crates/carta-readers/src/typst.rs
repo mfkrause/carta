@@ -1,17 +1,6 @@
-//! Reader for Typst markup.
+//! Read Typst markup, code expressions, and math into the document model.
 //!
-//! Typst source is read in three interleaved modes. *Markup mode* is the default: text is literal
-//! and a small set of characters introduce structure (`=` headings, `-`/`+`/`/` list markers,
-//! `*`/`_` emphasis, backtick raw text, `<label>`, `@reference`, and the `~`/`--`/`---`/`...`
-//! shorthands). *Code mode* is entered with `#` and covers literals, bindings, and the element
-//! functions (`#figure`, `#table`, `#link`, `#footnote`, …) that carry the constructs markup has no
-//! syntax for. *Math mode* is entered with `$` and is translated to TeX, which is what the document
-//! model stores for a [`carta_ast::Inline::Math`] payload.
-//!
-//! Block structure is indentation-driven: a list item owns every following line indented past its
-//! marker, so nesting needs no explicit terminator. Inline scanning is a single left-to-right pass
-//! with a pending-text buffer; a delimiter that never closes is emitted as literal text rather than
-//! failing the parse.
+//! Math becomes TeX. Unclosed markup delimiters remain literal text.
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -71,7 +60,6 @@ pub struct TypstReader;
 
 impl Reader for TypstReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        // Markup, code, and math recurse as deeply as the source nests, so the parse needs room.
         match on_deep_stack(|| parse_document(input, options)) {
             DeepStack::Completed(document) => Ok(document),
             DeepStack::Panicked => Err(Error::Container("worker thread failed".into())),
@@ -240,7 +228,6 @@ impl Value {
     /// surrounding paragraph.
     fn is_block(&self) -> bool {
         match self {
-            // A lone paragraph still flows into the lines around it; anything else stands apart.
             Value::Content(blocks) => {
                 blocks.len() > 1
                     || blocks
@@ -258,7 +245,6 @@ impl Value {
             Value::Inlines(inlines) => inlines,
             Value::Content(blocks) => blocks_to_inlines(blocks),
             Value::Str(text) => text_inlines(&text),
-            // A label marks the place it stands in, so it carries an identifier and no text.
             Value::Label(name) => vec![Inline::Span(
                 Box::new(Attr {
                     id: name.as_str().into(),
@@ -271,7 +257,6 @@ impl Value {
             Value::Bool(b) => text_inlines(if b { "true" } else { "false" }),
             Value::Array(items) => text_inlines(&array_repr(&items)),
             Value::Dict(pairs) => text_inlines(&dict_repr(&pairs)),
-            // A name that reached content position went unresolved, so it sets nothing.
             Value::Ident(_)
             | Value::Nothing
             | Value::Group(..)
@@ -284,7 +269,6 @@ impl Value {
     fn into_blocks(self) -> Vec<Block> {
         match self {
             Value::Content(mut blocks) => {
-                // Block edges separate nothing, so the separators a content block carried go away.
                 if let Some(inlines) = first_edge_inlines(&mut blocks)
                     && matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak))
                 {
@@ -875,7 +859,6 @@ fn adopted_name(list: &ImportList, name: &str, stem: &str) -> Option<String> {
         ImportList::Module => Some(format!("{stem}.{name}")),
         ImportList::All => Some(name.to_string()),
         ImportList::Named(names) => names.iter().find_map(|(from, local)| {
-            // An empty source name stands for the module itself, renamed by `as`.
             if from.is_empty() {
                 Some(format!("{local}.{name}"))
             } else {
@@ -1124,8 +1107,6 @@ impl Parser {
         blocks_to_inlines(self.sub_blocks(start, end))
     }
 
-    // Block level
-
     /// Parse blocks whose lines are indented by at least `min_indent` columns. The cursor must sit
     /// at the start of a line and is left at the first line that falls outside the region.
     fn blocks(&mut self, min_indent: usize) -> Vec<Block> {
@@ -1150,11 +1131,9 @@ impl Parser {
                 self.attach_heading_label(&mut out, index, &mut produced);
             }
             heading = match produced.last() {
-                // Reading the last block passes over a heading whose own line already took a label.
                 Some(Block::Header(..)) => {
                     Some(out.len().saturating_add(produced.len()).saturating_sub(1))
                 }
-                // An emptied label block leaves the heading open to the label after it.
                 _ => heading.filter(|_| produced.is_empty()),
             };
             out.append(&mut produced);
@@ -1263,7 +1242,6 @@ impl Parser {
         self.skip_spaces();
         let mut inlines = self.inline_run(None).unwrap_or_default();
         self.eat('\n');
-        // A label closes the heading, so it stands after it rather than inside it.
         let mut trailing = Vec::new();
         while let Some(Inline::Span(attr, children)) = inlines.last()
             && children.is_empty()
@@ -1461,7 +1439,6 @@ impl Parser {
             return self.paragraph_from(opening, min_indent);
         }
         let mut out = value.into_blocks();
-        // An expression that read as far as a line start took the rest of its own line with it.
         if self.at_line_start() {
             return out;
         }
@@ -1492,13 +1469,11 @@ impl Parser {
                 .inline_run_from(started, None, true)
                 .unwrap_or_default();
             if !line.is_empty() {
-                // A hard break already separated the lines it stands between.
                 if !inlines.is_empty() && !matches!(inlines.last(), Some(Inline::LineBreak)) {
                     inlines.push(Inline::SoftBreak);
                 }
                 inlines.append(&mut line);
             }
-            // Blocks written mid-line close the paragraph, and the rest of the line opens a new one.
             if let Some(blocks) = self.interrupt.take() {
                 trim_trailing_space(&mut inlines);
                 if !inlines.is_empty() {
@@ -1568,8 +1543,6 @@ impl Parser {
         self.evaluated = Some((start, value, end));
         block
     }
-
-    // Inline level
 
     fn skip_spaces(&mut self) {
         while matches!(self.peek(), Some(' ' | '\t')) {
@@ -1665,7 +1638,6 @@ impl Parser {
                     flush(&mut text, &mut out);
                     trim_trailing_space(&mut out);
                     self.skip_spaces();
-                    // A hard break already separated the lines it stands between.
                     if !matches!(out.last(), Some(Inline::LineBreak)) {
                         out.push(Inline::SoftBreak);
                     }
@@ -1791,7 +1763,6 @@ impl Parser {
         };
         if separated && matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak)) {
             let leading = inlines.remove(0);
-            // Where two separators meet, the one that spans a line outweighs the one that does not.
             if matches!(leading, Inline::SoftBreak) && matches!(out.last(), Some(Inline::Space)) {
                 out.pop();
                 out.push(leading);
@@ -1816,7 +1787,6 @@ impl Parser {
             return None;
         }
         let start = self.pos;
-        // Re-searching a known-unclosed opening would cost exponential time on nested delimiters.
         if self.unclosed.contains(&(start, self.limit)) {
             return None;
         }
@@ -1842,7 +1812,6 @@ impl Parser {
             ticks = ticks.saturating_add(1);
         }
         let mut language = String::new();
-        // Only an identifier tags the language; anything else is the first characters of the body.
         if ticks >= 3 && self.peek().is_some_and(|c| c.is_alphabetic() || c == '_') {
             while let Some(c) = self.peek() {
                 if c.is_alphanumeric() || c == '-' || c == '_' {
@@ -1853,7 +1822,6 @@ impl Parser {
                 }
             }
         }
-        // Room left between a fence and what follows it belongs to the fence, not to the body.
         if ticks >= 3 {
             while self.peek().is_some_and(|c| c == ' ' || c == '\t') {
                 self.bump();
@@ -1882,8 +1850,7 @@ impl Parser {
         if ticks < 3 {
             return (language, self.slice(start, body_end));
         }
-        // A fenced body drops the line break that opens it, and hangs off the indentation of the
-        // line its closing fence sits on.
+        // Drop the initial newline and use the closing fence's indentation.
         let (indent, body_end) = self.closing_indent(start, body_end);
         let body = self.slice(start, body_end);
         let body = body.strip_prefix('\n').unwrap_or(&body);
@@ -1984,7 +1951,6 @@ impl Parser {
         if self.peek() == Some('[')
             && let Some(close) = self.balanced('[', ']')
         {
-            // The bracketed supplement stands in for the key wherever the reference resolves.
             let body = self.sub_inlines(self.pos.saturating_add(1), close);
             self.pos = close.saturating_add(1);
             self.skip_spaces();
@@ -2153,8 +2119,6 @@ impl Parser {
         }
     }
 
-    // Code mode
-
     /// Find the offset of the delimiter closing the one at the cursor, skipping strings, raw spans,
     /// comments, and escapes.
     fn balanced(&self, open: char, close: char) -> Option<usize> {
@@ -2239,8 +2203,7 @@ impl Parser {
 
     /// Read a `#`-introduced code expression.
     fn code_expression(&mut self) -> Value {
-        // A paragraph's lookahead evaluates the expression that ends it; reuse that result rather
-        // than evaluate it again, which would cost exponential time on nested expressions.
+        // Reuse paragraph lookahead results to avoid exponential evaluation of nested expressions.
         if let Some((start, value, end)) = self.evaluated.take()
             && start == self.pos
         {
@@ -2249,15 +2212,13 @@ impl Parser {
         }
         self.bump();
         self.line_closed = None;
-        // Past the nesting bound the `#` is all that is consumed, so what follows reads as markup.
         if self.depth >= MAX_DEPTH {
             return Value::Nothing;
         }
         self.depth = self.depth.saturating_add(1);
         let value = self.expression();
         self.depth = self.depth.saturating_sub(1);
-        // Nothing outside the expression catches an exit, so it stops here rather than swallowing
-        // the rest of the document.
+        // An exit outside an expression cannot catch the rest of the document.
         self.flow = None;
         value
     }
@@ -2443,7 +2404,6 @@ impl Parser {
             '0'..='9' | '.' => self.number_literal(),
             '-' => {
                 self.bump();
-                // Digits write a negative literal; anything else negates the value that follows.
                 if matches!(self.peek(), Some('0'..='9' | '.')) {
                     return negate(self.number_literal());
                 }
@@ -2478,7 +2438,6 @@ impl Parser {
             .filter(|arg| arg.name.is_none())
             .map(|arg| arg.value)
             .collect();
-        // A trailing comma is what separates a one-item array from a parenthesized expression.
         let trailing_comma = self
             .source
             .get(..close)
@@ -2486,7 +2445,6 @@ impl Parser {
             == Some(&',');
         match positional.len() {
             1 if !trailing_comma => positional.pop().unwrap_or(Value::Nothing),
-            // Empty parentheses hold no expression to stand for, so they write the empty array.
             _ => Value::Array(positional),
         }
     }
@@ -2527,7 +2485,6 @@ impl Parser {
                     Some('r') => out.push('\r'),
                     Some('u') => self.string_codepoint(&mut out),
                     Some(other @ ('\\' | '"' | '\'')) => out.push(other),
-                    // Only the escapes above stand for another character; the rest are literal.
                     Some(other) => {
                         out.push('\\');
                         out.push(other);
@@ -2570,7 +2527,6 @@ impl Parser {
             self.bump();
         }
         let mut float = false;
-        // A dot belongs to the number unless a name follows it, which makes it a field access.
         if self.peek() == Some('.')
             && !self
                 .peek_at(1)
@@ -2659,7 +2615,6 @@ impl Parser {
             "while" => return self.while_loop(),
             _ => {}
         }
-        // A bound name owns the dots after it: they read members of its value, not a longer path.
         if let Some((head, rest)) = name.split_once('.')
             && let Some(receiver) = self.receiver(head, rest)
         {
@@ -2690,7 +2645,6 @@ impl Parser {
             if let Some(constant) = calc_constant(&name) {
                 return Value::Number(constant, String::new());
             }
-            // Only the symbol modules expose glyphs by name; a bare name is an ordinary value.
             if let Some(entry) = name
                 .strip_prefix("sym.")
                 .or_else(|| name.strip_prefix("math."))
@@ -2708,10 +2662,8 @@ impl Parser {
             {
                 return value;
             }
-            // Uncalled, an identifier is a plain value, so it can name a setting such as an alignment.
             return Value::Ident(name);
         }
-        // A name bound to a function calls that function, so a binding can rename or specialize one.
         match self.env.get(&name).cloned() {
             Some(Value::Function(callee, fixed)) if !self.functions.contains_key(&name) => {
                 return self.invoke(&callee, &fixed, args);
@@ -2746,7 +2698,6 @@ impl Parser {
         if let Some(bound) = self.functions.get(head) {
             return Some(Value::Function(Callee::Closure(bound.clone()), Vec::new()));
         }
-        // Only a function takes `.with`, so a head nothing else binds names an element function.
         (rest == "with").then(|| Value::Function(Callee::Named(head.to_string()), Vec::new()))
     }
 
@@ -2860,7 +2811,6 @@ impl Parser {
                 }
             }
         }
-        // A semicolon closes the binding rather than standing in the text after it.
         self.eat(';');
         Value::Nothing
     }
@@ -3107,7 +3057,6 @@ impl Parser {
         };
         let closes = self.source.get(loaded.end.saturating_sub(1)) == Some(&'\n');
         let blocks = self.file_blocks(&loaded);
-        // The file's own final newline ends the line the statement sits on.
         if closes {
             self.line_closed = Some(self.pos);
         }
@@ -3211,7 +3160,6 @@ impl Parser {
     /// Record what an import of a standard module (`calc`, `sym`, …) makes reachable unqualified.
     fn import_module(&mut self, module: &str, list: &ImportList) {
         match list {
-            // The module already answers to its own name, so its members need no alias.
             ImportList::Module => {}
             ImportList::All => self.globs.push(module.to_string()),
             ImportList::Named(names) => {
@@ -3333,7 +3281,6 @@ impl Parser {
         self.depth = self.depth.saturating_add(1);
         let value = self.argument_value();
         self.depth = self.depth.saturating_sub(1);
-        // A `return` names the call's result; `break` and `continue` reach no loop from here.
         let value = match self.flow.take() {
             Some(Flow::Return(returned)) => returned,
             _ => value,
@@ -3436,7 +3383,6 @@ impl Parser {
     fn context_expression(&mut self) -> Value {
         self.skip_spaces();
         let mut value = self.expression();
-        // An operator continues the expression only while it stays on the line that opened it.
         loop {
             let saved = self.pos;
             self.skip_spaces();
@@ -3514,7 +3460,6 @@ impl Parser {
             return Value::Nothing;
         };
         let taken = self.truth(condition.0, condition.1);
-        // Only the branch the condition selects runs, so the other one binds and sets nothing.
         let mut result = if taken {
             self.run_padded_body(body)
         } else {
@@ -3695,7 +3640,6 @@ impl Parser {
             if self.leaves_loop() {
                 break;
             }
-            // A round that moves no binding leaves the condition where it was, so it never ends.
             if self.env == before {
                 break;
             }
@@ -3780,7 +3724,6 @@ impl Parser {
         self.pos = saved_pos;
         self.limit = saved_limit;
         self.line_bound = bound;
-        // A block opens a scope: its own bindings go away, while its assignments reach past it.
         for name in std::mem::replace(&mut self.declared, outer_scope) {
             match outer_env.get(&name) {
                 Some(outer) => self.env.insert(name, outer.clone()),
@@ -4048,7 +3991,6 @@ fn range_values(args: &[Arg]) -> Vec<Value> {
 fn iteration_values(value: &Value) -> Vec<Value> {
     match value {
         Value::Array(items) => items.clone(),
-        // A dictionary walks over its entries, each a key and its value.
         Value::Dict(pairs) => pairs
             .iter()
             .map(|(key, held)| Value::Array(vec![Value::Str(key.clone()), held.clone()]))
@@ -4181,7 +4123,6 @@ fn combine(left: Value, right: Value, op: char, copies: &mut usize) -> Value {
         let exact = match op {
             '-' => Some(a.subtract(b)),
             '*' => a.checked_multiply(b),
-            // Only an even division stays whole; the float path takes the rest.
             '/' => a
                 .divide(b)
                 .filter(|(_, rest)| rest.is_zero())
@@ -4351,15 +4292,13 @@ fn pad_content_edges(blocks: &mut Vec<Block>, raw: &str) {
         .get(..raw.len() - raw.trim_start().len())
         .unwrap_or_default();
     let trail = raw.get(raw.trim_end().len()..).unwrap_or_default();
-    // Whitespace with no content beside it is one run, so it stands for a single separator.
     if raw.trim().is_empty() {
         if let Some(separator) = edge_separator(raw) {
             blocks.push(Block::Plain(vec![separator]));
         }
         return;
     }
-    // Only a lone paragraph flows into the text around it. Content that came out block-level stands
-    // apart wherever it lands, and block parsing has already spent the whitespace at its edges.
+    // Only a lone paragraph joins surrounding text; other content retains block boundaries.
     if blocks.len() != 1 {
         return;
     }
@@ -4410,7 +4349,6 @@ fn preceding_kind(text: &str, out: &[Inline]) -> Preceding {
     match text.chars().last() {
         Some(c) if c.is_whitespace() || c == '\u{a0}' => Preceding::Space,
         Some(_) => Preceding::Other,
-        // An element ends the text before it, so a quote after one begins fresh text.
         None => match out.last() {
             Some(Inline::Space | Inline::SoftBreak) => Preceding::Space,
             _ => Preceding::Nothing,
@@ -4512,8 +4450,6 @@ enum ListMarker {
     /// `/ Term: description`.
     Term,
 }
-
-// Element functions
 
 impl Parser {
     /// Evaluate a call to a named element function.
@@ -4774,7 +4710,6 @@ impl Parser {
             .map(|value| value.clone().into_inlines())
             .unwrap_or_default();
         if attributed {
-            // Dash and gap form one text run, so they fuse with a name that starts with text.
             let mut line = vec![Inline::Str("\u{2014}\u{a0}".into())];
             line.extend(attribution);
             blocks.push(Block::Para(line));
@@ -4785,7 +4720,6 @@ impl Parser {
 
 /// `#place`-like layout primitives: keep any content they wrap, drop the placement itself.
 fn place_like(name: &str, args: &[Arg]) -> Value {
-    // These position or conceal what they wrap rather than setting it.
     if matches!(name, "hide" | "repeat" | "move" | "scale") {
         return Value::Nothing;
     }
@@ -5107,7 +5041,6 @@ impl Pattern {
     fn find(&self, text: &str, from: usize) -> Option<(usize, usize)> {
         let rest = text.get(from..)?;
         let (start, end) = match self {
-            // An empty needle matches nowhere, so a scan over it always ends.
             Pattern::Text(needle) if needle.is_empty() => return None,
             Pattern::Text(needle) => {
                 let start = rest.find(needle.as_str())?;
@@ -5459,7 +5392,6 @@ fn text_method(value: &Value, name: &str, args: &[Arg]) -> Option<Value> {
         }
         "split" => match pattern() {
             Some(pattern) => Value::Array(split_matches(&text, &pattern)),
-            // Without a separator the text splits on runs of whitespace.
             None => Value::Array(
                 text.split_whitespace()
                     .map(|part| Value::Str(part.to_string()))
@@ -5762,13 +5694,11 @@ fn raw_call(args: &[Arg]) -> Value {
 }
 
 fn link_call(args: &[Arg]) -> Value {
-    // A label target names a place in this document, which the URL fragment syntax addresses.
     let url = match positional(args) {
         Some(Value::Label(name)) => format!("#{name}"),
         _ => positional_text(args),
     };
-    // Past the destination sits the link text, which the destination itself stands in for when the
-    // call writes none. An empty content block writes none; a body holding a rule writes one.
+    // An absent or empty link body uses the destination; a rule counts as body content.
     let past_target: Vec<&Value> = args
         .iter()
         .filter(|arg| arg.name.is_none())
@@ -6243,8 +6173,6 @@ fn merge_citations(inlines: &mut Vec<Inline>) {
     *inlines = out;
 }
 
-// References
-
 /// Remove a leading empty label span, yielding the identifier it carried.
 fn take_leading_label(inlines: &mut Vec<Inline>) -> Option<Text> {
     let Some(Inline::Span(attr, children)) = inlines.first() else {
@@ -6366,8 +6294,6 @@ fn visit_inlines(inlines: &mut Vec<Inline>, visit: &mut dyn FnMut(&mut Vec<Inlin
         }
     }
 }
-
-// East Asian line breaks
 
 /// Drop the soft breaks that sit between two wide East Asian characters, where the source newline
 /// carries no width of its own.
@@ -6561,8 +6487,6 @@ fn is_east_asian_wide(c: char) -> bool {
         | 0x30000..=0x3FFFD)
 }
 
-// Math mode
-
 /// A rendered fragment of a math expression, tagged with how it joins its neighbours.
 #[derive(Debug, Clone)]
 enum Piece {
@@ -6633,7 +6557,6 @@ fn render_math(pieces: &[Piece]) -> String {
         }
     }
     let body = join_pieces(pieces);
-    // An even column count is exactly the right-left pairing an aligned environment provides.
     if columns.is_multiple_of(2) {
         return format!("\\begin{{aligned}}\n{body}\n\\end{{aligned}}");
     }
@@ -6668,7 +6591,6 @@ fn escaped_atom(escaped: char) -> String {
 /// Whether `text` ends inside a TeX control sequence, so an alphanumeric set right behind it would
 /// run into the command name.
 fn ends_control_sequence(text: &str) -> bool {
-    // Whitespace terminates a command name, so nothing after it can run into one.
     if text.ends_with(char::is_whitespace) {
         return false;
     }
@@ -6676,7 +6598,6 @@ fn ends_control_sequence(text: &str) -> bool {
     if head.len() < text.len() {
         return head.ends_with('\\');
     }
-    // A control symbol is a backslash and the one character after it.
     let mut chars = text.chars();
     chars.next_back();
     chars.as_str().ends_with('\\')
@@ -6808,7 +6729,6 @@ impl Math<'_> {
                     self.skip_space();
                     let mut denominator = self.unit();
                     self.skip_space();
-                    // Scripts bind tighter than the fraction, so they stay inside the denominator.
                     if matches!(self.peek(), Some('^' | '_')) {
                         denominator = Piece::Atom(self.scripts(&denominator));
                     }
@@ -6891,7 +6811,6 @@ impl Math<'_> {
             '[' => self.bracket_group(),
             '{' => self.brace_group(),
             '"' => {
-                // The gaps around the string belong to the text it sets, not to the surrounding math.
                 let before = self
                     .at(self.pos.saturating_sub(1))
                     .is_some_and(char::is_whitespace)
@@ -6912,7 +6831,6 @@ impl Math<'_> {
                     Some(escaped) => {
                         self.bump();
                         let mut atom = escaped_atom(escaped);
-                        // A control sequence needs the following gap, or its name runs on.
                         if atom.starts_with('\\') && self.peek().is_some_and(char::is_whitespace) {
                             atom.push(' ');
                         }
@@ -6937,8 +6855,7 @@ impl Math<'_> {
             }
             c if c.is_alphabetic() => self.name(),
             '|' => {
-                // A bar set off by gaps on both sides is a relation; anywhere else it fences the
-                // fragment it touches, so it stays adjacent to it.
+                // A space-flanked bar is a relation; otherwise it fences adjacent content.
                 let spaced = self.pos > 0
                     && self
                         .at(self.pos.saturating_sub(1))
@@ -6967,7 +6884,6 @@ impl Math<'_> {
             }
             '%' => {
                 self.bump();
-                // The escape is a control sequence, so it needs the following gap or its name runs on.
                 let gap = if self.peek().is_some_and(char::is_whitespace) {
                     " "
                 } else {
@@ -7075,8 +6991,7 @@ impl Math<'_> {
         }
         let mut end = self.pos;
         let mut scan = end;
-        // Every dotted continuation is tried and the longest one the table knows wins, so a name
-        // whose leading components are no symbols of their own still resolves as a whole.
+        // Use the longest known dotted symbol name, even if its prefixes are unknown.
         while self.at(scan) == Some('.')
             && self
                 .at(scan.saturating_add(1))
@@ -7167,7 +7082,6 @@ impl Math<'_> {
         if index == start || self.at(index) != Some(':') {
             return None;
         }
-        // `:=` is an operator, not a label
         if self.at(index.saturating_add(1)) == Some('=') {
             return None;
         }
@@ -7527,7 +7441,6 @@ const MATH_OPERATORS: &[&str] = &[
 /// is spaced as a relation.
 #[allow(clippy::type_complexity)]
 const SYMBOLS: &[(&str, &str, &str, bool)] = &[
-    // Greek, lowercase
     ("alpha", "\u{3b1}", "\\alpha", false),
     ("beta", "\u{3b2}", "\\beta", false),
     ("gamma", "\u{3b3}", "\\gamma", false),
@@ -7558,7 +7471,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("chi", "\u{3c7}", "\\chi", false),
     ("psi", "\u{3c8}", "\\psi", false),
     ("omega", "\u{3c9}", "\\omega", false),
-    // Greek, uppercase. Letters the Latin alphabet shares have no command, so they carry the glyph.
     ("Alpha", "\u{391}", "\u{391}", false),
     ("Beta", "\u{392}", "\u{392}", false),
     ("Gamma", "\u{393}", "\\Gamma", false),
@@ -7583,7 +7495,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("Chi", "\u{3a7}", "\u{3a7}", false),
     ("Psi", "\u{3a8}", "\\Psi", false),
     ("Omega", "\u{3a9}", "\\Omega", false),
-    // Relations
     ("eq", "=", "=", true),
     ("eq.not", "\u{2260}", "\\neq", true),
     ("eq.def", "\u{225d}", "\u{225d}", true),
@@ -7614,7 +7525,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("tack.l", "\u{22a3}", "\\dashv", true),
     ("perp", "\u{22a5}", "\\perp", true),
     ("parallel", "\u{2225}", "\\parallel", true),
-    // Binary operators
     ("plus", "+", "+", true),
     ("minus", "\u{2212}", "-", true),
     ("plus.minus", "\u{b1}", "\\pm", true),
@@ -7637,7 +7547,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("without", "\u{2216}", "\\setminus", true),
     ("compose", "\u{2218}", "\\circ", true),
     ("wreath", "\u{2240}", "\\wr", true),
-    // Arrows
     ("arrow", "\u{2192}", "\\rightarrow", true),
     ("arrows", "\u{21c9}", "\\rightrightarrows", true),
     ("arrow.hook", "\u{21aa}", "\\hookrightarrow", true),
@@ -7656,14 +7565,12 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("arrow.r.bar", "\u{21a6}", "\\mapsto", true),
     ("arrow.r.hook", "\u{21aa}", "\\hookrightarrow", true),
     ("arrow.l.hook", "\u{21a9}", "\\hookleftarrow", true),
-    // Large operators
     ("sum", "\u{2211}", "\\sum", false),
     ("product", "\u{220f}", "\\prod", false),
     ("integral", "\u{222b}", "\\int", false),
     ("integral.double", "\u{222c}", "\\iint", false),
     ("integral.triple", "\u{222d}", "\\iiint", false),
     ("integral.cont", "\u{222e}", "\\oint", false),
-    // Logic and set theory
     ("forall", "\u{2200}", "\\forall", false),
     ("exists", "\u{2203}", "\\exists", false),
     ("exists.not", "\u{2204}", "\\nexists", false),
@@ -7679,7 +7586,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("dif", "d", "d", false),
     ("therefore", "\u{2234}", "\\therefore", false),
     ("because", "\u{2235}", "\\because", false),
-    // Dots and marks
     ("dots.h", "\u{2026}", "\\ldots", false),
     ("dots.c", "\u{22ef}", "\\cdots", false),
     ("dots.v", "\u{22ee}", "\\vdots", false),
@@ -7697,7 +7603,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("checkmark", "\u{2713}", "\u{2713}", false),
     ("crossmark", "\u{2717}", "\u{2717}", false),
     ("complement", "\u{2201}", "\\complement", false),
-    // Spacing
     ("quad", "\u{2001}", "\\quad", false),
     ("wide", "\u{2001}\u{2001}", "\\quad\\quad", false),
     ("space", "\u{20}", "\\ ", false),
@@ -7707,7 +7612,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("space.nobreak", "\u{a0}", "~", false),
     ("space.quad", "\u{2003}", "\\quad", false),
     ("space.thin", "\u{2009}", "\\,", false),
-    // Punctuation, currency, and dashes
     ("bullet", "\u{2022}", "\\bullet", true),
     ("dot", "\u{22c5}", "\\cdot", true),
     ("dot.c", "\u{b7}", "\\cdot", true),
@@ -7745,7 +7649,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("colon", ":", ":", false),
     ("colon.eq", "\u{2254}", "\u{2254}", true),
     ("colon.double.eq", "\u{2a74}", "::=", true),
-    // Quotes, brackets, and fences
     ("quote.single", "'", "'", false),
     ("quote.double", "\"", "\"", false),
     ("quote.l.single", "\u{2018}", "\u{2018}", false),
@@ -7777,7 +7680,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("bar.h", "\u{2015}", "\u{2015}", false),
     ("fence.l", "\u{29d8}", "\u{29d8}", false),
     ("fence.r", "\u{29d9}", "\u{29d9}", false),
-    // Primes and tilde relations
     ("prime.double", "\u{2033}", "''", false),
     ("prime.triple", "\u{2034}", "'''", false),
     ("prime.rev", "\u{2035}", "\\backprime", false),
@@ -7790,7 +7692,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("tilde.not", "\u{2241}", "\\nsim", true),
     ("tilde.rev", "\u{223d}", "\\backsim", true),
     ("tilde.triple", "\u{224b}", "\u{224b}", true),
-    // Shapes, suits, and marks
     ("circle.filled", "\u{25cf}", "\u{25cf}", false),
     ("circle.stroked", "\u{25cb}", "\u{25cb}", true),
     ("circle.small", "\u{26ac}", "\u{26ac}", false),
@@ -7819,7 +7720,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("copyright.sound", "\u{2117}", "\u{2117}", false),
     ("trademark", "\u{2122}", "\u{2122}", false),
     ("dagger.triple", "\u{2e4b}", "\u{2e4b}", false),
-    // Further arrows and harpoons
     ("arrow.tr", "\u{2197}", "\\nearrow", true),
     ("arrow.tl", "\u{2196}", "\\nwarrow", true),
     ("arrow.br", "\u{2198}", "\\searrow", true),
@@ -7840,7 +7740,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("harpoon.rt", "\u{21c0}", "\\rightharpoonup", true),
     ("harpoon.lb", "\u{21bd}", "\\leftharpoondown", true),
     ("harpoons.rtlb", "\u{21cc}", "\\rightleftharpoons", true),
-    // Further order and set relations
     ("lt.triple", "\u{22d8}", "\\lll", true),
     ("gt.triple", "\u{22d9}", "\\ggg", true),
     ("lt.not", "\u{226e}", "\\nless", true),
@@ -7858,7 +7757,6 @@ const SYMBOLS: &[(&str, &str, &str, bool)] = &[
     ("subset.neq", "\u{228a}", "\\subsetneq", true),
     ("supset.neq", "\u{228b}", "\\supsetneq", true),
     ("in.not.rev", "\u{220c}", "\u{220c}", true),
-    // Letterlike symbols, shapes, and further operators
     ("nothing", "\u{2205}", "\\varnothing", false),
     ("diameter", "\u{2300}", "\\varnothing", false),
     ("laplace", "\u{2206}", "\\mathrm{\\Delta}", false),

@@ -51,14 +51,12 @@ fn typst_function_is_named() {
 
 #[test]
 fn horizontal_dots_alias_is_the_ellipsis_glyph() {
-    // `\hdots` is an alias for the horizontal ellipsis, an ordinary glyph.
     assert_eq!(to_inlines("\\hdots"), Some(vec![str_inline("\u{2026}")]));
     assert_eq!(to_typst("\\hdots").as_deref(), Some("dots.h"));
 }
 
 #[test]
 fn named_parentheses_are_open_and_close_delimiters() {
-    // open/close spacing: no space hugs the operand between them
     assert_eq!(to_inlines("\\lparen"), Some(vec![str_inline("(")]));
     assert_eq!(to_inlines("\\rparen"), Some(vec![str_inline(")")]));
     assert_eq!(
@@ -71,7 +69,6 @@ fn named_parentheses_are_open_and_close_delimiters() {
 
 #[test]
 fn double_colon_is_a_relation_glyph() {
-    // `\Colon` is the proportion sign, a relation: surrounded by relation spacing (U+2004).
     assert_eq!(to_inlines("\\Colon"), Some(vec![str_inline("\u{2237}")]));
     assert_eq!(
         to_inlines("a\\Colon b"),
@@ -102,7 +99,6 @@ fn upright_differential_letters_are_ordinary_double_struck_glyphs() {
 
 #[test]
 fn extended_relations_carry_relation_spacing() {
-    // relation spacing (U+2004) flanks the operands
     assert_eq!(to_inlines("\\nsime"), Some(vec![str_inline("\u{2244}")]));
     assert_eq!(to_inlines("\\eqgtr"), Some(vec![str_inline("\u{22DD}")]));
     assert_eq!(to_inlines("\\eqless"), Some(vec![str_inline("\u{22DC}")]));
@@ -125,7 +121,6 @@ fn extended_relations_carry_relation_spacing() {
 
 #[test]
 fn extended_circled_binary_operators_carry_binary_spacing() {
-    // The added circled binary operators surround their operands with binary spacing (U+2005).
     assert_eq!(
         to_inlines("\\circledequal"),
         Some(vec![str_inline("\u{229C}")])
@@ -207,7 +202,6 @@ fn typst_prime_on_a_limit_operator_stacks_in_display() {
 
 #[test]
 fn typst_prime_on_a_limit_function_stacks_in_display() {
-    // named limit functions stack their prime like the big operators
     assert_eq!(to_typst_display("\\lim'").as_deref(), Some("lim^(')"));
     assert_eq!(to_typst_display("\\max'").as_deref(), Some("max^(')"));
     assert_eq!(to_typst_display("\\Pr'").as_deref(), Some("Pr^(')"));
@@ -215,21 +209,18 @@ fn typst_prime_on_a_limit_function_stacks_in_display() {
 
 #[test]
 fn typst_prime_on_a_limit_operator_stays_literal_inline() {
-    // inline, Typst sets operator scripts to the side anyway, so the prime stays literal
     assert_eq!(to_typst("\\sum'").as_deref(), Some("sum'"));
     assert_eq!(to_typst("\\lim'").as_deref(), Some("lim'"));
 }
 
 #[test]
 fn typst_display_stacked_prime_follows_a_subscript() {
-    // subscript first, then the prime as the stacked superscript, in either source order
     assert_eq!(to_typst_display("\\sum_a'").as_deref(), Some("sum_a^(')"));
     assert_eq!(to_typst_display("\\sum'_a").as_deref(), Some("sum_a^(')"));
 }
 
 #[test]
 fn typst_display_prime_with_a_real_superscript_is_not_restacked() {
-    // a filled superscript keeps the prime inside it; prime then superscript restarts the base
     assert_eq!(to_typst_display("\\sum_a^b'").as_deref(), Some("sum_a^b'"));
     assert_eq!(
         to_typst_display("\\sum'^b").as_deref(),
@@ -239,7 +230,6 @@ fn typst_display_prime_with_a_real_superscript_is_not_restacked() {
 
 #[test]
 fn typst_display_prime_on_a_side_script_operator_stays_literal() {
-    // side-script operators keep their scripts beside themselves even in display
     assert_eq!(to_typst_display("\\int'").as_deref(), Some("integral'"));
     assert_eq!(to_typst_display("\\bigoplus'").as_deref(), Some("xor.big'"));
     assert_eq!(to_typst_display("\\sin'").as_deref(), Some("sin'"));
@@ -247,7 +237,6 @@ fn typst_display_prime_on_a_side_script_operator_stays_literal() {
 
 #[test]
 fn typst_display_stacked_prime_propagates_into_nested_content() {
-    // the display context reaches into nested content, so the prime stacks there too
     assert_eq!(
         to_typst_display("\\frac{\\sum'}{2}").as_deref(),
         Some("sum^(') / 2")
@@ -293,19 +282,16 @@ fn typst_paren_group_drops_the_left_right() {
 
 #[test]
 fn typst_bar_group_stretches_with_lr() {
-    // A balanced single bar becomes a stretchy `lr(| .. |)` with bare bars inside.
     assert_eq!(to_typst("\\left| x \\right|").as_deref(), Some("lr(|x|)"));
 }
 
 #[test]
 fn typst_half_open_bar_group_escapes_the_lone_bar() {
-    // With one side absent (`.`) there is no `lr(..)`; the present bar is escaped.
     assert_eq!(to_typst("\\left. x \\right|").as_deref(), Some("x\\|"));
 }
 
 #[test]
 fn typst_double_bar_pair_stretches_as_named_glyph() {
-    // auto-paired and explicit forms are both the stretchy named double line
     assert_eq!(
         to_typst("\\lVert x \\rVert").as_deref(),
         Some("lr(bar.v.double x bar.v.double)")
@@ -318,7 +304,6 @@ fn typst_double_bar_pair_stretches_as_named_glyph() {
 
 #[test]
 fn typst_left_parallel_is_the_literal_parallel_glyph() {
-    // the parallel sign prints directly: not the stretchy double line, no lr(..) wrapper
     assert_eq!(
         to_typst("\\left\\| x \\right\\|").as_deref(),
         Some("\u{2225}x\u{2225}")
@@ -343,7 +328,6 @@ fn typst_angle_and_floor_and_ceil_are_named() {
 
 #[test]
 fn corner_delimiters_stretch_as_left_right_brackets() {
-    // corners act as \left/\right brackets printing the raw glyphs around their content
     assert_eq!(
         to_typst("\\left\\ulcorner a \\right\\urcorner").as_deref(),
         Some("\u{231C}a\u{231D}")
@@ -353,12 +337,10 @@ fn corner_delimiters_stretch_as_left_right_brackets() {
         to_typst("\\left\\urcorner a \\right\\ulcorner").as_deref(),
         Some("\u{231D}a\u{231C}")
     );
-    // A one-sided pair drops the absent (`.`) side.
     assert_eq!(
         to_typst("\\left. a \\right\\urcorner").as_deref(),
         Some("a\u{231D}")
     );
-    // Bare (no `\left`/`\right`), the corners are their named glyphs.
     assert_eq!(
         to_typst("\\ulcorner A \\urcorner").as_deref(),
         Some("corner.l.t A corner.r.t")
@@ -397,7 +379,6 @@ fn typst_leading_script_uses_an_empty_base() {
 
 #[test]
 fn typst_multi_digit_exponent_is_not_parenthesised() {
-    // A run of digits is a single token; only a multi-atom script needs parentheses.
     assert_eq!(to_typst("x^{10}").as_deref(), Some("x^10"));
 }
 

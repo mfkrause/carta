@@ -173,7 +173,6 @@ fn doubled_inequalities_use_equivalence_typst_names() {
 
 #[test]
 fn a_colon_equality_relation_takes_relation_spacing() {
-    // U+2004 (three-per-em) flanks a relation between two operands.
     assert_eq!(
         to_inlines("a\\coloneqq b"),
         Some(vec![
@@ -186,7 +185,6 @@ fn a_colon_equality_relation_takes_relation_spacing() {
 
 #[test]
 fn big_circled_operators_place_scripts_to_the_side() {
-    // circled operators do not stack limits: scripts follow as ordinary sub/superscripts
     assert_eq!(
         to_inlines("\\bigoplus_{x}^{y}"),
         Some(vec![
@@ -203,7 +201,6 @@ fn big_circled_operators_place_scripts_to_the_side() {
 
 #[test]
 fn a_large_operator_does_not_poison_a_following_relation() {
-    // After a side-script operator, a relation keeps its own spacing.
     assert_eq!(
         to_inlines("\\bigoplus a = b"),
         Some(vec![
@@ -217,13 +214,11 @@ fn a_large_operator_does_not_poison_a_following_relation() {
 
 #[test]
 fn summation_stacks_its_limits_in_typst() {
-    // A genuine limit operator stacks: its script becomes a `limits` subscript.
     assert_eq!(to_typst("\\sum_{i}").as_deref(), Some("sum_i"));
 }
 
 #[test]
 fn doubled_superscript_nests_through_an_empty_base() {
-    // An implicit empty base renders as an empty string literal in the script.
     assert_eq!(to_typst("a^^b").as_deref(), Some("a^(\"\"^b)"));
     assert_eq!(to_typst("a__b").as_deref(), Some("a_(\"\"_b)"));
 }
@@ -242,7 +237,6 @@ fn a_leading_doubled_script_has_an_empty_outer_base() {
 
 #[test]
 fn an_explicit_empty_brace_base_renders_as_a_zero_width_space() {
-    // An explicit `{}` is a real (empty) group, distinct from an implicit base.
     assert_eq!(to_typst("a^{}^c").as_deref(), Some("a^(zws^c)"));
 }
 
@@ -286,7 +280,6 @@ fn an_escaped_hash_is_an_ordinary_literal() {
 
 #[test]
 fn an_alignment_tab_still_separates_cells() {
-    // `&` is structural inside an alignment, where it keeps working.
     assert_eq!(
         to_typst("\\begin{cases} a & b \\\\ c & d \\end{cases}").as_deref(),
         Some("cases(delim: \"{\", a & b, c & d)")
@@ -373,7 +366,6 @@ fn single_letter_colon_equals_aliases_share_the_double_letter_glyphs() {
     assert_eq!(to_inlines("a \\coloneq b"), rel_between("\u{2254}"));
     assert_eq!(to_inlines("a \\Coloneq b"), rel_between("\u{2A74}"));
     assert_eq!(to_inlines("a \\eqcolon b"), rel_between("\u{2255}"));
-    // The single- and double-letter spellings render identically.
     assert_eq!(to_inlines("a \\coloneq b"), to_inlines("a \\coloneqq b"));
     assert_eq!(to_inlines("a \\Coloneq b"), to_inlines("a \\Coloneqq b"));
 }
@@ -390,7 +382,6 @@ fn colon_equals_aliases_have_named_typst_tokens() {
 
 #[test]
 fn the_dots_family_maps_to_its_horizontal_glyphs() {
-    // \dotsm and \dotsi are the centered ellipsis; \dotso is the baseline ellipsis.
     assert_eq!(
         to_inlines("a \\dotsm b"),
         Some(vec![var("a"), str_inline("\u{22EF}"), var("b")])
@@ -447,17 +438,14 @@ fn double_stroke_delimiters_have_named_typst_tokens() {
 #[test]
 fn accent_over_a_letter_applies_a_combining_mark() {
     assert_eq!(to_inlines("\\hat{R}"), Some(vec![var("R\u{302}")]));
-    // A Greek letter is a letter-class base.
     assert_eq!(
         to_inlines("\\hat{\\alpha}"),
         Some(vec![var("\u{3B1}\u{302}")])
     );
-    // A named single-glyph italic letter is a letter-class base.
     assert_eq!(
         to_inlines("\\hat{\\ell}"),
         Some(vec![var("\u{2113}\u{302}")])
     );
-    // An accent followed by a script still converts.
     assert_eq!(
         to_inlines("\\hat{x}_i"),
         Some(vec![var("x\u{302}"), Inline::Subscript(vec![var("i")])])
@@ -466,7 +454,6 @@ fn accent_over_a_letter_applies_a_combining_mark() {
 
 #[test]
 fn accent_over_a_non_letter_base_has_no_inline_form() {
-    // a non-letter base keeps the whole expression verbatim
     assert_eq!(to_inlines("\\hat{1}"), None);
     assert_eq!(to_inlines("\\hat{+}"), None);
     assert_eq!(to_inlines("\\hat{(}"), None);
@@ -497,7 +484,6 @@ fn relation_sizing_delimiter_variants_are_not_translated_to_typst() {
 
 #[test]
 fn non_m_delimiter_sizes_still_translate() {
-    // The plain big-delimiter forms are unaffected by excluding the m-suffix variants.
     assert!(to_typst("a \\big| b").is_some());
     assert!(to_typst("a \\bigl( b").is_some());
     assert!(to_typst("a \\bigr) b").is_some());

@@ -3,8 +3,7 @@
 use carta_highlight::Highlighter;
 use libfuzzer_sys::fuzz_target;
 
-// The tokenizer must terminate and never panic on untrusted code; these grammars exercise distinct
-// interpreter paths (indentation, nested contexts, line continuations, embedded regexes).
+// These grammars cover indentation, contexts, continuations, and regex rules.
 static GRAMMARS: [&str; 6] = ["python", "haskell", "cpp", "bash", "xml", "latex"];
 
 // The single-threaded refcounted grammar cache is not `Sync`, so one instance per fuzzing thread.

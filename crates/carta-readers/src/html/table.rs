@@ -6,8 +6,7 @@ use carta_ast::{Alignment, Attr, ColWidth, Row};
 use super::tree::{Element, Node, attr_value, style_property};
 
 pub(super) fn span_attr(cell: &Element, key: &str) -> i32 {
-    // Passes materialise one slot per spanned column/row, so `colspan="99999999"` would force a
-    // multi-gigabyte allocation; clamp to the HTML spec's limits (colspan 1000, rowspan 65534).
+    // Bound slot allocation with the HTML limits: colspan 1000, rowspan 65534.
     let max = if key == "rowspan" { 65534 } else { 1000 };
     attr_value(cell, key)
         .and_then(|v| v.trim().parse::<i32>().ok())

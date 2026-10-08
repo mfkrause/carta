@@ -17,7 +17,6 @@ fn render_math_children(element: &Element, out: &mut String) {
     }
 }
 
-// The transparent-wrapper arm mirrors the wildcard to document known pass-throughs.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn render_math(element: &Element, out: &mut String) {
     match local_name(&element.name) {
@@ -157,8 +156,7 @@ fn render_delimiter(element: &Element, out: &mut String) {
         .collect();
     let rendered: Vec<String> = bodies.iter().map(|body| render_element(body)).collect();
 
-    // Parens, brackets, and single bars stay unsized around short flat content; anything taller,
-    // multi-compartment, or a scaling fence (braces, floors, angles) gets `\left … \right`.
+    // Short flat parentheses, brackets, and bars stay unsized; taller or scaling fences use `\left`.
     let sized = rendered.len() > 1
         || !plain_delimiter(beg)
         || !plain_delimiter(end)

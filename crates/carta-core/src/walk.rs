@@ -1,11 +1,4 @@
-//! Mutable traversals over the document model.
-//!
-//! [`for_each_image_target`] and [`for_each_link_target`] visit every image or link target in a block
-//! sequence, descending through all nested inline and block content in document order. Rewriting a
-//! container format's inline resource references (a notebook's `attachment:` links on the way in, its
-//! file names on the way out, an e-book's cross-file fragment links) is the same walk with a
-//! different callback, so the traversal lives here once rather than in each reader and writer.
-//! [`for_each_block`] is the same walk reporting whole blocks, for a transform that rewrites them.
+//! Mutable document-order traversals for blocks, image targets, and link targets.
 
 use carta_ast::{Block, Caption, Inline, Row, Table, Target};
 

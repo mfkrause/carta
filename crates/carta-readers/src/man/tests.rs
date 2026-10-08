@@ -262,7 +262,6 @@ fn tbl_region_becomes_a_table() {
     let Some(Block::Table(table)) = doc.blocks.first() else {
         panic!("expected a table");
     };
-    // Alignments come from the format line; widths stay default.
     assert_eq!(
         table.col_specs,
         vec![
@@ -276,7 +275,6 @@ fn tbl_region_becomes_a_table() {
             },
         ]
     );
-    // The rule line under the first data row promotes it to the head.
     assert_eq!(table.head.rows.len(), 1);
     assert_eq!(table.head.rows.first().map(|row| row.cells.len()), Some(2));
     assert_eq!(table.bodies.first().map(|body| body.body.len()), Some(1));
@@ -456,7 +454,6 @@ fn link_trailing_text_attaches_without_space() {
     let Some(Block::Para(inlines)) = doc.blocks.first() else {
         panic!("expected a paragraph");
     };
-    // … the link, then the trailing "." with no separating space.
     let link_index = inlines
         .iter()
         .position(|i| matches!(i, Inline::Link(..)))
@@ -530,7 +527,6 @@ fn tab_escape_becomes_a_space() {
 
 #[test]
 fn continuation_escape_is_dropped() {
-    // `\c` vanishes; the two text lines still fill with a separating space.
     let doc = read(".TH T 1\nabc\\c\ndef\n");
     assert_eq!(
         doc.blocks.first(),
@@ -544,7 +540,6 @@ fn continuation_escape_is_dropped() {
 
 #[test]
 fn zero_width_and_motion_escapes_drop_their_glyphs() {
-    // `\z` drops the following glyph, `\u`/`\d` take no argument, `\k` reads a register name.
     let doc = read(".TH T 1\na\\zbc up\\udown\\d mark\\kx end\n");
     assert_eq!(
         doc.blocks.first(),
@@ -587,7 +582,6 @@ fn supplementary_tag_joins_terms_with_a_line_break() {
 
 #[test]
 fn request_in_link_label_aborts_the_link() {
-    // The request voids the link: the label emits as its own block, trailing text is dropped.
     let doc = read(".TH T 1\nbefore\n.UR u\n.B bold\n.UE after\nnext\n");
     assert_eq!(
         doc.blocks,
@@ -749,8 +743,7 @@ fn nested_macro_call_expands_in_place_preserving_order() {
 
 #[test]
 fn macro_whose_expansion_synthesizes_its_own_call_terminates() {
-    // `\$.M` expands to the call line `.M`, a self-call invisible to the recursion guard
-    // (each is a fresh invocation); only the document-wide budget stops it.
+    // `\$.M` creates fresh recursive invocations that only the document budget can stop.
     let _ = read(".TH T 1\n.de M\ntext\n\\$.M\n..\n.M\n");
 }
 
@@ -885,7 +878,6 @@ fn table_text_block_joins_its_lines() {
     let Some(Block::Table(table)) = doc.blocks.first() else {
         panic!("expected a table");
     };
-    // The two source lines of the `T{ … T}` block join into a single cell.
     let cell_text = format!("{table:?}");
     assert!(cell_text.contains("long"));
     assert!(cell_text.contains("description"));

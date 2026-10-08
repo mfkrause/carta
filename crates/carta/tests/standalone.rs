@@ -117,7 +117,6 @@ fn standalone_latex_context_and_precedence() {
         &options(),
     )
     .unwrap();
-    // `pagetitle` is an HTML-family fallback, absent for LaTeX: `$pagetitle$` renders empty.
     assert_eq!(
         output,
         "T=Hello \\emph{World}|PT=|F=yes|G=red,blue|\
@@ -151,7 +150,6 @@ fn meta_json_keeps_a_single_trailing_newline_for_line_oriented_writers() {
         &options,
     )
     .unwrap();
-    // The context variable ends in a blank line; the JSON form keeps one trailing newline.
     assert_eq!(
         output,
         "J=[{\"abstract\":\"First para.\\n\\nSecond para.\\n\"}]|A=[First para.\n\nSecond para.\n\n]"
@@ -194,8 +192,6 @@ fn web_identity_variables_expose_pagetitle_date_and_author_list() {
         &identity_options(),
     )
     .unwrap();
-    // Web head: `pagetitle`, `date-meta`, per-author `author-meta` list; `title-meta` is PDF-only
-    // and stays empty.
     assert_eq!(
         output,
         "TM=[]|AM=[Ada LovelaceAlan Turing]|DM=[2026-06-20]|PT=[A Grand Report]|\
@@ -214,8 +210,6 @@ fn pdf_identity_variables_expose_title_meta_and_joined_authors() {
         &identity_options(),
     )
     .unwrap();
-    // PDF: `title-meta` and `author-meta` join into one `; `-separated string; `pagetitle` and
-    // `date-meta` are web-only and stay empty.
     assert_eq!(
         output,
         "TM=[A Grand Report]|AM=[Ada Lovelace; Alan Turing]|DM=[]|PT=[]|\
@@ -236,7 +230,6 @@ fn plain_title_block_shows_author_and_date_without_a_title() {
         &options,
     )
     .unwrap();
-    // Author and date head the document with no title; a blank line separates them from the body.
     assert_eq!(output, "Ada Lovelace\n2026-06-20\n\nBody text.\n");
 }
 
@@ -263,7 +256,6 @@ fn web_pagetitle_strips_markup_but_keeps_quote_glyphs() {
         &options,
     )
     .unwrap();
-    // `emphatic` loses emphasis; the quotes around `Report` become the format's curly quotes.
     assert_eq!(output, "[An emphatic \u{201c}Report\u{201d}]");
 }
 
@@ -281,7 +273,6 @@ fn pdf_title_meta_strips_markup_but_keeps_quote_glyphs() {
         &options,
     )
     .unwrap();
-    // The quotation renders as TeX quote ligatures; the emphasis is gone.
     assert_eq!(output, "[An emphatic ``Report'']");
 }
 
@@ -303,7 +294,6 @@ TML=[$for(title-meta)$<$title-meta$>$endfor$]"
         &options,
     )
     .unwrap();
-    // `title-meta`/`author-meta` are always defined, so a loop iterates once over the empty string.
     assert_eq!(output, "AML=[<>]|TML=[<>]");
 }
 
@@ -345,7 +335,6 @@ fn web_pagetitle_flattens_a_lone_paragraph_title() {
         &options,
     )
     .unwrap();
-    // The block-scalar title's lone paragraph supplies its inline text; the soft break becomes a space.
     assert_eq!(output, "[Multi-line Title Block]");
 }
 
@@ -380,7 +369,6 @@ fn pdf_title_meta_is_empty_for_a_multi_paragraph_title() {
         &options,
     )
     .unwrap();
-    // Several blocks have no single-paragraph inline form, so the inline metadata variable is empty.
     assert_eq!(output, "[]");
 }
 
@@ -399,7 +387,6 @@ fn man_flattens_block_metadata_into_a_header_field() {
         &options,
     )
     .unwrap();
-    // The lone paragraph flattens to inline roff: no paragraph macro leaks into the header field.
     assert_eq!(single, "[Multi\\-line Title Block]");
 
     let multi = convert_text(
@@ -427,7 +414,6 @@ fn rst_builds_a_title_block_from_a_block_scalar_title() {
         &options,
     )
     .unwrap();
-    // The flattened title heads an over- and underlined title block sized to its display width.
     assert_eq!(
         output,
         "[======================\nMulti-line Title Block\n======================]"
@@ -447,8 +433,7 @@ fn typst_default_template_renders_a_structured_author_name() {
         &options,
     )
     .unwrap();
-    // A structured author's `name` must reach metadata and title block as text, never collapsing
-    // to a boolean from direct map interpolation.
+    // A structured author must render its name rather than map truthiness.
     assert!(
         output.contains("author: ([Grace Hopper])"),
         "structured author name should reach #set document: {output}"
@@ -476,8 +461,7 @@ fn a_filled_value_wraps_for_the_place_its_template_seats_it() {
         &options,
     )
     .unwrap();
-    // The title opens after the indent and the tag, and continues at the margin; the body carries
-    // its indent on every line, so it fills to that much less than the column.
+    // Body indentation reduces available width; title indentation affects only its first line.
     assert!(
         output.contains(
             "    <title>A report whose title runs on far past the fill column so the\nwriter must wrap the words of it</title>"

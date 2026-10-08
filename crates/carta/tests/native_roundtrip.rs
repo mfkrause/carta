@@ -1,11 +1,7 @@
-//! Offline round-trip identity tests for the native reader/writer pair, driven entirely through
-//! the facade. Two directions establish mutual consistency:
+//! Check native document and canonical-text round-trip identity.
 //!
-//! - `read(write(doc)) == doc` over a corpus of documents covering every block, inline, and table
-//!   node the pair handles (metadata aside: the writer renders the block list alone).
-//! - `write(read(text)) == text` over a corpus of canonical native texts.
+//! Document comparisons exclude metadata because the writer emits only blocks.
 
-// This whole file is test code, where panicking on a known case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // Exercises the native reader/writer pair directly, so both must be compiled in.
 #![cfg(all(feature = "read-native", feature = "write-native"))]
@@ -300,7 +296,6 @@ fn document_corpus() -> Vec<Document> {
                 rows: vec![],
             },
         }))]),
-        // String payloads exercising the writer's escaping and the reader's un-escaping.
         document(vec![Block::Para(vec![
             str_inline("café"),
             str_inline("a\u{1}b"),

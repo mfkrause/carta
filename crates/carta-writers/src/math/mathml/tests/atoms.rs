@@ -1,7 +1,6 @@
 //! Golden fixtures for the MathML backend: atoms, scripts, fractions, accents, text, and font styles.
 
 pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
-    // digits `<mn>`, letters `<mi>`, operator classes `<mo>`; hyphen prints minus; `:=` is one relation
     (
         "x",
         false,
@@ -107,7 +106,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mo>:=</mo><mi>b</mi></mrow></math>",
         ),
     ),
-    // Greek, symbols, named functions, spacings, and an unknown command as a literal `<mi>`
     (
         "\\alpha",
         false,
@@ -220,7 +218,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>thiscommanddoesnotexist</mi></math>",
         ),
     ),
-    // Primes: the precomposed run up to four marks, then repeated single primes past it.
     (
         "f'",
         false,
@@ -256,7 +253,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><msup><mi>f</mi><mo>′′′′′</mo></msup></math>",
         ),
     ),
-    // Groups and scripts, beside the base.
     (
         "{ab}",
         false,
@@ -292,7 +288,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><msubsup><mi>x</mi><mi>a</mi><mi>b</mi></msubsup></math>",
         ),
     ),
-    // Fractions (bar and bar-less) and radicals; an unbraced radicand takes only its first digit.
     (
         "\\frac{a}{b}",
         false,
@@ -335,7 +330,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><msqrt><mn>1</mn></msqrt><mn>2</mn></mrow></math>",
         ),
     ),
-    // accents over their base, unmapped falls back to macron; `\underline` sets a combining low line
     (
         "\\hat{a}",
         false,
@@ -462,7 +456,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><munder accentunder=\"true\"><mi>a</mi><mo>\u{332}</mo></munder></math>",
         ),
     ),
-    // Text wrappers: an upright run tagged `mathvariant=normal`, an italic run left untagged.
     (
         "\\text{if}",
         false,
@@ -484,8 +477,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>emph</mi><mi>x</mi></mrow></math>",
         ),
     ),
-    // `\math…` styles map identifier/number leaves into the font-variant block; operator leaves
-    // and unstyled symbols are left as they are
     (
         "\\mathbb{R}",
         false,

@@ -241,7 +241,6 @@ pub(super) fn resolve_block(
         IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, notes, ext))),
         IrBlock::Heading(level, text) => {
             let (content, attr) = split_header_attr(text, ext);
-            // Reuse the reference pre-pass parse for cache-safe heading content.
             let inlines = if heading_content_is_context_independent(content) {
                 cache
                     .get_mut(content)

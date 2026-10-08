@@ -13,7 +13,7 @@ use super::tables::parse_cell_inlines;
 use super::{Frame, InlineStop, MAX_EXPAND_DEPTH, MAX_TOTAL_EXPANSIONS, Macro, Parser};
 
 impl Parser {
-    // --- Accents & arguments ---------------------------------------------------------------------
+    // Accents & arguments
 
     pub(super) fn read_accent_symbol(&mut self, accent: Accent, buf: &mut String) {
         let base = self.read_accent_argument();
@@ -192,14 +192,13 @@ impl Parser {
         parse_cell_inlines(self, source)
     }
 
-    // --- Macros ----------------------------------------------------------------------------------
+    // Macros
 
     /// Parses a macro definition. With macro expansion enabled the definition is recorded for later
     /// expansion and contributes no block; with it disabled the definition is left in the output as a
     /// raw LaTeX block, preserving its source verbatim.
     pub(super) fn parse_macro_definition(&mut self, name: &str) -> Vec<Block> {
-        // verbatim capture runs only with `LatexMacros` off: no expansion frame is ever pushed, so
-        // `start` indexes the same (sole) buffer as the final position
+        // With macros off, no expansion frame can invalidate source offsets.
         let start = self.frames.last().map_or(0, |frame| frame.pos);
         self.consume_control_word();
         if self.cur() == Some('*') {
@@ -264,7 +263,6 @@ impl Parser {
         let Some(macro_name) = self.take_defined_name() else {
             return;
         };
-        // Skip a simple parameter text (e.g. `#1#2`) up to the opening brace.
         let mut args = 0usize;
         while let Some(c) = self.cur() {
             if c == '{' {
@@ -323,8 +321,7 @@ impl Parser {
                 None => args.push(String::new()),
             }
         }
-        // arguments are consumed before the frame is pushed: `#n` sees the invocation's own
-        // arguments and the cursor resumes past them once the frame is exhausted
+        // Consume arguments before pushing a frame so its parameters use this invocation's values.
         let expanded = substitute_macro(&mac.body, &args);
         if !expanded.is_empty() {
             self.frames.push(Frame {

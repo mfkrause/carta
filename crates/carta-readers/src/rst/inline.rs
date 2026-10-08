@@ -19,7 +19,7 @@ use carta_ast::{Attr, Block, Format, Inline, MathType, Target};
 use carta_core::Extension;
 
 impl Parser<'_> {
-    // --- inline parsing ---
+    // inline parsing
 
     pub(super) fn inlines(&mut self, text: &str) -> Vec<Inline> {
         let mut out = self.inlines_no_trim(text);
@@ -52,7 +52,6 @@ impl Parser<'_> {
                 }
                 continue;
             }
-            // Inline internal target `_`name``: a span with a slug identifier so it can be linked to.
             if ch == '_'
                 && chars.get(pos + 1) == Some(&'`')
                 && inline_start_ok(prev)
@@ -84,7 +83,6 @@ impl Parser<'_> {
                 pos = next;
                 continue;
             }
-            // A bare URI or email address that begins at a word boundary is auto-linked.
             if autolink_boundary(prev)
                 && let Some((link, next)) = autolink(&chars, pos)
             {
@@ -329,7 +327,6 @@ impl Parser<'_> {
             }
             return Some((vec![self.phrase_reference(&content, anonymous)], false, end));
         }
-        // A trailing role applies to the interpreted text.
         if chars.get(end) == Some(&':')
             && let Some((role, role_end)) = parse_role(chars, end)
         {
@@ -389,7 +386,6 @@ impl Parser<'_> {
                 classes.push("title-ref".to_string());
                 Inline::Span(Box::new(class_attr(classes)), self.inlines_no_trim(content))
             }
-            // No base role (plain custom role): a span carrying the accumulated classes.
             "" => Inline::Span(
                 Box::new(class_attr(chain.classes)),
                 self.inlines_no_trim(content),
@@ -450,14 +446,12 @@ impl Parser<'_> {
             return None;
         }
         let (name, mut end) = find_close_literal(chars, pos + 1, "|")?;
-        // Trailing underscore: the expansion becomes link text, the like-named target the destination.
         let referenced = chars.get(end) == Some(&'_');
         if referenced {
             end += 1;
         }
         let key = normalize_name(&name);
-        // Expanding a replacement re-enters inline parsing, so a substitution cycle would recurse without
-        // bound. RST forbids cycles; a name already being expanded stays an unresolved placeholder.
+        // Keep cyclic substitutions unresolved to prevent unbounded recursion.
         if self.active_substitutions.iter().any(|n| n == &key) {
             let mut display = Vec::new();
             push_text(&mut display, &format!("|{name}|"));
@@ -494,7 +488,6 @@ impl Parser<'_> {
                 }),
             )],
             None => {
-                // Undefined: a placeholder link, text as written, destination flagged unresolved.
                 let mut display = Vec::new();
                 push_text(&mut display, &format!("|{name}|"));
                 return Some((

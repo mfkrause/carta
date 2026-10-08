@@ -192,7 +192,6 @@ fn image_output_document(url: &str) -> Document {
 
 #[test]
 fn image_output_without_embedded_data_is_unrepresentable() {
-    // With no media bag, the referenced bytes are unavailable, so the output cannot be rebuilt.
     let document = image_output_document("plot.png");
     match IpynbWriter.write(&document, &WriterOptions::default()) {
         Err(Error::Unrepresentable(message)) => assert!(
@@ -214,7 +213,6 @@ fn image_output_data_is_re_embedded_from_the_media_bag() {
     let notebook = IpynbWriter
         .write(&image_output_document("plot.png"), &options)
         .expect("the image bytes are available, so the output writes");
-    // The bundle names the image's MIME type and carries the base64 of the bag's bytes.
     assert!(notebook.contains("\"image/png\""));
     let encoded = base64_encode_mime(&bytes);
     assert!(
@@ -249,7 +247,6 @@ fn markdown_cell_image_becomes_an_inline_attachment() {
     let mut options = WriterOptions::default();
     options.media = std::sync::Arc::new(bag);
 
-    // A markdown cell whose image references a bag entry by its file name.
     let document = Document {
         blocks: vec![Block::Div(
             Box::new(Attr {
@@ -269,7 +266,6 @@ fn markdown_cell_image_becomes_an_inline_attachment() {
         ..Document::default()
     };
     let notebook = IpynbWriter.write(&document, &options).expect("writes");
-    // The link is rewritten to the attachment form and the payload restored under that name.
     assert!(notebook.contains("attachment:cell-diagram.png"));
     assert!(notebook.contains("\"attachments\""));
     assert!(notebook.contains("\"cell-diagram.png\""));
@@ -277,7 +273,6 @@ fn markdown_cell_image_becomes_an_inline_attachment() {
 
 #[test]
 fn image_output_metadata_is_restored_sorted_and_typed() {
-    // Display metadata rides on the image's attributes; restored sorted and typed.
     let bytes = vec![1u8, 2, 3, 4];
     let mut bag = MediaBag::new();
     bag.insert("plot.png", Some("image/png".to_owned()), bytes);
@@ -359,7 +354,6 @@ fn cell_attachments_are_emitted_in_sorted_key_order() {
     let mut options = WriterOptions::default();
     options.media = std::sync::Arc::new(bag);
 
-    // The cell references b before a; the emitted attachments object is keyed in sorted order.
     let reference = |name: &str| {
         Block::Para(vec![Inline::Image(
             Box::default(),

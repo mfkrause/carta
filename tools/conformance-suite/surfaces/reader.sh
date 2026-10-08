@@ -23,8 +23,7 @@ for fmt in $FORMATS; do
   tally_group
 done
 
-# Byte-container formats keep fixtures under corpus/binary/<fmt>/ (non-UTF-8 archives); diffed
-# like text readers but discovered from the binary tree, so they need no FORMATS entry.
+# Discover archive inputs under corpus/binary; they do not need FORMATS entries.
 if [ -d "$CORPUS/binary" ]; then
   for fmt_dir in "$CORPUS"/binary/*; do
     [ -d "$fmt_dir" ] || continue
@@ -41,8 +40,7 @@ if [ -d "$CORPUS/binary" ]; then
   done
 fi
 
-# Each corpus/text-ext/<spec>/ dir is named for the format spec both tools parse it with; the
-# specs build on the markdown-family readers, so they run with the commonmark group.
+# Run Markdown text-ext specs with the commonmark group.
 if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
   conf_reset "reader-ext"
   for spec_dir in "$CORPUS"/text-ext/*; do
@@ -58,7 +56,6 @@ if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
   tally_group
 fi
 
-# CommonMark spec examples: exhaustive reader parity, reported on its own line.
 if echo "$FORMATS" | grep -qw commonmark; then
   specdir="$WORK/spec"
   extract_spec "$specdir"

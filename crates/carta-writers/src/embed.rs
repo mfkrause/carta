@@ -1,14 +1,4 @@
-//! Inlining external resources into a finished HTML document to make it self-contained.
-//!
-//! A rendered page references its images, stylesheets, and scripts by URL. This pass rewrites those
-//! references in place so the document carries every resource within itself: an image becomes a
-//! `data:` URI, a linked stylesheet or external script becomes an inline `<style>`/`<script>` element,
-//! and a `url(...)` inside CSS becomes a `data:` URI too. The bytes for each reference come from a
-//! caller-supplied resolver (reading a file, fetching a URL, consulting a bag), so this module holds
-//! no I/O: it only finds the references and splices the resolved bytes back in.
-//!
-//! The pass runs over the final markup, after line wrapping, so a reference that spans a wrapped line
-//! is inlined exactly where it sits and the surrounding layout is left untouched.
+//! Inline HTML images, stylesheets, scripts, and CSS resources through a caller-supplied resolver.
 
 use carta_core::media::base64_encode;
 
@@ -59,7 +49,6 @@ fn handle_tag(
         return after;
     }
     let Some(tag) = parse_start_tag(html, lt) else {
-        // A lone `<` that opens no tag is literal text.
         out.push('<');
         return lt + 1;
     };
@@ -76,7 +65,7 @@ fn handle_tag(
 }
 
 /// The attributes whose value names a resource to inline, per element. Each names a single URL;
-/// `srcset`, being a responsive candidate list rather than a lone reference, is deliberately left
+/// `srcset`, being a responsive candidate list rather than a lone reference, is left
 /// alone so its descriptors and multiple sources survive untouched.
 fn resource_attrs(element: &str) -> &'static [&'static str] {
     match element {
@@ -104,13 +93,10 @@ fn rewrite_media_tag(
         .iter()
         .any(|attr| wanted.contains(&attr.name.as_str()));
     if !bears_resource {
-        // No resource attribute to handle (e.g. `<img>` with only a `srcset`): copy through verbatim.
         out.push_str(sub(html, tag.lt, tag.end));
         return;
     }
-    // Collect the value replacements, in source order, then splice them across the original tag text.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
-    // The assistive-technology annotation goes right after the element name, before the first attribute.
     let name_end = tag.lt + 1 + tag.name.len();
     let prefix = aria_prefix(tag);
     if !prefix.is_empty() {
@@ -596,7 +582,6 @@ mod tests {
 
     #[test]
     fn unresolved_and_data_src_keep_their_value_but_gain_role() {
-        // src stays as written, but an inlined graphic is still annotated; a non-media `<a>` is untouched.
         let html =
             r##"<img src="gone.png"><img src="data:image/png;base64,AAAA"><a href="#top">x</a>"##;
         let out = inline_resources(html, resolver(&[]));
@@ -608,7 +593,6 @@ mod tests {
 
     #[test]
     fn other_attributes_and_spacing_are_preserved_byte_for_byte() {
-        // Annotation after the name, src changes; id, the odd spacing, and alt stay put.
         let html = "<img   id=\"a\"  src='pic.png'   alt=\"y\">";
         let out = inline_resources(html, resolver(&[("pic.png", b"hi", Some("image/gif"))]));
         assert_eq!(
@@ -619,7 +603,6 @@ mod tests {
 
     #[test]
     fn image_with_only_a_srcset_is_left_untouched() {
-        // A srcset candidate list is not a lone reference; unhandled images gain no annotation.
         let html = r#"<img srcset="a.png 1x, b.png 2x">"#;
         let out = inline_resources(
             html,
@@ -653,7 +636,6 @@ mod tests {
 
     #[test]
     fn stylesheet_link_becomes_inline_style_with_resolved_urls() {
-        // The stylesheet's own url() resolves relative to the stylesheet's directory.
         let html = r#"<link rel="stylesheet" href="css/site.css">"#;
         let out = inline_resources(
             html,

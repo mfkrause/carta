@@ -283,8 +283,7 @@ pub(super) fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
         };
         match (out.last_mut(), &inline) {
             (Some(Inline::Str(prev)), Inline::Str(next)) => prev.push_str(next),
-            // Adjacent whitespace only occurs where a zero-width construct was removed; collapse to
-            // one token, keeping a soft break if either side carried one.
+            // Merge adjacent whitespace after removed content, retaining any soft break.
             (
                 Some(slot @ (Inline::Space | Inline::SoftBreak)),
                 Inline::Space | Inline::SoftBreak,

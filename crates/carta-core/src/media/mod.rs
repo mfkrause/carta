@@ -1,10 +1,6 @@
-//! The media bag: a document's embedded resources (images and other binary payloads), carried
-//! alongside the syntax tree rather than inside it.
+//! Embedded resources stored in a [`MediaBag`] alongside the document tree.
 //!
-//! A container format references its resources by name while storing their bytes out of band.
-//! Keeping those bytes out of the syntax tree mirrors that split: a reader fills a [`MediaBag`] as
-//! it decodes, a writer consumes it to re-embed the bytes, and the extract step writes them out as
-//! files and rewrites the references to point at them.
+//! Readers populate the bag; writers embed its bytes; extraction writes files and rewrites references.
 
 mod base64;
 mod sha1;
@@ -128,14 +124,10 @@ pub fn content_addressed_name(mime: &str, bytes: &[u8]) -> String {
     format!("{}.{}", sha1_hex(bytes), extension_for_mime(mime))
 }
 
-/// The safe on-disk name a resource is extracted under. Media names originate in
-/// untrusted container documents, so a name with a `..` component, an absolute
-/// path, or a drive/root prefix must never let a write escape the extraction
-/// directory. A name that lexically stays within the directory is preserved
-/// (benign nested paths like `media/img.png` still nest); any escaping name
-/// falls back to the content-addressed name, which is always a single safe
-/// segment. The write step and the reference rewrite both call this, so the
-/// extracted file and the rewritten link always agree.
+/// Return an extraction path that remains inside the destination directory.
+///
+/// Safe nested paths remain unchanged. Absolute paths, drive prefixes, and escaping `..`
+/// components use a content-addressed single-segment name. Extraction and link rewriting share it.
 #[must_use]
 pub fn extraction_target(name: &str, item: &MediaItem) -> String {
     match sanitized_relative(name) {
@@ -328,7 +320,6 @@ mod tests {
         assert_eq!(extension_for_mime("image/svg+xml"), "svg");
         assert_eq!(extension_for_mime("application/pdf"), "pdf");
         assert_eq!(extension_for_mime("image/webp"), "webp");
-        // The structured-syntax suffix is dropped just as it is for svg+xml.
         assert_eq!(extension_for_mime("application/geo+json"), "geo");
     }
 
@@ -359,7 +350,6 @@ mod tests {
     fn extracted_path_joins_with_a_single_slash() {
         assert_eq!(extracted_path("media", "a.png"), "media/a.png");
         assert_eq!(extracted_path("assets/img", "a.png"), "assets/img/a.png");
-        // A trailing slash on the directory does not double up.
         assert_eq!(extracted_path("media/", "a.png"), "media/a.png");
     }
 
@@ -369,7 +359,6 @@ mod tests {
         bag.insert("a.png", Some("image/png".to_owned()), vec![1]);
         let mut blocks = vec![
             Block::Para(vec![image("a.png")]),
-            // A reference the bag does not hold is left as it is.
             Block::Para(vec![image("https://example.com/b.png")]),
         ];
         rewrite_extracted_references(&mut blocks, &bag, "media");
@@ -403,12 +392,9 @@ mod tests {
         let mut bag = MediaBag::new();
         let mut blocks = vec![
             Block::Para(vec![image("a.png"), image("photo.JPG")]),
-            // The same reference twice resolves once.
             Block::Para(vec![image("a.png")]),
-            // Remote and data references never reach the resolver.
             Block::Para(vec![image("https://example.com/b.png")]),
             Block::Para(vec![image("data:image/png;base64,AAAA")]),
-            // A missing reference (resolver returns None) is left unembedded.
             Block::Para(vec![image("gone.gif")]),
         ];
         let mut resolved = Vec::new();

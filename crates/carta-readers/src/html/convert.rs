@@ -170,8 +170,7 @@ impl Converter {
                         continue;
                     }
                     if e.name == "style" && pending.is_empty() {
-                        // A `<style>` with no preceding sibling is metadata (dropped, or a raw
-                        // block when raw HTML is preserved); any sibling makes it body content.
+                        // A leading `<style>` is metadata; after any sibling it is body content.
                         if self.raw_html() {
                             out.push(Block::RawBlock(
                                 Format("html".into()),
@@ -181,7 +180,6 @@ impl Converter {
                         continue;
                     }
                     if has_role(e, ENDNOTES_ROLE) {
-                        // Endnote bodies were already lifted into their references.
                         flush(pending, out);
                         continue;
                     }
@@ -198,8 +196,7 @@ impl Converter {
                     } else if is_inline_element(&e.name) || (self.raw_html() && e.name != "main") {
                         self.append_inline(pending, node);
                     } else {
-                        // No mapping applies (`<main>`, or an unknown tag without raw HTML): the
-                        // wrapper's children splice into the block flow.
+                        // Unknown wrappers contribute their children to the block flow.
                         self.process(e.children.iter(), out, pending);
                     }
                 }
@@ -267,7 +264,6 @@ impl Converter {
                         self.child_blocks(&e.children, Flow::Framed),
                     ));
                 } else {
-                    // `native_divs` off: the wrapper's content splices into the block flow.
                     out.extend(self.child_blocks(&e.children, Flow::Framed));
                 }
             }
@@ -537,7 +533,6 @@ impl Converter {
             };
             attr.id = self.unique_id(base).into();
         }
-        // `auto_identifiers` off: a heading without an explicit id keeps an empty one.
         attr
     }
 
@@ -728,7 +723,6 @@ impl Converter {
             InlineKind::Span => {
                 let inner = self.build_inlines(&e.children);
                 if !self.ext.contains(Extension::NativeSpans) {
-                    // `native_spans` off: a bare `<span>` unwraps to its content.
                     out.extend(inner);
                 } else if is_small_caps(e) {
                     out.push(Inline::SmallCaps(inner));

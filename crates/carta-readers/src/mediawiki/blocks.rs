@@ -136,7 +136,7 @@ impl Parser {
             return None;
         }
         let content_start = pos + m;
-        // The closing `=` run may sit lines below: heading text continues like a paragraph until a blank or block-opening line.
+        // Multiline headings end at a closing `=` run, blank, or block opener.
         let region_end = header_region_end_scan(chars, pos, scan);
         let closer = header_closer(chars, content_start, region_end, m)?;
         let content = collect_range(chars, content_start, closer);
@@ -318,8 +318,7 @@ impl Parser {
                 cur = next;
                 break;
             }
-            // An unclosed `<ref>` keeps the paragraph open across blank lines so the note's body is
-            // captured whole; a block-opening line stays attached only when the note reads as block content.
+            // Keep unclosed note bodies across blank lines; block openers join only block notes.
             let ref_open = open_ref_depth(chars, pos, next, bounds) > 0;
             let next_end = line_end(chars, next);
             if is_blank(chars, next, next_end) {
@@ -501,8 +500,7 @@ fn header_region_end_scan(chars: &[char], pos: usize, scan: &mut HeaderScan) -> 
         return cached;
     }
     let n = chars.len();
-    // A line's region end depends only on later lines: gather the non-blank run, then fill the memo
-    // back-to-front, keeping stack depth constant where a naive per-line recursion would overflow.
+    // Fill the region memo backwards to avoid repeated scans and recursive stack growth.
     let mut starts = Vec::new();
     let mut cur = pos;
     loop {
@@ -534,7 +532,6 @@ fn header_region_end_scan(chars: &[char], pos: usize, scan: &mut HeaderScan) -> 
                 le
             } else {
                 let next_end = line_end(chars, next);
-                // `next` is already resolved (or blank/EOF), so both lookups below hit the memo.
                 if is_blank(chars, next, next_end) || line_starts_block_scan(chars, next, scan) {
                     le
                 } else {

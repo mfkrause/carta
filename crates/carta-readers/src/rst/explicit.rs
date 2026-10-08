@@ -11,7 +11,7 @@ use super::{DEFAULT_ROLE, MAX_INCLUDE_DEPTH, PENDING_CLASS, Parser, indent_of, l
 use carta_ast::{Attr, Block, Caption, Format, Inline, MathType, Target};
 
 impl Parser<'_> {
-    // --- explicit markup ---
+    // explicit markup
 
     pub(super) fn explicit(
         &mut self,
@@ -138,8 +138,7 @@ impl Parser<'_> {
             "topic" | "sidebar" => {
                 let mut blocks = Vec::new();
                 if !argument.trim().is_empty() {
-                    // Sidebar: subtitle joins title after a colon; topic: title alone. The subtitle
-                    // is also kept as a division attribute.
+                    // Sidebar subtitles join the title and remain division attributes.
                     let subtitle = options.iter().find(|(k, _)| k == "subtitle");
                     let title = match (name, subtitle) {
                         ("sidebar", Some((_, subtitle))) => {
@@ -172,7 +171,6 @@ impl Parser<'_> {
                 let classes: Vec<String> =
                     argument.split_whitespace().map(str::to_string).collect();
                 if content.is_empty() {
-                    // Apply the classes to the next sibling block via a marker the loop unwraps.
                     let mut marker = vec![PENDING_CLASS.to_string()];
                     marker.extend(classes);
                     out.push(class_div(marker, Vec::new()));
@@ -182,7 +180,6 @@ impl Parser<'_> {
             }
             "line-block" => out.push(self.line_block_directive(&content)),
             "table" => self.table_directive(&argument, &options, &content, out),
-            // A role definition configures inline interpretation; it produces no block of its own.
             "role" => self.register_role(&argument, &options),
             "default-role" => {
                 let selected = argument.trim();
@@ -192,7 +189,6 @@ impl Parser<'_> {
                     selected.to_string()
                 };
             }
-            // Splices the parsed content of an external file; an unreadable file contributes nothing.
             "include" => {
                 if self.include_depth < MAX_INCLUDE_DEPTH
                     && let Some(blocks) =
@@ -282,7 +278,6 @@ impl Parser<'_> {
             caption.long = vec![plain];
             caption.long.extend(iter);
         }
-        // The image description defaults to the figure's caption when no explicit alt is given.
         let description = if alt.is_empty() { caption_inlines } else { alt };
         let image = Inline::Image(
             Box::new(img_attr),

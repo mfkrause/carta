@@ -1,10 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
-//! Shared carta core: the conversion traits, their option types, and the common error type.
-//!
-//! [`Reader`] turns input text into a [`Document`]; [`Writer`] turns a [`Document`] back into
-//! output text. Readers and writers depend only on the AST contract and this crate, so input and
-//! output formats stay independent.
+//! Conversion traits, options, and errors shared by readers and writers.
 
 use std::fmt;
 use std::io;
@@ -305,8 +301,6 @@ pub struct Slot {
 }
 
 /// Options controlling a [`Writer`].
-// Each independent output toggle is its own field; grouping them would only obscure the
-// one-option-one-field mapping a caller sets them through.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]

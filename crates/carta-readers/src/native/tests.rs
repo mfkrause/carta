@@ -355,7 +355,6 @@ fn decodes_simple_string_escapes() {
 
 #[test]
 fn decodes_control_and_numeric_escapes() {
-    // \f \v \a \b control bytes, an empty \& separator, decimal, hex, and octal escapes.
     let block = only_block(r#"Para [Str "\f\v\a\b\&\65\x41\o101"]"#);
     assert_eq!(
         block,
@@ -365,7 +364,6 @@ fn decodes_control_and_numeric_escapes() {
 
 #[test]
 fn decodes_caret_and_mnemonic_control_escapes() {
-    // \^A is control-A (U+0001); \ESC and \NUL are mnemonic control codes.
     let block = only_block(r#"Para [Str "\^A\ESC\NUL"]"#);
     assert_eq!(block, Block::Para(vec![str_inline("\u{01}\u{1B}\u{00}")]));
 }

@@ -1,9 +1,4 @@
-//! A small XML emitter that always produces well-formed output.
-//!
-//! Markup is modelled as a tree of [`Element`]s carrying attributes, text, and pre-serialized raw
-//! fragments. Rendering escapes text and attribute values and self-closes empty elements, so the
-//! result is well-formed by construction. Attributes and children keep insertion order, keeping
-//! output byte-reproducible.
+//! XML emission with escaped text, attributes, and insertion-order output.
 
 /// The XML declaration a document part begins with.
 pub const DECLARATION: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
@@ -162,8 +157,7 @@ impl Element {
             out.push_str(" />");
             return;
         }
-        // text-only content stays on one line; elements and raw fragments (which may hold elements)
-        // force the multi-line layout
+        // Raw fragments may contain elements, so only text-only content stays on one line.
         if !self
             .children
             .iter()
@@ -334,7 +328,6 @@ mod tests {
 
     #[test]
     fn raw_fragments_emit_verbatim_and_unescaped() {
-        // raw passes through unescaped, interleaved with escaped sibling text
         let element = Element::new("w:p")
             .text("a < b")
             .raw("<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>");
@@ -346,7 +339,6 @@ mod tests {
 
     #[test]
     fn pretty_layout_treats_raw_only_content_as_multi_line() {
-        // raw may hold elements, so raw-only content takes the multi-line layout
         let doc = Element::new("root")
             .raw("<child/>")
             .render_document_pretty();

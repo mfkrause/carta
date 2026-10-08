@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Size surface: report binary sizes (no timing).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
-# stat byte size, portable across BSD (-f%z) and GNU (-c%s).
 stat_bytes() { stat -f%z "$1" 2>/dev/null || stat -c%s "$1" 2>/dev/null; }
 
 xb=$(stat_bytes "$OX")

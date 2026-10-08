@@ -19,8 +19,7 @@ export default defineConfig({
     },
   },
   markdown: {
-    // Astro's default processor, with smart punctuation off: the docs are full of CLI flags, and it
-    // rewrites `--from` to an en dash. Everything else, GFM included, keeps its default.
+    // Disable smart punctuation to preserve CLI flags such as `--from`.
     processor: satteri({ features: { smartPunctuation: false } }),
   },
   integrations: [
@@ -45,7 +44,6 @@ export default defineConfig({
       favicon: "/favicon.png",
       customCss: ["./src/styles/theme.css"],
       components: {
-        // Adds the Markdown and open-in-assistant actions under every page title.
         PageTitle: "./src/components/PageTitle.astro",
       },
       head: [
@@ -84,15 +82,12 @@ export default defineConfig({
               description: "Readers, writers, and the conformance suite.",
             },
           ],
-          // The 404 page is navigation furniture; it says nothing about carta. `exclude` only
-          // reaches llms-small.txt, so it is also demoted out of the lead position in llms-full.txt.
+          // Also remove the 404 lead from llms-full.txt; `exclude` affects only llms-small.txt.
           exclude: ["404"],
           demote: ["404"],
-          // Heading anchors and their screen-reader labels are pointer chrome, not content.
           customSelectors: { all: ["a.sl-anchor-link", ".sr-only"] },
         }),
-        // Each topic autogenerates from its directory, so a new page joins the sidebar by
-        // existing rather than by being listed here.
+        // Directory-based sidebars include new pages automatically.
         starlightSidebarTopics([
           {
             label: "Guide",

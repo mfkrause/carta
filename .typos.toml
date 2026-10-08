@@ -1,5 +1,5 @@
 [files]
-# External data we don't author: entity tables, vendored spec corpus, test inputs, KDE syntax/styles.
+# Exclude third-party data and test inputs.
 extend-exclude = [
   ".oracle/",
   "target/",
@@ -18,9 +18,9 @@ extend-exclude = [
 ]
 
 [default]
-# `\u{…}` escapes are hex, not prose; interior digit pairs otherwise read as words.
+# Hex escapes are not prose.
 extend-ignore-re = ['\\u\{[0-9A-Fa-f]+\}']
-# Abbreviated commit hashes are pure hex; stop letter-runs like "ba" reading as words.
+# Commit hashes are not prose.
 extend-ignore-identifiers-re = ['^[0-9a-f]{7,40}$']
 
 [default.extend-identifiers]
@@ -30,7 +30,6 @@ extend-ignore-identifiers-re = ['^[0-9a-f]{7,40}$']
 [default.extend-words]
 # Document-format vocabulary that is not a typo
 fb2 = "fb2"
-# OpenDocument Format, the standard the OpenDocument reader parses.
 ODF = "ODF"
 # Cross-reference target `thm1` in an OpenDocument reader fixture, kept verbatim.
 thm = "thm"
@@ -61,7 +60,7 @@ anull = "anull"
 ot = "ot"
 # KDE syntax-definition schema element (`itemData` children, variable `item_datas`).
 datas = "datas"
-# RTF control words: \pard resets paragraph formatting, \pn opens numbering, \headerr sets the right header.
+# RTF control words.
 pard = "pard"
 pn = "pn"
 headerr = "headerr"

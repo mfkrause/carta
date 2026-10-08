@@ -1,7 +1,4 @@
-//! Renders the benchmark artifacts from `docs/benchmarks.toml`.
-//!
-//! The TOML holds measurements and nothing else; every headline figure on the page and on the site
-//! is derived here, so no claim can outlive the numbers behind it.
+//! Generate benchmark documentation from `docs/benchmarks.toml` measurements.
 
 use std::error::Error;
 

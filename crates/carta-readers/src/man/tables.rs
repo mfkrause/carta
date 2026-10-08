@@ -7,14 +7,11 @@ use carta_ast::{
 
 use super::inline::read_delimited;
 
-/// Builds a [`Block::Table`] from the lines of a tbl region (those between `.TS` and `.TE`, both
-/// excluded). The region is the preprocessor's: an optional options line ending in `;` (carrying the
-/// cell separator in its `tab(X)` option), one or more format lines the last of which ends in `.`
-/// (the first fixes the column count and alignments), then the data rows. A rule line (`_`/`=`) just
-/// below the first data row promotes that row to the table head. A `T{`…`T}` text block spanning
-/// several input lines collapses into one filled cell. A format declaring a horizontal span, which
-/// the table model cannot express, renders as a placeholder paragraph. Returns `None` for a region
-/// with no format line, where there is no table to build.
+/// Build a table from tbl region lines between `.TS` and `.TE`.
+///
+/// The first format line sets columns and alignment. A rule after the first row promotes it
+/// to the head. `T{`/`T}` blocks form one filled cell. Horizontal spans become placeholders;
+/// missing format lines return `None`.
 pub(super) fn build_tbl(region: &[String]) -> Option<Block> {
     let mut index = 0;
     let mut separator = "\t".to_owned();

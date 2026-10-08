@@ -198,7 +198,6 @@ impl SlideRenderer {
     pub(crate) fn footnote_section(&self) -> Option<String> {
         let mut out = String::new();
         self.state.push_footnote_section(&mut out);
-        // the deck supplies its own separator, so drop the section's leading newline
         let trimmed = out.trim_start_matches('\n');
         if trimmed.is_empty() {
             None
@@ -270,8 +269,7 @@ pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
     };
     let mut out = String::new();
     state.inlines(&mut out, inlines);
-    // reflow(None) collapses breakable-space runs to one space; restore first, so a protected control
-    // character becomes literal and is dropped as XML-invalid instead of leaking its escape tag
+    // Restore controls before reflow so XML-invalid characters drop instead of leaking tags.
     strip_xml_invalid(restore(reflow(&out, WrapMode::None, FILL_COLUMN)))
 }
 
@@ -481,7 +479,6 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
     let mut out = String::with_capacity(input.len());
     let mut column = 0usize;
     let mut at = 0usize;
-    // The chunk starting at `at`, measured once: a break decision weighs the same scan that emits it.
     let (mut end, mut chunk) = scan_chunk(input, at);
     loop {
         if end > at {
@@ -509,10 +506,8 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
             }
             at += 1;
         } else {
-            // A run of break points is one decision, so spaces around a vanished inline read as one.
             at = skip_break_points(bytes, at);
             let measured = scan_chunk(input, at);
-            // Auto breaks only when keeping the following chunk would overflow; None never breaks.
             if matches!(wrap, WrapMode::Auto) && column + 1 + measured.1 > width {
                 out.push('\n');
                 column = 0;

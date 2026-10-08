@@ -1,9 +1,4 @@
-//! `CommonMark` reader.
-//!
-//! Parsing follows the spec's two-phase strategy: the block phase (`block`) consumes the input
-//! line by line into a tree of `IrBlock`s whose leaves still hold raw text, collecting link
-//! reference definitions; the inline phase (`inline`) then parses each leaf's text into inlines.
-//! The result is assembled into a [`Document`].
+//! Read CommonMark and extension-enabled Markdown dialects.
 
 mod attr;
 mod autolink;

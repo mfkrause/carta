@@ -116,7 +116,6 @@ mod tests {
         assert_eq!(decode("aGVsbG8="), Some(b"hello".to_vec()));
         assert_eq!(decode("aGVs\nbG8="), Some(b"hello".to_vec()));
         assert_eq!(decode(""), Some(Vec::new()));
-        // Bad length, non-alphabet byte, misplaced padding: each fails rather than truncates.
         assert_eq!(decode("QQ"), None);
         assert_eq!(decode("aGVsbG8@"), None);
         assert_eq!(decode("a=VsbG8="), None);

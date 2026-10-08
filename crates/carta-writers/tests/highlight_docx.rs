@@ -1,7 +1,4 @@
-//! Byte-shape checks for the DOCX writer's colorized code blocks: the source-code paragraph, the
-//! per-token character-style runs, XML escaping of token text, the line breaks between source lines,
-//! and the token character styles injected into the style catalogue from the active theme. These pin
-//! the markup the writer emits when a highlighter and theme are supplied, independent of any CLI.
+//! Check DOCX code highlighting, escaping, and token styles.
 
 #![cfg(all(feature = "docx", feature = "highlight"))]
 #![allow(
@@ -85,7 +82,6 @@ fn known_language_wraps_each_token_in_a_style_run() {
     let doc = document(true, code_block(&["python"], "x = \"hi\"\n"));
     assert!(doc.contains("<w:pStyle w:val=\"SourceCode\" />"));
     assert!(doc.contains("<w:rStyle w:val=\"StringTok\" />"));
-    // Even plain source text is wrapped, unlike the verbatim fallback.
     assert!(doc.contains("<w:rStyle w:val=\"NormalTok\" />"));
     assert!(!doc.contains("<w:rStyle w:val=\"VerbatimChar\" />"));
 }
@@ -132,7 +128,6 @@ fn theme_token_styles_reach_the_style_catalogue() {
     assert!(styles.contains("<w:basedOn w:val=\"VerbatimChar\"/>"));
     assert!(styles.contains("<w:b/>"));
     assert!(styles.contains("<w:color w:val=\"007020\"/>"));
-    // The italic string style lands too, with its own color.
     assert!(styles.contains("<w:style w:type=\"character\" w:styleId=\"StringTok\">"));
     assert!(styles.contains("<w:i/>"));
     assert!(styles.contains("<w:color w:val=\"4070a0\"/>"));

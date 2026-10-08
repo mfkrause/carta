@@ -1,9 +1,4 @@
-//! The tokenizer: walks a stack of contexts over source text, emitting classified [`Token`]s.
-//!
-//! For each line the current context's rules are tried in order; the first to match consumes text,
-//! emits a token, and may switch contexts. When nothing matches, the context either falls through to
-//! another context or consumes a run of ordinary text. Regular-expression rules match anchored at the
-//! current position; compiled patterns and resolved keyword sets are cached across lines.
+//! Tokenize source lines with ordered context rules and cached patterns.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};

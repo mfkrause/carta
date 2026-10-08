@@ -1,11 +1,5 @@
-//! Offline codec identity over the shared AST corpus: decode each `corpus/ast/**` document into the
-//! model, re-encode it, and assert the JSON is semantically unchanged. It runs fully offline (the
-//! corpus files are inputs we author), so this gates the JSON codec on every run.
-//!
-//! Equality is by `serde_json::Value`, not bytes: it ignores object-key order and float formatting
-//! (different shortest `f64` representations) while still catching any dropped or altered field.
+//! Check semantic JSON round-trip identity over `corpus/ast/**`, ignoring key order and float spelling.
 
-// Integration-test harness code: panicking on a known corpus file is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fs;

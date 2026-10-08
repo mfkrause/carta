@@ -47,16 +47,12 @@ fn fence_close_candidate_index_honors_the_closing_fence_rules() {
     ];
     let candidates = build_fence_close_candidates(&lines);
 
-    // The only backtick candidate is line 2.
     assert!(candidates.reaches_close(b'`', 3, 1));
     assert!(!candidates.reaches_close(b'`', 3, 2));
-    // A three-marker run cannot close a four-marker opener.
     assert!(!candidates.reaches_close(b'`', 4, 1));
-    // Tilde and backtick are indexed separately; the tilde run of four closes openers up to four.
     assert!(candidates.reaches_close(b'~', 3, 0));
     assert!(candidates.reaches_close(b'~', 4, 0));
     assert!(!candidates.reaches_close(b'~', 5, 0));
-    // Past the last candidate of a marker there is nothing left to close either kind.
     assert!(!candidates.reaches_close(b'`', 3, 3));
     assert!(!candidates.reaches_close(b'~', 3, 3));
 }
@@ -135,7 +131,6 @@ fn reads_the_begin_environment_name() {
         Some(" a ")
     );
     assert_eq!(raw_tex_env_name("\\begin{}", b"begin").as_deref(), Some(""));
-    // A bare word, a missing brace, or the wrong keyword is not a match.
     assert_eq!(raw_tex_env_name("\\beginabc", b"begin"), None);
     assert_eq!(raw_tex_env_name("\\begin center", b"begin"), None);
     assert_eq!(raw_tex_env_name("begin{a}", b"begin"), None);
@@ -155,17 +150,12 @@ fn math_environments_are_excluded() {
 
 #[test]
 fn scan_tracks_depth_and_finds_the_close() {
-    // The opener line alone opens at depth one and does not close.
     assert_eq!(raw_tex_scan("\\begin{a}", "a", 0), (1, None));
-    // A matching end on a content line returns the offset past its brace.
     let (depth, close) = raw_tex_scan("\\end{a}rest", "a", 1);
     assert_eq!(depth, 0);
     assert_eq!(close, Some("\\end{a}".len()));
-    // An unrelated end name is content, not a close.
     assert_eq!(raw_tex_scan("\\end{c}", "a", 1), (1, None));
-    // Same-name nesting deepens and lifts the count.
     assert_eq!(raw_tex_scan("\\begin{a}\\end{a}", "a", 1), (1, None));
-    // An escaped command does not count toward the depth.
     assert_eq!(raw_tex_scan("\\\\end{a}", "a", 1), (1, None));
 }
 
@@ -200,7 +190,6 @@ fn an_unclosed_environment_falls_back_to_a_paragraph() {
 
 #[test]
 fn a_math_environment_stays_out_of_a_raw_block() {
-    // An \begin opening a math environment is not a block-level raw TeX environment.
     let out = blocks("\\begin{align}\nx\n\\end{align}\n");
     assert!(!matches!(out.first(), Some(IrBlock::RawBlock(..))));
 }
@@ -255,11 +244,9 @@ fn alert_marker_recognizes_every_kind() {
 
 #[test]
 fn alert_marker_casing_depends_on_the_dialect() {
-    // The broad Markdown dialect admits only the uppercase spelling.
     assert!(alert_marker_type("[!note]", true).is_none());
     assert!(alert_marker_type("[!Tip]", true).is_none());
     assert!(alert_marker_type("[!wArNiNg]", true).is_none());
-    // The CommonMark engine accepts any casing.
     assert_eq!(
         alert_marker_type("[!note]", false).map(|t| t.class),
         Some("note")
@@ -275,7 +262,6 @@ fn alert_marker_allows_only_trailing_whitespace() {
     assert!(alert_marker_type("[!NOTE]", true).is_some());
     assert!(alert_marker_type("[!NOTE]   ", true).is_some());
     assert!(alert_marker_type("[!NOTE]\t", true).is_some());
-    // Anything other than whitespace after the bracket disqualifies the marker.
     assert!(alert_marker_type("[!NOTE] hi", true).is_none());
     assert!(alert_marker_type("[!NOTE]x", true).is_none());
 }
@@ -365,11 +351,9 @@ fn split_trailing_attr_strips_the_block() {
 
 #[test]
 fn split_trailing_attr_keeps_non_trailing_braces_literal() {
-    // Only the last block at the very end is an attribute block.
     let (body, attr) = split_trailing_attr("Cap {#x} {#y}");
     assert_eq!(body, "Cap {#x}");
     assert_eq!(attr.expect("attr parsed").id, "y");
-    // A block followed by more text is not trailing and stays untouched.
     assert_eq!(
         split_trailing_attr("Cap {#x} more"),
         ("Cap {#x} more", None)
@@ -408,8 +392,7 @@ fn caption_without_a_block_leaves_attr_empty() {
 
 #[test]
 fn caption_attributes_are_inert_without_the_extension() {
-    // With table attributes disabled, the trailing block on a caption is kept verbatim as
-    // caption text rather than split off onto the table's attributes.
+    // With table attributes off, the trailing block remains caption text.
     let mut table = blocks("| a |\n|---|\n| 1 |\n");
     assert!(super::super::postprocess::set_table_caption(
         &mut table,

@@ -1,11 +1,6 @@
-//! Document front matter: a leading YAML metadata block (`yaml_metadata_block`), a percent-line
-//! title block (`pandoc_title_block`), or a `key: value` title block (`mmd_title_block`). Each
-//! populates the document's `meta` map from material at the very top of the input and removes it
-//! from the body.
+//! Parse leading YAML, percent-line, and key/value title metadata.
 //!
-//! Each is recognized only when its extension is enabled and only at the first line of the document.
-//! [`extract`] returns the metadata together with the body that remains once the front matter is
-//! stripped.
+//! Each form requires its title-block extension and leaves the remaining input as document content.
 
 use std::collections::BTreeMap;
 
@@ -57,7 +52,7 @@ pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<Front
 /// through); `Ok(Some(..))` carries the metadata and body; `Err` marks malformed YAML.
 fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontMatter>> {
     let lines: Vec<&str> = normalized.split('\n').collect();
-    // a fence is `---` (open/close) or `...` (close); leading whitespace disqualifies, so trim only the end
+    // Leading whitespace disqualifies a fence, so trim only the end.
     if lines.first().is_none_or(|line| line.trim_end() != "---") {
         return Ok(None);
     }
@@ -440,7 +435,6 @@ mod tests {
 
     #[test]
     fn fence_lines_tolerate_trailing_whitespace() {
-        // trailing spaces/tabs on a fence still delimit; the following body is not metadata
         let document = read("---   \ntitle: T\n---\t\n\nBody\n");
         assert_eq!(
             document.meta.get("title"),
@@ -459,7 +453,6 @@ mod tests {
 
     #[test]
     fn an_indented_opening_fence_is_not_front_matter() {
-        // A fence must start at the line's first column; leading whitespace disqualifies it.
         let document = read("   ---\ntitle: T\n---\n\nBody\n");
         assert!(document.meta.is_empty());
     }
@@ -488,7 +481,6 @@ mod tests {
 
     #[test]
     fn mmd_title_block_populates_meta_and_strips_the_body() {
-        // Keys normalize to lowercase with whitespace removed; values are taken verbatim.
         let document = read_mmd("Title: My Doc\nBase Header Level: 2\n\nBody.\n");
         assert_eq!(document.meta.get("title"), Some(&inlines(&["My", "Doc"])));
         assert_eq!(document.meta.get("baseheaderlevel"), Some(&inlines(&["2"])));
@@ -497,7 +489,6 @@ mod tests {
 
     #[test]
     fn mmd_title_block_values_are_not_markdown() {
-        // Inline markup in a value stays literal text.
         let document = read_mmd("Title: *Emph* `code`\n\nBody.\n");
         assert_eq!(
             document.meta.get("title"),
@@ -521,11 +512,8 @@ mod tests {
 
     #[test]
     fn mmd_title_block_requires_a_first_value_and_well_formed_lines() {
-        // A first line with no value is not a title block.
         assert!(read_mmd("Foo:\nTitle: X\n\nBody.\n").meta.is_empty());
-        // A non-key, non-continuation line before the terminator abandons the block.
         assert!(read_mmd("Title: X\nNot a key\n\nBody.\n").meta.is_empty());
-        // A key with an unsupported character is not a key line.
         assert!(read_mmd("a/b: v\n\nBody.\n").meta.is_empty());
     }
 }

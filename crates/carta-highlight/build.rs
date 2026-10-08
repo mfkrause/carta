@@ -1,16 +1,8 @@
-//! Compresses the bundled syntax definitions into `OUT_DIR` and generates an index over them.
+//! Compress bundled grammars and generate their lookup index.
 //!
-//! Each embedded `.xml` file is deflate-compressed to keep the binary small; the raw XML is
-//! decompressed and parsed lazily, the first time a language is used. The generated `bundled.rs`
-//! carries each definition's metadata (name, short name, extensions, …) so language resolution and
-//! listing never have to decompress anything.
-//!
-//! `data/syntax/` (permissively licensed definitions) is always embedded. `data/syntax-copyleft/`
-//! (definitions under copyleft or unspecified licenses; see its README) is embedded only under the
-//! `embed-copyleft-grammars` feature; by default those files load at runtime from a grammar
-//! directory or `--syntax-definition`.
+//! `embed-copyleft-grammars` includes copyleft or unspecified-license definitions;
+//! otherwise those definitions must load at runtime.
 
-// A failed build script should abort the build loudly; panicking and indexing are intended here.
 #![allow(clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 use std::collections::BTreeMap;

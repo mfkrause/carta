@@ -1,13 +1,8 @@
-//! Layer 1 golden test for the ODT writer's extension toggles. Each `corpus/ast-ext/odt*` case is
-//! rendered to the format spec its directory names, the package's body part is unpacked, and its
-//! markup (pretty-printed one element per line) is frozen by `insta`. This pins the output the
-//! `empty_paragraphs` toggle produces, which the text-only writer golden pass (a byte-shaped target
-//! has no string form) never reaches.
+//! Snapshot ODT extension output from `corpus/ast-ext/odt*`.
 //!
-//! Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! Review changes with `cargo insta review`; do not edit snapshot files directly.
 
 #![cfg(all(feature = "read-json", feature = "write-odt"))]
-// Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -63,10 +58,6 @@ fn content_part(bytes: &[u8]) -> String {
     out
 }
 
-/// Writer body golden pass: every `corpus/ast/<feature>/*` case (full-model AST JSON that exercises
-/// node shapes no reader can produce) is rendered to ODT and its `content.xml` (plus any embedded
-/// formula parts) frozen. The text-writer golden pass skips this byte-shaped target, so this is where
-/// the writer's block and inline rendering is pinned. Output is byte-reproducible across runs.
 #[test]
 fn odt_writer_corpus_snapshots() {
     for case in corpus_cases("ast") {
@@ -119,10 +110,6 @@ fn metadata_parts(bytes: &[u8]) -> String {
     )
 }
 
-/// Freezes the metadata parts (`meta.xml` and the default paragraph style) for the metadata fixture,
-/// whose AST carries a title, author, description, subject, keyword list, and a `de-DE` language.
-/// This pins how each metadata field maps onto the package and how the language sets the default
-/// style's `fo:language`/`fo:country`, output the content-part pass never reaches.
 #[test]
 fn odt_metadata_part_snapshots() {
     for case in corpus_cases("ast-ext") {

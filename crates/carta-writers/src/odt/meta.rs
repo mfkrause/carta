@@ -45,7 +45,6 @@ pub(super) fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
     let _ = write!(out, "<dc:creator>{creator}</dc:creator>");
     let _ = write!(out, "<meta:creation-date>{stamp}</meta:creation-date>");
     let _ = write!(out, "<dc:date>{stamp}</dc:date>");
-    // Unclaimed fields become custom properties keyed by name; map order keeps them sorted.
     for (key, value) in meta {
         if is_standard_meta(key.as_str()) {
             continue;

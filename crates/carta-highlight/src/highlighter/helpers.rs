@@ -172,7 +172,6 @@ pub(super) fn match_octal(s: &str) -> Option<usize> {
     Some(len + 1 + digits)
 }
 
-// The float shapes are clearer enumerated as independent cases than as a single minimized predicate.
 #[allow(clippy::nonminimal_bool)]
 pub(super) fn match_float(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();

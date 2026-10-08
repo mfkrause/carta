@@ -36,7 +36,6 @@ fn circular_substitution_does_not_overflow_the_stack() {
     // Fuzz-found: circular substitutions must stay unexpanded, not overflow the stack.
     let _ = parse(".. |a| replace:: |a|\n\n|a|\n");
     let _ = parse(".. |a| replace:: |b|\n.. |b| replace:: |a|\n\n|a|\n");
-    // libFuzzer-minimized reproducer.
     let bytes = [
         84u8, 46, 46, 32, 124, 124, 97, 112, 124, 0, 32, 10, 46, 46, 32, 124, 46, 46, 32, 124, 117,
         110, 105, 99, 111, 100, 101, 58, 58, 32, 124, 124, 124, 124, 95, 58, 58, 32, 124, 124, 46,
@@ -56,7 +55,6 @@ fn recursive_footnote_does_not_overflow_the_stack() {
 
 #[test]
 fn pipe_not_followed_by_space_does_not_stall_the_scan() {
-    // A `|` without a following space/EOL is not a line block; the scan must advance past its line.
     let _ = parse("\u{0b}\t|\u{0}");
     let _ = parse("   |x");
     let _ = parse("|x\n");
@@ -204,7 +202,6 @@ fn footnote_reference_inlines_the_note() {
     match blocks.first() {
         Some(Block::Para(inlines)) => {
             assert!(inlines.iter().any(|i| matches!(i, Inline::Note(_))));
-            // The space before the note marker is dropped.
             assert_eq!(inlines.first(), Some(&Inline::Str("Ref".into())));
             assert!(matches!(inlines.get(1), Some(Inline::Note(_))));
         }
@@ -279,7 +276,6 @@ fn date_renders_strftime_fields_for_fixed_timestamps() {
         (1_798_804_800, "%V %G %g", "53 2026 26"),
         (1_798_804_800, "%A", "Friday"),
         (1_798_804_800, "%r", "12:00:00 PM"),
-        // A literal percent, and an unrecognized code emitted verbatim.
         (0, "before %% after", "before % after"),
         (0, "%Q", "%Q"),
     ];
@@ -290,7 +286,6 @@ fn date_renders_strftime_fields_for_fixed_timestamps() {
             "render_date({secs}, {format:?})"
         );
     }
-    // The empty format string falls back to an ISO date, whatever today happens to be.
     let today = format_date("");
     assert_eq!(today.len(), 10);
     assert_eq!(today.matches('-').count(), 2);
@@ -345,7 +340,6 @@ fn image_width(source: &str) -> Option<String> {
 
 #[test]
 fn image_directive_resolves_width_and_scale() {
-    // Pixel width truncates to an integer at parse time; scaling rounds to even at the boundary.
     assert_eq!(
         image_width(".. image:: a.png\n   :width: 200px\n   :scale: 50%\n"),
         Some("100px".into())
@@ -358,12 +352,10 @@ fn image_directive_resolves_width_and_scale() {
         image_width(".. image:: a.png\n   :width: 100.7px\n"),
         Some("100px".into())
     );
-    // A percentage width keeps a single fractional digit.
     assert_eq!(
         image_width(".. image:: a.png\n   :width: 100%\n   :scale: 33\n"),
         Some("3300.0%".into())
     );
-    // A physical unit scales and renders in the shortest form.
     assert_eq!(
         image_width(".. image:: a.png\n   :width: 2.5in\n   :scale: 50%\n"),
         Some("1.25in".into())
@@ -377,12 +369,10 @@ fn image_directive_resolves_width_and_scale() {
 #[test]
 fn image_directive_doubles_classes_and_appends_alignment() {
     let classes = |source: &str| first_image_attr(&parse(source)).expect("an image").classes;
-    // Alignment alone becomes an `align-<value>` class.
     assert_eq!(
         classes(".. image:: a.png\n   :align: center\n"),
         vec!["align-center".to_string()]
     );
-    // An explicit class list is doubled, with the alignment fused onto the final entry.
     assert_eq!(
         classes(".. image:: a.png\n   :class: foo\n   :align: center\n"),
         vec!["foo".to_string(), "fooalign-center".to_string()]
@@ -413,7 +403,6 @@ fn substitution_image_carries_options() {
 
 #[test]
 fn figure_directive_separates_figure_and_image_attributes() {
-    // `:name:` identifies the inner image, `:align:` classes the figure; the figure id is empty.
     let blocks = parse(".. figure:: a.png\n   :name: first\n   :align: center\n\n   Cap\n");
     let (outer, body) = match blocks.first() {
         Some(Block::Figure(attr, _, body)) => (attr.clone(), body.clone()),
@@ -425,7 +414,6 @@ fn figure_directive_separates_figure_and_image_attributes() {
     assert_eq!(inner.id.as_str(), "first");
     assert!(inner.classes.is_empty());
 
-    // `:figclass:` and `:class:` both class the figure; only `:class:` reaches the inner image.
     let blocks = parse(".. figure:: a.png\n   :figclass: frame\n   :class: photo\n\n   Cap\n");
     let (outer, body) = match blocks.first() {
         Some(Block::Figure(attr, _, body)) => (attr.clone(), body.clone()),

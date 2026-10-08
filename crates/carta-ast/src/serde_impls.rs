@@ -1,13 +1,4 @@
-//! Hand-written serde codecs for the records whose JSON form is a positional array rather than a
-//! tagged object, plus the top-level [`Document`] map.
-//!
-//! Each array record (de)serializes through a Rust tuple: a tuple of references serializes as a
-//! JSON array, and a JSON array deserializes into a tuple. [`array_record`] generates both
-//! directions from one ordered field list, so the wire order is declared once and cannot drift
-//! between serialize and deserialize. [`Document`] is the exception: it is a fixed three-key
-//! object whose first key is the [`crate::API_VERSION_KEY`] constant (kept out of
-//! `#[serde(rename)]` so the literal stays confined to that constant), so it keeps a small map
-//! serializer and a `MapAccess` visitor.
+//! Serde codecs for positional-array records and the [`Document`] root map.
 
 use std::collections::BTreeMap;
 use std::fmt;

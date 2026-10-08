@@ -1,19 +1,4 @@
-//! LaTeX reader: parses a LaTeX source document into the document model.
-//!
-//! LaTeX has no line-oriented block grammar the way lightweight markup does; a source file is a
-//! stream of ordinary text, control sequences (`\name` / `\<symbol>`), grouping braces, math shifts,
-//! and environments (`\begin{env}` … `\end{env}`). Parsing is a single character-level recursive
-//! descent over the source: `Parser::parse_blocks` recognises block-level constructs (sectioning
-//! commands, environments, paragraphs) and `Parser::parse_inlines` the inline run inside each,
-//! accumulating a text buffer that flushes to [`Inline::Str`](carta_ast::Inline::Str) at every
-//! space, break, or markup
-//! boundary.
-//!
-//! Only the body between `\begin{document}` and `\end{document}` is rendered when a document
-//! environment is present; the preamble is scanned for metadata (`\title`, `\author`, `\date`) and
-//! macro definitions but otherwise dropped. A construct that has no faithful model representation
-//! degrades: an unknown command is dropped (or passed through verbatim under `raw_tex`), and an
-//! unknown environment becomes a classed [`Block::Div`] (or a raw block under `raw_tex`).
+//! Read LaTeX documents, metadata, and macro definitions.
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -43,7 +28,6 @@ impl Reader for LatexReader {
         let ext = options.extensions;
         let (preamble, body) = split_document(input);
 
-        // section levels depend on the highest sectioning command used, so scan the whole body first
         let base_level = base_section_level(body);
 
         let mut parser = Parser {
@@ -62,7 +46,6 @@ impl Reader for LatexReader {
             last_ws_had_newline: false,
         };
 
-        // The preamble contributes metadata and macro definitions but no blocks.
         if let Some(preamble) = preamble {
             parser.set_source(preamble);
             let _ = parser.parse_blocks(&Stop::Eof);
@@ -87,7 +70,6 @@ impl Reader for LatexReader {
 /// the preamble is everything before it and the body is the text up to a matching `\end{document}`;
 /// without one, the whole source is the body and there is no preamble.
 fn split_document(input: &str) -> (Option<&str>, &str) {
-    // the needles end in `}`, so substring search cannot latch onto a longer control word
     if let Some(begin) = input.find("\\begin{document}") {
         let after = &input[begin + "\\begin{document}".len()..];
         let body = match after.find("\\end{document}") {
@@ -292,7 +274,7 @@ impl Parser {
         }
     }
 
-    // --- Block level -----------------------------------------------------------------------------
+    // Block level
 
     /// Parses blocks until `stop`. At the nesting ceiling the body is left unparsed; every caller
     /// consumes the construct that led here, so the enclosing loop still makes progress.
@@ -389,7 +371,6 @@ impl Parser {
 
     /// Consumes a single stray character so a stalled loop makes progress. Returns `false` at EOF.
     fn advance_over_stray(&mut self) -> bool {
-        // A dangling `\end{env}` for an environment we are not inside is skipped whole.
         if self.looking_at("\\end")
             && let Some(env) = self.peek_env_after("\\end")
         {
@@ -397,7 +378,6 @@ impl Parser {
             let _ = env;
             return true;
         }
-        // a stray non-block control word (`\item`, `\par`) is dropped whole with a following optional arg
         if self.cur() == Some('\\') && self.at(1).is_some_and(|c| c.is_ascii_alphabetic()) {
             self.bump();
             while self.cur().is_some_and(|c| c.is_ascii_alphabetic()) {
@@ -438,14 +418,12 @@ impl Parser {
         if self.cur() != Some('\\') {
             return None;
         }
-        // `\begin{env}`: an environment, unless it is a math environment (which is inline content).
         if let Some(env) = self.peek_env_after("\\begin") {
             if math_env(&env) {
                 return None;
             }
             return Some(self.parse_environment(&env));
         }
-        // A macro that expands is read from its expansion frame, then re-examined.
         if self.try_expand_macro() {
             return self.parse_block_construct();
         }
@@ -465,7 +443,6 @@ impl Parser {
             | "DeclareRobustCommand"
             | "def"
             | "let" => Some(self.parse_macro_definition(&name)),
-            // commands that emit no block are consumed with their arguments and dropped
             "par" | "maketitle" | "tableofcontents" | "listoffigures" | "listoftables"
             | "frontmatter" | "mainmatter" | "backmatter" | "appendix" | "clearpage"
             | "cleardoublepage" | "newpage" | "pagebreak" | "noindent" | "bigskip" | "medskip"

@@ -126,17 +126,14 @@ impl<'a> InlineParser<'a> {
     /// the brackets for literal handling) when the content is not a citation list.
     fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
         let raw = self.raw_label(opener_index);
-        // A bracket longer than the remaining budget could never pay (a replay costs at least its
-        // length); bailing before the content scans keeps a run of doomed closes at O(1) each.
+        // Skip over-budget brackets before scanning to keep doomed closes at O(1).
         if raw.len() > self.notes.cite_budget.get() {
             return false;
         }
-        // No `@` means no citation list; skip the segment scan.
         if !raw.as_bytes().contains(&b'@') {
             return false;
         }
-        // The count the resolution starts from (see the rewind below); part of the memo key
-        // because the numbering stamped into the result depends on it.
+        // Citation numbering depends on the starting count, so include it in the memo key.
         let entry_count = match self.nodes.get(opener_index) {
             Some(Node::Delimiter(d)) => d.cite_count_at_open,
             _ => self.notes.cite_count.get(),
@@ -170,8 +167,7 @@ impl<'a> InlineParser<'a> {
             return false;
         };
         self.notes.cite_budget.set(budget);
-        // Interior bare citations are discarded with their nodes: rewind to the count at bracket
-        // open before numbering (for `![@key]` the discarded count stays off, numbering one low).
+        // Rewind discarded interior citations before numbering the bracket group.
         self.notes.cite_count.set(entry_count);
         // Reserve the group's number before parsing affixes so nested citations count after it.
         self.bump_cite_count();
@@ -236,8 +232,7 @@ impl<'a> InlineParser<'a> {
         } else {
             CitationMode::NormalCitation
         };
-        // Prefix is whitespace-trimmed; suffix keeps its leading space, drops trailing. Locator
-        // joins (`p.\u{a0}5`) are not applied: the suffix stays ordinary inlines.
+        // Trim prefix edges and suffix tails; keep suffix leading spaces and locator text.
         Some(Citation {
             id: key.id.into(),
             prefix: parse_inlines_shared(
@@ -410,8 +405,7 @@ impl<'a> InlineParser<'a> {
                 return Explicit::Target(target, next);
             }
         }
-        // Explicit reference: labels match raw source text; `spaced_reference_links` lets
-        // whitespace separate the two brackets (not the `(...)` target handled above).
+        // `spaced_reference_links` permits whitespace between reference brackets.
         let mut label_start = self.pos;
         if self.ext.contains(Extension::SpacedReferenceLinks) {
             while matches!(char_at(self.text, label_start), Some(' ' | '\t' | '\n')) {
@@ -537,7 +531,6 @@ impl<'a> InlineParser<'a> {
         }
         let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop();
-        // Stack entries pointing into the split-off range now belong to the inner node list.
         self.bracket_stack.retain(|&ni| ni < opener_index);
         let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         let inline = if is_image {

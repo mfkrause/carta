@@ -1,13 +1,6 @@
-//! Cross-checks the format registry against `docs/status.toml`, so a format cannot be added,
-//! renamed, or removed without the status data (and everything generated from it) following.
+//! Check that shipping format status agrees with the full-feature registry.
 //!
-//! The check is deliberately asymmetric: the status data is a superset of the registry, because it
-//! also tracks formats that are not started yet. So every registry name must be documented as
-//! shipping, and every name documented as shipping must be in the registry, while `not-started` and
-//! `not-applicable` entries are unconstrained roadmap rows.
-//!
-//! Gated on `full` because the registry enumerators report only the formats a build compiled in; a
-//! single-direction build would otherwise read as a pile of deleted formats.
+//! Roadmap entries remain unconstrained. The `full` feature prevents partial-build false failures.
 
 #![cfg(feature = "full")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

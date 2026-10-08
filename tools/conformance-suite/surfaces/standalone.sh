@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Standalone surface: separately-authored scaffolds are never byte-equal, so instead of diffing,
-# prove both standalone outputs carry the same content and metadata (per-family checks below).
+# Compare standalone content and metadata independently of template layout.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-# A metadata-rich document whose title, author, date, and body tokens survive transforms.
 STDOC="$WORK/.standalone.md"
 cat >"$STDOC" <<'EOF'
 ---
@@ -20,7 +18,6 @@ date: 2026-06-20
 Text wibble wobble here.
 EOF
 
-# Formats that ship a default standalone template.
 TARGETS="html html4 latex beamer revealjs typst markdown gfm rst asciidoc plain man opml rtf"
 
 html_blocks() { "$OX" -f html -t json <"$1" | jq -S '.blocks'; }

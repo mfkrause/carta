@@ -375,7 +375,6 @@ fn notes_defined_inside_a_cell_and_a_definition_are_lifted() {
         "footnote defined in a definition should be lifted into it"
     );
 
-    // Both note containers are consumed, so no reference link survives.
     let mut has_link = false;
     carta_core::walk::for_each_link_target(&mut document.blocks.clone(), &mut |_| {
         has_link = true;
@@ -424,8 +423,7 @@ fn deeply_nested_markup_reads_from_a_small_caller_stack() {
     );
     let epub = build(&opf, &[("OEBPS/a.xhtml", body.as_bytes())]);
 
-    // A shallow caller stack proves the read runs on its own deep worker stack. The tree is
-    // too deep to drop recursively, so it is leaked after an iterative depth check.
+    // Use a shallow caller stack; leak the deep tree to avoid recursive drop overflow.
     let depth = std::thread::Builder::new()
         .stack_size(512 * 1024)
         .spawn(move || {

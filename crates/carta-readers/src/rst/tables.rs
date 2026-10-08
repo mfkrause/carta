@@ -9,7 +9,7 @@ use carta_ast::{
 use std::collections::VecDeque;
 
 impl Parser<'_> {
-    // --- table directives ---
+    // table directives
 
     /// A `csv-table` directive: its rows are comma-separated values, with an optional explicit
     /// `:header:` row and/or a count of leading `:header-rows:` taken from the data.
@@ -149,11 +149,10 @@ impl Parser<'_> {
         }))
     }
 
-    // --- grid tables ---
+    // grid tables
 
     // Column widths are small character spans, far inside f64's exact-integer range.
     #[allow(clippy::cast_precision_loss)]
-    // One-pass walk over the character matrix; splitting would scatter shared cursor state.
     #[allow(clippy::too_many_lines)]
     pub(super) fn grid_table(
         &mut self,
@@ -169,7 +168,6 @@ impl Parser<'_> {
         if end - start < 3 {
             return None;
         }
-        // A padded character matrix so every position can be addressed by (row, column).
         let width = (start..end)
             .filter_map(|i| lines.get(i))
             .map(|l| l.chars().count())
@@ -189,7 +187,6 @@ impl Parser<'_> {
             return None;
         }
 
-        // The vertical and horizontal grid lines, as the distinct cell-edge positions.
         let mut col_edges: Vec<usize> = cells.iter().flat_map(|c| [c.left, c.right]).collect();
         col_edges.sort_unstable();
         col_edges.dedup();
@@ -204,7 +201,6 @@ impl Parser<'_> {
             return None;
         }
 
-        // Place each cell into a row/column grid, validating that the cells tile it exactly.
         let mut grid: Vec<Vec<Option<GridCell>>> = vec![vec![None; num_cols]; num_rows];
         let mut covered = vec![vec![false; num_cols]; num_rows];
         for cell in &cells {
@@ -244,7 +240,6 @@ impl Parser<'_> {
             return None;
         }
 
-        // A `=` separator line marks the boundary between header rows and body rows.
         let header_rows = row_edges
             .iter()
             .position(|edge| block.get(*edge).is_some_and(|row| row.contains(&'=')))
@@ -350,7 +345,7 @@ impl Parser<'_> {
         }
     }
 
-    // --- simple tables ---
+    // simple tables
 
     /// Parse a simple table beginning at its top border. Columns come from the `=` runs of the top
     /// border; the bottom border is the first `=` border followed by a blank line or the end of
@@ -498,7 +493,7 @@ impl Parser<'_> {
     }
 }
 
-// --- grid table helpers ------------------------------------------------------------------------
+// grid table helpers
 
 fn is_grid_line(line: &str) -> bool {
     line.starts_with('+') || line.starts_with('|')

@@ -1,14 +1,6 @@
-//! The set of bytes a pattern can begin a match with, read off the pattern text.
+//! Conservative leading-byte sets for rejecting impossible pattern matches.
 //!
-//! Trying a regular-expression rule means entering the regex engine, and compiling the pattern the
-//! first time. Most rules cannot match at most positions, so [`FirstBytes::of_pattern`] derives a
-//! superset of the leading bytes a match could start with and the tokenizer rejects a hopeless rule
-//! with one bit test instead. The analysis is deliberately partial: anything it does not model
-//! yields [`FirstBytes::any`], which admits every byte and so only costs the test.
-//!
-//! Soundness rests on never *excluding* a byte the pattern could actually start with. Every
-//! construct is therefore either modeled exactly or widened to "any"; a widened answer is slower,
-//! never wrong.
+//! Unknown syntax admits every byte. The set must contain every possible leading byte.
 
 use crate::grammar::{KeywordSettings, Matcher};
 
@@ -363,7 +355,6 @@ impl Parser<'_> {
                         self.at += 1;
                         look_around = true;
                     } else {
-                        // A named capture group; skip the name.
                         while !matches!(self.peek(), None | Some(b'>')) {
                             self.at += 1;
                         }
@@ -410,8 +401,7 @@ impl Parser<'_> {
             return None;
         }
         if look_around {
-            // Widening a look-around to "matches empty" keeps the set a superset: the element after
-            // it supplies the first byte, and the assertion can only narrow what actually matches.
+            // An assertion can narrow matches but cannot change the next consuming byte.
             return Some(Element {
                 first: FirstBytes::none(),
                 optional: true,
@@ -454,8 +444,7 @@ impl Parser<'_> {
             }
             set = set.union(single_char(low, self.insensitive));
         }
-        // Negation is taken over bytes: complementing the leading-byte set of the listed characters
-        // would be wrong for multi-byte members, so any negated class admits every non-ASCII lead.
+        // Negating Unicode members must admit all non-ASCII leading bytes.
         if negated {
             let mut complement = set.complement();
             complement.insert_non_ascii();

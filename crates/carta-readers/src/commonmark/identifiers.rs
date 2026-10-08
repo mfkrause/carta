@@ -1,10 +1,4 @@
-//! Auto-generated header identifiers.
-//!
-//! When an auto-identifier toggle is on, a header that carries no explicit identifier receives one
-//! derived from its text; an explicit identifier is kept and reserved so later derived identifiers
-//! avoid it. One walker threads the disambiguation state through the whole document in reading
-//! order, so a header's id depends on every header before it. The derivation and disambiguation
-//! rules live in [`crate::heading_ids`].
+//! Generate heading identifiers from text and disambiguate repeated identifiers.
 
 use carta_ast::{Block, Inline, Table, to_plain_text};
 use carta_core::Extensions;

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Enforce Conventional Commits on the subject line.
 # Enabled with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
 set -euo pipefail
 

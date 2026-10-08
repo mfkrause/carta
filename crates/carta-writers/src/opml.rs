@@ -1,11 +1,4 @@
-//! Outline writer: renders the document model to a nested outline of `<outline>` elements.
-//!
-//! The block sequence is sectioned by headers into a tree: each header opens an outline whose
-//! `text` attribute is the header's inlines rendered as inline html, and whose `_note` attribute is
-//! the markdown render of the blocks that follow the header up to its first subsection. A header
-//! with a greater level number nests as a child outline; siblings and shallower headers close the
-//! current outline. Content before the first header has no outline to attach to and is dropped.
-//! Output carries no trailing newline; the caller appends one.
+//! Render the document model as nested `<outline>` elements.
 
 use carta_ast::{Block, Document, Inline};
 use carta_core::{Result, WrapMode, Writer, WriterOptions};

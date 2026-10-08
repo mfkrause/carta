@@ -172,7 +172,6 @@ fn escaping_controls_and_unicode() {
         render(vec![para(vec![s("é…")])]),
         "{\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 \\u233 ?\\u8230 ?\\par}"
     );
-    // Astral characters split into a UTF-16 surrogate pair.
     assert_eq!(
         render(vec![para(vec![s("\u{1F600}")])]),
         "{\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 \\u55357 ?\\u56832 ?\\par}"
@@ -271,7 +270,6 @@ fn image_single_dimension_scales_other_axis() {
 
 #[test]
 fn image_percent_dimension_falls_back_to_intrinsic() {
-    // A percentage carries no absolute size, so each axis keeps its intrinsic goal.
     assert!(
         render(vec![embedded_image(vec![("width", "50%")])]).contains("\\picwgoal80\\pichgoal60"),
     );
@@ -372,9 +370,7 @@ fn column_widths_honor_explicit_fractions() {
     };
     let cw = ColWidth::ColWidth;
     let def = || ColWidth::ColWidthDefault;
-    // With no declared widths, the full width divides evenly.
     assert_eq!(column_widths(&[spec(def()), spec(def())]), vec![4320, 8640]);
-    // An undeclared column takes no width, so an explicit fraction keeps its proportion.
     assert_eq!(
         column_widths(&[spec(cw(0.8)), spec(def())]),
         vec![6912, 6912]
@@ -383,7 +379,6 @@ fn column_widths_honor_explicit_fractions() {
         column_widths(&[spec(def()), spec(cw(0.5)), spec(def())]),
         vec![0, 4320, 4320]
     );
-    // All columns explicit: plain cumulative edges.
     assert_eq!(
         column_widths(&[spec(cw(0.3)), spec(cw(0.3))]),
         vec![2592, 5184]
@@ -392,7 +387,6 @@ fn column_widths_honor_explicit_fractions() {
 
 #[test]
 fn multi_row_head_borders_only_first_row() {
-    // The head's bottom border falls under its first row only.
     let cell = |text: &str| Cell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
@@ -423,7 +417,6 @@ fn multi_row_head_borders_only_first_row() {
         ..Table::default()
     };
     let out = render(vec![Block::Table(Box::new(table))]);
-    // The first head row is bordered; the second head row and the body row are not.
     assert_eq!(
         out.matches("\\clbrdrb\\brdrs\\cellx4320\\clbrdrb\\brdrs\\cellx8640")
             .count(),

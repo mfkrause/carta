@@ -1,8 +1,4 @@
-//! Helpers shared by the writers that colorize code blocks (the HTML family and LaTeX): recognizing
-//! the line-numbering class, reading the starting line number, splitting an unclassified block into
-//! lines, and projecting a color theme onto the preamble each standalone target needs: the CSS the
-//! HTML family embeds and the token macros LaTeX defines. Token escaping and per-token markup are
-//! format-specific and stay with each writer.
+//! Shared code-block settings and theme CSS or LaTeX macro generation.
 
 use std::fmt::Write as _;
 

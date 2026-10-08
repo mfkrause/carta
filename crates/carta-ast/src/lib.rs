@@ -1,12 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
-//! The carta abstract syntax tree: the document model and its JSON interchange format.
+//! The document model and optional JSON interchange codec.
 //!
-//! This AST is the single contract between readers and writers.
-//! [`Document`] is the root; [`Block`] and [`Inline`] are the two load-bearing node families.
-//! The JSON interchange (de)serialization (the serde derives, the manual array codecs in
-//! `serde_impls`, and the convenience entry points [`from_json`] and [`to_json_writer`]) lives
-//! behind the `serde` feature.
+//! [`Document`] contains [`Block`] and [`Inline`] nodes. The `serde` feature enables JSON codecs.
 
 mod ast;
 #[cfg(feature = "serde")]

@@ -1,7 +1,4 @@
-//! Building the package document (`content.opf`): the publication's metadata, the manifest of every
-//! file it contains, the spine ordering the reading systems follow, and the guide's reading-order
-//! landmarks. The EPUB 3 and EPUB 2 dialects share this structure but differ in the package version,
-//! how a creator's role is recorded, and the accessibility and modification metadata EPUB 3 adds.
+//! Render publication metadata, manifest, spine, and guide into `content.opf`.
 
 use super::Version;
 use super::metadata::{BookMeta, Creator, Identifier};
@@ -139,8 +136,7 @@ fn build_metadata(
     if let Some(rights) = &meta.rights_text {
         block.push(Element::new("dc:rights").text(rights));
     }
-    // The cover pointer and `dcterms:modified` are singletons; skip the generated one when a
-    // carried-through fragment already declares it.
+    // Carried cover and modification properties replace generated singleton values.
     if let Some(cover) = cover_id
         && !extra_has_meta(meta, "name", "cover")
     {

@@ -1,10 +1,6 @@
-//! `DokuWiki` writer: renders the document model to `DokuWiki` markup.
+//! Render `DokuWiki` markup without a trailing newline.
 //!
-//! Inline content is emitted on a single line: a soft break becomes a space, or a newline under the
-//! preserve wrap mode, which keeps the source's own line breaks. Block structure is conveyed through
-//! `DokuWiki`'s line-oriented markup. Top-level blocks are separated by a blank line. Output carries
-//! no trailing newline; the caller appends one. This format has no public specification, so its
-//! rules are stated directly here.
+//! Preserve mode retains soft breaks; other modes convert them to spaces.
 
 use std::fmt::Write as _;
 
@@ -761,9 +757,7 @@ mod tests {
         );
     }
 
-    // Every cell is padded to the widest in its column, so a table nested in a cell is paid for
-    // once per row of the enclosing column. The write is refused rather than allowed to render
-    // gigabytes from a few hundred bytes of document.
+    // Nested table padding multiplies output per row; reject output above the size limit.
     #[test]
     fn a_table_nested_through_padded_cells_is_refused_past_the_output_ceiling() {
         use carta_ast::{ColSpec, ColWidth, TableBody, TableHead};

@@ -4,8 +4,7 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
-# Detaches this crate from the root workspace so the repo's coverage, deny, and cargo-hack gates do
-# not sweep it in.
+# Keep docgen outside workspace coverage, dependency, and feature checks.
 [workspace]
 
 [dependencies]

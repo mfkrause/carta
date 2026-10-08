@@ -29,7 +29,6 @@ pub(super) fn list_marker(line: &str) -> Option<MarkerInfo> {
     let indent = line.len() - line.trim_start().len();
     let rest = line.get(indent..)?;
     let bytes = rest.as_bytes();
-    // Bullet: '-' or '+', or '*' only when indented.
     if let Some(&c) = bytes.first()
         && (matches!(c, b'-' | b'+') || (c == b'*' && indent > 0))
         && (bytes.get(1) == Some(&b' ') || bytes.len() == 1)
@@ -40,7 +39,6 @@ pub(super) fn list_marker(line: &str) -> Option<MarkerInfo> {
             kind: Marker::Bullet,
         });
     }
-    // Ordered: digits or a single letter, then '.' or ')'.
     let mut j = 0;
     while bytes.get(j).is_some_and(u8::is_ascii_digit) {
         j += 1;

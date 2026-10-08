@@ -10,15 +10,10 @@ use crate::grid::MAX_MEASURED_TABLE_NESTING;
 use super::State;
 
 impl State {
-    /// Render a table. A non-empty caption becomes a `.. table::` directive followed by the table
-    /// indented three columns; without one the table sits at the left margin. The simple form is
-    /// chosen when the table is span-free, carries no explicit column widths, and fits the fill
-    /// column; otherwise the bordered grid form is used.
+    /// Render a table with an optional indented `.. table::` caption.
     ///
-    /// Both forms pad every cell out to its column width, so a table nested in a cell is paid for
-    /// once per row of the enclosing column; the rendering is charged against the write's output
-    /// ceiling and abandoned once that ceiling is passed, both before the rows are rendered and
-    /// once they are in hand.
+    /// Use simple tables only without spans or explicit widths and within the fill column.
+    /// Charge nested padding against the output limit before and after rendering rows.
     pub(super) fn table(&mut self, table: &Table, width: usize) -> String {
         if budget::exhausted() {
             return String::new();
@@ -124,8 +119,7 @@ impl State {
             placements.push((col, span));
             col += span;
         }
-        // A row right after a `=` rule with an empty first cell would start with whitespace, which
-        // the grammar reads as rule continuation; a lone backslash holds the column open.
+        // After a `=` rule, an empty first cell needs a backslash to prevent rule continuation.
         let row_has_content = col_lines.iter().any(|lines| !lines.is_empty());
         if after_rule
             && row_has_content
@@ -158,8 +152,7 @@ impl State {
         let permits_simple = self.table_depth <= MAX_MEASURED_TABLE_NESTING
             && Self::permits_simple_table(table, columns);
         if self.table_depth > MAX_MEASURED_TABLE_NESTING {
-            // Measuring re-renders every cell, compounding per nesting level; past the cap,
-            // columns take an even share of the fill width, keeping total work linear.
+            // Cap recursive measurement; deeper tables split the fill width evenly.
             let share = (self.width / columns.max(1)).max(1);
             natural.fill(share);
             minword.fill(1);
@@ -232,7 +225,6 @@ impl State {
                 let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
                 let (width, word) = measure_unbreakable(&lines);
                 if let Some(value) = simple.get_mut(start) {
-                    // A trailing cell space is trimmed from the field but still holds a column of width.
                     let trailing_space = usize::from(cell_ends_with_space(&cell.content));
                     *value = (*value).max(width + trailing_space);
                 }

@@ -1,11 +1,4 @@
-//! Writer for the `OpenDocument` Text (ODT) package format.
-//!
-//! Renders a [`carta_ast::Document`] into a complete, deterministic ODT archive: a Zip container
-//! holding the uncompressed `mimetype` marker, the package manifest, the document body
-//! (`content.xml`), the stylesheet (`styles.xml`), the metadata (`meta.xml`), an RDF package
-//! description, and any embedded images under `Pictures/`. The archive bytes are reproducible across
-//! runs: the Zip layer stamps a fixed timestamp, maps are ordered, and the timestamps written into
-//! the metadata derive from a fixed epoch rather than the wall clock.
+//! Render `OpenDocument` Text packages from the document model.
 
 use std::collections::BTreeMap;
 
@@ -368,14 +361,10 @@ mod tests {
     #[test]
     fn language_tag_splits_into_language_and_region() {
         assert_eq!(language_country("de-DE"), ("de".into(), "DE".into()));
-        // A bare primary subtag carries no region.
         assert_eq!(language_country("en"), ("en".into(), String::new()));
         assert_eq!(language_country("yue"), ("yue".into(), String::new()));
-        // A three-digit UN M.49 code is a region.
         assert_eq!(language_country("es-419"), ("es".into(), "419".into()));
-        // A four-letter script subtag is skipped; the region is taken from a later subtag.
         assert_eq!(language_country("de-Latn-DE"), ("de".into(), "DE".into()));
-        // Casing is normalised: language lowercased, region uppercased.
         assert_eq!(language_country("EN-us"), ("en".into(), "US".into()));
     }
 
@@ -390,7 +379,6 @@ mod tests {
             ]),
         );
         assert_eq!(meta_keywords(&meta), "alpha, beta");
-        // A single scalar contributes its own text; an absent field is empty.
         meta.insert(
             Text::from("keywords"),
             MetaValue::MetaString(Text::from("solo")),

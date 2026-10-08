@@ -172,8 +172,7 @@ pub(super) fn parse_environment(
         return None;
     }
     let env = text_pieces_to_string(&parse_verbatim_group(tokens, pos, TextMode::Math)?);
-    // mathtools starred environments render as the unstarred form; the optional `[align]` argument
-    // becomes literal leading content of the first cell. Base name drives the lookup, full name matches `\end`.
+    // Starred grids use the base name for lookup and the full name to match `\end`.
     let starred_grid = matches!(
         env.as_str(),
         "matrix*"
@@ -200,8 +199,7 @@ pub(super) fn parse_environment(
         _ => None,
     };
     let grid_kind = match base {
-        // Multi-line environments are alignment grids (rows on `\\`, columns on `&`); single-line
-        // `equation` is handled below.
+        // Multiline environments form grids; single-line equations are handled below.
         "aligned" | "align" | "aligned*" | "align*" | "split" | "alignat" | "alignat*"
         | "alignedat" | "alignedat*" => Some(GridKind::Aligned),
         "gathered" | "gather" | "gather*" | "smallmatrix" | "multline" | "multline*"
@@ -217,8 +215,7 @@ pub(super) fn parse_environment(
     if matrix_delim.is_none() && grid_kind.is_none() && !single_line {
         return None;
     }
-    // `array` carries a `{cols}` spec group, `alignat`/`alignedat` a mandatory `{N}` count group;
-    // a missing group is malformed and falls back to verbatim.
+    // `array` and `alignat` variants require their column argument groups.
     let array_aligns = if env == "array" {
         let spec = text_pieces_to_string(&parse_verbatim_group(tokens, pos, TextMode::Math)?);
         parse_column_aligns(&spec)
@@ -231,7 +228,6 @@ pub(super) fn parse_environment(
     ) {
         parse_verbatim_group(tokens, pos, TextMode::Math)?;
     }
-    // A starred grid's `[align]` argument becomes verbatim leading content of the first cell.
     let leading = if starred_grid {
         optional_bracket_literal(tokens, pos)
     } else {
@@ -391,8 +387,7 @@ fn parse_matrix_cell(
                 *pos += 1;
                 return Some((atoms, CellEnd::Environment));
             }
-            // An environment nested directly in a cell splices, so an inner grid reads as part of
-            // the surrounding alignment rather than a parenthesised operand.
+            // Directly nested environments splice their cells into the surrounding grid.
             Token::Command(c) if c == "begin" => {
                 *pos += 1;
                 let spliced = parse_environment(tokens, pos, depth)?;
@@ -428,8 +423,7 @@ fn parse_matrix_cell(
                 let last = atoms.last_mut()?;
                 push_prime(last);
             }
-            // In-cell numbering annotations have no glyph: `\nonumber` drops, `\tag` discards its
-            // argument, `\label` becomes a `Label` atom; a nested group leaves the expression unhandled.
+            // Consume cell annotations and retain labels; nested annotation groups stay unsupported.
             Token::Command(c) if c == "nonumber" => {
                 *pos += 1;
             }
@@ -443,7 +437,6 @@ fn parse_matrix_cell(
                     atoms.push(Atom::new(Body::Label(name)));
                 }
             }
-            // A rule between rows has no glyph and does not affect the cells; consume and drop.
             Token::Command(c) if c == "hline" || c == "hdashline" => {
                 *pos += 1;
             }

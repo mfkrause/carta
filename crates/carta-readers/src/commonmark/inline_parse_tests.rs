@@ -104,7 +104,7 @@ fn image(alt: Vec<Inline>, url: &str) -> Inline {
     )
 }
 
-// --- TeX math ---
+// TeX math
 
 fn math_inline(content: &str) -> Inline {
     Inline::Math(carta_ast::MathType::InlineMath, content.to_owned().into())
@@ -118,7 +118,7 @@ fn math() -> Extensions {
     exts(&[Extension::TexMathDollars])
 }
 
-// --- Attributes: spans, inline code, links ---
+// Attributes: spans, inline code, links
 
 fn span(attr: Attr, content: Vec<Inline>) -> Inline {
     Inline::Span(Box::new(attr), content)
@@ -136,7 +136,7 @@ fn attrs() -> Extensions {
     exts(&[Extension::Attributes])
 }
 
-// --- Inline raw attribute (`{=FORMAT}` on a code span) ---
+// Inline raw attribute (`{=FORMAT}` on a code span)
 
 fn raw(format: &str, text: &str) -> Inline {
     Inline::RawInline(
@@ -149,7 +149,7 @@ fn code(text: &str) -> Inline {
     Inline::Code(Box::default(), text.to_owned().into())
 }
 
-// --- Inline raw TeX and backslash math ---
+// Inline raw TeX and backslash math
 
 fn tex(source: &str) -> Inline {
     Inline::RawInline(
@@ -170,19 +170,19 @@ fn double_math() -> Extensions {
     exts(&[Extension::TexMathDoubleBackslash])
 }
 
-// --- Native spans (`<span …>` … `</span>`) ---
+// Native spans (`<span …>` … `</span>`)
 
 fn native() -> Extensions {
     exts(&[Extension::NativeSpans])
 }
 
-// --- Mark (highlight) ---
+// Mark (highlight)
 
 fn mark(content: Vec<Inline>) -> Inline {
     span(attr("", &["mark"], &[]), content)
 }
 
-// --- Citations ---
+// Citations
 
 fn cites() -> Extensions {
     exts(&[Extension::Citations])

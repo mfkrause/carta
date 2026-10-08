@@ -20,7 +20,6 @@ fn empty_attribute_block_is_not_a_span() {
 
 #[test]
 fn consecutive_attribute_blocks_merge_first_id_wins() {
-    // Adjacent blocks accumulate classes and key/value pairs; the first identifier is kept.
     assert_eq!(
         pe(
             "[x]{#one .a}{#two .b k=v}",
@@ -52,7 +51,6 @@ fn inline_code_takes_attributes() {
             "code".to_owned().into()
         )]
     );
-    // A space before the block leaves it unattached (no wrapper artifact is produced).
     assert_eq!(
         pe("`code` x", attrs()),
         vec![
@@ -92,8 +90,7 @@ fn attributes_require_the_extension() {
 
 #[test]
 fn nested_image_with_inner_link_and_deactivated_bracket() {
-    // the inner link's success deactivates the `[` between `![` and `[foo]`; the next `]` must pop
-    // and literalize that opener, not reach the image opener; only the final `](uri3)` closes it
+    // The inner link deactivates the middle opener; only the final close reaches the image.
     assert_eq!(
         p("![[[foo](uri1)](uri2)](uri3)"),
         vec![image(
@@ -129,27 +126,22 @@ fn raw_attribute_tolerates_whitespace_around_marker() {
 #[test]
 fn raw_attribute_normalizes_code_content() {
     let ext = exts(&[Extension::RawAttribute]);
-    // A single space padding each side is stripped, exactly as for a code span.
     assert_eq!(pe("` x `{=html}", ext), vec![raw("html", "x")]);
 }
 
 #[test]
 fn raw_attribute_requires_a_pure_format_marker() {
     let ext = exts(&[Extension::RawAttribute]);
-    // A space between `=` and the format is not a marker.
     assert_eq!(
         pe("`x`{= html}", ext),
         vec![code("x"), str("{="), Inline::Space, str("html}"),]
     );
-    // An empty format is not a marker.
     assert_eq!(pe("`x`{=}", ext), vec![code("x"), str("{=}")]);
-    // Anything beyond the format (a class, a dot) defeats the marker.
     assert_eq!(pe("`x`{=a.b}", ext), vec![code("x"), str("{=a.b}")]);
 }
 
 #[test]
 fn plain_attribute_block_on_code_span_is_not_raw() {
-    // `{.class}` keeps the code span and applies the attribute (inline code attributes on).
     let ext = exts(&[Extension::RawAttribute, Extension::InlineCodeAttributes]);
     assert_eq!(
         pe("`x`{.c}", ext),
@@ -180,15 +172,13 @@ fn code_span_with_no_closer_stays_literal() {
 
 #[test]
 fn code_span_failed_search_does_not_mask_a_different_length_match() {
-    // the length-1 opener stays literal; the length-2 span after it must still match, since the
-    // close index is keyed by run length and one length's absence does not suppress another's
+    // Missing closers for one run length must not suppress another length.
     assert_eq!(p("`a ``b``"), vec![str("`a"), Inline::Space, code("b")]);
 }
 
 #[test]
 fn code_span_opener_is_a_run_suffix_stays_literal() {
-    // the escape eats the run's first backtick, so the opener is a run suffix whose length need
-    // not equal any full run's; no length-2 run closes it, so both openers stay literal
+    // Escaping the first backtick leaves a suffix opener shorter than the indexed run.
     assert_eq!(
         p("\\``` x \\``` x"),
         vec![
@@ -226,13 +216,11 @@ fn code_span_close_before_cursor_is_not_reused() {
 
 #[test]
 fn code_span_runs_at_buffer_ends_match() {
-    // Opener at position 0 and closer as the final characters of the buffer.
     assert_eq!(p("``a``"), vec![code("a")]);
 }
 
 #[test]
 fn code_span_index_matches_scan_on_tricky_buffers() {
-    // nested lengths, adjacent runs of different lengths, and a shorter inner run before the matching closer
     assert_eq!(p("``x`y``"), vec![code("x`y")]);
     assert_eq!(p("`a ``b`` c`"), vec![code("a ``b`` c")]);
     assert_eq!(p("``a` b``"), vec![code("a` b")]);

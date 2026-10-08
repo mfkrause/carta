@@ -64,7 +64,6 @@ fn large_operator_is_a_bare_symbol() {
 
 #[test]
 fn named_function_gets_a_trailing_thin_space() {
-    // upright name plus trailing thin space (U+2006); adjacent strings collapse into one
     assert_eq!(to_inlines("\\sin"), Some(vec![str_inline("sin\u{2006}")]));
 }
 
@@ -154,7 +153,6 @@ fn double_prime_uses_the_double_prime_glyph() {
 
 #[test]
 fn prime_then_explicit_superscript_keeps_both() {
-    // x'^2 places the prime mark before the explicit exponent within one superscript.
     assert_eq!(
         to_inlines("x'^2"),
         Some(vec![
@@ -167,31 +165,26 @@ fn prime_then_explicit_superscript_keeps_both() {
 
 #[test]
 fn prime_after_a_subscript_fills_the_free_superscript_slot() {
-    // the base's superscript slot is free, so the prime nests there beside the subscript
     assert_eq!(to_typst("a_b'"), Some("a'_b".to_string()));
 }
 
 #[test]
 fn prime_after_a_filled_subscript_and_superscript_detaches() {
-    // both slots filled: the prime detaches as a bare glyph after the script
     assert_eq!(to_typst("a_b^c'"), Some("a_b^c'".to_string()));
 }
 
 #[test]
 fn prime_detaches_after_a_nested_prime_superscript() {
-    // the outer prime reaches a parent whose superscript is already filled, so it detaches
     assert_eq!(to_typst("a^c'_d'"), Some("a^(c'_d)'".to_string()));
 }
 
 #[test]
 fn prime_detaches_symmetrically_for_the_subscript_first_shape() {
-    // mirror shape: the closing prime detaches onto its own empty base
     assert_eq!(to_typst("a_c'^d'"), Some("a'_c \"\"^(d')".to_string()));
 }
 
 #[test]
 fn consecutive_primes_after_a_subscript_merge_into_one_double_prime() {
-    // the first prime stays the active atom; the second merges into one double prime
     assert_eq!(to_typst("a_b''"), Some("a''_b".to_string()));
     assert_eq!(
         to_inlines("a_b''"),
@@ -205,7 +198,6 @@ fn consecutive_primes_after_a_subscript_merge_into_one_double_prime() {
 
 #[test]
 fn function_alone_in_a_script_drops_its_trailing_thin_space() {
-    // sole script content has no following operand, so the trailing thin space (U+2006) drops
     assert_eq!(
         to_inlines("x^{\\sin}"),
         Some(vec![var("x"), Inline::Superscript(vec![str_inline("sin")])])
@@ -218,7 +210,6 @@ fn function_alone_in_a_script_drops_its_trailing_thin_space() {
 
 #[test]
 fn function_among_other_atoms_in_a_script_keeps_its_thin_space() {
-    // more than one atom in the script keeps the function's thin space
     assert_eq!(
         to_inlines("x^{\\sin\\cos}"),
         Some(vec![
@@ -237,7 +228,6 @@ fn function_among_other_atoms_in_a_script_keeps_its_thin_space() {
 
 #[test]
 fn leading_subscript_attaches_to_an_empty_nucleus() {
-    // `_x` has no base: it lowers to just the subscript, with no preceding glyph.
     assert_eq!(
         to_inlines("_x"),
         Some(vec![Inline::Subscript(vec![var("x")])])
@@ -254,7 +244,6 @@ fn leading_superscript_attaches_to_an_empty_nucleus() {
 
 #[test]
 fn negative_exponent_keeps_the_minus_sign() {
-    // The minus in an exponent is the math minus (U+2212), merged with the following digit.
     assert_eq!(
         to_inlines("x^{-1}"),
         Some(vec![
@@ -286,7 +275,6 @@ fn script_capital_maps_to_its_named_letterlike_codepoint() {
 
 #[test]
 fn set_minus_is_a_spaced_backslash() {
-    // trailing space stays its own string so a writer escaping the backslash does not consume it
     assert_eq!(
         to_inlines("a \\setminus b"),
         Some(vec![
@@ -343,7 +331,6 @@ fn binary_mod_renders_the_operator_word_with_spacing() {
 
 #[test]
 fn lone_binary_mod_has_no_inline_form() {
-    // A modulo operator with nothing to bind to falls back to verbatim source.
     assert_eq!(to_inlines("\\bmod"), None);
     assert_eq!(to_typst("\\bmod"), None);
 }
@@ -359,7 +346,6 @@ fn overleftarrow_has_no_inline_form_but_translates() {
 
 #[test]
 fn surd_prefix_radical_has_no_inline_form_but_translates() {
-    // \surd takes the next group as a radicand: a radical, which cannot sit inline.
     assert_eq!(to_inlines("\\surd x"), None);
     assert_eq!(to_typst("\\surd x").as_deref(), Some("sqrt(x)"));
 }
@@ -381,13 +367,11 @@ fn over_primitive_has_no_inline_form() {
 
 #[test]
 fn stacked_operator_limits_have_no_inline_form() {
-    // A limit operator carrying both a lower and upper limit cannot sit on one line.
     assert_eq!(to_inlines("\\sum_{i=1}^{n}"), None);
 }
 
 #[test]
 fn second_order_accent_has_no_inline_form() {
-    // The double-dot accent has no single combining-mark rendering here.
     assert_eq!(to_inlines("\\ddot{x}"), None);
 }
 
@@ -403,7 +387,6 @@ fn unknown_command_has_no_inline_form() {
 
 #[test]
 fn empty_input_lowers_to_an_empty_result() {
-    // empty and whitespace-only math converts successfully to nothing, not a verbatim fallback
     assert_eq!(to_inlines(""), Some(Vec::new()));
     assert_eq!(to_inlines("   "), Some(Vec::new()));
     assert_eq!(to_inlines("{}"), Some(Vec::new()));

@@ -50,7 +50,6 @@ fn layout_elements_wrap_their_children() {
 
 #[test]
 fn a_recognized_over_accent_maps_to_its_command() {
-    // A spacing macron and a combining overline overline the base; a combining macron bars it.
     assert_eq!(
         tex("<math><mover><mi>x</mi><mo>^</mo></mover></math>"),
         "\\hat{x}"
@@ -71,12 +70,10 @@ fn a_recognized_over_accent_maps_to_its_command() {
 
 #[test]
 fn an_unrecognized_overscript_is_stacked_rather_than_dropped() {
-    // A brace or label over the base must be preserved, not silently replaced by an accent.
     assert_eq!(
         tex("<math><mover><mi>x</mi><mtext>def</mtext></mover></math>"),
         "\\overset{\\text{def}}{x}"
     );
-    // A near-miss glyph without a dedicated accent command stacks rather than borrowing another's.
     assert_eq!(
         tex("<math><mover><mi>x</mi><mo>\u{2192}</mo></mover></math>"),
         "\\overset{\\rightarrow}{x}"
@@ -85,7 +82,6 @@ fn an_unrecognized_overscript_is_stacked_rather_than_dropped() {
 
 #[test]
 fn only_limit_bearing_bases_take_limits() {
-    // A large operator carries its script as a stacked limit.
     assert_eq!(
         tex("<math><munder><mo>\u{2211}</mo><mi>i</mi></munder></math>"),
         "\\sum\\limits_{i}"
@@ -119,12 +115,10 @@ fn fenced_separators_cycle_and_repeat_the_last() {
         tex("<math><mfenced separators=';,'><mi>a</mi><mi>b</mi><mi>c</mi></mfenced></math>"),
         "\\left( {a;b,c} \\right)"
     );
-    // A single separator applies to every gap.
     assert_eq!(
         tex("<math><mfenced separators=';'><mi>a</mi><mi>b</mi><mi>c</mi></mfenced></math>"),
         "\\left( {a;b;c} \\right)"
     );
-    // Defaults are parentheses and commas.
     assert_eq!(
         tex("<math><mfenced><mi>a</mi><mi>b</mi></mfenced></math>"),
         "\\left( {a,b} \\right)"
@@ -137,21 +131,18 @@ fn fenced_separators_cycle_and_repeat_the_last() {
 
 #[test]
 fn multiscripts_collect_one_group_per_side() {
-    // prescripts attach to an empty nucleus; an empty post-script side still emits its groups
     assert_eq!(
         tex(
             "<math><mmultiscripts><mi>C</mi><none/><none/><mprescripts/><mn>6</mn><mn>14</mn></mmultiscripts></math>"
         ),
         "{}_{6}^{14}C_{}^{}"
     );
-    // Several post-script pairs collapse into a single subscript and superscript, never a second `_`.
     assert_eq!(
         tex(
             "<math><mmultiscripts><mi>R</mi><mi>a</mi><mi>b</mi><mi>c</mi><mi>d</mi></mmultiscripts></math>"
         ),
         "{}R_{ac}^{bd}"
     );
-    // A `<none/>` slot leaves its group empty but the side, being present, still emits both groups.
     assert_eq!(
         tex("<math><mmultiscripts><mi>x</mi><mn>1</mn><none/></mmultiscripts></math>"),
         "{}x_{1}^{}"
@@ -170,7 +161,6 @@ fn an_operator_of_tex_specials_is_escaped() {
 #[test]
 fn character_mapping_touches_only_specials() {
     assert_eq!(map_characters("%", Faces::default()), "\\%");
-    // An escape keeps the character after it from reading as part of the command.
     assert_eq!(map_characters("a#b", Faces::default()), "a\\# b");
     assert_eq!(map_characters("plain", Faces::default()), "plain");
 }
@@ -187,14 +177,11 @@ fn an_operator_symbol_maps_to_its_command() {
 fn a_face_written_around_a_fragment_is_not_written_again_inside_it() {
     let style =
         |variant, body| format!("<math><mstyle mathvariant='{variant}'>{body}</mstyle></math>");
-    // The face the row is set in leaves the tokens it holds bare.
     assert_eq!(tex(&style("bold", "<mi>a</mi><mi>b</mi>")), "\\mathbf{ab}");
-    // A letter of the alphanumeric plane comes down to the letter it is set from.
     assert_eq!(
         tex(&style("double-struck", "<mi>\u{211d}</mi>")),
         "\\mathbb{R}"
     );
-    // A variant that differs is written even where it stands for the same command.
     assert_eq!(
         tex(&style("bold", "<mi mathvariant='bold-italic'>a</mi>")),
         "\\mathbf{\\mathbf{a}}"
@@ -208,7 +195,6 @@ fn a_variant_naming_no_face_reads_as_the_plain_one() {
         tex("<math><mstyle mathvariant='bold'><mi mathvariant='initial'>a</mi></mstyle></math>"),
         "\\mathbf{\\mathrm{a}}"
     );
-    // A style wrapper left with no variant in force sets its row in the plain face.
     assert_eq!(
         tex("<math><mstyle mathvariant='bold'><mstyle><mi>a</mi></mstyle></mstyle></math>"),
         "\\mathbf{\\mathrm{a}}"

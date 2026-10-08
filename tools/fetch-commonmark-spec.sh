@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Vendor the CommonMark spec (CC-BY-SA 4.0, an allowed source of truth): its examples are markdown inputs only;
-# expected output comes from the pinned oracle, never the spec's HTML. Re-run only to bump SPEC_VERSION.
+# Fetch CommonMark input examples only; update SPEC_VERSION to replace the vendored spec.
 set -euo pipefail
 
 SPEC_VERSION="0.31.2"

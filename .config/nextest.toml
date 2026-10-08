@@ -1,4 +1,3 @@
-# The default 100ms leak-timeout trips on process-teardown jitter and flags in-process tests as
-# leaky; a real leak would hold the stdio pipes far longer than 500ms.
+# Allow 500 ms for process teardown to avoid false leak reports.
 [profile.default]
 leak-timeout = "500ms"

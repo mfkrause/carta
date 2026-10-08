@@ -1,10 +1,7 @@
-//! Generates a sorted set of valid named-character-reference names from the vendored WHATWG
-//! `entities.json`. The `CommonMark` writer consults it to decide when a literal `&` must be escaped
-//! so running text is not re-read as a character reference. Only the semicolon-terminated names are
-//! recognized, stored without the leading `&` or trailing `;`. The data file lives inside this crate
-//! so it builds in isolation; a test keeps it byte-identical to the readers crate's copy.
+//! Generate semicolon-terminated entity names from the vendored WHATWG data.
+//!
+//! Keep the crate-local data identical to the readers crate so both build independently.
 
-// A failed build script should abort the build loudly; panicking is the intended behavior here.
 #![allow(clippy::expect_used)]
 
 use std::collections::BTreeSet;

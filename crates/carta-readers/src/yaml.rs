@@ -1,13 +1,4 @@
-//! A focused YAML parser for document metadata blocks.
-//!
-//! It covers the subset that frontmatter uses: block mappings and sequences, flow collections
-//! (`[a, b]`, `{k: v}`), plain/single-quoted/double-quoted scalars, and literal (`|`) and folded
-//! (`>`) block scalars, plus `#` comments. Scalar *flavor* is retained ([`Scalar`]) because type
-//! resolution (booleans, null, and number canonicalization) applies only to unquoted plain
-//! scalars.
-//!
-//! The grammar handled here is the one document front matter needs, not all of YAML; anchors,
-//! aliases, tags, and multi-document streams are out of scope
+//! Parse YAML document metadata with bounded nesting.
 
 /// A parsed YAML value.
 #[derive(Debug, Clone, PartialEq)]
@@ -791,8 +782,7 @@ fn render_decimal(neg: bool, int_digits: &str, frac_digits: &str, exp: i64) -> S
 
     let sign = if neg { "-" } else { "" };
     let digit_count = len_i64(digits.len());
-    // Plain rendering: whole numbers inside the i64 range, fractions with the leading digit
-    // between 10^-1 and 10^6; everything else goes scientific.
+    // Use plain notation for i64 integers and fractions with leading digits in 10^-1..10^6.
     let body = if point >= digit_count {
         if fits_i64_integer(&digits, point, neg) {
             fixed(&digits, point, digit_count)

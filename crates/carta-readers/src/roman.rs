@@ -1,9 +1,4 @@
-//! Roman numeral evaluation.
-//!
-//! Three deliberately distinct algorithms live side by side, one per reader. They disagree on
-//! ill-formed numerals (`iix` is 8 to the reverse scan, 10 to the forward lookahead, and rejected
-//! by the strict place-wise parser) and each reader's list parsing depends on its own reading, so
-//! they are not interchangeable.
+//! Evaluate Roman numeral list markers.
 
 /// The value of a roman numeral read right to left: a digit smaller than the largest digit seen so
 /// far subtracts, any other digit adds. Accepts ill-formed numerals (`iix` → 8).
@@ -73,7 +68,6 @@ pub(crate) fn roman_value_strict(run: &[u8]) -> Option<i32> {
     let mut pos = 0usize;
     let mut total: i32 = 0;
 
-    // Thousands: any number of `m`.
     while lower.get(pos) == Some(&b'm') {
         total = total.checked_add(1000)?;
         pos += 1;
@@ -136,8 +130,7 @@ mod tests {
         assert_eq!(roman_value_strict(b"mm"), Some(2000));
     }
 
-    // A roman run long enough to overflow the thousands accumulator is not a valid enumerator: the
-    // checked add yields `None` rather than panicking under overflow checks.
+    // Reject overflowing Roman numerals with checked addition.
     #[test]
     fn roman_value_rejects_oversized_run() {
         let run = vec![b'm'; 3_000_000];

@@ -1,8 +1,4 @@
-//! End-to-end coverage of how syntax highlighting reaches a standalone document's scaffold: the
-//! web templates carry the theme stylesheet, the print templates carry the per-token macros, the
-//! idiomatic print mode carries the listing package, and an EPUB chapter inlines the stylesheet only
-//! when the chapter holds colorized code. These wire the theme through the real reader-to-template
-//! path, offline.
+//! Check theme CSS, token macros, and listing packages in standalone output.
 
 #![cfg(all(feature = "highlight", feature = "read-commonmark"))]
 #![allow(
@@ -100,7 +96,6 @@ fn standalone_latex_preamble_carries_token_macros() {
 #[test]
 #[cfg(feature = "write-latex")]
 fn standalone_latex_default_text_color_reaches_every_macro() {
-    // A theme whose default foreground is set colors even the token kinds that specify none.
     let out = standalone("latex", themed("espresso"), WITH_CODE);
     assert!(out.contains("\\newcommand{\\NormalTok}[1]{\\textcolor[rgb]{0.74,0.68,0.62}{#1}}"));
     assert!(out.contains("\\newcommand{\\AttributeTok}[1]{\\textcolor[rgb]{0.74,0.68,0.62}{#1}}"));

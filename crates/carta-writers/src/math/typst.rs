@@ -79,7 +79,6 @@ pub(super) fn lower_loose(display: bool, atoms: &[Atom]) -> Option<String> {
 fn lower_with(display: bool, atoms: &[Atom], spacing: Spacing) -> Option<String> {
     let mut pieces = Vec::new();
     for atom in atoms {
-        // a `\label` has no glyph and is lifted out by the entry point; skip so it takes no spacing slot
         if matches!(atom.body, Body::Label(_)) {
             continue;
         }
@@ -107,15 +106,12 @@ fn join(pieces: &[String], spacing: Spacing) -> String {
 
 /// Whether a space is needed between two adjacent rendered pieces.
 fn needs_space(left: &str, right: &str, spacing: Spacing) -> bool {
-    // an empty piece is a bare spacing slot (`{}`): keep a space so the slot stays visible
     let (Some(_), Some(r)) = (left.chars().next_back(), right.chars().next()) else {
         return true;
     };
-    // Primes attach to their base.
     if r == '\'' {
         return false;
     }
-    // escaped punctuation (`\(`, `\,`, …) binds tight at top level, spaced inside delimited groups
     if spacing == Spacing::Tight && (ends_tight(left) || starts_tight(right)) {
         return false;
     }
@@ -170,25 +166,20 @@ fn is_number_char(c: char) -> bool {
 
 #[allow(clippy::similar_names)]
 fn atom_str(display: bool, atom: &Atom) -> Option<String> {
-    // a horizontal brace consumes its matching script as the label argument, not as a Typst script
     if let Body::Brace(kind, inner) = &atom.body {
         return brace_str(display, *kind, inner, atom);
     }
     let has_scripts = atom.sub.is_some() || atom.sup.is_some() || !atom.siblings.is_empty();
     let mut out = match &atom.body {
-        // A synthesized empty nucleus (a leading `_`/`^`) renders as Typst's empty content.
         Body::Empty => "\"\"".to_string(),
         Body::Prime(count) => "'".repeat(*count as usize),
-        // explicit empty group: zero-width space under scripts, bare spacing slot alone
         Body::EmptyGroup if has_scripts => "zws".to_string(),
         Body::EmptyGroup => String::new(),
         body => nucleus_str(display, body)?,
     };
-    // display-mode limit operator: a prime stacks as a superscript (`\sum'` → `sum^(')`) via the
-    // ordinary script path below, not pulled ahead as a literal mark
+    // Display limit primes use the superscript path instead of a literal mark.
     let stack_prime = display && is_limit_op_body(&atom.body);
-    // Typst allows one sub and one sup per base: slot reuse or a restart run emits a fresh `""` base;
-    // a prime superscript attaches as a literal `'` set before the subscript, as TeX sets primes first
+    // Reused script slots start a fresh empty base; literal primes precede subscripts.
     let primary_sup_is_prime = !stack_prime && atom.sup.as_deref().and_then(prime_script).is_some();
     if primary_sup_is_prime && let Some(count) = atom.sup.as_deref().and_then(prime_script) {
         for _ in 0..count {
@@ -202,7 +193,6 @@ fn atom_str(display: bool, atom: &Atom) -> Option<String> {
         let mut sub_used = false;
         let mut sup_used = false;
         for script in &run.scripts {
-            // primary prime superscript was already emitted above; skip to avoid a double render
             if primary_sup_is_prime
                 && script.kind == ScriptKind::Sup
                 && !run.restart
@@ -281,8 +271,7 @@ fn push_typst_script(
     sup_used: &mut bool,
     stack_prime: bool,
 ) -> Option<()> {
-    // a prime superscript attaches as a literal `'` without consuming the slot, except on a
-    // display-mode limit operator where it stacks as `^(')` through the path below
+    // Primes stay literal except on display limit operators, where they stack.
     if !stack_prime
         && kind == ScriptKind::Sup
         && let Some(count) = prime_script(group)
@@ -372,21 +361,17 @@ fn is_single_token(s: &str) -> bool {
 #[allow(clippy::match_same_arms)]
 fn nucleus_str(display: bool, body: &Body) -> Option<String> {
     match body {
-        // The empty nuclei are rendered by `atom_str`, which sees the surrounding scripts.
         Body::Empty | Body::EmptyGroup => None,
         Body::Prime(count) => Some("'".repeat(*count as usize)),
-        // bare TeX-active `#`/`&`/`%` has no math meaning: verbatim fallback (alignment `&` never
-        // reaches here; the escaped forms still convert)
+        // Bare `#`, `&`, and `%` need verbatim fallback; escaped forms still convert.
         Body::Char('#' | '&' | '%') => None,
         Body::Char(c) => Some(char_str(*c)),
-        // `:=` prints as one piece so the two characters stay tight
         Body::ColonEq => Some(":=".to_string()),
         Body::Number(digits) => Some(digits.clone()),
         Body::Command(name) => command_str(name),
         Body::Group(inner) => {
             let s = lower(display, inner)?;
-            // an environment group splices its grid with no brackets; other multi-token groups
-            // are parenthesised
+            // Environment groups splice grids; other multi-token groups need parentheses.
             if is_environment_group(inner) || is_single_token(&s) {
                 Some(s)
             } else {
@@ -395,8 +380,7 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
         }
         Body::Accent(name, base) => {
             let inner = lower(display, base)?;
-            // overline/underline always use their function; other accents fall back to the generic
-            // `accent(content, mark)` form on multi-atom bases
+            // Multi-atom accents use `accent(content, mark)` except overline and underline.
             if matches!(name.as_str(), "overline" | "underline") {
                 let func = accent_func(name)?;
                 return Some(format!("{func}({inner})"));
@@ -421,8 +405,7 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
                 BinomKind::Brack => Some(format!("[{t} / {b}]")),
             }
         }
-        // scale the bare glyph by percentage; a run of 5+ sized primes scales only the first
-        // quadruple-prime, the rest set after the box as literal primes
+        // Size only the first quadruple prime; print remaining marks after the box.
         Body::Big(scale, delim) => {
             if let Body::Prime(count) = delim.body
                 && count > 4
@@ -443,12 +426,10 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
         Body::Middle(delim, open_side) => Some(middle_str(*delim, *open_side)),
         Body::Mod(kind, arg) => mod_str(display, *kind, arg.as_deref()),
         Body::Negated(base) => negated_str(base),
-        // overlay the combining long solidus via the generic accent form
         Body::NegatedGroup(inner) => {
             let content = lower(display, inner)?;
             Some(format!("accent({content}, \u{0338})"))
         }
-        // label-less brace (e.g. inside a script); the labelled form comes from `atom_str`
         Body::Brace(kind, inner) => {
             let content = lower(display, inner)?;
             Some(format!("{}({content})", brace_func(*kind)))
@@ -464,7 +445,6 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
                 None => Some(format!("sqrt({inner})")),
             }
         }
-        // a `\label` has no glyph; the caller lifts it after the closing `$`
         Body::Label(_) => Some(String::new()),
     }
 }

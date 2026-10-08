@@ -25,7 +25,6 @@ fn underscore_escaping_depends_on_neighbors_across_verbatim_runs() {
 fn backslash_run_parity_resets_across_verbatim_runs() {
     let state = state(Extensions::empty(), true);
     assert_eq!(state.escape_str("a\\b"), "a\\b");
-    // A trailing lone backslash pads to an even pair; an already-even run stays as-is.
     assert_eq!(state.escape_str("\\x\\"), "\\x\\\\");
     assert_eq!(state.escape_str("x\\\\"), "x\\\\");
 }

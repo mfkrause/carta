@@ -1,7 +1,4 @@
-//! A curated subset of common emoji shortcodes mapped to their unicode strings, sorted by name
-//! for binary search. The full set of named emoji is far larger; this table ships the names most
-//! likely to appear in prose: faces, hands (including `+1`/`-1`), hearts, and common symbols and
-//! objects. Some entries carry a trailing variation selector (`U+FE0F`) as part of their text.
+//! Common emoji shortcodes sorted by name for binary search.
 
 /// `(shortname, unicode)` pairs, sorted ascending by `shortname` so [`lookup`] can binary-search.
 const TABLE: &[(&str, &str)] = &[

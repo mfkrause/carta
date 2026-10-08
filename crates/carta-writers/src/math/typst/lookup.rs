@@ -671,7 +671,6 @@ pub(crate) const SYMBOL_TYPST: &[(&str, &str)] = &[
     ("wr", "wreath"),
     ("yen", "yuan"),
     ("yinyang", "\u{262F}"),
-    // dollar, hash, and underscore are escaped so they are not read as code/script syntax
     ("{", "{"),
     ("}", "}"),
     ("|", "parallel"),

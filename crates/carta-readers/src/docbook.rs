@@ -1,19 +1,6 @@
-//! `DocBook` reader: parses a `DocBook` XML document into the document model.
+//! Read `DocBook` XML into the document model.
 //!
-//! The vocabulary is large, so the converter is organized as three dispatch tables over an
-//! element's local name: one for the block-level elements, one for the inline-level elements, and
-//! one for the sectioning elements that establish heading levels. An element outside all three is
-//! transparent: its children are converted in place, so an unrecognized wrapper degrades to its
-//! content rather than disappearing.
-//!
-//! Heading levels come from two independent counters. Recursive divisions (`section`, `sect1` and
-//! friends, `refsection`, `qandadiv`, `bibliodiv`) deepen with each nesting level, while the
-//! book-level divisions (`part`, `chapter`) count only enclosing `part` elements and the
-//! back-matter divisions (`appendix`, `preface`, `glossary`, `bibliography`) always sit at the top
-//! level.
-//!
-//! XML character references include the full named-entity table used by the vocabulary. Malformed
-//! input stays permissive, and materialized nesting is capped to bound conversion recursion.
+//! Unknown wrappers retain their content. Section nesting determines heading levels.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -543,8 +530,7 @@ impl<'a> Converter<'a> {
     /// quotation.
     fn titled_quotation(&self, element: &'a Element, attr: Attr, context: Context) -> Block {
         let mut attr = attr;
-        // The division answers for the quotation, so it states the quotation's attributes beside
-        // the ones it holds in its own right.
+        // Copy the division's attributes to the quotation it represents.
         let own = attr.attributes.clone();
         attr.attributes.extend(own);
         Block::Div(
@@ -1480,8 +1466,7 @@ fn wrapper_attr(attr: &Attr) -> Attr {
 fn section_level(name: &str, context: Context, parted: bool) -> Option<(i32, Context)> {
     let deeper = context.level.saturating_add(1);
     let component = 1 + i32::from(parted);
-    // A whole document written inside another restarts the heading count at the depth of sections it
-    // stands in, rather than carrying on from the divisions around it.
+    // A nested document restarts heading levels at its enclosing section depth.
     if METADATA_ROOTS.contains(&name) && !context.at_head() {
         let base = context.section_depth(parted);
         return Some(if name == "book" {
@@ -1527,8 +1512,7 @@ fn section_level(name: &str, context: Context, parted: bool) -> Option<(i32, Con
                 component,
             },
         )),
-        // Back matter stands beside the components around it, so it hands its content the depth its
-        // enclosing component sits at rather than the one its own heading takes.
+        // Back matter passes its enclosing depth to content rather than its heading depth.
         "appendix" | "preface" | "glossary" | "bibliography" => Some((
             component,
             Context {

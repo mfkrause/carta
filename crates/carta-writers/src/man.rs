@@ -1,11 +1,4 @@
-//! man writer: renders the document model to roff source for the `man` macro package.
-//!
-//! Block structure is carried by roff requests (`.SH`/`.SS` headings, `.PP` paragraphs, `.IP`
-//! indented items, `.RS`/`.RE` relative-indent groups, `.EX`/`.EE` example blocks, and `.TS`/`.TE`
-//! tables). Inline emphasis is conveyed through a font stack rendered as `\f[..]` selectors. Footnotes
-//! are pulled out of the flow, numbered, and emitted as a trailing `NOTES` section. Literal text is
-//! escaped so roff control and special characters render as themselves, and paragraph text is wrapped
-//! to a fill column on its visible width. Output carries no trailing newline; the caller appends one.
+//! Render roff source for the `man` macro package.
 
 use std::fmt::Write as _;
 

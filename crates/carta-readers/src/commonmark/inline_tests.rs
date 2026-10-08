@@ -58,10 +58,8 @@ fn emoji_table_is_sorted_for_binary_search() {
     assert_eq!(emoji::lookup("smile"), Some("\u{1f604}"));
     assert_eq!(emoji::lookup("+1"), Some("\u{1f44d}"));
     assert_eq!(emoji::lookup("-1"), Some("\u{1f44e}"));
-    // The multi-codepoint heart keeps its variation selector.
     assert_eq!(emoji::lookup("heart"), Some("\u{2764}\u{fe0f}"));
     assert_eq!(emoji::lookup("not_an_emoji_name"), None);
-    // Parsing round-trips through the table for a representative name.
     assert_eq!(
         parse_meta_inlines(":rocket:", on, false),
         vec![emoji_span("rocket", "\u{1f680}")]
@@ -75,7 +73,6 @@ fn emoji_resolves_known_shortcodes() {
         parse_meta_inlines(":smile:", on, false),
         vec![emoji_span("smile", "\u{1f604}")]
     );
-    // A shortcode whose name carries `+`/`-` still resolves.
     assert_eq!(
         parse_meta_inlines(":+1:", on, false),
         vec![emoji_span("+1", "\u{1f44d}")]
@@ -89,7 +86,6 @@ fn emoji_unknown_name_stays_literal() {
         parse_meta_inlines(":unknown_xyz:", on, false),
         vec![Inline::Str(":unknown_xyz:".to_owned().into())]
     );
-    // An empty `::` is not a shortcode.
     assert_eq!(
         parse_meta_inlines("::", on, false),
         vec![Inline::Str("::".to_owned().into())]
@@ -174,16 +170,12 @@ fn mark_in_label_requires_extension() {
 #[test]
 fn header_attr_split_requires_extension_and_trailing_block() {
     let on = exts(&[Extension::HeaderAttributes]);
-    // A trailing block separated by whitespace is the heading's attribute.
     let (content, attr) = split_header_attr("Title {#id .cls}", on);
     assert_eq!(content, "Title");
     assert_eq!(attr.id, "id");
     assert_eq!(attr.classes, ["cls"]);
-    // A block glued to the preceding word belongs to that word, not the heading.
     assert_eq!(split_header_attr("Title{#id}", on).0, "Title{#id}");
-    // An empty block is left in the text.
     assert_eq!(split_header_attr("Title {}", on).0, "Title {}");
-    // Without the extension the text is untouched.
     let (content, attr) = split_header_attr("Title {#id}", Extensions::empty());
     assert_eq!(content, "Title {#id}");
     assert!(attr.id.is_empty());
@@ -192,27 +184,20 @@ fn header_attr_split_requires_extension_and_trailing_block() {
 #[test]
 fn mmd_header_identifier_split() {
     let on = exts(&[Extension::MmdHeaderIdentifiers]);
-    // A trailing `[id]` label is the identifier; the content keeps everything before it.
     let (content, attr) = split_header_attr("Heading [myid]", on);
     assert_eq!(content, "Heading");
     assert_eq!(attr.id, "myid");
-    // The identifier is lowercased with all whitespace removed.
     assert_eq!(split_header_attr("Foo [My Id]", on).1.id, "myid");
-    // No whitespace is required before the label.
     let (content, attr) = split_header_attr("Foo[b]", on);
     assert_eq!((content, attr.id.as_str()), ("Foo", "b"));
-    // Only the last bracket group is the label; earlier ones stay in the content.
     let (content, attr) = split_header_attr("Foo [a] bar [b]", on);
     assert_eq!((content, attr.id.as_str()), ("Foo [a] bar", "b"));
-    // A reference-link tail (label directly after another bracket group) is not an identifier.
     assert_eq!(split_header_attr("See [ref][myid]", on).1.id, "");
     assert_eq!(split_header_attr("Foo [a] [b]", on).1.id, "");
-    // An empty label is stripped but leaves the identifier empty (falls to an automatic one).
     assert_eq!(
         split_header_attr("Heading []", on),
         ("Heading", Attr::default())
     );
-    // Without the extension the label stays in the text.
     assert_eq!(
         split_header_attr("Heading [myid]", Extensions::empty()).0,
         "Heading [myid]"
@@ -221,7 +206,6 @@ fn mmd_header_identifier_split() {
 
 #[test]
 fn subscript_superscript_flanking_anchors_only_on_whitespace() {
-    // Opens unless whitespace follows, closes unless whitespace precedes; no `*`/`_` punctuation sub-clauses.
     for ch in [b'~', b'^'] {
         assert_eq!(flanking(ch, None, Some('a')), (true, false));
         assert_eq!(flanking(ch, Some('a'), None), (false, true));
@@ -234,9 +218,7 @@ fn subscript_superscript_flanking_anchors_only_on_whitespace() {
 
 #[test]
 fn asterisk_flanking_keeps_full_rules() {
-    // `*` opener followed by punctuation and preceded by a letter is not left-flanking.
     assert_eq!(flanking(b'*', Some('a'), Some('!')), (false, true));
-    // `_` keeps its intraword restriction: between two letters it can neither open nor close.
     assert_eq!(flanking(b'_', Some('a'), Some('b')), (false, false));
 }
 
@@ -246,14 +228,11 @@ fn use_count_maps_tilde_by_enabled_extension() {
     let sub = exts(&[Extension::Subscript]);
     let both = exts(&[Extension::Strikeout, Extension::Subscript]);
 
-    // Two-on-two is a strikeout only when strikeout is on; otherwise it falls back to subscript.
     assert_eq!(match_use_count(2, 2, b'~', strike), Some(2));
     assert_eq!(match_use_count(2, 2, b'~', sub), Some(1));
     assert_eq!(match_use_count(2, 2, b'~', both), Some(2));
-    // A length-one run can only be a subscript.
     assert_eq!(match_use_count(1, 2, b'~', strike), None);
     assert_eq!(match_use_count(1, 2, b'~', sub), Some(1));
-    // With neither extension a tilde is inert.
     assert_eq!(match_use_count(2, 2, b'~', Extensions::empty()), None);
 }
 
@@ -269,12 +248,11 @@ fn use_count_for_caret_and_emphasis() {
 fn dash_runs_fold_em_heavy() {
     let em = '\u{2014}';
     let en = '\u{2013}';
-    // Multiples of three are all em; even lengths are all en.
+    // Multiples of three use em dashes; even lengths use en dashes; other lengths mix both.
     assert_eq!(fold_dash_run_thirds(2), en.to_string());
     assert_eq!(fold_dash_run_thirds(3), em.to_string());
     assert_eq!(fold_dash_run_thirds(4), format!("{en}{en}"));
     assert_eq!(fold_dash_run_thirds(6), format!("{em}{em}"));
-    // Odd lengths that are not multiples of three are em-heavy with a one- or two-en tail.
     assert_eq!(fold_dash_run_thirds(5), format!("{em}{en}"));
     assert_eq!(fold_dash_run_thirds(7), format!("{em}{en}{en}"));
     assert_eq!(fold_dash_run_thirds(11), format!("{em}{em}{em}{en}"));
@@ -303,22 +281,18 @@ fn ellipsis_runs_fold_in_threes() {
 
 #[test]
 fn unmatched_smart_quotes_become_curly() {
-    // A single quote that never pairs closes (’); an unmatched double quote opens (“).
+    // Unpaired single quotes use U+2019; unpaired double quotes use U+201C.
     assert_eq!(delimiter_literal(b'\'', 1), "\u{2019}");
     assert_eq!(delimiter_literal(b'"', 1), "\u{201c}");
     assert_eq!(delimiter_literal(b'\'', 2), "\u{2019}\u{2019}");
-    // Other delimiters revert to their own character.
     assert_eq!(delimiter_literal(b'*', 3), "***");
 }
 
 #[test]
 fn quote_flanking_blocks_intraword_pairing() {
-    // A quote between alphanumerics can neither open nor close, so contractions stay apostrophes.
     assert_eq!(quote_flanking(b'\'', Some('n'), Some('t')), (false, false));
-    // Whitespace-anchored quotes open on the left edge and close on the right.
     assert_eq!(quote_flanking(b'"', Some(' '), Some('a')), (true, false));
     assert_eq!(quote_flanking(b'"', Some('a'), Some(' ')), (false, true));
-    // A quote hugging punctuation can both open and close.
     assert_eq!(quote_flanking(b'\'', Some('('), Some('a')), (true, false));
 }
 
@@ -336,9 +310,7 @@ fn task_marker_replacement_recognizes_only_bounded_markers() {
         task_marker_replacement("[X]").as_deref(),
         Some(TASK_CHECKED)
     );
-    // A marker glued to following text is not a task marker.
     assert_eq!(task_marker_replacement("[ ]todo"), None);
-    // Unknown fill characters are not markers.
     assert_eq!(task_marker_replacement("[y] no"), None);
     assert_eq!(task_marker_replacement("plain"), None);
 }

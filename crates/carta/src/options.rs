@@ -165,8 +165,7 @@ fn syntax_directories(data_dir: Option<&Path>) -> Vec<PathBuf> {
 /// parsed is skipped with a warning: one stale definition should not fail every conversion.
 #[cfg(feature = "highlight")]
 fn load_syntax_directory(highlighter: &mut carta::Highlighter, directory: &Path) {
-    // Registered by name only: a definition is read when a code block selects it, so a directory of
-    // hundreds costs nothing until one is used.
+    // Load definitions on first use to avoid reading unused catalogs.
     if let Err(error) = highlighter.registry_mut().add_directory(directory) {
         eprintln!(
             "carta: warning: cannot read syntax directory {}: {error}",

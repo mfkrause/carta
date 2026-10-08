@@ -63,7 +63,6 @@ fn a_blank_line_ends_a_line_block() {
 
 #[test]
 fn a_whitespace_only_line_continues_a_non_empty_entry() {
-    // Unlike a blank line, a space-only line folds into the entry above, so the block stays open.
     let blocks = blocks_with_many("| a\n  \n| b\n", LINE_BLOCKS);
     assert!(matches!(blocks.as_slice(), [Block::LineBlock(_)]));
     assert_eq!(line_block_entries(&blocks), ["a", "b"]);
@@ -71,7 +70,6 @@ fn a_whitespace_only_line_continues_a_non_empty_entry() {
 
 #[test]
 fn a_continuation_under_an_empty_entry_ends_the_block() {
-    // With no content to extend, a whitespace-led line closes the block and is reparsed.
     let blocks = blocks_with_many("| \n |\n", LINE_BLOCKS);
     assert!(matches!(
         blocks.as_slice(),
@@ -225,7 +223,6 @@ fn an_empty_definition_yields_an_empty_block_list() {
     };
     assert_eq!(term, "T");
     assert!(matches!(defs.as_slice(), [one] if one.is_empty()));
-    // The unindented line ends the list and stands as its own paragraph.
     assert!(matches!(
         blocks.as_slice(),
         [Block::DefinitionList(_), Block::Para(_)]
@@ -234,7 +231,6 @@ fn an_empty_definition_yields_an_empty_block_list() {
 
 #[test]
 fn an_empty_definition_absorbs_a_deferred_indented_block() {
-    // A blank line does not close an as-yet-empty definition.
     let items = definition_items(&blocks_with(
         "T\n:\n\n    code\n",
         Extension::DefinitionLists,

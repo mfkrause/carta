@@ -41,7 +41,6 @@ export const SUPPORT_MARKER: Record<Support, string> = {
   "not-applicable": "➖",
 };
 
-/** Formats grouped in the family order the status data declares, empty families dropped. */
 export function byFamily(
   subset: Format[] = formats,
 ): { family: Family; formats: Format[] }[] {
@@ -53,12 +52,10 @@ export function byFamily(
     .filter((group) => group.formats.length > 0);
 }
 
-/** Formats carta can actually convert, in either direction. */
 export function shipping(): Format[] {
   return formats.filter((format) => format.read.ships || format.write.ships);
 }
 
-/** Every name a format answers to, canonical first. */
 export function allNames(format: Format): string[] {
   return [format.name, ...format.aliases];
 }

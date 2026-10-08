@@ -1,10 +1,4 @@
-//! A small, bounded TeX-math parser. It tokenizes the source and builds a flat list of [`Atom`]s,
-//! each optionally carrying a subscript and a superscript group. Both conversion backends consume
-//! this single representation.
-//!
-//! The parser never panics and never recurses unboundedly: brace groups are parsed with an
-//! explicit depth limit so pathological nesting (`{{{{…}}}}`) returns `None` rather than
-//! overflowing the stack.
+//! Parse TeX math into [`Atom`]s with bounded nesting.
 
 /// Maximum brace-group nesting depth before the parser gives up and reports the input as
 /// unconvertible.
@@ -495,7 +489,6 @@ fn pair_double_bars(atoms: &mut Vec<Atom>) {
         && end < atoms.len()
     {
         let inner: Vec<Atom> = atoms.splice(open + 1..end, std::iter::empty()).collect();
-        // After the splice the closing command sits directly after the opener.
         let closer = atoms.get(open + 1).cloned();
         atoms.remove(open + 1);
         if let Some(opener) = atoms.get_mut(open) {
@@ -561,7 +554,6 @@ fn recurse_pair_double_bars(atom: &mut Atom) {
 }
 
 /// Parse a run of atoms until end-of-input or (when `in_group`) the matching `}`.
-// One flat dispatch over token kinds; splitting would scatter the shared script-chain state.
 #[allow(clippy::too_many_lines)]
 fn parse_atoms(
     tokens: &[Token],
@@ -574,7 +566,6 @@ fn parse_atoms(
     }
     let mut atoms: Vec<Atom> = Vec::new();
     // Same-kind scripts nest (`a^b^c`); cross-group or mixed-kind scripts sibling (`{x^2}^3`).
-    // Reset whenever a fresh nucleus or group is pushed.
     let mut chain = ScriptChain::default();
     while let Some(tok) = tokens.get(*pos) {
         match tok {
@@ -604,8 +595,7 @@ fn parse_atoms(
                 attach_script(base, &mut chain, kind, script)?;
             }
             Token::GroupOpen => {
-                // A brace group is transparent: atoms splice in and a following script binds to the
-                // last one; an empty group becomes a bare empty nucleus.
+                // Brace groups splice atoms; scripts bind to the last atom, or an empty nucleus.
                 *pos += 1;
                 let inner = parse_atoms(tokens, pos, depth + 1, true)?;
                 if inner.is_empty() {
@@ -620,8 +610,7 @@ fn parse_atoms(
                     ..ScriptChain::default()
                 };
             }
-            // An apostrophe is a prime on the preceding atom, flowing through the chain as a
-            // superscript; with no preceding atom it is a bare glyph, and consecutive bare primes merge.
+            // Primes attach as superscripts; leading primes stay bare and merge.
             Token::Char('\'') => {
                 *pos += 1;
                 match atoms.last_mut() {
@@ -635,8 +624,7 @@ fn parse_atoms(
                         atoms.push(Atom::new(Body::Prime(1)));
                         chain = ScriptChain::default();
                     }
-                    // With both primary slots taken TeX detaches the prime: a bare glyph starting a
-                    // fresh base (a braced subscript seals its base and nests instead).
+                    // Full script slots detach primes unless a braced subscript sealed the base.
                     Some(base) if prime_detaches(base, &chain) => {
                         atoms.push(Atom::new(Body::Prime(1)));
                         chain = ScriptChain::default();
@@ -650,8 +638,7 @@ fn parse_atoms(
                 let last = atoms.last_mut()?;
                 last.limits = Some(forced);
             }
-            // Numbering annotations have no glyph: drop `\nonumber`/`\tag`, capture `\label` as a
-            // `Label` atom; consumed at top level so they never force a verbatim fallback.
+            // Drop numbering annotations; retain labels as glyphless atoms.
             Token::Command(c) if !in_group && c == "nonumber" => {
                 *pos += 1;
             }
@@ -666,13 +653,11 @@ fn parse_atoms(
             Token::Command(c) if is_style_switch(c) => {
                 *pos += 1;
             }
-            // Colour is invisible in linear and Typst output; consume and drop the spec group.
             Token::Command(c) if c == "color" => {
                 *pos += 1;
                 parse_required_group(tokens, pos, depth, &mut None)?;
             }
-            // A preamble declaration with no glyph: consume both groups (the operator is not
-            // registered for later use).
+            // Consume operator declarations without registering them.
             Token::Command(c) if c == "DeclareMathOperator" => {
                 *pos += 1;
                 if matches!(tokens.get(*pos), Some(Token::Char('*'))) {
@@ -681,8 +666,7 @@ fn parse_atoms(
                 skip_balanced_group(tokens, pos)?;
                 skip_balanced_group(tokens, pos)?;
             }
-            // An infix binomial (`a \choose b`) splits its group: atoms so far are the upper
-            // argument, the rest the lower; the run collapses to one stacked atom.
+            // Infix binomials split the group into upper and lower arguments.
             Token::Command(c) if binom_kind(c).is_some() => {
                 let kind = binom_kind(c)?;
                 *pos += 1;
@@ -690,8 +674,7 @@ fn parse_atoms(
                 let bottom = parse_atoms(tokens, pos, depth + 1, in_group)?;
                 return Some(vec![Atom::new(Body::Binom(kind, top, bottom))]);
             }
-            // A transparent single-line equation wrapper splices into the surrounding run; every
-            // other environment is a single atom.
+            // Single-line equation wrappers splice content; other environments form one atom.
             Token::Command(c) if c == "begin" => {
                 *pos += 1;
                 let spliced = parse_environment(tokens, pos, depth)?;
@@ -702,8 +685,7 @@ fn parse_atoms(
                     ..ScriptChain::default()
                 };
             }
-            // `\not` strikes only the number's first digit; the number is one token, so split the
-            // tail into its own atom here.
+            // `\not` strikes only the first digit; keep the remaining number in a separate atom.
             Token::Command(c) if c == "not" && not_over_number(tokens, *pos) => {
                 *pos += 1;
                 skip_spaces(tokens, pos);
@@ -749,8 +731,7 @@ fn parse_script(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<A
             if inner.is_empty() {
                 return Some(vec![Atom::new(Body::EmptyGroup)]);
             }
-            // A braced prime run (`^{'''''}`) is a prime nucleus: the transparent group routes it
-            // through the nucleus path so a long run stacks; a direct trailing prime stays flat.
+            // Braced prime runs use the nucleus path; direct trailing primes stay flat.
             if let [
                 Atom {
                     body: Body::Prime(_),
@@ -770,7 +751,6 @@ fn parse_script(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<A
             *pos += 1;
             parse_script(tokens, pos, depth)
         }
-        // A script argument that is itself a script operator (`a^^b`) nests onto an empty implicit nucleus.
         tok @ (Token::Sub | Token::Sup) => {
             let kind = if matches!(tok, Token::Sup) {
                 ScriptKind::Sup
@@ -809,14 +789,12 @@ fn parse_atom(
         return None;
     }
     match tokens.get(*pos)? {
-        // A dangling bare backslash is not a complete expression; the input stays verbatim.
         Token::Char('\\') => None,
         Token::Char(':') if matches!(tokens.get(*pos + 1), Some(Token::Char('='))) => {
             *pos += 2;
             Some(Atom::new(Body::ColonEq))
         }
-        // Bare `"`, backtick, or `$` has no math-mode meaning: unparsable, emitted verbatim (escaped
-        // forms tokenize as commands; the text path consumes them inside `\text{…}`).
+        // Bare quotes, backticks, and `$` are invalid in math mode; escaped forms are commands.
         Token::Char('"' | '`' | '$') => None,
         Token::Char(c) => {
             let c = *c;
@@ -871,8 +849,7 @@ fn skip_spaces(tokens: &[Token], pos: &mut usize) {
 /// its source spelling: a control word is rebuilt with its backslash (`\alpha`), an escaped character
 /// keeps the escape, so an inner `$`, command, or space round-trips into the label verbatim. A
 /// missing opening brace yields `Some(None)`: the `\label` is consumed but carries no name.
-// Nested option is load-bearing: the outer layer drives `?`-propagation of the shared unhandled
-// fallback; the inner layer reports whether a name was present.
+// Outer `None` signals unsupported content; inner `None` signals an absent name.
 #[allow(clippy::option_option)]
 fn read_label_arg(tokens: &[Token], pos: &mut usize) -> Option<Option<String>> {
     skip_spaces(tokens, pos);
@@ -891,7 +868,6 @@ fn read_label_arg(tokens: &[Token], pos: &mut usize) -> Option<Option<String>> {
                 *pos = probe + 1;
                 return Some(if name.is_empty() { None } else { Some(name) });
             }
-            // A nested group makes the argument two-dimensional, which has no flat source form here.
             Token::GroupOpen => return None,
             Token::Command(c) => {
                 name.push('\\');

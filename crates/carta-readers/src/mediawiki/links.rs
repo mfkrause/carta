@@ -20,7 +20,7 @@ impl Parser {
         if !is_url(&url) {
             return None;
         }
-        // A labelless bracketed URL running into a letter or digit is no link: the bracket stays literal, the URL continues past `]`.
+        // A labelless URL followed by an alphanumeric keeps its brackets literal.
         if label.is_empty() && at(chars, close + 1).is_some_and(char::is_alphanumeric) {
             return None;
         }
@@ -84,7 +84,7 @@ impl Parser {
                 ));
                 return Some((Vec::new(), close + 2));
             }
-            // A file/image embed may decline (unrepresentable parameter); the markup then falls through to the wikilink path.
+            // Unsupported image parameters fall through to ordinary wikilink parsing.
             if matches!(ns.as_str(), "file" | "image")
                 && !strip_namespace(&target).is_empty()
                 && let Some(image) = self.image_embed(&target, label_content.as_deref())
@@ -103,7 +103,6 @@ impl Parser {
             }
         }
         let mut label = match &label_content {
-            // An empty label invokes the pipe trick: the display text is derived from the target.
             Some(l) if l.trim().is_empty() => self.pipe_trick_label(&target),
             Some(l) => self.parse_inlines(l),
             None => self.parse_inlines(&target),
@@ -164,7 +163,7 @@ impl Parser {
                         attributes.push(("height".to_string(), height));
                     }
                 } else if is_image_keyword(option) || is_recognized_image_attr(option) {
-                    // Placement/framing keywords and recognized `key=value` carry no caption; unrecognized `key=value` is caption text.
+                    // Only unrecognized image parameters become caption text.
                 } else {
                     caption = Some(part.to_string());
                 }

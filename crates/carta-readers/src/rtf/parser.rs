@@ -155,7 +155,6 @@ impl Parser {
         if self.states.is_empty() {
             self.states.push(GroupState::default());
         }
-        // The guard above guarantees a last element; the scratch state is dead-code fallback.
         match self.states.last_mut() {
             Some(state) => state,
             None => &mut self.scratch_state,
@@ -201,7 +200,6 @@ impl Parser {
                         emitter.push_char(code_page_char(byte), props);
                     }
                 }
-                // Binary data outside a picture destination carries no text; consumed and dropped.
                 Token::Binary(_) => self.pos += 1,
                 Token::Char(c) => {
                     self.pos += 1;
@@ -342,8 +340,7 @@ impl Parser {
             "v" => self.state_mut().props.hidden = on,
             "plain" => self.state_mut().props = CharProps::default(),
             "pard" => {
-                // `\pard` restores the default style `\s0`, whose formatting and outline level
-                // apply to every paragraph that selects no other style.
+                // `\pard` restores the default style, including its formatting and outline level.
                 let mut props = CharProps::default();
                 if let Some(fmt) = self.style_formats.get(&0).copied() {
                     self.apply_style_format(&fmt, &mut props);
@@ -422,8 +419,7 @@ impl Parser {
                 }
             }
             "s" => {
-                // Overlay the style's formatting and heading level on the current state; later
-                // explicit control words in the same paragraph still win.
+                // Apply style properties first so later explicit controls can override them.
                 let num = param.unwrap_or(0);
                 if let Some(fmt) = self.style_formats.get(&num).copied() {
                     let mut props = self.props();
@@ -437,7 +433,6 @@ impl Parser {
                 }
             }
             "f" => {
-                // A monospace-family font marks the run as code.
                 self.state_mut().props.mono = self.mono_fonts.contains(&param.unwrap_or(0));
             }
             _ => {

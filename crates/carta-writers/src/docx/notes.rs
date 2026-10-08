@@ -1,10 +1,4 @@
-//! The `word/footnotes.xml` and `word/comments.xml` parts.
-//!
-//! Every document carries the two reserved footnote entries a word processor expects: the separator
-//! drawn above footnotes and the one drawn where a footnote continues onto the next page. The
-//! document's own footnotes follow, in the order their references appear in the body. The comments
-//! part carries the document's comment entries, in the order their ranges open, and is empty when
-//! there are none.
+//! Render footnotes and comments in document order, including reserved footnote separators.
 
 use super::wml_root;
 use carta_core::container::xml::Element;

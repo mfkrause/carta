@@ -1,14 +1,4 @@
-//! Markdown writer engine: renders the document model to a markdown family text format.
-//!
-//! Every markdown-family dialect shares this engine, parameterized by the `MarkdownConfig` it runs
-//! with, chiefly the active [`Extensions`] set. Each construct consults the set to choose its
-//! surface: an attribute block on a header, link, image, or span versus a bare or HTML rendering;
-//! native subscript/superscript/strikeout versus an HTML tag; fenced versus indented code; fenced
-//! divs versus `<div>`; space-aligned, bordered, pipe, or HTML tables; citation syntax versus the
-//! display text; dollar, GitHub, or linearized math; raw passthrough with a format tag versus a
-//! verbatim or dropped fallback. Smart punctuation is rewritten to ASCII when the `smart` extension
-//! is active and emitted as the literal glyph otherwise. Inline content wraps at a fill column of
-//! 72. Output carries no trailing newline; the caller appends one.
+//! Render Markdown dialects with their selected extensions.
 
 use carta_ast::{
     Attr, Block, Caption, Document, Format, Inline, ListAttributes, ListNumberDelim,
@@ -152,7 +142,6 @@ impl Writer for GfmWriter {
         true
     }
 
-    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -212,7 +201,6 @@ impl Writer for MarkdownGithubWriter {
         true
     }
 
-    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -269,7 +257,6 @@ impl Writer for MarkdownMmdWriter {
         true
     }
 
-    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -300,7 +287,6 @@ impl Writer for MarkdownStrictWriter {
         true
     }
 
-    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -476,8 +462,7 @@ impl State {
     }
 
     fn raw_block(&mut self, format: &Format, text: &str) -> String {
-        // Verbatim only for a natively embeddable format (HTML under `raw_html`, TeX under `raw_tex`);
-        // otherwise the ```` ```{=fmt} ```` fence needs `raw_attribute`, else the block is dropped.
+        // Non-native raw formats require `raw_attribute` fences; otherwise omit them.
         let native = if is_html_format(format) {
             self.config.has(Extension::RawHtml)
         } else if is_tex_format(format) {
@@ -503,8 +488,7 @@ impl State {
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
         let body = self.blocks_to_string(blocks, width);
         if !self.config.has(Extension::FencedDivs) {
-            // CommonMark family and HTML-parsing `markdown` dialects wrap in a literal `<div>` (with
-            // `data-markdown="1"` under `markdown_attribute`); sparse dialects render contents transparently.
+            // HTML-aware dialects wrap divs; `markdown_attribute` adds `data-markdown="1"`.
             let marker = self.config.has(Extension::MarkdownAttribute);
             if self.config.has(Extension::RawHtml)
                 && (self.config.cmark
@@ -768,7 +752,6 @@ impl State {
                 .attributes
                 .insert(0, ("alt".into(), alt_text.into()));
         }
-        // An image falling back to `<img>` cannot ride the shorthand; the caller emits an HTML `<figure>`.
         if self.image_renders_as_html(&image_attr) {
             return None;
         }

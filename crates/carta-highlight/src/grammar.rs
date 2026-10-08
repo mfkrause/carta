@@ -1,10 +1,4 @@
-//! The in-memory model of a parsed syntax definition: its metadata, keyword lists, contexts, and the
-//! ordered rules that drive tokenization.
-//!
-//! A definition is a small state machine. Tokenizing walks a stack of [`Context`]s; within the
-//! current context each [`Rule`] is tried in order, and the first to match consumes text, emits a
-//! token, and may switch contexts. Cross-definition references (embedded languages, shared keyword
-//! lists) are left symbolic here and resolved against the registry while tokenizing.
+//! Syntax-definition metadata, keyword lists, contexts, and ordered tokenization rules.
 
 use std::cell::OnceCell;
 use std::collections::BTreeMap;

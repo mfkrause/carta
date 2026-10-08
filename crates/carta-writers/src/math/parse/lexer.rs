@@ -215,7 +215,6 @@ fn parse_macro_definition(tokens: &[Token], start: usize) -> Option<(String, Mac
         }
         params = count;
         skip_spaces(tokens, &mut pos);
-        // An optional-argument default (`[1][d]`) is not modeled; unexpanded keeps the expression verbatim.
         if matches!(tokens.get(pos), Some(Token::Char('['))) {
             return None;
         }

@@ -1,5 +1,4 @@
-# Times carta against pinned pandoc on identical work (same -f/-t; pandoc normalized: no
-# highlighting, MathJax). Never diffs output; results are machine-specific and never committed.
+# Time equivalent conversions; normalize HTML math with MathJax.
 
 [ -n "${BENCH_LIB_SOURCED:-}" ] && return 0
 BENCH_LIB_SOURCED=1
@@ -17,14 +16,12 @@ BENCH_SIZES="${BENCH_SIZES:-10k,100k,1m}"
 BENCH_WARMUP="${BENCH_WARMUP:-3}"
 BENCH_RUNS="${BENCH_RUNS:-}" # empty => hyperfine adaptive (with a min-runs floor)
 BENCH_OUT="${BENCH_OUT:-$ROOT/target/bench}"
-# One JSON object per line, appended by whichever surface subprocess measured it; run.sh assembles
-# the file once every surface has finished. Empty means markdown-only, the default.
+# Surface processes append JSON rows; an empty path requests Markdown only.
 BENCH_ROWS="${BENCH_ROWS:-}"
 FIXTURES="$BENCH_OUT/fixtures"
 mkdir -p "$BENCH_OUT" "$FIXTURES"
 
-# Writer-surface AST subset; order is load-bearing: cycling truncates from the front, so tables
-# sit early to reach the smallest size.
+# Put tables early so truncation includes them at the smallest input size.
 WRITER_AST_FILES="
 common/paragraph
 common/headers
@@ -72,8 +69,7 @@ carta_version() { "$OX" --version 2>/dev/null | awk 'NR==1 { print $NF }'; }
 
 hyperfine_version() { hyperfine --version 2>/dev/null | awk 'NR==1 { print $NF }'; }
 
-# One line naming the machine the numbers came from; BENCH_RUNNER overrides it for hosts where the
-# probes below read as something unhelpfully generic (CI images, VMs).
+# BENCH_RUNNER overrides generic CI or VM machine labels.
 runner_description() {
   [ -n "${BENCH_RUNNER:-}" ] && { echo "$BENCH_RUNNER"; return; }
   local cpu cores bytes os
@@ -133,23 +129,20 @@ detect_time_flavor() {
   fi
 }
 
-# Peak RSS in bytes for one run of a command reading `input` on stdin; empty string if unmeasurable.
-# Usage: measure_rss <input_file> <argv...>
+# measure_rss <input_file> <argv...>: peak RSS in bytes, empty if unavailable.
 measure_rss() {
   detect_time_flavor
   [ -n "$TIME_FLAG" ] || { echo ""; return; }
   local input="$1"
   shift
   local report value
-  # /usr/bin/time writes its report to stderr; the program's stdout is discarded.
   report=$({ /usr/bin/time "$TIME_FLAG" "$@" <"$input" >/dev/null; } 2>&1)
   value=$(printf '%s\n' "$report" | grep -i 'maximum resident set size' | grep -oE '[0-9]+' | head -1)
   [ -n "$value" ] || { echo ""; return; }
   echo $((value * TIME_RSS_SCALE))
 }
 
-# Time carta vs pandoc on one input and append a table row; --input gives both identical stdin under --shell=none.
-# Usage: bench_pair <label> <input_file> <input_bytes> <oracle_args> <carta_args>
+# bench_pair <label> <input_file> <input_bytes> <oracle_args> <carta_args>
 bench_pair() {
   local label="$1" input="$2" bytes="$3" oargs="$4" xargs="$5"
   local json="$BENCH_OUT/$(printf '%s' "$label" | tr '/ ' '__').json"
@@ -179,8 +172,7 @@ bench_pair() {
   record_timing "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss" "$runs"
 }
 
-# Appends one timing row, labelled with the table it was printed under.
-# Usage: record_timing <bytes> <carta_mean_s> <carta_sd_s> <pandoc_mean_s> <pandoc_sd_s> <carta_rss> <pandoc_rss> <runs>
+# record_timing <bytes> <carta_mean> <carta_sd> <pandoc_mean> <pandoc_sd> <carta_rss> <pandoc_rss> <runs>
 record_timing() {
   [ -n "$BENCH_ROWS" ] || return 0
   jq -nc \
@@ -202,7 +194,6 @@ record_timing() {
      }' >>"$BENCH_ROWS"
 }
 
-# Appends the binary-size row the `size` surface reports.
 record_binary() { # <carta_bytes> <pandoc_bytes>
   [ -n "$BENCH_ROWS" ] || return 0
   jq -nc --argjson carta "$1" --argjson pandoc "$2" \
@@ -224,7 +215,6 @@ emit_row() {
     }'
 }
 
-# Opens a result table and names the rows that follow. Usage: table_header <surface> <group>
 table_header() {
   BENCH_SURFACE="$1"
   BENCH_GROUP="$2"
@@ -235,11 +225,9 @@ table_header() {
   echo "|--------|---------------------|---------------------|---------|------------|-----------|------------|"
 }
 
-# The table currently being filled, so recorded rows carry the heading's own labels.
 BENCH_SURFACE=""
 BENCH_GROUP=""
 
-# Any benchmark error flips the suite return code; each surface exits with it.
 SUITE_RC=0
 note_err() { SUITE_RC=1; echo "ERR  $1: $2" >&2; }
 

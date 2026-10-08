@@ -1,12 +1,4 @@
-//! Slide-deck writer: renders the document model to frames of a LaTeX presentation.
-//!
-//! The block sequence is split into slides at a computed slide level (see `crate::slides`):
-//! headers above it become sectioning commands, headers at it open titled frames, and the rest
-//! gathers into frame bodies. Frame content reuses the LaTeX block and inline rendering in its
-//! slide dialect. A frame holding any code is marked fragile; a header's recognized presentation
-//! classes become frame options. Headers below the slide level nest the body into block
-//! environments. The result is a body fragment with no preamble and no trailing newline; this
-//! format has no public specification.
+//! Render slide sections as LaTeX presentation frames without a preamble or trailing newline.
 
 use carta_ast::{Attr, Block, Document, Inline};
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
@@ -339,8 +331,7 @@ mod tests {
 
     #[test]
     fn extreme_header_level_does_not_overflow() {
-        // A header nested at the maximum level drives the block-environment grouping to the top of
-        // the level range; deepening it by one must saturate rather than wrap.
+        // Check that grouping above the maximum heading level saturates.
         let out = render(vec![
             header(1, "", "Frame"),
             header(i64::MAX, "id", "Deep"),

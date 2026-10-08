@@ -1,15 +1,8 @@
-//! Layer 1 golden tests for the EPUB container writer. Each fixture is read from Markdown, rendered
-//! to both EPUB dialects, and the archive is unpacked into a readable transcript (an entry listing
-//! followed by every text file's contents) that `insta` freezes. Binary resources are summarized by
-//! size and a short content fingerprint, since their bytes are not reviewable; the fingerprint still
-//! pins the exact payload, so swapping two same-sized binaries is caught. The output is
-//! byte-reproducible: the archive uses a fixed timestamp and a content-derived identifier, so these
-//! snapshots are stable across runs.
+//! Snapshot unpacked EPUB archives for both dialects.
 //!
-//! Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! Binary resources use size and content fingerprints. Review changes with `cargo insta review`.
 
 #![cfg(all(feature = "read-commonmark", feature = "write-epub"))]
-// Integration-test harness code: panicking on a known fixture is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fmt::Write as _;
@@ -129,9 +122,6 @@ fn tiny_jpeg() -> Vec<u8> {
     ]
 }
 
-/// Each fixture, rendered to both dialects with a table of contents requested, exercises the shared
-/// pipeline end to end: metadata projection, chapter splitting, both navigation documents, the
-/// package document, and the fixed-order archive assembly.
 #[test]
 fn epub_fixture_snapshots() {
     for (stem, markdown) in fixtures() {
@@ -144,8 +134,6 @@ fn epub_fixture_snapshots() {
     }
 }
 
-/// Numbering the sections threads a section-number span through each heading; the body carries it and
-/// the navigation relabels it, so the numbered output is frozen on its own.
 #[test]
 fn epub_numbered_sections_snapshot() {
     let markdown = fs::read_to_string(fixtures_dir().join("book.md")).expect("read book fixture");
@@ -156,10 +144,6 @@ fn epub_numbered_sections_snapshot() {
     insta::assert_snapshot!("book_numbered__epub3", describe_archive(&bytes));
 }
 
-/// Headings whose source carries no identifier (as bare `CommonMark` leaves them) must still yield
-/// live navigation targets. The writer derives each section's identifier from its heading text and
-/// disambiguates a repeated one with a numeric suffix; reading through `CommonMark` (which assigns no
-/// identifiers) freezes that derivation and the fallback on the second identical heading.
 #[test]
 fn epub_generated_identifiers_snapshot() {
     let markdown = concat!(
@@ -190,8 +174,6 @@ fn epub_generated_identifiers_snapshot() {
     }
 }
 
-/// A cover image adds a cover page, a `cover-image` manifest entry, a spine slot and reading-order
-/// landmarks; this freezes that whole cover machinery.
 #[test]
 fn epub_with_cover_snapshot() {
     let markdown = fs::read_to_string(fixtures_dir().join("book.md")).expect("read book fixture");
@@ -204,11 +186,6 @@ fn epub_with_cover_snapshot() {
     insta::assert_snapshot!("book_cover__epub3", describe_archive(&bytes));
 }
 
-/// Embedded fonts, a replacement stylesheet, a custom container subdirectory, and a Dublin Core
-/// metadata fragment together exercise the resource and packaging options: the fonts are stored and
-/// manifested, the built-in stylesheet is replaced, every path moves under the chosen directory, and
-/// the fragment overrides the publication identifier and carries an extra element through to the
-/// package.
 #[test]
 fn epub_embedded_resources_snapshot() {
     let markdown = fs::read_to_string(fixtures_dir().join("book.md")).expect("read book fixture");
@@ -230,10 +207,6 @@ fn epub_embedded_resources_snapshot() {
     insta::assert_snapshot!("book_embedded_resources__epub3", describe_archive(&bytes));
 }
 
-/// Body images are stored under `media/` and their references rewritten: an embedded GIF and JPEG
-/// are sized from their headers and carried into the container, a remote reference is left as
-/// authored, and an unresolved relative reference is climbed back to the container root. A table
-/// carrying a cross-reference exercises identifier collection and link rewriting through table cells.
 #[test]
 fn epub_body_images_snapshot() {
     let markdown = concat!(
@@ -260,10 +233,6 @@ fn epub_body_images_snapshot() {
     insta::assert_snapshot!("body_images__epub3", describe_archive(&bytes));
 }
 
-/// An identifier borne by a span inside a table cell in one chapter still anchors a link authored in
-/// another. Identifier collection descends into table cells and link rewriting resolves the fragment
-/// to the file holding the cell, so the cross-chapter reference targets the right chapter document
-/// rather than dangling at an unresolved `#fragment`.
 #[test]
 fn epub_cross_chapter_table_cell_id_snapshot() {
     let markdown = concat!(
@@ -283,9 +252,6 @@ fn epub_cross_chapter_table_cell_id_snapshot() {
     );
 }
 
-/// A control character an author slips into a heading must never reach the container: it would make
-/// the package, navigation and NCX documents ill-formed XML. Every XML-forbidden character is
-/// dropped on the way out, so no archive file carries one while the surrounding text survives.
 #[test]
 fn epub_strips_forbidden_control_characters() {
     let markdown = "# Clean\u{b}Title\n\nA\u{b}body.\n";
@@ -304,9 +270,6 @@ fn epub_strips_forbidden_control_characters() {
     }
 }
 
-/// An empty document still yields a valid reading order: a publication must carry at least one linear
-/// spine item, so a reading system has a first page to open. Whether or not a table of contents is
-/// requested, not every spine item may be marked non-linear.
 #[test]
 fn epub_empty_document_keeps_a_linear_spine_item() {
     for target in ["epub3", "epub2"] {
@@ -336,8 +299,6 @@ fn epub_empty_document_keeps_a_linear_spine_item() {
     }
 }
 
-/// A font whose file name carries a space is stored under a sanitized path, so neither the archive
-/// entry nor its manifest href holds a character that would need escaping.
 #[test]
 fn epub_sanitizes_a_font_filename_with_spaces() {
     let markdown = "# One\n\nBody.\n";

@@ -30,7 +30,6 @@ fn optional_and_starred_elements_fall_through() {
     assert!(admits_only("a?b", "ab"));
     assert!(admits_only("a*b", "ab"));
     assert!(admits_only("[xy]{0,3}z", "xyz"));
-    // A `+` binds the atom, so only the atom can lead.
     assert!(admits_only("a+b", "a"));
     assert!(admits_only("a{2,4}b", "a"));
 }
@@ -43,7 +42,6 @@ fn word_boundaries_and_anchors_are_transparent() {
 
 #[test]
 fn look_around_does_not_constrain_the_first_byte() {
-    // The assertion consumes nothing, so the element after it leads.
     assert!(admits_only("(?=x)y", "y"));
     assert!(admits_only("(?!x)y", "y"));
 }
@@ -79,7 +77,6 @@ fn inline_flag_group_enables_insensitivity() {
 
 #[test]
 fn unmodeled_constructs_widen_to_any() {
-    // Back-references and Unicode properties are not modeled.
     for pattern in [r"(a)\1", r"\p{L}+", r"[[:^alpha:]]", r"\k<n>"] {
         let set = FirstBytes::of_pattern(pattern, false);
         assert!(
@@ -108,8 +105,7 @@ fn never_rejects_a_byte_a_pattern_can_start_with() {
         "0x1F", "::name", "!", "#\"", "e'", "ü", "()", "a'b'c", "0b1_",
     ];
 
-    // Non-ASCII characters spanning the two-, three- and four-byte lead ranges, including a cased
-    // letter, a Kelvin sign (which case-folds with ASCII `k`), digits, and a combining mark.
+    // Cover all UTF-8 widths, case folding, digits, and combining marks.
     const LEADING_CHARS: [char; 10] = [
         'é', 'Ü', 'ß', 'π', '中', '😀', '٣', '\u{212A}', '\u{0301}', '\u{2028}',
     ];
@@ -123,8 +119,7 @@ fn never_rejects_a_byte_a_pattern_can_start_with() {
             } = &rule.matcher
             {
                 let set = FirstBytes::of_pattern(pattern, *insensitive);
-                // Built exactly as the tokenizer builds it, so the property is checked on the real
-                // regex the rule matches with.
+                // Build the regex as the tokenizer does to check the same pattern.
                 let mut source = String::new();
                 if *insensitive {
                     source.push_str("(?i)");

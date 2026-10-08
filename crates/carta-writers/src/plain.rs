@@ -1,8 +1,4 @@
-//! Plain-text writer: renders the document model to unformatted text.
-//!
-//! Output uses a fill column of 72, strips inline markup (emphasis, links, and inline code render as
-//! their textual content), and conveys block structure through indentation alone. It carries no
-//! trailing newline; the caller appends one. This format has no public specification.
+//! Render the document model as plain text.
 
 use carta_ast::{
     Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType,
@@ -252,7 +248,6 @@ impl State {
                     let loose = is_loose_definition(definition);
                     let body = self.blocks_at(definition, width.saturating_sub(2), loose, true);
                     let indented = indent_block(&body, "  ", "  ");
-                    // an empty term contributes no line, so the first body opens the group with no leading separator
                     if !group.is_empty() {
                         group.push_str(if loose { "\n\n" } else { "\n" });
                     }
@@ -272,8 +267,7 @@ impl State {
         if table.col_specs.is_empty() || budget::exhausted() {
             return String::new();
         }
-        // A fractional column spec is relative to the line the table occupies, so a table laid out
-        // at the unconstrained measuring width would scale to it; keep it within the fill column.
+        // Bound fractional widths by the fill column even during unconstrained measurement.
         let width = width.min(self.width);
         let form = table_form(table);
         self.table_depth += 1;
@@ -385,8 +379,7 @@ impl State {
             .map(
                 |index| match table.col_specs.get(index).map(|spec| &spec.width) {
                     Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                        // floor/max(0.0) make the conversion exact and non-negative; min(width)
-                        // clamps a fraction past the whole line that would allocate a huge rule
+                        // Clamp fractions to the line width before allocating rules.
                         #[allow(
                             clippy::cast_precision_loss,
                             clippy::cast_possible_truncation,
@@ -442,8 +435,7 @@ impl State {
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
         if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
-            // column sizing re-renders every cell, compounding per table ancestor; past the cap,
-            // columns split the fill width evenly, keeping total work linear
+            // Cap recursive sizing; deeper tables split the fill width evenly.
             let share = (width / columns.max(1)).max(1);
             natural.fill(share);
             minword.fill(1);
@@ -658,7 +650,6 @@ impl State {
             | Inline::Underline(inlines)
             | Inline::Cite(_, inlines)
             | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
-            // a bare URL contributes its encoded address; any other link only its visible text
             Inline::Link(_, inlines, target) => {
                 if let [Inline::Str(text)] = inlines.as_slice()
                     && is_uri(&target.url)
@@ -714,7 +705,6 @@ impl State {
             }
             Inline::Image(_, inlines, target) => {
                 out.push(Piece::text("["));
-                // alt text that merely repeats the source URL is dropped
                 if carta_ast::to_plain_text(inlines) != target.url {
                     self.extend_pieces(inlines, out);
                 }
@@ -727,16 +717,10 @@ impl State {
         }
     }
 
-    /// Render math. A convertible expression lowers to the writer-agnostic inline tree (italic
-    /// variables, unicode sub/superscripts, symbols and Greek letters), which the inline renderer
-    /// above turns into plain text. An expression with no single-line form is emitted verbatim,
-    /// wrapped in the math delimiters of its kind (`$…$` for inline, `$$…$$` for display). Inline
-    /// source has its edge whitespace trimmed before wrapping (interior whitespace is kept); display
-    /// source is wrapped as written.
+    /// Render convertible math as text, or retain unsupported source with math delimiters.
     ///
-    /// Display math sits on its own line: a forced break frames it, absorbing any adjacent space and
-    /// collapsing with a neighbouring display formula's break, so consecutive formulas each land on a
-    /// separate line while a lone formula gains no surrounding blank.
+    /// Inline fallback trims edge whitespace; display fallback preserves it.
+    /// Display formulas occupy separate lines without surrounding blank lines.
     fn math(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
         let display = matches!(kind, MathType::DisplayMath);
         if display {

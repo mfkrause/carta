@@ -3,7 +3,7 @@
 use super::markers::field_marker;
 use carta_ast::{Alignment, Attr, Block, Cell, Inline, Row};
 
-// --- directive helpers -------------------------------------------------------------------------
+// directive helpers
 
 /// Split a directive body into its argument (first line), its options (the immediately following
 /// `:key: value` lines), and its content (everything after the blank separator).
@@ -163,7 +163,6 @@ pub(super) fn parse_csv(text: &str) -> Vec<Vec<String>> {
             }
         }
         record.push(field.trim().to_string());
-        // Comma spelled out to keep the three field terminators (separator, record break, end) together.
         #[allow(clippy::match_same_arms)]
         match chars.get(i) {
             Some(',') => i += 1,
@@ -201,7 +200,6 @@ pub(super) fn code_attr(argument: &str, options: &[(String, String)]) -> Attr {
         match key.as_str() {
             "name" => id.clone_from(value),
             "class" => classes.extend(value.split_whitespace().map(str::to_string)),
-            // Line numbering is requested by a marker class; a non-empty value sets the first line.
             "number-lines" => {
                 classes.push("numberLines".to_string());
                 let start = value.trim();
@@ -448,8 +446,7 @@ pub(super) fn class_attr(classes: Vec<String>) -> Attr {
 /// a section heading supplies the heading's identifier; otherwise each target wraps the block in a
 /// division carrying its identifier, the last target sitting innermost.
 pub(super) fn attach_targets(mut blocks: Vec<Block>, mut targets: Vec<String>) -> Vec<Block> {
-    // Targets before a section title attach to it: the last takes the title's identifier, the rest
-    // become empty spans appended in reverse, each keeping its name for linking.
+    // The last target becomes the title id; earlier targets become empty spans in reverse order.
     if let [Block::Header(_, attr, inlines)] = blocks.as_mut_slice()
         && let Some(last) = targets.pop()
     {

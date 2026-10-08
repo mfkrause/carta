@@ -1,7 +1,4 @@
-//! Block-structure phase: consume input line by line into a tree of [`IrBlock`]s, following the
-//! `CommonMark` spec's open-block algorithm (spec appendix "A parsing strategy"). Leaf text is left
-//! raw for the inline phase; link reference definitions are stripped from paragraph fronts and
-//! collected into the [`RefMap`].
+//! Parse block structure into [`IrBlock`]s, leaving leaf text for inline parsing.
 
 use carta_ast::{Attr, Format, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
@@ -422,8 +419,7 @@ impl Parser {
     fn descend_containers(&mut self, cursor: &mut Cursor) -> Descent {
         let mut container = 0;
         let mut all_matched = true;
-        // A close fence is judged at each matched div's own indent, so one buried under a re-base
-        // indent reads as content.
+        // Judge close fences at each div's own indent; deeper fences are content.
         let mut div_path: Vec<(usize, String)> = Vec::new();
         loop {
             let Some(child) = self.last_open_child(container) else {
@@ -463,7 +459,6 @@ impl Parser {
         }
     }
 
-    // Both phases share one cursor; splitting into helpers would only thread it through signatures.
     #[allow(clippy::too_many_lines)]
     pub(super) fn process_line(
         &mut self,
@@ -534,7 +529,6 @@ impl Parser {
             self.fence_fold = None;
         }
 
-        // A setext underline converts a fully matched open paragraph into a heading.
         if all_matched
             && !blank
             && let Some(para) = self
@@ -557,7 +551,6 @@ impl Parser {
                 let multiline_body = self.greedy_paragraphs && body.trim_end().contains('\n');
                 if !multiline_body {
                     let only_definitions = body.trim().is_empty();
-                    // A pure-definitions paragraph is consumed and this line reparsed as content.
                     let column_zero = self.nodes.get(para).is_some_and(|node| node.indent == 0);
                     let remaining = self.extract_refs(&text, column_zero);
                     if let Some(node) = self.nodes.get_mut(para) {
@@ -582,8 +575,7 @@ impl Parser {
         let matched = container;
         let old_tip = self.deepest_open(matched);
 
-        // Record the blank on the block it trails (drives loose-list classification): the deepest
-        // finalized block when all matched, else the matched container's last child.
+        // Attach blanks to the preceding content to classify list looseness.
         if blank {
             let target = if all_matched {
                 self.blank_trails(old_tip)
@@ -601,7 +593,6 @@ impl Parser {
             }
         }
 
-        // Phase 2: open new blocks at the matched container.
         let mut started_new = false;
         if !blank {
             loop {
@@ -617,8 +608,7 @@ impl Parser {
                 if let Some(opened) = self.try_open(container, &mut cursor, following, line_index) {
                     started_new = true;
                     container = opened;
-                    // Descend only with real content: a bare marker's trailing spaces must not
-                    // open an indented code block.
+                    // Trailing spaces after a bare marker must not open an indented code block.
                     if self.is_container(container) && !cursor.is_blank() {
                         continue;
                     }
@@ -627,8 +617,7 @@ impl Parser {
             }
         }
 
-        // Spec "close unmatched blocks": an unmatched container survives only for a lazy paragraph
-        // continuation; otherwise it closes before the matched container is reused.
+        // Unmatched containers survive only for lazy paragraph continuation.
         let lazy = !all_matched
             && !blank
             && !started_new
@@ -667,14 +656,10 @@ impl Parser {
         }
     }
 
-    /// The block a trailing blank line attaches to: descend through finalized last-children so the
-    /// blank lands on the content it follows (e.g. a closed code block) rather than its still-open
-    /// container. Stops at an empty container, which the blank then trails directly.
+    /// Find the block that a trailing blank line marks for list looseness.
     ///
-    /// Descent follows the list structure only. Loose-list classification reads the same
-    /// List/Item chain, so the blank must mark a block on it: descending into a closed block quote
-    /// or fenced div would bury the mark where the classification never looks, leaving the list
-    /// wrongly tight. Such a block is itself the trailing block, so the blank stops there.
+    /// Descend through finalized list/item children, stopping at empty containers.
+    /// Do not descend into closed quotes or divs: list classification cannot see marks there.
     fn blank_trails(&self, mut index: usize) -> usize {
         while let Some(&last) = self.nodes.get(index).and_then(|node| node.children.last()) {
             if self.nodes.get(last).is_some_and(|node| !node.open) {
@@ -800,8 +785,7 @@ impl Parser {
         let remaining = cursor.remaining();
         let open = html_element::parse_open_tag(remaining)?;
         let is_div = open.tag == "div";
-        // A div needs `native_divs`, other tags `markdown_in_html_blocks`; with neither the tag
-        // falls through to the raw HTML-block reading.
+        // Parsed HTML needs `native_divs` or `markdown_in_html_blocks`.
         let as_div = is_div && native_divs;
         if !as_div && !markdown_in_html {
             return None;
@@ -812,8 +796,7 @@ impl Parser {
         }
         let raw_open = remaining.get(..open.len).unwrap_or(remaining).to_owned();
         let trailing = remaining.get(open.len..).unwrap_or("").to_owned();
-        // The whole line is read here (`trailing` is re-fed); the cursor steps one byte at a time,
-        // so the byte length is right even with multibyte characters.
+        // The cursor moves in bytes, including over multibyte characters.
         cursor.advance_chars(remaining.len());
         let kind = Kind::HtmlElement(HtmlElementInfo {
             tag: open.tag,

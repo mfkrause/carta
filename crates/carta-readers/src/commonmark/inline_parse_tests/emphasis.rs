@@ -2,7 +2,7 @@
 
 use super::*;
 
-// --- Emphasis and strong ---
+// Emphasis and strong
 
 #[test]
 fn nested_emphasis_and_strong() {
@@ -42,13 +42,12 @@ fn triple_asterisk_produces_emph_of_strong() {
 
 #[test]
 fn rule_of_3_prevents_outer_strong() {
-    // **a*b**: closer+opener sum of 3 violates rule-of-3 when one side can both open and close, so `*b` stays literal inside Strong
+    // A sum of three fails the rule of three unless both run lengths are multiples of three.
     assert_eq!(p("**a*b**"), vec![Inline::Strong(vec![str("a*b")])]);
 }
 
 #[test]
 fn rule_of_3_prevents_inner_strong() {
-    // *a**b*: sum=3 and neither length is a multiple of 3, so `**b` stays literal
     assert_eq!(p("*a**b*"), vec![Inline::Emph(vec![str("a**b")])]);
 }
 
@@ -56,7 +55,6 @@ fn rule_of_3_prevents_inner_strong() {
 fn unmatched_openers_become_literal() {
     assert_eq!(p("*a"), vec![str("*a")]);
     assert_eq!(p("a*"), vec![str("a*")]);
-    // **a*: the single * can close an emphasis inside the **, leaving ** - 1 = * literal
     assert_eq!(p("**a*"), vec![str("*"), Inline::Emph(vec![str("a")])]);
 }
 
@@ -69,7 +67,6 @@ fn underscore_intraword_stays_literal() {
 
 #[test]
 fn emphasis_flanks_across_multi_byte_neighbors() {
-    // `*` pairs intraword, so multi-byte word characters behave like ASCII ones
     assert_eq!(
         p("α*β*γ"),
         vec![str("α"), Inline::Emph(vec![str("β")]), str("γ")]
@@ -84,7 +81,6 @@ fn emphasis_with_multi_byte_content_at_input_edges() {
 
 #[test]
 fn emphasis_between_emoji_neighbors() {
-    // an emoji is punctuation for flanking purposes, so the run still opens and closes around it
     assert_eq!(
         p("😀*a*😀"),
         vec![str("😀"), Inline::Emph(vec![str("a")]), str("😀")]

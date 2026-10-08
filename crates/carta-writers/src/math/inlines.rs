@@ -1,10 +1,4 @@
-//! Backend A: lower a parsed math tree to a writer-agnostic [`Inline`] list.
-//!
-//! Variables render in italics, sub/superscripts become [`Inline::Subscript`]/[`Inline::Superscript`],
-//! named functions and symbols render upright, and inter-token spacing follows TeX's atom-class
-//! rules using the appropriate fixed-width unicode spaces. Any construct that cannot be laid out on
-//! a single line (fractions, radicals, stacked operator limits, …) makes the whole conversion
-//! return `None`, so the caller can fall back to verbatim source.
+//! Convert parsed math to writer-independent [`Inline`] nodes.
 
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -110,7 +104,6 @@ fn effective_classes(rendered: &[Rendered]) -> Vec<Class> {
         };
         effective.push(class);
     }
-    // Bin with no right operand (Rel/Close/Punct next) retypes to Ord; uses forward-pass classes
     for i in 0..effective.len() {
         let unbinds = effective.get(i) == Some(&Class::Bin)
             && effective
@@ -156,7 +149,6 @@ fn wrap_styled_atom(inlines: Vec<Inline>, style: Style) -> Vec<Inline> {
     match style {
         // bold sets letters upright-bold: strip variable italics before wrapping
         Style::Bold => vec![Inline::Strong(strip_italic(inlines))],
-        // unwrap already-italic letters so they are not doubly emphasised
         Style::Italic => vec![Inline::Emph(strip_italic(inlines))],
         Style::BoldItalic => vec![Inline::Strong(vec![Inline::Emph(strip_italic(inlines))])],
         Style::Plain
@@ -189,7 +181,6 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         && atom.siblings.is_empty()
         && is_manual_space_body(&atom.body);
 
-    // primary scripts first, then sibling runs, subscript before superscript in each run
     let runs = atom.script_runs();
     let has_sub = runs
         .iter()
@@ -201,8 +192,7 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         .any(|s| s.kind == ScriptKind::Sup);
     let has_scripts = runs.iter().any(|r| !r.scripts.is_empty());
 
-    // stacked limits cannot linearise: `\limits` stacks with any script, `\nolimits` never,
-    // default stacks only with both a sub- and a superscript
+    // Limits stack unless `\nolimits`; default placement stacks only paired scripts.
     let stacks = match atom.limits {
         Some(true) => has_scripts,
         Some(false) => false,
@@ -212,7 +202,6 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         return None;
     }
 
-    // wrap the base only; scripts are styled by recursion and appended outside the wrapper
     let mut inlines = wrap_styled_atom(inlines, style);
 
     if has_scripts {
@@ -230,7 +219,6 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         push_str(&mut inlines, THIN_SPACE);
     }
 
-    // a scripted large operator is an ordinary operand for the spacing pass
     let class = if class == Class::Op && has_scripts {
         Class::Ord
     } else {
@@ -315,16 +303,13 @@ fn trim_trailing_thin_space(inlines: &mut Vec<Inline>) {
 #[allow(clippy::match_same_arms)]
 fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     match body {
-        // no glyph, only scripts render; Ord so a neighbour still spaces (labels surface only in Typst)
         Body::Empty | Body::EmptyGroup | Body::Label(_) => {
             Some((Vec::new(), Class::Ord, false, false))
         }
         Body::Prime(count) => Some((prime_nucleus(*count), Class::Ord, false, false)),
-        // bare #/&/% have no symbol meaning: verbatim fallback (alignment `&` is consumed by the
-        // grid parser; escaped forms arrive as commands)
+        // Bare `#`, `&`, and `%` require verbatim fallback; grid parsing consumes structural `&`.
         Body::Char('#' | '&' | '%') => None,
         Body::Char(c) => render_char(*c, style),
-        // `:=` prints literally and takes relation spacing as a unit
         Body::ColonEq => Some((vec![Inline::Str(":=".into())], Class::Rel, false, false)),
         Body::Number(digits) => render_number(digits, style),
         Body::Command(name) => render_command(name, style),
@@ -336,13 +321,11 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
         Body::Accent(name, base) => render_accent(name, base),
         Body::Styled(name, arg) => render_styled(name, arg),
         Body::Text(name, content) => render_text(name, content),
-        // size is presentational; the bare glyph renders as Ord so it binds tightly
         Body::Big(_, delim) => {
             let (inlines, _, _, _) = render_nucleus(&delim.body, Style::Plain)?;
             Some((inlines, Class::Ord, false, false))
         }
         Body::Delimited(open, close, content) => render_delimited(*open, *close, content),
-        // `\middle` renders its plain glyph with no space; an absent delimiter (`.`) contributes nothing
         Body::Middle(delim, open_side) => {
             let side = if *open_side {
                 DelimSide::Open
@@ -354,7 +337,6 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
         }
         Body::Mod(kind, arg) => render_mod(*kind, arg.as_deref()),
         Body::Negated(base) => render_negated(base),
-        // two-dimensional constructs never linearise; `\not` over a group has no linear overlay
         Body::NegatedGroup(_)
         | Body::Frac(_, _, _)
         | Body::Sqrt(_, _)
@@ -426,7 +408,6 @@ pub(super) fn negated_base(base: &str) -> Option<NegatedBase> {
         let (text, class, _) = char_glyph(c);
         return match class {
             Class::Rel => Some(NegatedBase::Relation(text)),
-            // delimiter glyphs and the bar carry the strike as an italicised Ord atom
             Class::Open | Class::Close => Some(NegatedBase::Italic(text)),
             Class::Ord if c == '|' => Some(NegatedBase::Italic(text)),
             _ => None,
@@ -534,8 +515,7 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
             TextPiece::Math(atoms) => inlines.extend(lower(atoms)?),
         }
     }
-    // an empty wrapper emits nothing (an empty Strong/Emph/code span would print stray markup);
-    // a named operator keeps its thin space even when empty
+    // Empty wrappers omit markup; an empty named operator retains its thin space.
     Some((inlines, Class::Ord, false, intrinsic_thin))
 }
 
@@ -621,7 +601,6 @@ fn char_glyph(c: char) -> (String, Class, bool) {
         // bare `|` opens a delimited group so a following sign is unary (`|-x|`); `\vert` stays Ord
         '|' => ("|".to_string(), Class::Open),
         '~' => ("\u{00A0}".to_string(), Class::Ord),
-        // limit-class glyph: the caller decides verbatim fallback from the limit flag
         _ if is_limit_glyph(c) => (c.to_string(), Class::Op),
         _ => (c.to_string(), glyph_class(c).unwrap_or(Class::Ord)),
     };
@@ -702,7 +681,6 @@ fn render_command(name: &str, style: Style) -> Option<(Vec<Inline>, Class, bool,
         let is_limit = symbols::is_limit_operator(name);
         return Some((inlines, sym.class, is_limit, false));
     }
-    // unknown control sequence: verbatim fallback
     None
 }
 
@@ -794,10 +772,8 @@ fn render_styled(name: &str, arg: &[Atom]) -> Option<(Vec<Inline>, Class, bool, 
         "mathfrak" => styled(arg, Style::Substitute(Alphabet::Fraktur)),
         "mathbfcal" | "mathbfscr" => styled(arg, Style::SubstituteBold(Alphabet::BoldScript)),
         "mathbffrak" => styled(arg, Style::SubstituteBold(Alphabet::BoldFraktur)),
-        // the sans component has no inline form; sans-italic is plain italic
         "mathbfit" | "mathbfsfit" => styled(arg, Style::BoldItalic),
         "mathsfit" => styled(arg, Style::Italic),
-        // `\symbf` and the upright-bold variants share `\mathbf`'s shape in inline output
         "mathbf" | "boldsymbol" | "bm" | "pmb" | "symbf" | "mathbfup" | "mathbfsfup" => {
             styled(arg, Style::Bold)
         }
@@ -811,8 +787,7 @@ fn render_styled(name: &str, arg: &[Atom]) -> Option<(Vec<Inline>, Class, bool, 
         "mathpunct" => math_class_wrapper(arg, Class::Punct),
         "mathopen" => math_class_wrapper(arg, Class::Open),
         "mathclose" => math_class_wrapper(arg, Class::Close),
-        // `\mathop` sets its argument like a named operator; only a multi-atom run also takes
-        // operator spacing of its own
+        // Only multi-atom `\mathop` content gets operator spacing.
         "mathop" if arg.len() == 1 => {
             Some((flatten_emph(upright_inner(arg)?), Class::Op, false, false))
         }

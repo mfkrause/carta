@@ -1,12 +1,4 @@
-//! Tokenizer: turns HTML source into a flat stream of start tags, end tags and text. Character
-//! references are resolved here, except inside the script-like raw-text elements that pass through
-//! verbatim.
-//!
-//! The tokenizer walks the source by byte offset. Every structural character of HTML syntax (`<`,
-//! `>`, `/`, `=`, quotes, `&`, ASCII whitespace) is a single ASCII byte, and in UTF-8 no byte of a
-//! multi-byte character equals an ASCII byte, so scanning byte-by-byte for these delimiters is
-//! boundary-safe: every position where a delimiter is found, and every slice cut at such a
-//! position, lies on a character boundary.
+//! Tokenize HTML tags and text, decoding entities outside raw-text elements.
 
 use crate::entities::{code_point, lookup_named};
 
@@ -312,8 +304,7 @@ fn read_text(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
         }
         search = at + 1;
     };
-    // A lone `<` that opens no markup is consumed as literal text; it is a single byte, so the
-    // one-byte step stays on a character boundary.
+    // A literal `<` is ASCII, so advancing one byte preserves character boundaries.
     let next = if i == start { start + 1 } else { i };
     let raw = input.get(start..next).unwrap_or_default();
     tokens.push(Token::Text(decode_entities(raw)));

@@ -183,8 +183,7 @@ pub(crate) fn filled_cells(row: &[Vec<Piece>], field: &[usize]) -> Vec<Vec<Strin
         .enumerate()
         .map(|(index, pieces)| {
             let width = field.get(index).copied().unwrap_or(0);
-            // A cell always reflows to its computed column width: the width is a layout constraint of
-            // the table, not a paragraph wrap the document option can switch off.
+            // Cell widths constrain layout regardless of the document wrap option.
             fill_lines(pieces, width)
         })
         .collect()

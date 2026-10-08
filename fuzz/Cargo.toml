@@ -163,8 +163,7 @@ test = false
 doc = false
 bench = false
 
-# One `write_*` target per writer module: `Arbitrary` documents (writers sit on the untrusted-input
-# path via the JSON/native readers) must neither panic nor render irreproducibly.
+# Writer targets check panic safety and deterministic output on arbitrary documents.
 
 [[bin]]
 name = "write_asciidoc"

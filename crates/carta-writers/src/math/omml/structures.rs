@@ -124,7 +124,6 @@ pub(super) fn delimited(
     let open = open.map_or("", |delimiter| delimiter_glyph(delimiter, true));
     let close = close.map_or("", |delimiter| delimiter_glyph(delimiter, false));
 
-    // A `\middle` divider partitions the fence into consecutive slots separated by its glyph.
     let mut separator = "";
     let mut slots: Vec<Vec<Element>> = Vec::new();
     let mut start = 0usize;
@@ -284,8 +283,7 @@ pub(super) fn grid(
         GridKind::Substack | GridKind::Gathered => {
             vec![grid_body(rows, ColumnJustify::Center, style, depth)?]
         }
-        // With alignment markers cells join into equation-array lines; with none the block is a
-        // right-justified single-column matrix.
+        // Alignment markers make equation-array lines; otherwise use a right-justified matrix.
         GridKind::Aligned => {
             let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
             if columns <= 1 {

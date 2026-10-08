@@ -1,7 +1,6 @@
 //! Golden fixtures for the MathML backend: enclosures, matrices, fences, modulo, negation, and display forms.
 
 pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
-    // the cancel family and `\boxed` use `<menclose>` with the matching notation
     (
         "\\cancel{x}",
         false,
@@ -30,8 +29,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><menclose notation=\"box\"><mi>x</mi></menclose></math>",
         ),
     ),
-    // binomials, matrices with every delimiter, arrays, cases, and each alignment grid's
-    // column-alignment cycle
     (
         "\\binom{n}{k}",
         false,
@@ -130,7 +127,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><msub><mi>x</mi><mtable><mtr><mtd columnalign=\"center\" style=\"text-align: center\"><mi>a</mi></mtd></mtr><mtr><mtd columnalign=\"center\" style=\"text-align: center\"><mi>b</mi></mtd></mtr></mtable></msub></math>",
         ),
     ),
-    // explicit fences (stretchy sides, dropped `.`, `\middle`) and the plain-glyph bracket macros
     (
         "\\left(a\\right)",
         false,
@@ -201,8 +197,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"true\" form=\"prefix\">(</mo><mi>a</mi><mo>|</mo><mi>b</mi><mo stretchy=\"true\" form=\"postfix\">)</mo></mrow></math>",
         ),
     ),
-    // sized delimiters carry percentage min/max; opener is prefix, relation glyphs take no fence
-    // form, ordinary glyphs stay `<mi>`
     (
         "\\big(",
         false,
@@ -238,7 +232,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi minsize=\"120%\" maxsize=\"120%\" stretchy=\"true\">/</mi></math>",
         ),
     ),
-    // Modulo forms: `\bmod` and `\mod` set the operator inline, `\pmod`/`\pod` parenthesise it.
     (
         "a\\bmod b",
         false,
@@ -267,7 +260,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mo stretchy=\"true\" form=\"prefix\">(</mo><mi>n</mi><mo stretchy=\"true\" form=\"postfix\">)</mo></mrow></mrow></math>",
         ),
     ),
-    // negation: precomposed relation, combining solidus over relation/letter/digit, struck Greek
     (
         "\\not= b",
         false,
@@ -303,7 +295,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>α\u{338}</mi></math>",
         ),
     ),
-    // stacks, horizontal braces (bare, labelled, ordinary script pair), and extensible arrows
     (
         "\\overset{a}{b}",
         false,
@@ -374,7 +365,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><munderover><mo>→</mo><mi>b</mi><mi>a</mi></munderover></math>",
         ),
     ),
-    // Whitespace-only and empty input lower to an empty `<math>`, a successful (empty) conversion.
     (
         "",
         false,
@@ -385,8 +375,6 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         false,
         Some("<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"></math>"),
     ),
-    // display mode: root carries `display=\"block\"`; limit operators stack their scripts,
-    // integrals keep them beside
     (
         "x^2",
         true,

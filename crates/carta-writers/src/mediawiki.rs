@@ -1,9 +1,4 @@
-//! `MediaWiki` writer: renders the document model to `MediaWiki` markup.
-//!
-//! Inline content is not reflowed: a soft break renders as a single space, except under preserve
-//! wrapping where it stays a line break. Block structure is conveyed through `MediaWiki`'s
-//! line-oriented markup. Output carries no trailing newline; the caller appends one. This format has
-//! no public specification, so its rules are stated directly here.
+//! Render the document model as `MediaWiki` markup.
 
 use std::fmt::Write as _;
 
@@ -45,7 +40,6 @@ impl Writer for MediawikiWriter {
 
 /// Tracks whether any footnote was emitted, so the trailing `<references />` block is added only when
 /// the document actually uses notes.
-// Independent render-state bits that can hold at once, not a configuration enum.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 struct State {
@@ -298,8 +292,7 @@ impl State {
                 lines.push(prefix.clone());
                 continue;
             }
-            // An item whose first block is a sublist has no text line to carry the marker; emit it
-            // ahead of the sublist's first line.
+            // A leading sublist has no text line, so emit the item marker before it.
             let mut item_has_marker = false;
             for inner in item {
                 match inner {
@@ -353,7 +346,6 @@ impl State {
             .iter()
             .map(|spec| spec.align.clone())
             .collect();
-        // Table attributes render on the `{|` line, `wikitable` always the first class.
         let mut table_attr = table.attr.clone();
         table_attr.classes.insert(0, "wikitable".into());
         let mut out = format!("{{|{}", render_html_attr(&table_attr));
@@ -419,7 +411,6 @@ impl State {
             Alignment::AlignDefault => col_align.unwrap_or(&Alignment::AlignDefault),
             explicit => explicit,
         };
-        // Cell attribute order: id, class, spans, alignment style, then key/value pairs.
         let mut attrs = Vec::new();
         if !cell.attr.id.is_empty() {
             attrs.push(format!("id=\"{}\"", escape_attr(&cell.attr.id)));
@@ -449,7 +440,6 @@ impl State {
         }
         let body = self.blocks(&cell.content);
         let content = body.trim_end_matches('\n');
-        // An empty cell ends at its last marker: no trailing space.
         match (attrs.is_empty(), content.is_empty()) {
             (true, true) => marker.trim_end().to_owned(),
             (true, false) => format!("{marker}{content}"),
@@ -474,7 +464,6 @@ impl State {
         let mut pending_space = false;
         let mut wrote = false;
         for inline in inlines {
-            // A preserved soft break is a real line break; it stands in for any pending space.
             if matches!(inline, Inline::SoftBreak)
                 && self.wrap == WrapMode::Preserve
                 && !self.single_line
@@ -532,8 +521,7 @@ impl State {
                 format!("{open}{}{close}", self.inlines_keep_edges(inlines))
             }
             Inline::Code(_, text) => format!("<code>{}</code>", escape_text(text)),
-            // A soft break stays a line break only with preserved source breaks in a multi-line
-            // construct; otherwise it is inter-word whitespace.
+            // Preserve soft breaks only inside multiline constructs; otherwise use spaces.
             Inline::SoftBreak if self.wrap == WrapMode::Preserve && !self.single_line => {
                 "\n".to_owned()
             }
@@ -865,7 +853,6 @@ fn is_external_uri(url: &str) -> bool {
 }
 
 fn escape_text(text: &str) -> String {
-    // C0 control characters other than tab and newline have no wiki rendering and are dropped.
     let has_droppable = text
         .bytes()
         .any(|byte| byte < 0x20 && byte != b'\t' && byte != b'\n');
@@ -1050,7 +1037,6 @@ const HIGHLIGHT_LANGUAGES: &[&str] = &[
     "yaml",
     "zig",
     "zsh",
-    // Common short aliases that also select highlighting.
     "js",
     "ts",
     "py",

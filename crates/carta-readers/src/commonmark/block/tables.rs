@@ -174,8 +174,7 @@ impl Parser {
                 if !single_line(header) || !texttable::is_dash_line(cursor.remaining()) {
                     return false;
                 }
-                // Columns are positional: the de-indented header is restored to its original
-                // column to share the ruling's coordinates.
+                // Restore the header's column to align it with the ruling.
                 let header_indent = self.nodes.get(leaf).map_or(0, |node| node.indent);
                 let ruling = cursor.remaining();
                 let header = format!("{}{header}", " ".repeat(header_indent));

@@ -110,7 +110,6 @@ fn markdown_cell_becomes_a_div_with_parsed_blocks() {
 
 #[test]
 fn markdown_cell_honors_forwarded_extensions() {
-    // A pipe table parses only with the table extension on.
     let input = r#"{"cells": [{"cell_type": "markdown", "metadata": {},
             "source": ["| a | b |\n|---|---|\n| 1 | 2 |\n"]}],
             "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#;
@@ -144,7 +143,6 @@ fn markdown_attachment_prefix_is_stripped_from_images() {
     let Some(Inline::Image(_, _, target)) = inlines.first() else {
         panic!("expected an image");
     };
-    // A cell without an `id` leaves the bare reference in place.
     assert_eq!(target.url, "a.png");
 }
 
@@ -165,7 +163,6 @@ fn markdown_attachment_reference_is_scoped_to_the_cell_id() {
     let Some(Inline::Image(_, _, target)) = inlines.first() else {
         panic!("expected an image");
     };
-    // A cell with an `id` scopes the reference to that cell.
     assert_eq!(target.url, "cell9-a.png");
 }
 
@@ -364,7 +361,6 @@ fn markdown_attachment_bytes_are_lifted_into_the_media_bag() {
                "source": ["![alt](attachment:a.png)"]}],
                "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
     );
-    // The attachment is keyed by the same cell-scoped name the image reference resolves to.
     let item = media.get("cell9-a.png").expect("attachment is in the bag");
     assert_eq!(item.mime.as_deref(), Some("image/png"));
     assert_eq!(
@@ -471,7 +467,6 @@ fn raw_cell_maps_format_to_writer_name() {
         body.first(),
         Some(Block::RawBlock(Format(name), text)) if name == "html" && text == "<b>x</b>"
     ));
-    // No declared format falls back to the notebook's own format name.
     let Some(Block::Div(_, body)) = document.blocks.get(1) else {
         panic!("expected a raw cell div");
     };

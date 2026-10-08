@@ -18,8 +18,7 @@ pub(super) fn render_bullet_list(
     depth: u32,
     ambient: Option<&str>,
 ) {
-    // A list whose every item leads with a checkbox is a task list: each item binds to its own
-    // state-selected checkbox number, with the leading glyph and following space stripped.
+    // All items must start with checkboxes; each gets state-specific numbering.
     if let Some(states) = task_list_states(items) {
         for (item, checked) in items.iter().zip(states) {
             let num_id = ctx.plan.checkbox(checked);
@@ -130,7 +129,6 @@ fn render_item_block(
                 ctx,
             ));
         }
-        // A loose paragraph takes the surrounding custom-style, plus the item's numbering.
         Block::Para(inlines) => {
             if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
                 return;
@@ -144,7 +142,6 @@ fn render_item_block(
                 ctx,
             ));
         }
-        // A nested heading is no outline section: level style, no bookmark, item numbering.
         Block::Header(level, _, inlines) => {
             let style = heading_style(*level);
             let number = list_number(lead_used, num_id, ctx);
@@ -165,8 +162,7 @@ fn render_item_block(
                 &ctx.highlighter,
             ));
         }
-        // Block-quote paragraphs take the quote style and the item's numbering; other blocks
-        // render as if directly in the item.
+        // Quote paragraphs retain item numbering; other blocks use normal item rendering.
         Block::BlockQuote(blocks) => {
             for inner in blocks {
                 match inner {
@@ -196,7 +192,6 @@ fn render_item_block(
             lead_empty_paragraph(num_id, depth, lead_used, out, ctx);
             render_ordered_list(attrs, items, out, ctx, depth + 1, ambient);
         }
-        // A transparent div's paragraphs number like the item's own.
         Block::Div(attr, blocks) if custom_style(attr).is_none() => {
             for inner in blocks {
                 render_item_block(inner, num_id, depth, lead_used, out, ctx, ambient);

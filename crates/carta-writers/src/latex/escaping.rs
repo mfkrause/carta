@@ -118,7 +118,7 @@ pub(super) fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> Text {
 
 /// Insert a thin-space ligature guard after a smart-quote glyph when the next character also opens
 /// with a quote glyph (another smart quote, or a literal backtick). Without it, adjacent quotes such
-/// as the two apostrophes of `’’` would fuse into a single closing double quote.
+/// as the two apostrophes of two U+2019 characters would fuse into a single closing double quote.
 fn guard_quote_ligature(out: &mut Text, next: Option<char>) {
     if matches!(
         next,

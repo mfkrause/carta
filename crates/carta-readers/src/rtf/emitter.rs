@@ -135,7 +135,6 @@ impl Emitter {
                 atoms: Vec::new(),
             });
         }
-        // The guard above guarantees a last element; the scratch buffer is dead-code fallback.
         match self.frames.last_mut() {
             Some(frame) => &mut frame.atoms,
             None => &mut self.scratch_atoms,
@@ -312,8 +311,7 @@ impl Emitter {
     /// block; an outline level makes it a heading.
     pub(super) fn end_paragraph(&mut self) {
         let mut atoms = self.take_atoms();
-        // One trailing hard break renders no line and is dropped; a paragraph left empty by this
-        // is emitted as nothing.
+        // Drop one trailing hard break, and omit a paragraph emptied by the drop.
         if atoms
             .last()
             .is_some_and(|atom| matches!(atom.kind, AtomKind::LineBreak))

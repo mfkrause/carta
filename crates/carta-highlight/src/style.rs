@@ -1,10 +1,4 @@
-//! The color model: a named theme mapping token kinds to colors and font weights, plus the code
-//! block's overall foreground/background and line-number colors.
-//!
-//! A theme is stored as JSON (the `.theme` wire format) so the CLI can round-trip a theme through
-//! `print_json` byte-for-byte, and users can supply their own theme file. Each renderer projects the
-//! same model onto its target: CSS rules for HTML, color and macro definitions for LaTeX, run
-//! properties for DOCX.
+//! Theme colors, font styles, and code-block presentation.
 
 use std::collections::BTreeMap;
 

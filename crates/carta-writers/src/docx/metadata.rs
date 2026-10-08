@@ -1,9 +1,4 @@
-//! The document-property parts: `docProps/core.xml`, `docProps/app.xml` and `docProps/custom.xml`.
-//!
-//! Core properties carry a fixed set of well-known fields (title, author, category, description,
-//! language, subject and keywords) alongside the creation and modification timestamps. Every other
-//! metadata field routes to the custom properties, one named property each. The application part
-//! identifies the producer and is otherwise fixed.
+//! Render core, application, and custom document-property parts.
 
 use carta_ast::{MetaValue, Text};
 use carta_core::container::xml::Element;

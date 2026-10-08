@@ -265,7 +265,6 @@ fn long_image_tag_wraps_at_fill_column() {
 
 #[test]
 fn attr_image_wraps_before_the_whole_tag() {
-    // An `<img>` tag that does not fit moves whole to the next line, never folding mid-tag.
     let url = format!("{}.png", "a".repeat(40));
     let image = Inline::Image(
         Box::new(Attr {
@@ -287,7 +286,6 @@ fn attr_image_wraps_before_the_whole_tag() {
     inlines.push(Inline::Space);
     inlines.push(Inline::Str("end".into()));
     let out = render(vec![para(inlines)]);
-    // A line begins with the opening tag, and the tag is never split immediately after `<img`.
     assert!(out.lines().any(|line| line.starts_with("<img src=")));
     assert!(!out.contains("<img\n"));
 }
@@ -436,7 +434,6 @@ fn display_math_shares_inline_conversion() {
 
 #[test]
 fn unconvertible_inline_math_falls_back_to_single_dollars() {
-    // The running-text path escapes a word-boundary `_`; the `$` delimiters stay literal.
     assert_eq!(
         render(vec![para(vec![inline_math("\\sum_{i=1}^n a_i")])]),
         "$\\sum\\_{i=1}^n a_i$"
@@ -453,7 +450,6 @@ fn unconvertible_display_math_falls_back_to_double_dollars() {
 
 #[test]
 fn inline_math_fallback_trims_edge_whitespace() {
-    // Edge whitespace is stripped before wrapping in `$…$`; interior whitespace stays.
     assert_eq!(
         render(vec![para(vec![inline_math("\\sqrt{x} ")])]),
         "$\\sqrt{x}$"
@@ -474,7 +470,6 @@ fn inline_math_fallback_trims_edge_whitespace() {
 
 #[test]
 fn display_math_fallback_keeps_edge_whitespace() {
-    // Display fallback wraps the source as written; only inline math trims its edges.
     assert_eq!(
         render(vec![para(vec![display_math("\\sqrt{x} ")])]),
         "$$\\sqrt{x} $$"
@@ -493,7 +488,6 @@ fn inline_math_fallback_of_lone_backslash_escapes() {
 
 #[test]
 fn empty_math_emits_nothing() {
-    // Empty or whitespace-only math contributes no output; the flanking spaces collapse.
     let out = render(vec![para(vec![
         Inline::Str("a".into()),
         Inline::Space,
@@ -633,7 +627,6 @@ fn unrecognized_dimension_is_dropped() {
     );
 }
 
-// `=` carries `U+2004` math spacing on each side in the converted tree.
 const X_EQ_Y: &str = "*x*\u{2004}=\u{2004}*y*";
 
 #[test]

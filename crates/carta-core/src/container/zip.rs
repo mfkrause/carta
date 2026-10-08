@@ -1,10 +1,6 @@
-//! A deterministic ZIP archive builder and reader.
+//! Deterministic ZIP archives with stored or DEFLATE-compressed entries.
 //!
-//! The builder writes entries with a fixed modification timestamp and no extra fields, so identical
-//! inputs always produce byte-identical archives, a hard requirement for reproducible output. An
-//! entry is either stored uncompressed ([`ZipArchive::store`]) or DEFLATE-compressed
-//! ([`ZipArchive::deflate`], falling back to stored when compression would not shrink it). The
-//! reader ([`read`]) parses such archives back into their entries, so a round trip is exact.
+//! Compression falls back to storage when it does not reduce size. Timestamps are fixed.
 
 use std::collections::BTreeMap;
 
@@ -365,7 +361,6 @@ mod tests {
         // The canonical CRC-32 check value for the ASCII string "123456789".
         assert_eq!(crc32(b"123456789"), 0xCBF4_3926);
         assert_eq!(crc32(b""), 0);
-        // A multi-KB buffer, checked against the direct bitwise formulation.
         let buffer: Vec<u8> = (0..4096u32)
             .map(|index| u8::try_from((index * 31 + 7) % 256).unwrap_or(0))
             .collect();

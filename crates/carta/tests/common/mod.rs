@@ -1,7 +1,4 @@
-//! Shared helpers for the golden snapshot tests: corpus discovery and exclusions parsing.
-//!
-//! The corpus lives at the repo root and is shared with the shell conformance suite; these helpers
-//! resolve it relative to the crate manifest so the golden tests run fully offline.
+//! Golden-test corpus discovery and exclusion parsing relative to the crate manifest.
 
 // A shared test toolbox: each integration-test binary that includes this module uses a subset of it.
 #![allow(dead_code)]
@@ -67,7 +64,7 @@ fn corpus_files(kind: &str) -> Vec<(String, String, PathBuf)> {
 /// The subdirectory names under `corpus/<kind>/`, sorted: the group set the golden tests partition
 /// into one test each. Returns empty when the `kind` tree is absent. The per-format guard tests
 /// compare this against their macro's covered-group list so a new corpus directory without a matching
-/// test fails loudly.
+/// test fails.
 pub(crate) fn corpus_groups(kind: &str) -> Vec<String> {
     let root = corpus_dir().join(kind);
     if !root.is_dir() {

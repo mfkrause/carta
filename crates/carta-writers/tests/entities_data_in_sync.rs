@@ -1,7 +1,4 @@
-//! The writers crate vendors its own copy of the WHATWG `entities.json` so it builds in isolation.
-//! This guard fails if that copy drifts from the readers crate's copy, so the two are always updated
-//! together. It reads a sibling crate's file, so it only runs inside the workspace (never from a
-//! published tarball, where integration tests are not compiled).
+//! Check that writer and reader entity data remain identical within the workspace.
 
 #[test]
 fn writers_entities_json_matches_readers_copy() {

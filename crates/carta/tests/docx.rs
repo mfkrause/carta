@@ -1,13 +1,8 @@
-//! Layer 1 golden test for the DOCX writer's extension toggles. Each `corpus/ast-ext/docx*` case is
-//! rendered to the format spec its directory names, the package's main document part is unpacked, and
-//! its markup, pretty-printed one element per line, is frozen by `insta`. This pins the output the
-//! `styles`, `native_numbering`, and `empty_paragraphs` toggles produce, which the text-only writer
-//! golden pass (a byte-shaped target has no string form) never reaches.
+//! Snapshot DOCX extension output from `corpus/ast-ext/docx*`.
 //!
-//! Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! Review changes with `cargo insta review`; do not edit snapshot files directly.
 
 #![cfg(all(feature = "read-json", feature = "write-docx"))]
-// Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;

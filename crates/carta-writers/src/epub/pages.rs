@@ -107,7 +107,6 @@ pub(crate) fn xhtml_page(
     }
     out.push_str(&kind.open_tag(version.is_epub3()));
     out.push('\n');
-    // An empty body sits on a single line (`<body>\n</body>`); content keeps its own trailing break.
     if !body.is_empty() {
         out.push_str(body);
         out.push('\n');
@@ -208,8 +207,7 @@ pub(crate) fn cover_page(
     height: u32,
     stylesheets: &[String],
 ) -> String {
-    // A known pixel size pins the SVG viewport so the image scales exactly; an unknown size fills
-    // the viewport and lets the reading system scale, avoiding a zero-sized box.
+    // Use known image dimensions for the viewport; otherwise let the reader scale it.
     let body = if width == 0 || height == 0 {
         format!(
             "<div id=\"cover-image\">\n\
@@ -309,7 +307,6 @@ mod tests {
             0,
             &[],
         );
-        // With no measurable size the fixed viewBox is dropped and the image fills the viewport.
         assert!(!page.contains("viewBox"));
         assert!(page.contains("<image width=\"100%\" height=\"100%\""));
     }

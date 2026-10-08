@@ -43,8 +43,6 @@ fn consecutive_definitions_are_all_consumed() {
 
 #[test]
 fn an_indented_definition_is_left_as_text() {
-    // A definition must sit flush at the container's left edge; one space in front keeps it a
-    // paragraph.
     let out = with_abbr(" *[HTML]: markup\n\nBody.\n");
     assert_eq!(
         out.len(),

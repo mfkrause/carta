@@ -2,14 +2,10 @@
 
 use super::{Atom, Body, MAX_DEPTH, ScriptKind, Sibling};
 
-/// State for binding a chain of scripts to the most recent atom of a run.
+/// Track the active atom and script kind when binding script chains.
 ///
-/// `path` descends from the run's last atom (the base) to the *active* atom, where the next nesting
-/// script lands: the first step optionally selects a sibling group of the base, and each remaining
-/// step takes the last element of the active atom's subscript or superscript group. `last` is the
-/// kind of the script applied most recently, used to decide whether an occupied-slot script nests
-/// (consecutive same kind) or siblings. `sealed` is set after a script lands across a group boundary
-/// (`{x^2}…`): every later script then siblings in source order instead of filling a primary slot.
+/// `path` locates the active atom. Repeated kinds nest; mixed kinds can pair on its parent.
+/// A group boundary seals the base, making later scripts siblings in source order.
 #[derive(Default)]
 pub(super) struct ScriptChain {
     /// `Some(i)` when the active atom lives inside the base's `i`th sibling group; the active is the
@@ -20,14 +16,10 @@ pub(super) struct ScriptChain {
     pub(super) sealed: bool,
 }
 
-/// Bind a script of `kind` to `base` (the run's last atom), following `chain` to the active atom.
+/// Bind a script of `kind` to the active atom tracked by `chain`.
 ///
-/// Scripts written in sequence build a tree. The *active* atom is the last atom of the script
-/// content applied most recently; `chain` records the path to it. A script that repeats the previous
-/// kind nests one level deeper into the active atom (`a^b^c` → `a^{b^c}`); a script of the other kind
-/// applies to the active atom's parent, so a fresh base collects both its scripts (`a^b_c`). Across a
-/// group boundary the base is sealed: a non-nesting script siblings the base in source order
-/// (`{x^2}_3`) instead of filling a primary slot.
+/// Repeated kinds nest (`a^b^c`); mixed kinds pair on the parent (`a^b_c`).
+/// A sealed base keeps later scripts as siblings rather than filling primary slots.
 pub(super) fn attach_script(
     base: &mut Atom,
     chain: &mut ScriptChain,
@@ -56,8 +48,7 @@ pub(super) fn attach_script(
     if chain.steps.len() >= MAX_DEPTH {
         return None;
     }
-    // A repeated kind nests one level deeper into the active atom; nothing nests into a prime, so a
-    // script on a prime active siblings the base instead.
+    // Repeated script kinds nest; scripts on primes become base siblings.
     if chain.last == Some(kind) && !active_atom(base, chain).is_some_and(|a| a.is_prime()) {
         let descent = empty_base_descent(&script);
         let active = active_atom(base, chain)?;
@@ -71,8 +62,7 @@ pub(super) fn attach_script(
         chain.last = chain.steps.last().copied();
         return Some(());
     }
-    // The other kind reaches one step up so the parent pairs both scripts; only after at least one
-    // descent, never at the root or when sealed (those sibling instead).
+    // Mixed kinds pair on the parent only below the root and outside sealed groups.
     if !chain.sealed && !chain.steps.is_empty() {
         chain.steps.pop();
         let parent = active_atom(base, chain)?;
@@ -90,7 +80,6 @@ pub(super) fn attach_script(
             return Some(());
         }
     }
-    // Otherwise the script siblings the base in source order and becomes the active group.
     base.siblings.push(Sibling {
         kind,
         atoms: script,
@@ -124,16 +113,10 @@ pub(super) fn push_prime(atom: &mut Atom) {
     }
 }
 
-/// Whether a prime mark detaches from `base` to surface as a bare prime glyph rather than nesting as
-/// a superscript. A prime is a superscript; it nests when the chain offers a free superscript slot,
-/// either on the active atom (a repeated-superscript nest) or on its parent (the matching-pair reach
-/// up one level). When neither offers a slot the superscript would have to start a fresh sibling
-/// group, with nowhere to nest; there TeX detaches the prime, so it surfaces as a bare glyph that
-/// starts a new base. The shapes this covers include `a_b'` and the mirror `a_b^c'`, as well as the
-/// deeper `a^c'_d'`, where the active atom already carries a primary prime.
+/// Decide whether a prime detaches from the base instead of nesting as a superscript.
 ///
-/// A sealed base (`{…}'`) or a chain already pointing at a sibling group keeps its prime nested, so
-/// only an unsealed primary chain can detach.
+/// Detach only when neither the active atom nor its parent offers a superscript slot.
+/// Sealed bases and sibling chains keep primes nested.
 pub(super) fn prime_detaches(base: &Atom, chain: &ScriptChain) -> bool {
     if chain.sealed || chain.sibling.is_some() {
         return false;

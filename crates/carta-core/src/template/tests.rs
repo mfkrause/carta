@@ -101,10 +101,8 @@ fn truthiness_of_empty_values() {
     assert_eq!(render(cond, &map(&[("x", list(&[]))])), "N");
     assert_eq!(render(cond, &map(&[("x", s("v"))])), "Y");
     assert_eq!(render(cond, &map(&[("x", list(&[s("v")]))])), "Y");
-    // A map is present-and-true even when it has no entries.
     assert_eq!(render(cond, &map(&[("x", map(&[]))])), "Y");
     assert_eq!(render(cond, &map(&[("x", map(&[("k", s("v"))]))])), "Y");
-    // A list is truthy only when some element is: all-empty members, or a single empty list, is falsy.
     assert_eq!(render(cond, &map(&[("x", list(&[s(""), s("")]))])), "N");
     assert_eq!(render(cond, &map(&[("x", list(&[list(&[])]))])), "N");
     assert_eq!(render(cond, &map(&[("x", list(&[s(""), s("v")]))])), "Y");
@@ -112,7 +110,6 @@ fn truthiness_of_empty_values() {
 
 #[test]
 fn map_stringifies_to_true() {
-    // A present map has no textual form of its own; interpolating it reads as `true`.
     let ctx = map(&[("author", map(&[("name", s("Z"))]))]);
     assert_eq!(render("$author$", &ctx), "true");
 }
@@ -130,7 +127,7 @@ fn elseif_chain() {
 fn for_loop_and_separator() {
     let ctx = map(&[("xs", list(&[s("a"), s("b"), s("c")]))]);
     assert_eq!(render("$for(xs)$$it$$sep$, $endfor$", &ctx), "a, b, c");
-    assert_eq!(render("$for(xs)$$xs$$endfor$", &ctx), "abc"); // bound name == current item
+    assert_eq!(render("$for(xs)$$xs$$endfor$", &ctx), "abc");
 }
 
 #[test]
@@ -141,7 +138,6 @@ fn direct_list_interpolation_has_no_separator() {
 
 #[test]
 fn variable_interpolates_twice_from_one_context() {
-    // Interpolation reads the context value in place, so a second reference sees it intact.
     let ctx = map(&[("body", s("content"))]);
     assert_eq!(render("<$body$>-<$body$>", &ctx), "<content>-<content>");
 }
@@ -156,7 +152,6 @@ fn for_scalar_is_single_element() {
 fn for_over_borrowed_and_owned_lists_render_identically() {
     let ctx = map(&[("xs", list(&[s("a"), s("b"), s("c")]))]);
     let borrowed = render("$for(xs)$<$it$>$sep$,$endfor$", &ctx);
-    // `nowrap` leaves the list unchanged, but its presence routes the loop through an owned value.
     let owned = render("$for(xs/nowrap)$<$it$>$sep$,$endfor$", &ctx);
     assert_eq!(borrowed, "<a>,<b>,<c>");
     assert_eq!(borrowed, owned);
@@ -179,10 +174,8 @@ fn nested_for_descends_through_an_owned_outer_element() {
 
 #[test]
 fn bare_it_outside_a_loop_reads_the_root() {
-    // With no enclosing loop, `it` is an ordinary root variable rather than a binding error.
     let ctx = map(&[("it", s("rootval"))]);
     assert_eq!(render("[$it$]", &ctx), "[rootval]");
-    // A loop still rebinds `it` to its element, shadowing the root for the loop body.
     let ctx = map(&[("it", map(&[("tags", list(&[s("one"), s("two")]))]))]);
     assert_eq!(render("$for(it.tags)$<$it$>$endfor$", &ctx), "<one><two>");
 }
@@ -241,7 +234,6 @@ fn lowercase_is_codepoint_by_codepoint() {
 
 #[test]
 fn string_pipes_leave_a_bool_untouched() {
-    // A bool is not textual: the case pipes pass it through, and its length is zero.
     let t = map(&[("x", Value::Bool(true))]);
     assert_eq!(render("$x/uppercase$", &t), "true");
     assert_eq!(render("$x/lowercase$", &t), "true");
@@ -250,7 +242,6 @@ fn string_pipes_leave_a_bool_untouched() {
 
 #[test]
 fn pipe_chain_applies_to_an_absent_value() {
-    // an absent variable is an empty value, so pipes still run: `length` is 0, text pipes yield nothing
     let ctx = map(&[("present", s("x"))]);
     assert_eq!(render("[$gone/length$]", &ctx), "[0]");
     assert_eq!(render("[$gone/uppercase$]", &ctx), "[]");
@@ -272,7 +263,6 @@ fn pipes_length_and_list_ops() {
 
 #[test]
 fn list_selection_pipes_pass_strings_through() {
-    // `first`/`last`/`rest`/`allbutlast` act on lists only; a string is returned unchanged.
     let ctx = map(&[("w", s("hello"))]);
     assert_eq!(render("$w/first$", &ctx), "hello");
     assert_eq!(render("$w/last$", &ctx), "hello");
@@ -287,13 +277,13 @@ fn alpha_is_single_letter_cyclic() {
     assert_eq!(a("1"), "a");
     assert_eq!(a("3"), "c");
     assert_eq!(a("25"), "y");
-    assert_eq!(a("26"), "`"); // cycle boundary lands just before 'a'
+    assert_eq!(a("26"), "`");
     assert_eq!(a("27"), "a");
     assert_eq!(a("0"), "`");
     assert_eq!(a("-1"), "-1");
     assert_eq!(a("abc"), "abc");
-    assert_eq!(a(" 3 "), " 3 "); // surrounding whitespace disqualifies the integer
-    assert_eq!(a("+3"), "+3"); // a leading plus disqualifies it
+    assert_eq!(a(" 3 "), " 3 ");
+    assert_eq!(a("+3"), "+3");
 }
 
 #[test]
@@ -305,11 +295,11 @@ fn roman_numbers_and_passthrough() {
     assert_eq!(r("3999"), "mmmcmxcix");
     assert_eq!(r("0"), "");
     assert_eq!(r("4000"), "4000");
-    assert_eq!(r("999999999"), "999999999"); // a large value never drives unbounded work
+    assert_eq!(r("999999999"), "999999999");
     assert_eq!(r("-1"), "-1");
     assert_eq!(r("abc"), "abc");
-    assert_eq!(r(" 4 "), " 4 "); // surrounding whitespace disqualifies the integer
-    assert_eq!(r("+4"), "+4"); // a leading plus disqualifies it
+    assert_eq!(r(" 4 "), " 4 ");
+    assert_eq!(r("+4"), "+4");
 }
 
 #[test]
@@ -330,7 +320,6 @@ fn pipes_block_padding() {
         "[         Hello World]"
     );
     assert_eq!(render(r#"$x/center 13 "[" "]"$"#, &ctx), "[ Hello World ]");
-    // No right border: trailing pad dropped.
     assert_eq!(render("[$x/left 20$]", &ctx), "[Hello World]");
 }
 
@@ -353,19 +342,16 @@ fn partial_plain_and_mapped() {
 #[test]
 fn standalone_partial_absorbs_its_following_newline() {
     let p = &[("p", "PARTIAL\n")];
-    // a partial alone on its line absorbs its following newline; leading indentation is preserved
     assert_eq!(render_with("A\n$p()$\nB\n", &map(&[]), p), "A\nPARTIALB\n");
     assert_eq!(
         render_with("A\n  $p()$\nB\n", &map(&[]), p),
         "A\n  PARTIALB\n"
     );
-    // Trailing spaces before the newline, or any non-blank before the call, leave the newline.
     assert_eq!(
         render_with("A\n$p()$  \nB\n", &map(&[]), p),
         "A\nPARTIAL  \nB\n"
     );
     assert_eq!(render_with("XX$p()$\nB\n", &map(&[]), p), "XXPARTIAL\nB\n");
-    // An inline partial only drops its own trailing newline.
     assert_eq!(render_with("A $p()$ B\n", &map(&[]), p), "A PARTIAL B\n");
 }
 
@@ -378,7 +364,6 @@ fn missing_partial_is_an_error() {
 
 #[test]
 fn comment_to_end_of_line() {
-    // Column-zero comment swallows its newline; an indented one keeps the space and newline.
     assert_eq!(render("X\n$-- c\nY\n", &map(&[])), "X\nY\n");
     assert_eq!(render("X\n $-- c\nY\n", &map(&[])), "X\n \nY\n");
     assert_eq!(render("X $-- c\nY\n", &map(&[])), "X \nY\n");
@@ -396,13 +381,11 @@ fn standalone_control_directive_consumes_its_line() {
 
 #[test]
 fn indented_control_directive_keeps_its_indentation() {
-    // trailing newline swallowed, but the indentation survives and prefixes the following content
     let ctx = map(&[("items", list(&[s("a")]))]);
     assert_eq!(
         render("X\n  $if(items)$\nIN\n  $endif$\nY\n", &ctx),
         "X\n  IN\n  Y\n"
     );
-    // Two indented directives back to back: their indents concatenate onto the next line.
     assert_eq!(
         render("X\n  $if(items)$\n  $endif$\nY\n", &ctx),
         "X\n    Y\n"
@@ -411,7 +394,6 @@ fn indented_control_directive_keeps_its_indentation() {
 
 #[test]
 fn non_standalone_control_keeps_line() {
-    // opening shares its line, so the construct is inline: the `$endif$` newline survives as a blank line
     assert_eq!(
         render("$if(a)$X\n$endif$\n", &map(&[("a", Value::Bool(true))])),
         "X\n\n"
@@ -424,12 +406,10 @@ fn non_standalone_control_keeps_line() {
 #[test]
 fn block_ness_is_decided_by_the_opening_directive() {
     let ctx = map(&[("xs", list(&[s("a"), s("b")]))]);
-    // opening shares its line (inline): the lone `$endfor$` keeps its newline, a blank trails the loop
     assert_eq!(
         render("$for(xs)$- $it$\n$endfor$\nZ\n", &ctx),
         "- a\n- b\n\nZ\n"
     );
-    // opening ends its line (block): both directives stripped, no blank; leading literal preserved
     assert_eq!(
         render("P$for(xs)$\n- $it$\n$endfor$\nZ\n", &ctx),
         "P- a\n- b\nZ\n"
@@ -469,7 +449,6 @@ fn marked_lines_claim_column_zero() {
 fn non_space_prefix_suppresses_indent() {
     let ctx = map(&[("body", s("<p>p1</p>\n<p>p2</p>"))]);
     assert_eq!(render("XY: $body$\n", &ctx), "XY: <p>p1</p>\n<p>p2</p>\n");
-    // Tab prefix: not all spaces, so no indent.
     assert_eq!(render("\t$body$\n", &ctx), "\t<p>p1</p>\n<p>p2</p>\n");
 }
 
@@ -481,16 +460,13 @@ fn output_is_verbatim_no_added_newline() {
 
 #[test]
 fn value_trailing_newline_absorbs_the_line_break_after_it() {
-    // the line's own break folds into the value's trailing blank line, no second empty line
     let ctx = map(&[("body", s("first\n\nsecond\n\n"))]);
     assert_eq!(
         render("before\n$body$\nafter\n", &ctx),
         "before\nfirst\n\nsecond\n\nafter\n"
     );
-    // A value with no trailing newline leaves the following line break intact.
     let inline = map(&[("title", s("Hello"))]);
     assert_eq!(render("a\n$title$\nb\n", &inline), "a\nHello\nb\n");
-    // The value's trailing blank line absorbs the whole following newline run, however long.
     assert_eq!(
         render("before\n$body$\n\n\nafter\n", &ctx),
         "before\nfirst\n\nsecond\n\nafter\n"

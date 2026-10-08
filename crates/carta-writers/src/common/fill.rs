@@ -269,7 +269,6 @@ impl Sink for LineVecSink {
 /// out under a marker keeps the gap the source put between the marker position and its first word.
 /// `groups` names disjoint, ascending half-open index ranges that are placed atomically (see
 /// [`fill_groups`]).
-// One body: the per-piece arms and group handling share one running cursor.
 #[allow(clippy::too_many_lines)]
 fn fill_pieces<S: Sink>(
     sink: &mut S,
@@ -295,7 +294,6 @@ fn fill_pieces<S: Sink>(
                 continue;
             }
             if index == start && end > start && end <= pieces.len() {
-                // Flush the pending word; the group joins it with no space when no space split them.
                 let abuts = !word.is_empty();
                 place_word(
                     sink,
@@ -710,7 +708,6 @@ mod tests {
             Piece::Space,
             Piece::Text("again".into()),
         ];
-        // No wrapping despite the tiny width, and the soft break is just a space.
         assert_eq!(fill(&pieces, 4, WrapMode::None), "hello world again");
     }
 
@@ -723,7 +720,6 @@ mod tests {
             Piece::Space,
             Piece::Text("again".into()),
         ];
-        // The soft break stays a line break; the long second line is not reflowed.
         assert_eq!(fill(&pieces, 4, WrapMode::Preserve), "hello\nworld again");
     }
 
@@ -734,7 +730,6 @@ mod tests {
             Piece::Soft,
             Piece::Text("world".into()),
         ];
-        // A soft break reflows exactly like a space under Auto.
         assert_eq!(fill(&pieces, 72, WrapMode::Auto), "hello world");
         assert_eq!(fill(&pieces, 8, WrapMode::Auto), "hello\nworld");
     }
@@ -760,7 +755,6 @@ mod tests {
 
     #[test]
     fn fill_into_leaves_blank_continuation_lines_unprefixed() {
-        // A multi-line literal word carries its embedded blank line through unchanged.
         let pieces = vec![Piece::Text("a\n\nb".into())];
         let mut out = String::new();
         fill_into(&mut out, &pieces, 72, WrapMode::Auto, "> ", "> ");

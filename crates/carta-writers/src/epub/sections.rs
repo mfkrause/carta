@@ -1,9 +1,4 @@
-//! Structuring a document into the nested sections and separate chapter files an EPUB uses.
-//!
-//! An EPUB body is not a flat run of blocks: each heading and the content beneath it forms a
-//! `<section>`, and the book is broken into separate XHTML files at a chosen heading level. This
-//! module performs both transforms on the document model, before the HTML writer renders each
-//! chapter.
+//! Build nested EPUB sections and split chapters at the selected heading level.
 
 use carta_ast::{Attr, Block, Inline, Text, slug, to_plain_text};
 use std::collections::{BTreeMap, BTreeSet};
@@ -53,7 +48,6 @@ fn build_sections(blocks: &[Block], seen: &mut BTreeSet<String>) -> Vec<Block> {
                 .position(|block| matches!(block, Block::Header(inner, ..) if *inner <= *level))
                 .unwrap_or(rest.len());
             let (body, tail) = rest.split_at(end);
-            // resolve this id before descendants' so derived slugs are unique in document order
             let id = section_id(attr, inlines, seen);
             let inner = build_sections(body, seen);
             out.push(section_div(*level, attr, inlines, id, inner));
@@ -274,7 +268,6 @@ mod tests {
             section_id(&bare, &heading("Getting Started"), &mut seen),
             "getting-started-1"
         );
-        // A heading whose text yields no slug falls back to the generic identifier.
         assert_eq!(section_id(&bare, &heading("!!!"), &mut seen), "section");
     }
 
@@ -293,7 +286,6 @@ mod tests {
 
     #[test]
     fn derived_slug_avoids_a_later_explicit_id() {
-        // seeding the later explicit id pushes the derived slug aside instead of duplicating it
         let blocks = vec![
             header(1, "", "Installation"),
             header(1, "installation", "Setup"),
@@ -307,12 +299,9 @@ mod tests {
     #[test]
     fn split_promotes_a_section_even_when_heading_levels_jump() {
         use super::split_chapters;
-        // An H1 followed straight by an H3, with no H2 between them.
         let blocks = vec![header(1, "", "Chapter"), header(3, "", "Deep")];
         let sectioned = make_sections(&blocks, &[]);
-        // A split level deep enough to include the H3 still lifts it into its own chapter.
         assert_eq!(split_chapters(sectioned.clone(), 3).len(), 2);
-        // A shallower split keeps the H3 within the H1's single file.
         assert_eq!(split_chapters(sectioned, 1).len(), 1);
     }
 }

@@ -1,8 +1,7 @@
-# Normalize line endings to LF on checkout across all platforms, so the byte-exact
-# reader and snapshot tests behave identically on Windows, macOS, and Linux.
+# Use LF line endings to keep byte comparisons consistent across platforms.
 * text=auto eol=lf
 
-# Fixtures whose exact bytes ARE the test input must never be normalized.
+# Preserve exact fixture bytes.
 corpus/text/csv/crlf.csv               -text
 corpus/text/jira/carriage-return.jira  -text
 

@@ -23,8 +23,7 @@ pub fn hex(data: &[u8]) -> String {
         compress(&mut h, block);
     }
 
-    // Tail built on the stack; a 56..=63-byte remainder leaves no room for the length, so it spans
-    // two blocks.
+    // A 56..=63-byte tail needs a second block for the length.
     let remainder = blocks.remainder();
     let bit_len = (data.len() as u64).wrapping_mul(8);
     let tail_len = if remainder.len() <= 55 { 64 } else { 128 };
@@ -100,12 +99,10 @@ mod tests {
             hex(b"The quick brown fox jumps over the lazy dog"),
             "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"
         );
-        // 56 bytes: spills the length into a second block.
         assert_eq!(
             hex(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
             "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
         );
-        // 112 bytes: spans several blocks.
         assert_eq!(
             hex(b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmn\
                   hijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"),

@@ -26,7 +26,6 @@ workspace = true
 template = []
 # Container packaging (`carta_core::container`: ZIP, XML emitter); enabled by `carta`'s `write-epub`.
 container = ["xml", "dep:miniz_oxide"]
-# XML emission without archive support.
 xml = []
 # Highlighting configuration in the writer options; enabled by `carta-writers`'s `highlight`.
 highlight = ["dep:carta-highlight"]

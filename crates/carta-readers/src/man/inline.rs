@@ -250,7 +250,6 @@ fn scan(text: &str, start_font: Font, strings: &Strings) -> Vec<Atom> {
 /// string can change the font for the remainder of the line. Font escapes (`\f…`) update the font;
 /// an inline comment (`\"`/`\#`) ends the line; a `\*` string is expanded by re-scanning its value,
 /// bounded by [`MAX_STRING_DEPTH`] so a self-referential definition cannot loop forever.
-// Escape arms are listed separately by groff semantics even where two reduce to the same body.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn scan_into(
     text: &str,
@@ -349,13 +348,11 @@ fn scan_into(
                 chars.next();
                 let _ = read_escape_name(&mut chars);
             }
-            // `\z` outputs the next glyph with no width; the glyph is dropped here.
             'z' => {
                 chars.next();
                 chars.next();
             }
-            // Name-taking escapes (one char, `(xx`, or `[name]`) emitting no text: `\m`/`\M`, `\F`,
-            // `\g`, `\V`, `\Y`, `\$N`.
+            // These name-taking escapes produce no text.
             'm' | 'M' | 'F' | 'g' | 'V' | 'Y' | '$' => {
                 chars.next();
                 let _ = read_escape_name(&mut chars);
@@ -466,7 +463,6 @@ fn skip_size(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
 
 /// Applies a `\f` font name to the running font, remembering the previous font so `P` (or an empty
 /// name) can return to it.
-// The named roman fonts are spelled out; any unrecognized name also falls back to roman.
 #[allow(clippy::match_same_arms)]
 fn apply_font(name: &str, font: &mut Font, previous: &mut Font) {
     let next = match name {
@@ -497,7 +493,6 @@ fn bracket_char(name: &str) -> Option<char> {
 
 /// Maps a special-character name (`\(xx`, `\[name]`) to its character; unknown names yield `None`,
 /// which the caller renders as the replacement character.
-// One name per arm keeps the glyph table legible even where distinct names share a character.
 #[allow(clippy::match_same_arms, clippy::too_many_lines)]
 fn special_char(name: &str) -> Option<char> {
     let c = match name {

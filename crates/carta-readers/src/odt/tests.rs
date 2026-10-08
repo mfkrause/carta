@@ -68,7 +68,6 @@ fn parse_length_resolves_absolute_units_only() {
     assert_eq!(parse_length("0.5in"), Some(0.5));
     assert_eq!(parse_length("2.54cm"), Some(1.0));
     assert_eq!(parse_length("72pt"), Some(1.0));
-    // A percentage, a unitless number, and an unknown unit name no absolute length.
     assert_eq!(parse_length("50%"), None);
     assert_eq!(parse_length("5"), None);
     assert_eq!(parse_length("10zz"), None);

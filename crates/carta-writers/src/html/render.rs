@@ -89,7 +89,6 @@ impl State {
             Block::OrderedList(attrs, items) => self.ordered_list(out, attrs, items),
             Block::DefinitionList(items) => self.definition_list(out, items),
             Block::Div(attr, blocks) => {
-                // EPUB 3 promotes a section-class div to `<section>`, consuming the marker class
                 let section = self.flavor == Flavor::Epub3
                     && attr.classes.iter().any(|class| class == "section");
                 if section {
@@ -233,7 +232,6 @@ impl State {
         let block_id_attr = escape_attr(&block_id);
         let start = if numbered { start_line(attr) } else { 1 };
 
-        // the wrapping div carries only the sourceCode class, block id, and key/value pairs
         out.push_str("<div");
         out.push(BREAK);
         out.push_str("class=\"sourceCode\"");
@@ -457,7 +455,6 @@ impl State {
             self.table_body(out, body, &aligns);
         }
         if !table.foot.rows.is_empty() {
-            // the foot opens directly after `</tbody>`; only a bodiless foot gets its own line
             if table.bodies.is_empty() {
                 out.push('\n');
             }
@@ -468,7 +465,6 @@ impl State {
             self.rows(out, &table.foot.rows, &aligns, false);
             out.push_str("\n</tfoot>");
         }
-        // a table ending without body rows closes after a blank line
         if table.bodies.is_empty() || !table.foot.rows.is_empty() {
             out.push('\n');
         }
@@ -484,7 +480,6 @@ impl State {
             out.push('\n');
             self.row(out, row, aligns, true, 0, &mut head_grid);
         }
-        // A blank line separates a body's own header rows from the rows that follow.
         if !body.head.is_empty() {
             out.push('\n');
         }
@@ -671,7 +666,6 @@ impl State {
     /// nest inside it as bare elements. Classes preceding the first semantic one are dropped. With no
     /// semantic class the span renders as a generic `<span>`.
     fn span(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline]) {
-        // the underline class becomes a bare innermost `<u>`; remaining attributes fall to the enclosing element
         let underline = attr.classes.iter().any(|class| class == "underline");
         let stripped;
         let attr = if underline {
@@ -695,7 +689,6 @@ impl State {
             .iter()
             .position(|class| SEMANTIC_SPAN_TAGS.contains(&class.as_str()));
         let Some(first) = first else {
-            // generic `<span>`, unless the consumed underline left nothing to carry: then the bare `<u>` stands alone
             let bare_underline = underline
                 && attr.id.is_empty()
                 && attr.classes.is_empty()
@@ -780,7 +773,6 @@ impl State {
         let prefix = fragment_prefix(self.flavor);
         match self.flavor {
             Flavor::Epub3 => {
-                // note: an `<aside>` in the trailing section; reference: a plain noteref link, no superscript
                 let mut body = String::new();
                 self.blocks(&mut body, blocks);
                 self.footnotes.push(format!(
@@ -792,7 +784,6 @@ impl State {
                 );
             }
             Flavor::Epub2 => {
-                // note: a `<div>` opening with a numbered back-reference; reference: a plain link, no superscript
                 let backlink = format!(
                     "<a{BREAK}href=\"{prefix}fnref{number}\"{BREAK}class=\"footnote-back\">{number}</a>. "
                 );
@@ -860,7 +851,7 @@ impl State {
     }
 
     /// Render an EPUB 2 footnote's blocks, opening the first paragraph (or plain block) with the
-    /// numbered back-reference link; any further blocks follow unchanged. A note that does not begin
+    /// numbered back-reference link; any further blocks follow unchanged. A body not beginning
     /// with a paragraph gets the back-reference on a line of its own.
     fn note_body_epub2(&mut self, blocks: &[Block], backlink: &str) -> String {
         let mut body = String::new();
