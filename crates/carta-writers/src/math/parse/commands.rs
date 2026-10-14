@@ -160,7 +160,7 @@ pub(super) fn parse_command(
             Some(Atom::new(Body::Brace(BraceKind::Under, arg)))
         }
         "sqrt" => {
-            let index = parse_optional_bracket(tokens, pos, depth);
+            let index = parse_optional_bracket(tokens, pos, depth)?;
             // A bare `\sqrt` is the lone radical sign `√`; an index without a radicand is malformed.
             match parse_required_group(tokens, pos, depth, tail) {
                 Some(radicand) => Some(Atom::new(Body::Sqrt(index, radicand))),
@@ -355,7 +355,7 @@ fn parse_extensible_arrow(
     } else {
         "arrow.l"
     };
-    let below = parse_optional_bracket(tokens, pos, depth);
+    let below = parse_optional_bracket(tokens, pos, depth)?;
     let above = parse_required_group(tokens, pos, depth, tail)?;
     Some(Atom::new(Body::ExtArrow(arrow, below, above)))
 }
@@ -454,18 +454,23 @@ pub(super) fn parse_required_group(
 }
 
 /// Parse an optional `[...]` bracket argument (used by `\sqrt[n]{..}`); the bracketed content is
-/// read as raw atoms.
-fn parse_optional_bracket(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<Atom>> {
+/// read as raw atoms. `Some(None)` means absent; `None` means malformed.
+#[allow(clippy::option_option)]
+fn parse_optional_bracket(
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+) -> Option<Option<Vec<Atom>>> {
     skip_spaces(tokens, pos);
     if !matches!(tokens.get(*pos), Some(Token::Char('['))) {
-        return None;
+        return Some(None);
     }
     let mut probe = *pos + 1;
     let mut inner: Vec<Atom> = Vec::new();
     while let Some(tok) = tokens.get(probe) {
         if matches!(tok, Token::Char(']')) {
             *pos = probe + 1;
-            return Some(inner);
+            return Some(Some(inner));
         }
         let mut local = probe;
         // A bracketed argument keeps numbers whole (`\sqrt[12]{x}`); leftover digits stay inside the bracket.

@@ -37,6 +37,35 @@ fn macro_argument_copying_is_bounded() {
 }
 
 #[test]
+fn malformed_optional_arguments_fall_back_to_source() {
+    for command in [r"\sqrt", r"\xrightarrow", r"\xleftarrow"] {
+        for argument in ["[", "[3", r"[\unknown]{x}"] {
+            let source = format!("{command}{argument}");
+            assert_eq!(to_inlines(&source), None, "{source}");
+            assert_eq!(to_typst(&source), None, "{source}");
+        }
+    }
+}
+
+#[test]
+fn nested_unclosed_root_indices_fall_back_to_source() {
+    let source = r"\sqrt[".repeat(40);
+    assert_eq!(to_inlines(&source), None);
+    assert_eq!(to_typst(&source), None);
+}
+
+#[test]
+fn root_indices_can_be_absent_empty_or_present() {
+    for (source, expected) in [
+        (r"\sqrt{x}", "sqrt(x)"),
+        (r"\sqrt[]{x}", "root(, x)"),
+        (r"\sqrt[12]{x}", "root(12, x)"),
+    ] {
+        assert_eq!(to_typst(source).as_deref(), Some(expected));
+    }
+}
+
+#[test]
 fn malformed_input_returns_without_panic() {
     for bad in [
         "{",
