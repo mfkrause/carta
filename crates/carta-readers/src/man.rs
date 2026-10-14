@@ -410,7 +410,7 @@ impl Parser {
                     if ctx.in_item {
                         return blocks;
                     }
-                    let list = self.parse_list();
+                    let list = self.parse_list(0);
                     blocks.extend(list);
                 }
                 "TQ" => {

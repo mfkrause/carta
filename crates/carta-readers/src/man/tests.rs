@@ -748,6 +748,12 @@ fn macro_whose_expansion_synthesizes_its_own_call_terminates() {
 }
 
 #[test]
+fn macro_with_repeated_bodiless_tags_terminates() {
+    let document = read(".de M\n.TP\nterm\n\\$.M\n..\n.M\n");
+    assert!(!document.blocks.is_empty());
+}
+
+#[test]
 fn macro_argument_doubling_across_synthesized_calls_terminates() {
     // Each re-invocation doubles the argument length; the byte budget must cut it off.
     let _ = read(".TH T 1\n.de M\n\\$.M \"\\$1\\$1\"\n..\n.M xxxxxxxx\n");

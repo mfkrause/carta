@@ -12,6 +12,8 @@ use super::requests::{control_parts, is_comment, split_args};
 use super::tables::build_tbl;
 use super::{Ctx, Parser, append_text};
 
+const MAX_LIST_DEPTH: usize = 64;
+
 impl Parser {
     /// Heading inline content: the macro's arguments joined by spaces, or, when the macro carries
     /// none, the following input line.
@@ -121,7 +123,7 @@ impl Parser {
 
     /// Parses a run of consecutive `.TP`/`.IP` items into list blocks. Items of the same kind merge
     /// into one list; an unmarked `.IP` becomes a standalone inset.
-    pub(super) fn parse_list(&mut self) -> Vec<Block> {
+    pub(super) fn parse_list(&mut self, depth: usize) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending: Option<Pending> = None;
         while let Some(line) = self.peek().map(str::to_owned) {
@@ -145,7 +147,12 @@ impl Parser {
                     let body = self.parse_blocks(Ctx::ITEM);
                     if body.is_empty() {
                         // A bodiless tag takes the rest of the list as its body; else it is a paragraph.
-                        let rest = self.parse_list();
+                        // Expansion can create more empty tags than the call stack can hold.
+                        let rest = if depth < MAX_LIST_DEPTH {
+                            self.parse_list(depth + 1)
+                        } else {
+                            Vec::new()
+                        };
                         if rest.is_empty() {
                             flush_pending(&mut pending, &mut out);
                             out.push(Block::Para(term));
