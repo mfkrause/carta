@@ -9,6 +9,22 @@ expression: output
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
+\newcommand{\pandocbounded}[1]{%
+  \begingroup
+  \setbox0=\hbox{#1}%
+  \ifdim\wd0>\linewidth
+    \setbox0=\hbox{\resizebox{\linewidth}{!}{\box0}}%
+  \fi
+  \ifdim\dimexpr\ht0+\dp0\relax>0.9\textheight
+    \resizebox*{!}{0.9\textheight}{\box0}%
+  \else
+    \box0
+  \fi
+  \endgroup
+}
+\usepackage{longtable,booktabs,array}
+% Captionless tables leave the table counter unchanged.
+\newcounter{none}
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \hypersetup{

@@ -448,6 +448,99 @@ fn typst_default_template_renders_a_structured_author_name() {
     );
 }
 
+#[cfg(feature = "write-typst")]
+#[test]
+fn typst_default_template_defines_horizontal_rules() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    let output = convert_text(
+        "markdown",
+        "typst",
+        include_str!("../../../corpus/standalone/horizontal-rule.md"),
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert!(output.contains("#let horizontalrule = align(center, line(length: 50%))"));
+    assert!(output.contains("\n#horizontalrule\n"));
+}
+
+#[cfg(all(
+    feature = "write-latex",
+    feature = "write-beamer",
+    feature = "read-html"
+))]
+#[test]
+fn tex_default_templates_supply_body_commands() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    for target in ["latex", "beamer"] {
+        for (from, input, package) in [
+            (
+                "markdown",
+                include_str!("../../../corpus/standalone/strikeout.md"),
+                "soul",
+            ),
+            (
+                "markdown",
+                include_str!("../../../corpus/standalone/svg.md"),
+                "svg",
+            ),
+            (
+                "html",
+                include_str!("../../../corpus/standalone/rowspan.html"),
+                "multirow",
+            ),
+        ] {
+            let output =
+                convert_text(from, target, input, &ReaderOptions::default(), &options).unwrap();
+            assert!(output.contains(&format!("\\usepackage{{{package}}}")));
+        }
+        let output = convert_text(
+            "markdown",
+            target,
+            include_str!("../../../corpus/standalone/image.md"),
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        let (preamble, body) = output.split_once("\\begin{document}").unwrap();
+        let command = body
+            .lines()
+            .find(|line| line.contains("\\includegraphics["))
+            .unwrap()
+            .split('{')
+            .next()
+            .unwrap();
+        assert!(preamble.contains(&format!("\\newcommand{{{command}}}[1]")));
+        assert!(preamble.contains("\\usepackage{longtable,booktabs,array}"));
+        assert!(preamble.contains("\\newcounter{none}"));
+        for package in ["soul", "svg", "multirow"] {
+            assert!(!preamble.contains(&format!("\\usepackage{{{package}}}")));
+        }
+    }
+}
+
+#[cfg(feature = "write-latex")]
+#[test]
+fn tex_packages_cover_metadata_and_template_variables() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.variables = vec![("include-after".into(), "\\st{After}".into())];
+    let output = convert_text(
+        "markdown",
+        "latex",
+        "---\nauthor:\n  - name: '~~Deleted~~'\nabstract: '![](rectangle.svg)'\n---\n\nBody.",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert!(output.contains("\\usepackage{soul}"));
+    assert!(output.contains("\\usepackage{svg}"));
+    assert!(!output.contains("\\usepackage{multirow}"));
+    assert!(output.contains("\\st{After}"));
+}
+
 #[cfg(feature = "write-docbook")]
 #[test]
 fn a_filled_value_wraps_for_the_place_its_template_seats_it() {

@@ -13,18 +13,13 @@ tools/conformance-suite/run.sh writer rst   # one surface, narrowed to a format/
 
 The `reader`, `writer`, and `e2e` surfaces derive their format lists at runtime from the two binaries: the intersection of `carta --list-input-formats` / `--list-output-formats` with the oracle's, so a newly landed reader or writer enters conformance automatically.
 
-Each surface prints one line per group:
+### Standalone compilation
 
-```
-RESULT <surface> <group> pass=N fail=N err=N skip=N
-```
-
-- `pass`: carta and the oracle agree.
-- `fail`: they disagree; the first divergence is dumped to `$CONF_WORK/<surface>-<group>.log`.
-- `err`: carta errored or panicked where the oracle produced output.
-- `skip`: the oracle rejected the input, or the case is an excluded/unsupported direction (see each surface below). Skips are never silent; they are counted and reported.
-
-`run.sh` exits non-zero if any surface recorded a `fail` or `err`. The suite is expected to be red until carta reaches full parity. Every `fail` is a real conformance gap the suite has surfaced, and CI gates on them so they cannot regress further or be forgotten.
+Run `python3 tools/conformance-suite/compile.py` to compile the owned documents in
+`corpus/standalone/` through both converters. This separate check requires Typst,
+pdfLaTeX, Inkscape, and Poppler's `pdftotext`. The TeX installation needs the
+packages used by both default templates, including `soul`, `multirow`, and `svg`
+with their dependencies.
 
 ## Reproducing one failure
 

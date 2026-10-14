@@ -1,5 +1,7 @@
 //! Render slide sections as LaTeX presentation frames without a preamble or trailing newline.
 
+use std::sync::LazyLock;
+
 use carta_ast::{Attr, Block, Document, Inline};
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
@@ -28,7 +30,10 @@ impl Writer for BeamerWriter {
     }
 
     fn default_template(&self) -> Option<&'static str> {
-        Some(include_str!("templates/default.beamer"))
+        static TEMPLATE: LazyLock<String> = LazyLock::new(|| {
+            crate::latex::with_image_bounds(include_str!("templates/default.beamer"))
+        });
+        Some(&TEMPLATE)
     }
 
     fn meta_var_style(&self) -> MetaVarStyle {

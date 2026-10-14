@@ -1,0 +1,3 @@
+Wide image.
+
+![](wide.png)

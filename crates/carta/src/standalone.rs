@@ -145,8 +145,28 @@ fn build_context(
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
     overlay_variables(&mut context, &options.variables);
+    if matches!(writer.meta_var_style(), MetaVarStyle::Pdf) {
+        for (variable, command) in [
+            ("multirow", "\\multirow{"),
+            ("strikeout", "\\st{"),
+            ("svg", "\\includesvg["),
+        ] {
+            if context.values().any(|value| contains_text(value, command)) {
+                context.insert(variable.to_owned(), Value::Bool(true));
+            }
+        }
+    }
     enable_colorlinks(&mut context);
     Ok(Value::Map(context))
+}
+
+fn contains_text(value: &Value, text: &str) -> bool {
+    match value {
+        Value::Str(value) => value.contains(text),
+        Value::List(values) => values.iter().any(|value| contains_text(value, text)),
+        Value::Map(values) => values.values().any(|value| contains_text(value, text)),
+        Value::Bool(_) => false,
+    }
 }
 
 /// Turn on `colorlinks` whenever a specific link, file, citation, URL, or table-of-contents color is

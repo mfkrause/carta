@@ -1,6 +1,7 @@
 //! Render a LaTeX document fragment without a trailing newline.
 
 use std::fmt::Write as _;
+use std::sync::LazyLock;
 
 use carta_ast::{
     Attr, Block, Caption, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
@@ -27,6 +28,26 @@ use self::tables::{flatten_pieces, render_table};
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LatexWriter;
 
+/// Insert the image-sizing definition shared by the article and slide templates.
+pub(crate) fn with_image_bounds(template: &str) -> String {
+    template.replace(
+        "${image-bounds}$",
+        r"\newcommand{\pandocbounded}[1]{%
+  \begingroup
+  \setbox0=\hbox{#1}%
+  \ifdim\wd0>\linewidth
+    \setbox0=\hbox{\resizebox{\linewidth}{!}{\box0}}%
+  \fi
+  \ifdim\dimexpr\ht0+\dp0\relax>0.9\textheight
+    \resizebox*{!}{0.9\textheight}{\box0}%
+  \else
+    \box0
+  \fi
+  \endgroup
+}",
+    )
+}
+
 impl Writer for LatexWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let smart = options.extensions.contains(Extension::Smart);
@@ -44,7 +65,9 @@ impl Writer for LatexWriter {
     }
 
     fn default_template(&self) -> Option<&'static str> {
-        Some(include_str!("templates/default.latex"))
+        static TEMPLATE: LazyLock<String> =
+            LazyLock::new(|| with_image_bounds(include_str!("templates/default.latex")));
+        Some(&TEMPLATE)
     }
 
     fn meta_var_style(&self) -> MetaVarStyle {

@@ -19,7 +19,19 @@ $endif$
 \usepackage[utf8]{inputenc}
 \usepackage{textcomp}
 \usepackage{graphicx}
-\usepackage{longtable,booktabs}
+${image-bounds}$
+\usepackage{longtable,booktabs,array}
+% Captionless tables leave the table counter unchanged.
+\newcounter{none}
+$if(multirow)$
+\usepackage{multirow}
+$endif$
+$if(strikeout)$
+\usepackage{soul}
+$endif$
+$if(svg)$
+\usepackage{svg}
+$endif$
 \usepackage{upquote}
 \IfFileExists{microtype.sty}{\usepackage{microtype}}{}
 \usepackage{xcolor}

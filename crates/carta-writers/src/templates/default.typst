@@ -5,6 +5,7 @@ $endif$
 #set text(font: ("Linux Libertine",), lang: "$if(lang)$$lang$$else$en$endif$")
 #set par(justify: true)
 #set heading(numbering: $if(numbersections)$"1.1.1.1.1"$else$none$endif$)
+#let horizontalrule = align(center, line(length: 50%))
 
 $for(header-includes)$
 $header-includes$
