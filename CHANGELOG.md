@@ -9,6 +9,15 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.12](https://github.com/mfkrause/carta/compare/v0.0.11...v0.0.12) - 2026-10-14
+
+### Fixed
+
+- resolve push-time lint errors
+- *(man)* bound nesting of bodiless list tags
+- *(math)* reject malformed optional arguments without retrying
+- *(math)* bound total macro expansion work
+
 ## [0.0.11](https://github.com/mfkrause/carta/compare/v0.0.10...v0.0.11) - 2026-10-03
 
 ### Added
