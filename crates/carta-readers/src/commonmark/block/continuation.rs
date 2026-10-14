@@ -197,7 +197,7 @@ impl Parser {
 
     /// Check for a closing code fence within the same container.
     ///
-    /// Markdown rejects unclosed fences; CommonMark lets them run to the end.
+    /// Markdown rejects unclosed fences; `CommonMark` lets them run to the end.
     /// A closing line must retain the opening container prefixes.
     pub(super) fn fence_reaches_close(
         &self,

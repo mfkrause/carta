@@ -1,4 +1,4 @@
-//! Read CommonMark and extension-enabled Markdown dialects.
+//! Read `CommonMark` and extension-enabled Markdown dialects.
 
 mod attr;
 mod autolink;

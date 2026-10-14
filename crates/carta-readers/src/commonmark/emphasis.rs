@@ -29,7 +29,7 @@ struct DelimEntry {
 
 /// Resolve emphasis and formatting delimiters in `nodes` from `stack_bottom`.
 ///
-/// Use the CommonMark algorithm in spec section A. Per-bucket opener bounds keep scans linear.
+/// Use the `CommonMark` algorithm in spec section A. Per-bucket opener bounds keep scans linear.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
 pub(super) fn process_emphasis(
     nodes: &mut [Node],

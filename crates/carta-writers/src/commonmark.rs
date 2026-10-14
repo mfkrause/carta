@@ -1,4 +1,4 @@
-//! Render CommonMark text, using HTML for constructs without native syntax.
+//! Render `CommonMark` text, using HTML for constructs without native syntax.
 //!
 //! Output has no trailing newline.
 

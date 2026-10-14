@@ -1,4 +1,4 @@
-//! Check that every vendored CommonMark example parses without an error or panic.
+//! Check that every vendored `CommonMark` example parses without an error or panic.
 
 // The whole suite drives the CommonMark reader, so it only applies when that reader is built in.
 #![cfg(feature = "read-commonmark")]

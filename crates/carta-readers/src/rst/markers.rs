@@ -314,14 +314,7 @@ fn parse_one_option(chars: &[char], i: usize) -> Option<usize> {
             }
             parse_optional_arg(chars, j)
         }
-        Some('-') => {
-            let ch = chars.get(i + 1)?;
-            if !ch.is_ascii_alphanumeric() {
-                return None;
-            }
-            parse_optional_arg(chars, i + 2)
-        }
-        Some('/') => {
+        Some('-' | '/') => {
             let ch = chars.get(i + 1)?;
             if !ch.is_ascii_alphanumeric() {
                 return None;
