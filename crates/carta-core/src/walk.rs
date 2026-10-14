@@ -1,28 +1,57 @@
 //! Mutable document-order traversals for blocks, image targets, and link targets.
 
-use carta_ast::{Block, Caption, Inline, Row, Table, Target};
-
-/// Which kind of target a traversal reports.
-enum TargetKind {
-    Image,
-    Link,
-}
+use carta_ast::{Block, Caption, Document, Inline, MetaValue, Row, Table, Target};
 
 /// Applies `visit` to every image target throughout `blocks`, descending into every nested inline and
 /// block sequence (list items, table cells, notes, captions, and the rest) in document order.
 pub fn for_each_image_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Target)) {
-    for_each_target(blocks, &mut |target, kind| {
-        if matches!(kind, TargetKind::Image) {
+    block_inlines(blocks, &mut |inline| {
+        if let Inline::Image(_, _, target) = inline {
             visit(target);
         }
     });
 }
 
+/// Applies `visit` to images in the document body and all metadata values.
+pub fn for_each_document_image_target(document: &mut Document, visit: &mut dyn FnMut(&mut Target)) {
+    for_each_document_inline(document, &mut |inline| {
+        if let Inline::Image(_, _, target) = inline {
+            visit(target);
+        }
+    });
+}
+
+/// Applies `visit` to each inline in the body and metadata, before descending into its children.
+pub fn for_each_document_inline(document: &mut Document, visit: &mut dyn FnMut(&mut Inline)) {
+    block_inlines(&mut document.blocks, visit);
+    for value in document.meta.values_mut() {
+        metadata_inlines(value, visit);
+    }
+}
+
+fn metadata_inlines(value: &mut MetaValue, visit: &mut dyn FnMut(&mut Inline)) {
+    match value {
+        MetaValue::MetaMap(values) => {
+            for value in values.values_mut() {
+                metadata_inlines(value, visit);
+            }
+        }
+        MetaValue::MetaList(values) => {
+            for value in values {
+                metadata_inlines(value, visit);
+            }
+        }
+        MetaValue::MetaBlocks(blocks) => block_inlines(blocks, visit),
+        MetaValue::MetaInlines(inlines) => visit_inlines(inlines, visit),
+        MetaValue::MetaBool(_) | MetaValue::MetaString(_) => {}
+    }
+}
+
 /// Applies `visit` to every link target throughout `blocks`, descending into every nested inline and
 /// block sequence in document order, the same traversal as [`for_each_image_target`].
 pub fn for_each_link_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Target)) {
-    for_each_target(blocks, &mut |target, kind| {
-        if matches!(kind, TargetKind::Link) {
+    block_inlines(blocks, &mut |inline| {
+        if let Inline::Link(_, _, target) = inline {
             visit(target);
         }
     });
@@ -123,13 +152,13 @@ fn row_groups(table: &mut Table) -> impl Iterator<Item = &mut Vec<Row>> {
         .chain(std::iter::once(&mut table.foot.rows))
 }
 
-fn for_each_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Target, TargetKind)) {
+fn block_inlines(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Inline)) {
     for block in blocks {
         visit_block(block, visit);
     }
 }
 
-fn visit_block(block: &mut Block, visit: &mut dyn FnMut(&mut Target, TargetKind)) {
+fn visit_block(block: &mut Block, visit: &mut dyn FnMut(&mut Inline)) {
     match block {
         Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
             visit_inlines(inlines, visit);
@@ -140,31 +169,31 @@ fn visit_block(block: &mut Block, visit: &mut dyn FnMut(&mut Target, TargetKind)
             }
         }
         Block::BlockQuote(inner) | Block::Div(_, inner) => {
-            for_each_target(inner, visit);
+            block_inlines(inner, visit);
         }
         Block::OrderedList(_, items) | Block::BulletList(items) => {
             for item in items {
-                for_each_target(item, visit);
+                block_inlines(item, visit);
             }
         }
         Block::DefinitionList(items) => {
             for (term, definitions) in items {
                 visit_inlines(term, visit);
                 for definition in definitions {
-                    for_each_target(definition, visit);
+                    block_inlines(definition, visit);
                 }
             }
         }
         Block::Figure(_, caption, inner) => {
             visit_caption(caption, visit);
-            for_each_target(inner, visit);
+            block_inlines(inner, visit);
         }
         Block::Table(table) => visit_table(table, visit),
         Block::CodeBlock(..) | Block::RawBlock(..) | Block::HorizontalRule => {}
     }
 }
 
-fn visit_table(table: &mut Table, visit: &mut dyn FnMut(&mut Target, TargetKind)) {
+fn visit_table(table: &mut Table, visit: &mut dyn FnMut(&mut Inline)) {
     visit_caption(&mut table.caption, visit);
     let row_groups = std::iter::once(&mut table.head.rows)
         .chain(table.bodies.iter_mut().flat_map(|body| {
@@ -174,31 +203,26 @@ fn visit_table(table: &mut Table, visit: &mut dyn FnMut(&mut Target, TargetKind)
     for rows in row_groups {
         for row in rows {
             for cell in &mut row.cells {
-                for_each_target(&mut cell.content, visit);
+                block_inlines(&mut cell.content, visit);
             }
         }
     }
 }
 
-fn visit_caption(caption: &mut Caption, visit: &mut dyn FnMut(&mut Target, TargetKind)) {
+fn visit_caption(caption: &mut Caption, visit: &mut dyn FnMut(&mut Inline)) {
     if let Some(short) = &mut caption.short {
         visit_inlines(short, visit);
     }
-    for_each_target(&mut caption.long, visit);
+    block_inlines(&mut caption.long, visit);
 }
 
-fn visit_inlines(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Target, TargetKind)) {
+fn visit_inlines(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Inline)) {
     for inline in inlines {
+        visit(inline);
         match inline {
-            Inline::Image(_, alt, target) => {
-                visit(target, TargetKind::Image);
-                visit_inlines(alt, visit);
-            }
-            Inline::Link(_, children, target) => {
-                visit(target, TargetKind::Link);
-                visit_inlines(children, visit);
-            }
-            Inline::Emph(children)
+            Inline::Image(_, children, _)
+            | Inline::Link(_, children, _)
+            | Inline::Emph(children)
             | Inline::Underline(children)
             | Inline::Strong(children)
             | Inline::Strikeout(children)
@@ -214,7 +238,7 @@ fn visit_inlines(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Target, Targ
                 }
                 visit_inlines(children, visit);
             }
-            Inline::Note(blocks) => for_each_target(blocks, visit),
+            Inline::Note(blocks) => block_inlines(blocks, visit),
             Inline::Str(_)
             | Inline::Code(..)
             | Inline::Space
@@ -297,5 +321,39 @@ mod tests {
             images.push(target.url.to_string());
         });
         assert_eq!(images, ["i"]);
+    }
+    #[test]
+    fn document_inline_walk_reaches_nested_metadata_and_replacements() {
+        use carta_ast::{Document, MetaValue};
+        let mut document = Document::default();
+        document.blocks.push(Block::Para(vec![image("body")]));
+        document.meta.insert(
+            "abstract".into(),
+            MetaValue::MetaMap(
+                [(
+                    "items".into(),
+                    MetaValue::MetaList(vec![
+                        MetaValue::MetaInlines(vec![image("inline")]),
+                        MetaValue::MetaBlocks(vec![Block::Para(vec![image("block")])]),
+                    ]),
+                )]
+                .into(),
+            ),
+        );
+        let mut urls = Vec::new();
+        super::for_each_document_inline(&mut document, &mut |inline| {
+            if let Inline::Image(_, _, target) = inline {
+                urls.push(target.url.to_string());
+                *inline = Inline::Span(Box::default(), vec![Inline::Str("replacement".into())]);
+            }
+        });
+        assert_eq!(urls, ["body", "inline", "block"]);
+        let mut count = 0;
+        super::for_each_document_inline(&mut document, &mut |inline| {
+            if matches!(inline, Inline::Str(text) if text == "replacement") {
+                count += 1;
+            }
+        });
+        assert_eq!(count, 3);
     }
 }

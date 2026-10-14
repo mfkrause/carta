@@ -15,6 +15,36 @@ use carta_ast::Block;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
 
+/// Decode the `%XX` percent-escapes in `url`, returning the decoded string, or `None` when an escape
+/// is truncated or malformed or the decoded bytes are not valid UTF-8.
+#[must_use]
+pub fn percent_decode(url: &str) -> Option<String> {
+    let bytes = url.as_bytes();
+    let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        if byte == b'%' {
+            let high = bytes.get(index + 1).copied().and_then(hex_digit)?;
+            let low = bytes.get(index + 2).copied().and_then(hex_digit)?;
+            decoded.push(high << 4 | low);
+            index += 3;
+        } else {
+            decoded.push(byte);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// One entry in a [`MediaBag`]: a resource's bytes together with its MIME type, when the source
 /// recorded one.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -446,5 +476,15 @@ mod tests {
         let item = bag.get("x").expect("entry present");
         assert_eq!(item.bytes, vec![2, 3]);
         assert_eq!(item.mime.as_deref(), Some("image/png"));
+    }
+    #[test]
+    fn percent_decoding_preserves_plus_and_rejects_bad_escapes() {
+        assert_eq!(
+            super::percent_decode("a+b%20%C3%A9.png").as_deref(),
+            Some("a+b é.png")
+        );
+        for source in ["bad%", "bad%2", "bad%zz", "%FF"] {
+            assert_eq!(super::percent_decode(source), None);
+        }
     }
 }

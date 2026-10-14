@@ -77,6 +77,12 @@ pub enum Error {
     /// Building or reading a container archive failed.
     #[error("container error: {0}")]
     Container(String),
+    /// The selected PDF compiler is not installed or is absent from PATH.
+    #[error("PDF engine '{0}' was not found; install it to generate PDF")]
+    PdfEngineNotFound(String),
+    /// An external PDF engine failed to produce a document.
+    #[error("PDF error: {0}")]
+    Pdf(String),
     /// A document filter failed to run or returned an unusable result.
     #[error("filter error: {0}")]
     Filter(String),
@@ -300,6 +306,27 @@ pub struct Slot {
     pub indent: usize,
 }
 
+/// External PDF engine.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PdfEngine {
+    // TODO: Default to LaTeX once its PDF engine is implemented.
+    /// Compile Typst source with the `typst` executable on PATH.
+    #[default]
+    Typst,
+}
+
+/// Options for external PDF compilation.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct PdfOptions {
+    /// External compiler to run.
+    pub engine: PdfEngine,
+    /// Additional compiler arguments, each passed without shell expansion.
+    pub engine_options: Vec<String>,
+    /// Image search directories, followed by the working directory.
+    pub resource_path: Vec<std::path::PathBuf>,
+}
+
 /// Options controlling a [`Writer`].
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default)]
@@ -319,6 +346,9 @@ pub struct WriterOptions {
 
     /// Options for the DOCX container writer; ignored by every other writer.
     pub docx: DocxOptions,
+
+    /// Options for external PDF compilation; ignored by other writers.
+    pub pdf: PdfOptions,
 
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.

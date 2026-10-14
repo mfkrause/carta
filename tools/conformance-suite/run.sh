@@ -3,7 +3,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx odt highlight"
+SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx odt highlight pdf"
 
 # Share a scratch dir within one run; explicit CONF_WORK overrides the isolated default.
 if [ -z "${CONF_WORK:-}" ]; then
@@ -28,6 +28,7 @@ if [ "$1" = "writer" ] && [ $# -ge 2 ]; then
   case "$2" in
     epub*) echo "error: $2 targets are exercised by the epub surface: run.sh epub" >&2; exit 2 ;;
     docx) echo "error: docx targets are exercised by the docx surface: run.sh docx" >&2; exit 2 ;;
+    pdf) echo "error: pdf targets are exercised by the pdf surface: run.sh pdf" >&2; exit 2 ;;
     odt) echo "error: odt targets are exercised by the odt surface: run.sh odt" >&2; exit 2 ;;
   esac
 fi

@@ -1230,6 +1230,17 @@
         "task_lists"
       ]
     },
+    "pdf": {
+      "accepted": [
+        "citations",
+        "east_asian_line_breaks",
+        "smart"
+      ],
+      "enabled": [
+        "citations",
+        "smart"
+      ]
+    },
     "plain": {
       "accepted": [
         "abbreviations",

@@ -15,7 +15,7 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
         // Both default to `smart`; Typst also recognizes `[@key]` citations by default.
-        "typst" => Extensions::from_list(&[Extension::Smart, Extension::Citations]),
+        "typst" | "pdf" => Extensions::from_list(&[Extension::Smart, Extension::Citations]),
         "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
         // LaTeX family also assigns header ids and expands user macros by default; both `-` toggleable.
         "latex" | "beamer" => Extensions::from_list(&[
@@ -235,7 +235,7 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::GfmAutoIdentifiers,
             Extension::Smart,
         ]),
-        "typst" => Extensions::from_list(&[
+        "typst" | "pdf" => Extensions::from_list(&[
             Extension::Citations,
             Extension::EastAsianLineBreaks,
             Extension::Smart,
@@ -641,6 +641,7 @@ mod tests {
             "odt",
             "opml",
             "org",
+            "pdf",
             "plain",
             "revealjs",
             "rst",

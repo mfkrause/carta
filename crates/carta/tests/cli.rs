@@ -155,10 +155,10 @@ fn unsupported_extension_exits_23() {
 
 #[test]
 fn unsupported_output_format_fails() {
-    let result = run(&["-f", "commonmark", "-t", "pdf"], "x");
+    let result = run(&["-f", "commonmark", "-t", "unknown"], "x");
     assert!(!result.success);
     assert!(
-        result.stderr.contains("unsupported format: pdf"),
+        result.stderr.contains("unsupported format: unknown"),
         "stderr: {}",
         result.stderr
     );
@@ -461,11 +461,11 @@ fn repeated_stdin_is_rejected() {
 #[test]
 fn known_unsupported_output_extension_fails() {
     let directory = input_directory("unsupported-output-extension");
-    let output = directory.join("output.pdf");
+    let output = directory.join("output.texi");
     let result = run(&["-o", output.to_str().unwrap()], "text");
     assert!(!result.success);
     assert!(
-        result.stderr.contains("unsupported format: pdf"),
+        result.stderr.contains("unsupported format: texinfo"),
         "{}",
         result.stderr
     );

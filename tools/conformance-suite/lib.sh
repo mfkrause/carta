@@ -42,7 +42,7 @@ shared_input_formats() {
 shared_output_formats() {
   comm -12 \
     <("$OX" --list-output-formats | sort) \
-    <("$ORACLE" --list-output-formats | sort) | grep -vE '^(epub|docx|odt|html5$)' | tr '\n' ' '
+    <("$ORACLE" --list-output-formats | sort) | grep -vE '^(epub|docx|odt|pdf$|html5$)' | tr '\n' ' '
 }
 
 is_json_target() { [ "$1" = "json" ]; }

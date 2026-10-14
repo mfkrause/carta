@@ -87,12 +87,16 @@ jobs:
         with:
           path: .oracle
           key: conformance-${{ env.CONFORMANCE_PIN }}
-      - name: Provision conformance dependencies
+      - name: Install conformance dependencies
         run: |
           tools/install-pandoc.sh --version="$CONFORMANCE_PIN"
           tools/fetch-pandoc-tests.sh
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq poppler-utils fonts-dejavu-core
+          curl -fL https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz -o "$RUNNER_TEMP/typst.tar.xz"
+          tar -xJf "$RUNNER_TEMP/typst.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/typst-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
       - name: Build carta
         run: cargo build -p carta
       - name: Run conformance suite
@@ -114,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: conformance-logs
-          path: ${{ runner.temp }}/conformance/*.log
+          path: ${{ runner.temp }}/conformance/**/*.log
           if-no-files-found: ignore
 
   coverage:

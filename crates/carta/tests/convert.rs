@@ -155,7 +155,7 @@ fn unknown_input_format_is_unsupported() {
 
 #[test]
 fn unknown_output_format_is_unsupported() {
-    let error = writer_for("pdf").err().expect("expected an error");
+    let error = writer_for("notaformat").err().expect("expected an error");
     assert!(matches!(error, Error::UnsupportedFormat(_)), "{error:?}");
 }
 

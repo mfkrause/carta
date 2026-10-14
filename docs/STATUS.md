@@ -48,7 +48,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 | --- | :---: | :---: |
 | ConTeXt (`context`) | ➖ | ❌ |
 | LaTeX (`latex`) | ✅ | ✅ |
-| PDF (`pdf`) | ➖ | ❌ |
+| PDF (`pdf`) | ➖ | 🚧 |
 | Texinfo (`texinfo`) | ➖ | ❌ |
 | Typst (`typst`) | ✅ | ✅ |
 
@@ -400,6 +400,10 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - In a line block, a line whose content is entirely code spans is set without the trailing `\strut`
   that keeps its full height, and a space ending a line is dropped.
 
+### `pdf` 🚧
+- LaTeX and HTML PDF engines are not supported; the default engine is Typst instead of LaTeX.
+- The default title block leaves less space before the following content.
+
 ### `typst` ✅
 
 ### `asciidoc` ✅
@@ -587,8 +591,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,
 `docbook4`, `dzslides`, `fb2`, `haddock`, `icml`, `jats` (+ `_archiving`, `_articleauthoring`,
-`_publishing`), `markua`, `ms`, `muse`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`,
-`tei`, `texinfo`, `textile`, `vimdoc`, `xml`, `xwiki`, `zimwiki`.
+`_publishing`), `markua`, `ms`, `muse`, `opendocument`, `pptx`, `s5`, `slideous`, `slidy`, `tei`,
+`texinfo`, `textile`, `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 
 ---
 

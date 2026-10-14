@@ -162,6 +162,7 @@ dependencies = [
  "serde",
  "serde_json",
  "stacker",
+ "tempfile",
  "toml",
  "ureq",
 ]

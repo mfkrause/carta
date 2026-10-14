@@ -435,11 +435,12 @@ fn typst_default_template_renders_a_structured_author_name() {
     .unwrap();
     // A structured author must render its name rather than map truthiness.
     assert!(
-        output.contains("author: ([Grace Hopper])"),
+        output.contains("#let authors = ([Grace Hopper],)")
+            && output.contains("author: authors.map(text-value)"),
         "structured author name should reach #set document: {output}"
     );
     assert!(
-        output.contains("#align(center)[Grace Hopper]"),
+        output.contains("authors.map(name => align(center, name))"),
         "structured author should render in the title block: {output}"
     );
     assert!(

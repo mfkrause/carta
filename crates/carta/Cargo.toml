@@ -46,7 +46,7 @@ cli = [
 ]
 # Without `fetch`, remote resources remain external.
 fetch = ["dep:ureq"]
-full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "read-typst", "read-docbook", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "write-docbook", "highlight", "standalone", "metadata-file"]
+full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "read-typst", "read-docbook", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-pdf", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "write-docbook", "highlight", "standalone", "metadata-file"]
 # Syntax highlighting and CLI catalog commands.
 highlight = ["dep:carta-highlight", "carta-core/highlight", "carta-writers?/highlight"]
 # Embeds the copyleft-or-unspecified-license grammar set, which is an explicit choice.
@@ -87,6 +87,7 @@ write-markdown = ["dep:carta-writers", "carta-writers/markdown"]
 write-gfm = ["dep:carta-writers", "carta-writers/gfm"]
 write-rst = ["dep:carta-writers", "carta-writers/rst"]
 write-mediawiki = ["dep:carta-writers", "carta-writers/mediawiki"]
+write-pdf = ["write-typst", "standalone", "dep:tempfile"]
 write-typst = ["dep:carta-writers", "carta-writers/typst"]
 write-dokuwiki = ["dep:carta-writers", "carta-writers/dokuwiki"]
 write-jira = ["dep:carta-writers", "carta-writers/jira"]
@@ -104,6 +105,7 @@ write-odt = ["dep:carta-writers", "carta-writers/odt"]
 write-rtf = ["dep:carta-writers", "carta-writers/rtf"]
 
 [dependencies]
+tempfile = { version = "3", optional = true }
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
 carta-highlight = { workspace = true, optional = true }

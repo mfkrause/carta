@@ -58,7 +58,10 @@ pub(super) fn resolve_embed(
             eprintln!("carta: not fetching {reference} (--sandbox); leaving reference external");
             return None;
         }
-        return fetch_remote(reference);
+        return fetch_remote(reference).map(|item| Resource {
+            bytes: item.bytes,
+            mime: item.mime,
+        });
     }
     let bytes = resolve_resource(reference, search_path)?;
     Some(Resource {
@@ -110,8 +113,8 @@ fn mime_for_path(reference: &str) -> Option<String> {
 /// Retrieve a resource over HTTP(S) for inlining, returning its bytes and the MIME type its
 /// `Content-Type` reports. A network failure, an error status, or an unreadable body is reported and
 /// the reference is left external.
-#[cfg(all(feature = "write-html", feature = "fetch"))]
-fn fetch_remote(url: &str) -> Option<Resource> {
+#[cfg(all(any(feature = "write-html", feature = "write-pdf"), feature = "fetch"))]
+pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
     // Self-contained pages may embed large media; lift the read ceiling above the client default.
     const LIMIT: u64 = 128 * 1024 * 1024;
     let config = ureq::Agent::config_builder()
@@ -123,7 +126,7 @@ fn fetch_remote(url: &str) -> Option<Resource> {
         Ok(mut response) => {
             let mime = response.body().mime_type().map(str::to_owned);
             match response.body_mut().with_config().limit(LIMIT).read_to_vec() {
-                Ok(bytes) => Some(Resource { bytes, mime }),
+                Ok(bytes) => Some(carta::MediaItem { bytes, mime }),
                 Err(error) => {
                     eprintln!("carta: could not read {url}: {error}");
                     None
@@ -139,8 +142,11 @@ fn fetch_remote(url: &str) -> Option<Resource> {
 
 /// Without the `fetch` feature the tool retrieves no remote resource; the reference is reported and
 /// left external.
-#[cfg(all(feature = "write-html", not(feature = "fetch")))]
-fn fetch_remote(url: &str) -> Option<Resource> {
+#[cfg(all(
+    any(feature = "write-html", feature = "write-pdf"),
+    not(feature = "fetch")
+))]
+pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
     eprintln!("carta: cannot fetch {url}: built without network support");
     None
 }
@@ -158,4 +164,25 @@ pub(super) fn extract_media(dir: &Path, media: &MediaBag, blocks: &mut [Block]) 
     }
     media::rewrite_extracted_references(blocks, media, &dir.to_string_lossy());
     Ok(())
+}
+
+/// Fetch remote PDF images before the compiler reads its local resources.
+#[cfg(feature = "write-pdf")]
+pub(super) fn fetch_pdf_images(
+    document: &mut carta::Document,
+    resources: &mut MediaBag,
+    sandbox: bool,
+) {
+    if sandbox {
+        return;
+    }
+    carta::walk::for_each_document_image_target(document, &mut |target| {
+        let url = target.url.as_ref();
+        if !resources.contains(url)
+            && (url.starts_with("http://") || url.starts_with("https://"))
+            && let Some(item) = fetch_remote(url)
+        {
+            resources.insert(url, item.mime, item.bytes);
+        }
+    });
 }

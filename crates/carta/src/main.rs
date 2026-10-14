@@ -45,6 +45,12 @@ struct Cli {
     /// Output format, inferred from the output filename when omitted (default: html).
     #[arg(short = 't', long = "to")]
     to: Option<String>,
+    /// External PDF engine (currently typst only).
+    #[arg(long, default_value = "typst", value_parser = parse_pdf_engine)]
+    pdf_engine: carta::PdfEngine,
+    /// Pass an argument to the PDF engine; repeat for multiple arguments.
+    #[arg(long = "pdf-engine-opt", allow_hyphen_values = true)]
+    pdf_engine_options: Vec<String>,
     /// Write output to this file instead of stdout.
     #[arg(short = 'o', long = "output")]
     output: Option<PathBuf>,
@@ -253,12 +259,21 @@ fn is_broken_pipe(error: &Error) -> bool {
     matches!(error, Error::Io(io) if io.kind() == io::ErrorKind::BrokenPipe)
 }
 
+fn parse_pdf_engine(value: &str) -> std::result::Result<carta::PdfEngine, String> {
+    match value {
+        "typst" => Ok(carta::PdfEngine::Typst),
+        _ => Err("only the typst PDF engine is supported".to_owned()),
+    }
+}
+
 /// Maps a conversion error to a process exit status. A toggle naming an extension the format does
 /// not accept, and a filter failure, each get their own status distinct from the generic failure
 /// code, so callers can tell those requests apart from other errors.
 fn exit_code(error: &Error) -> ExitCode {
     match error {
         Error::UnsupportedExtension { .. } => ExitCode::from(23),
+        Error::Pdf(_) => ExitCode::from(43),
+        Error::PdfEngineNotFound(_) => ExitCode::from(47),
         Error::Filter(_) => ExitCode::from(83),
         _ => ExitCode::FAILURE,
     }
@@ -311,12 +326,27 @@ fn run(cli: &Cli) -> Result<()> {
         .to
         .as_deref()
         .unwrap_or_else(|| input::output_format(cli.output.as_deref()));
+    let pdf_output = input::output_format(cli.output.as_deref()) == "pdf";
+    let to_base = carta::parse_format_spec(to)?.0;
+    if pdf_output && to_base != "pdf" && to_base != "typst" {
+        return Err(Error::Pdf(format!(
+            "cannot produce PDF through {to}; use typst"
+        )));
+    }
+    let pdf_format;
+    let to = if pdf_output && to_base == "typst" {
+        pdf_format = to.to_lowercase().replacen("typst", "pdf", 1);
+        &pdf_format
+    } else {
+        to
+    };
     convert_document(from, to, cli)
 }
 
 fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // Base format without `+ext`/`-ext` toggles: passed to filters, keys the default template.
     let to_base = carta::parse_format_spec(to)?.0;
+    let template_format = if to_base == "pdf" { "typst" } else { &to_base };
     let data_dir = datadir::resolve(cli.data_dir.as_deref());
 
     // `--self-contained` is the deprecated spelling of `--embed-resources --standalone`.
@@ -328,7 +358,13 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let embed_resources = (cli.embed_resources || cli.self_contained) && to.starts_with("html");
 
     let mut writer_options = WriterOptions::default();
-    writer_options.standalone = cli.standalone || cli.self_contained;
+    writer_options.standalone = cli.standalone || cli.self_contained || to_base == "pdf";
+    writer_options.pdf.engine = cli.pdf_engine;
+    writer_options
+        .pdf
+        .engine_options
+        .clone_from(&cli.pdf_engine_options);
+    writer_options.pdf.resource_path = resource_search_path(cli);
     if let Some((source, dir, ext)) = resolve_template(cli, &to_base, data_dir.as_deref())? {
         writer_options.template = Some(source.into());
         writer_options.template_dir = Some(dir);
@@ -380,7 +416,12 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     };
 
     // Filters see extracted paths; gather newly introduced resources before packaging.
-    filters::run(&mut document, &cli.filter, &to_base, data_dir.as_deref())?;
+    filters::run(
+        &mut document,
+        &cli.filter,
+        template_format,
+        data_dir.as_deref(),
+    )?;
 
     // Re-levelling comes after the filters so they see the levels the document was read with.
     if let Some(by) = cli.shift_heading_level_by {
@@ -393,6 +434,11 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         media::embed_referenced_media(&mut document.blocks, &mut resources, |reference| {
             resolve_resource(reference, &search_path)
         });
+    }
+
+    #[cfg(feature = "write-pdf")]
+    if to_base == "pdf" {
+        resources::fetch_pdf_images(&mut document, &mut resources, cli.sandbox);
     }
 
     // Inlines against the finished page; the bag lets reader-carried resources resolve without disk I/O.
@@ -446,7 +492,7 @@ fn resolve_template(
     if let Some(name) = &cli.template {
         return resolve_named_template(name, data_dir).map(Some);
     }
-    if cli.standalone
+    if (cli.standalone || to_base == "pdf")
         && let Some(dir) = data_dir
     {
         let dir = dir.join("templates");
@@ -492,6 +538,7 @@ fn default_template_extension(to_base: &str) -> &str {
         "html" | "html5" => "html5",
         "html4" => "html4",
         "gfm" => "commonmark",
+        "pdf" => "typst",
         other => other,
     }
 }

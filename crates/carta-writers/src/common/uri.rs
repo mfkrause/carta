@@ -424,35 +424,6 @@ pub(crate) fn is_uri(text: &str) -> bool {
     text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
 }
 
-/// Decode the `%XX` percent-escapes in `url`, returning the decoded string, or `None` when an escape
-/// is truncated or malformed or the decoded bytes are not valid UTF-8.
-pub(crate) fn percent_decode(url: &str) -> Option<String> {
-    let bytes = url.as_bytes();
-    let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while let Some(&byte) = bytes.get(index) {
-        if byte == b'%' {
-            let high = bytes.get(index + 1).copied().and_then(hex_digit)?;
-            let low = bytes.get(index + 2).copied().and_then(hex_digit)?;
-            decoded.push(high << 4 | low);
-            index += 3;
-        } else {
-            decoded.push(byte);
-            index += 1;
-        }
-    }
-    String::from_utf8(decoded).ok()
-}
-
-fn hex_digit(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
-}
-
 /// Whether a single-`Str` link label is the visible form of the bare URL `url`: equal to the URL
 /// itself, or to the URL with its percent-escapes decoded. A link of this shape is a bare URL; the
 /// caller pairs this with the format's own URI test where the autolink form is reserved for genuine
@@ -474,7 +445,7 @@ fn hex_digit(byte: u8) -> Option<u8> {
     allow(dead_code)
 )]
 pub(crate) fn label_matches_url(label: &str, url: &str) -> bool {
-    label == url || percent_decode(url).as_deref() == Some(label)
+    label == url || carta_core::media::percent_decode(url).as_deref() == Some(label)
 }
 
 #[cfg(test)]

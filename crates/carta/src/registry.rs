@@ -126,6 +126,7 @@ format_dispatch! {
     "write-gfm" => "gfm" => text carta_writers::GfmWriter;
     "write-rst" => "rst" => text carta_writers::RstWriter;
     "write-mediawiki" => "mediawiki" => text carta_writers::MediawikiWriter;
+    "write-pdf" => "pdf" => bytes crate::pdf::PdfWriter;
     "write-typst" => "typst" => text carta_writers::TypstWriter;
     "write-dokuwiki" => "dokuwiki" => text carta_writers::DokuwikiWriter;
     "write-jira" => "jira" => text carta_writers::JiraWriter;

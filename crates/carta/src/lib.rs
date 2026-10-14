@@ -9,13 +9,16 @@ pub use carta_ast as ast;
 pub use carta_ast::Document;
 pub use carta_core::{
     AnyReader, AnyWriter, BytesReader, BytesWriter, DocxOptions, EpubOptions, Error, Extension,
-    Extensions, MathMethod, MediaBag, MediaItem, Output, Reader, ReaderOptions, Result, TocStyle,
-    TopLevelDivision, WrapMode, Writer, WriterOptions, media, presets, walk,
+    Extensions, MathMethod, MediaBag, MediaItem, Output, PdfEngine, PdfOptions, Reader,
+    ReaderOptions, Result, TocStyle, TopLevelDivision, WrapMode, Writer, WriterOptions, media,
+    presets, walk,
 };
 
 use std::sync::Arc;
 
 mod format_spec;
+#[cfg(feature = "write-pdf")]
+mod pdf;
 mod registry;
 #[cfg(feature = "standalone")]
 mod standalone;
@@ -60,6 +63,8 @@ pub fn convert_text(
     reader_options: &ReaderOptions,
     writer_options: &WriterOptions,
 ) -> Result<String> {
+    let (base, _) = parse_format_spec(to)?;
+    writer_for(&base)?;
     match convert(from, to, input.as_bytes(), reader_options, writer_options)? {
         Output::Text(text) => Ok(text),
         Output::Bytes(_) => {
@@ -189,13 +194,24 @@ fn render_body(
         }
     };
 
+    render_text(&to_base, writer.as_ref(), document, &mut writer_options)
+}
+
+fn render_text(
+    to_base: &str,
+    writer: &dyn Writer,
+    document: Document,
+    writer_options: &mut WriterOptions,
+) -> Result<Output> {
+    #[cfg(not(feature = "standalone"))]
+    let _ = to_base;
     #[cfg(feature = "standalone")]
     let wraps_standalone = writer_options.standalone || writer_options.template.is_some();
     #[cfg(feature = "standalone")]
     let mut toc_source = standalone::TocSource::Document;
     #[cfg(feature = "standalone")]
     if wraps_standalone {
-        writer_options.slot = standalone::body_slot(writer.as_ref(), &writer_options);
+        writer_options.slot = standalone::body_slot(writer, writer_options);
     }
 
     let mut document = document;
@@ -213,22 +229,15 @@ fn render_body(
             ));
         }
         carta_core::sections::number_sections(&mut document.blocks);
-        writer.write(&document, &writer_options)?
+        writer.write(&document, writer_options)?
     } else {
-        writer.write(&document, &writer_options)?
+        writer.write(&document, writer_options)?
     };
 
     #[cfg(feature = "standalone")]
     if wraps_standalone {
-        return standalone::render(
-            writer.as_ref(),
-            &document,
-            body,
-            &writer_options,
-            &to_base,
-            toc_source,
-        )
-        .map(Output::Text);
+        return standalone::render(writer, &document, body, writer_options, to_base, toc_source)
+            .map(Output::Text);
     }
 
     Ok(Output::Text(body))

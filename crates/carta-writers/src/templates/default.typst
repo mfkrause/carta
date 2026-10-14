@@ -1,9 +1,24 @@
-$if(title)$
-#set document(title: [$title$]$if(author)$, author: ($for(author)$[$if(author.name)$$author.name$$else$$author$$endif$]$sep$, $endfor$)$endif$$if(keywords)$, keywords: ($for(keywords)$"$keywords$"$sep$, $endfor$)$endif$)
+$if(author)$
+#let authors = ($for(author)$[$if(author.name)$$author.name$$else$$author$$endif$],$endfor$)
+#let text-value(value) = {
+  if value.has("text") { value.text }
+  else if value.has("children") { value.children.map(text-value).join() }
+  else if value.has("body") { text-value(value.body) }
+  else if value == [ ] { " " }
+  else { "" }
+}
 $endif$
-#set page(numbering: "1", number-align: center)
-#set text(font: ("Linux Libertine",), lang: "$if(lang)$$lang$$else$en$endif$")
+#set document($if(title)$title: [$title$], $endif$$if(author)$author: authors.map(text-value).join(", ", last: " & "), $endif$$if(keywords)$keywords: ($for(keywords)$"$keywords$",$endfor$), $endif$)
+#set page(paper: "$if(papersize)$$papersize$$else$us-letter$endif$", margin: $if(margin)$$margin$$else$(x: 1.25in, y: 1.25in)$endif$, numbering: "1", number-align: center)
+#set text($if(mainfont)$font: ($for(mainfont)$"$mainfont$",$endfor$), $endif$$if(fontsize)$size: $fontsize$, $endif$lang: "$if(lang)$$lang$$else$en$endif$")
+$if(codefont)$
+#show raw: set text(font: ($for(codefont)$"$codefont$",$endfor$))
+$endif$
+$if(mathfont)$
+#show math.equation: set text(font: ($for(mathfont)$"$mathfont$",$endfor$))
+$endif$
 #set par(justify: true)
+#set table(inset: 6pt, stroke: none)
 #set heading(numbering: $if(numbersections)$"1.1.1.1.1"$else$none$endif$)
 #let horizontalrule = align(center, line(length: 50%))
 
@@ -12,16 +27,16 @@ $header-includes$
 $endfor$
 $if(title)$
 #align(center)[#block[
-#text(weight: "bold", size: 1.75em)[$title$$if(thanks)$#footnote[$thanks$]$endif$]
+#text(weight: "bold", size: 1.5em)[$title$$if(thanks)$#footnote[$thanks$]$endif$]
 $if(subtitle)$
 #parbreak()
 #text(size: 1.25em)[$subtitle$]
 $endif$
 ]]
 $endif$
-$for(author)$
-#align(center)[$if(author.name)$$author.name$$else$$author$$endif$]
-$endfor$
+$if(author)$
+#grid(columns: (1fr,) * calc.min(3, authors.len()), ..authors.map(name => align(center, name)))
+$endif$
 $if(date)$
 #align(center)[$date$]
 $endif$
