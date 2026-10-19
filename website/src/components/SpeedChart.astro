@@ -1,14 +1,14 @@
 ---
-import benchmarks from '../data/generated/benchmarks.json';
+import benchmarks from "../data/generated/benchmarks.json";
 
 const { provenance, results, headline } = benchmarks;
 
 // Choose landing-page conversions independently of generated measurements.
 const FEATURED = [
-  { surface: 'reader', group: 'commonmark → json' },
-  { surface: 'reader', group: 'html → json' },
-  { surface: 'writer', group: 'json → html' },
-  { surface: 'writer', group: 'json → latex' },
+  { surface: "reader", group: "commonmark → json" },
+  { surface: "reader", group: "html → json" },
+  { surface: "writer", group: "json → html" },
+  { surface: "writer", group: "json → latex" },
 ];
 
 // Use the largest input to reduce the effect of process startup.
@@ -23,7 +23,8 @@ const cases = FEATURED.map(({ surface, group }) => {
 });
 
 // Scale each row separately so faster conversions remain visible.
-const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs) * 100;
+const share = (entry: (typeof cases)[number]) =>
+  (entry.cartaMs / entry.pandocMs) * 100;
 
 const times = (value: number) => `${value.toFixed(0)}×`;
 const range = (span: { low: number; high: number }) =>
@@ -34,45 +35,42 @@ const range = (span: { low: number; high: number }) =>
 
 <figure class="speed">
   <ol>
-    {
-      cases.map((entry) => (
-        <li>
-          <div class="case">
-            <code>{entry.group}</code>
-            <span class="size">{entry.size}</span>
-            <strong>{entry.speedup.toFixed(1)}× faster</strong>
-          </div>
+    {cases.map((entry) => (
+      <li>
+        <div class="case">
+          <code>{entry.group}</code>
+          <span class="size">{entry.size}</span>
+          <strong>{entry.speedup.toFixed(1)}× faster</strong>
+        </div>
 
-          <div class="row">
-            <span class="who">carta</span>
-            <span class="track" title={`carta ${entry.cartaMs} ms`}>
-              <span class="fill carta" style={`--w: ${share(entry)}%`} />
-            </span>
-            <span class="ms">{entry.cartaMs} ms</span>
-          </div>
+        <div class="row">
+          <span class="who">carta</span>
+          <span class="track" title={`carta ${entry.cartaMs} ms`}>
+            <span class="fill carta" style={`--w: ${share(entry)}%`} />
+          </span>
+          <span class="ms">{entry.cartaMs} ms</span>
+        </div>
 
-          <div class="row">
-            <span class="who">pandoc</span>
-            <span class="track" title={`pandoc ${entry.pandocMs} ms`}>
-              <span class="fill other" style="--w: 100%" />
-            </span>
-            <span class="ms">{entry.pandocMs} ms</span>
-          </div>
-        </li>
-      ))
-    }
+        <div class="row">
+          <span class="who">pandoc</span>
+          <span class="track" title={`pandoc ${entry.pandocMs} ms`}>
+            <span class="fill other" style="--w: 100%" />
+          </span>
+          <span class="ms">{entry.pandocMs} ms</span>
+        </div>
+      </li>
+    ))}
   </ol>
 
   <figcaption>
     <p class="binary">
-      Binary size: {headline.binarySize.carta} against {headline.binarySize.pandoc}{' '}
-      ({times(headline.binarySize.ratio)} smaller). Peak memory: {range(headline.memoryRatio)} less.
+      Binary size: {headline.binarySize.carta} against{" "}
+      {headline.binarySize.pandoc} ({times(headline.binarySize.ratio)} smaller).
+      Peak memory: {range(headline.memoryRatio)} less.
     </p>
     <p class="note">
-      Each row is scaled to itself, so bar length reads as the speedup; rows do not share a scale.
-      Measured {provenance.date} on {provenance.runner}: carta {provenance.carta} against pandoc{' '}
-      {provenance.pandoc}, driven by hyperfine {provenance.hyperfine} (warmup {provenance.warmup},{' '}
-      {provenance.runs} runs). Your numbers will differ.
+      Each row is scaled to itself. carta {provenance.carta} against pandoc{" "}
+      {provenance.pandoc}, measured {provenance.date} on {provenance.runner}.
     </p>
   </figcaption>
 </figure>

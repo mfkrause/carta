@@ -170,7 +170,7 @@ fn extensions(out: &mut String, status: &Status) {
         ));
     }
 
-    out.push_str("\n### Recognized, behavior not yet modeled\n\n");
+    out.push_str("\n### Not yet implemented\n\n");
     out.push_str(&wrap(&format!(
         "{NOT_MODELED_INTRO} {}.\n{NOT_MODELED_NOTE}",
         code_list(

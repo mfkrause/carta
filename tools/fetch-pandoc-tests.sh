@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fetch pinned test data with a sparse test/ checkout; remove Haskell files to exclude source.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,7 +44,6 @@ fi
 
 git -C "$dest" sparse-checkout set test
 
-# Strip every Haskell file so the implementation / test harness is physically absent (clean-room).
 find "$dest" -name '*.hs' -delete
 if [ -d "$dest/src" ]; then
   echo "unexpected: src/ present after sparse checkout — removing" >&2

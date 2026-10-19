@@ -25,7 +25,7 @@
 
 ## Status
 
-carta already supports the most-used pandoc formats; the rest are in active development. [`STATUS.md`](docs/STATUS.md) has a per-format breakdown, extension coverage, and the full feature backlog.
+carta already supports most of the most-used pandoc formats. The rest is in active development. See [`STATUS.md`](docs/STATUS.md) for a detailed breakdown.
 
 ## Installation
 
@@ -33,7 +33,7 @@ carta already supports the most-used pandoc formats; the rest are in active deve
 
 Download the archive for your platform from the [latest release][latest-release]. Builds are provided for Linux (x86-64 gnu and static musl, arm64), macOS (Intel and Apple Silicon), and Windows (x86-64).
 
-With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installed, the matching prebuilt binary can be fetched directly:
+With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), the matching prebuilt binary can be fetched directly:
 
 ```sh
 cargo binstall carta
@@ -69,12 +69,6 @@ carta -f commonmark -t html input.md -o output.html
 # read from stdin, write to stdout
 echo '# Hello' | carta -f commonmark -t html
 
-# inspect the document model
-carta -f commonmark -t json input.md
-
-# standalone document with a table of contents and numbered sections
-carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
-
 # discover what this build supports
 carta --list-input-formats
 carta --list-output-formats
@@ -95,9 +89,9 @@ let html = convert_text(
 )?;
 ```
 
-`convert_text` is the shortcut for text-to-text conversion. The general entry point is `convert`, which takes raw bytes and returns an `Output` that is text or bytes depending on the target format.
+`convert_text` is a shortcut for text-to-text conversion. The more general entry point is `convert`, which takes raw bytes and returns an `Output` that is either text or bytes, depending on the target format.
 
-You can select formats at compile time via per-direction features to shrink the binary further.
+You can select formats at compile time via per-direction features to shrink the binary:
 
 ```sh
 cargo build -p carta --no-default-features --features read-commonmark,write-html
@@ -122,4 +116,4 @@ Licensed under either of
 
 at your option.
 
-The syntax-highlighting grammar files are third-party works that retain their own upstream licenses; see [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md). Only permissively licensed grammars are compiled into carta. The remaining grammars (copyleft or unspecified licenses) ship through an optional feature.
+Note: The syntax-highlighting grammar files are third-party works that have their own upstream licenses. See [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md).

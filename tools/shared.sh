@@ -6,7 +6,6 @@ ROOT="$(cd "$SHARED_DIR/.." && pwd)"
 ORACLE="$ROOT/.oracle/bin/pandoc"
 CORPUS="$ROOT/corpus"
 
-# Normalize HTML math with MathJax; both tools keep syntax highlighting enabled.
 oracle_norm() {
   case "$1" in
     html | html5 | html4 | revealjs) echo "--mathjax" ;;

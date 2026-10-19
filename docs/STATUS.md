@@ -634,7 +634,7 @@ Constructs the supported extensions read, each with one narrow case that still d
 | `attributes` | An attribute spec `{…}` containing a backslash escape is void in the dialect (it stays literal text) whereas carta accepts the backslash into the id, class, or value. |
 | `alerts` | An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one. |
 
-### Recognized, behavior not yet modeled
+### Not yet implemented
 
 These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but
 the reader does not yet branch on the construct (notable, non-exhaustive): `latex_macros`,

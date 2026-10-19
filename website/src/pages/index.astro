@@ -25,7 +25,10 @@ const shippingCount = shipping().length;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <script defer data-domain="carta.rs" src="https://pa.kuatsu.de/js/script.js"
+    <script
+      defer
+      data-domain="carta.rs"
+      src="https://pa.kuatsu.de/js/script.js"
     ></script>
   </head>
   <body>
@@ -35,11 +38,14 @@ const shippingCount = shipping().length;
         <h1>carta</h1>
         <p class="tagline">
           A universal document converter in Rust. Read one markup format, render
-          it back out in another. Fully compatible with pandoc.
+          it back out in another. A lightweight and performant reimplementation
+          of pandoc.
         </p>
         <CopyCommand command="cargo install carta" />
         <p class="cta">
-          <a class="button" href="/guide/getting-started/">Get started</a>
+          <a class="button" href="/guide/getting-started/">
+            Get started
+          </a>
           <a href="/formats/">Browse formats</a>
         </p>
       </section>
@@ -55,11 +61,6 @@ const shippingCount = shipping().length;
 
       <section>
         <h2>{shippingCount} formats supported</h2>
-        <p>
-          This is a list of all formats carta supports today. The{" "}
-          <a href="/formats/">compatibility page</a>{" "}
-          lists the full roadmap.
-        </p>
         <FormatGrid />
       </section>
 
@@ -67,11 +68,10 @@ const shippingCount = shipping().length;
         <h2>Configurable builds</h2>
         <p>
           Formats are selected at compile time through Cargo features. If you
-          don't need all {shippingCount} formats, you can make carta even more lightweight.
+          don't need all {shippingCount} formats, you can make carta even more
+          lightweight.
         </p>
-        <CopyCommand
-          command="cargo install carta --no-default-features --features cli,read-commonmark,write-html"
-        />
+        <CopyCommand command="cargo install carta --no-default-features --features cli,read-commonmark,write-html" />
       </section>
     </main>
 

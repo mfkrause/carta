@@ -21,7 +21,7 @@ body:
     attributes:
       label: carta version
       description: Output of `carta --version`, or the commit hash if you built from source.
-      placeholder: "carta 0.0.0 (abc1234)"
+      placeholder: "carta 0.0.0"
     validations:
       required: true
   - type: dropdown

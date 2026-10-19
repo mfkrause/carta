@@ -1,11 +1,5 @@
 [changelog]
 header = """# Changelog
-
-All notable changes to carta are documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
-project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the
-version is below `0.1.0`, anything may change at any time.
 """
 
 # `<!-- N -->` prefixes fix group order (otherwise alphabetical); the body template strips them.

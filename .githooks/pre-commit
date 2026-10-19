@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Enable with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
 set -euo pipefail
 
 if ! cargo fmt --all --check; then

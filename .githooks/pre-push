@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Enable with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
 set -euo pipefail
 
 export RUSTFLAGS="${RUSTFLAGS:--D warnings}"

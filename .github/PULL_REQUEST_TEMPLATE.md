@@ -13,5 +13,5 @@
 - [ ] I have read [`CONTRIBUTING.md`](../blob/main/CONTRIBUTING.md) and followed its rules.
 - [ ] All checks and tests pass locally.
 - [ ] I added or updated tests for the change, if needed.
-- [ ] If this changes support for a format or extension, I updated `docs/STATUS.md`.
+- [ ] If this changes support for a format or extension, I updated `docs/status.toml`.
 - [ ] My commits follow [Conventional Commits](https://www.conventionalcommits.org/).

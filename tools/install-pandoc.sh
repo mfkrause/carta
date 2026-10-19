@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install a pinned binary for conformance testing. Usage: install-pandoc.sh [--update|--version=X]
+# Install a pinned pandoc binary for conformance testing. Usage: install-pandoc.sh [--update|--version=X]
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

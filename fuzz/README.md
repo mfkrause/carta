@@ -30,14 +30,6 @@ One `read_<format>` target per reader (see `Cargo.toml` for the current list); e
 
 One `write_<format>` target per writer module: the whole AST derives [`Arbitrary`], so libFuzzer's byte mutations become structured mutations of a typed `Document`.
 
-## Corpus layout
-
-- `seeds/<target>/`: committed. A small representative input per reader, plus every crash/timeout reproducer we have fixed. Writer targets have no hand-written seeds; libFuzzer grows a corpus from scratch.
-- `artifacts/<target>/`: gitignored. Where libFuzzer drops a reproducer when it finds a crash, hang, or OOM.
-
 [`Arbitrary`]: https://docs.rs/arbitrary
-
-When a discovery run finds a bug, fix the reader or writer, then copy the reproducer from `artifacts/<target>/` into `seeds/<target>/` and commit it.
-
 [`cargo-fuzz`]: https://github.com/rust-fuzz/cargo-fuzz
 [libFuzzer]: https://llvm.org/docs/LibFuzzer.html

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fetch CommonMark input examples only; update SPEC_VERSION to replace the vendored spec.
 set -euo pipefail
 
 SPEC_VERSION="0.31.2"

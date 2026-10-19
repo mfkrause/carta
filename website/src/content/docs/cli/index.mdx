@@ -13,10 +13,9 @@ result to a file or to stdout.
 carta -f <FROM> -t <TO> [INPUT] [-o OUTPUT]
 ```
 
-With no `INPUT` carta reads stdin; with no `-o` it writes stdout. Byte-shaped targets (`docx`,
-`odt`, `epub`, `rtf`) refuse to write to a terminal, so give them `-o`.
+If no `INPUT` is given, carta reads stdin instead. Similarly, if no `-o` is given, it writes stdout. Binary targets like `docx` refuse to write to a terminal, so give them `-o`.
 
-Below are supported flags grouped by task. The [CLI reference](/cli/reference/) is the same set, formally generated from the binary's own help text.
+Below are some of the more important supported flags, grouped by task. See the [CLI reference](/cli/reference/) for a full list.
 
 ## Input and output
 
@@ -29,16 +28,16 @@ Below are supported flags grouped by task. The [CLI reference](/cli/reference/) 
 
 Both format arguments accept `+ext`/`-ext` toggles, so
 `-f markdown+hard_line_breaks-raw_html` reads Pandoc Markdown with hard line breaks on and raw HTML
-off. `carta --list-extensions=<format>` prints the set a format accepts.
+off.
 
 ## Standalone output and templates
 
-By default carta emits a document fragment. These wrap it in a complete document.
+By default carta emits a document fragment. Use standalone output to wrap it in a complete document.
 
 | Flag | Effect |
 | --- | --- |
 | `-s`, `--standalone` | Wrap the body in the format's template. |
-| `--template <FILE>` | Render with this template instead of the built-in default; implies `-s`. |
+| `--template <FILE>` | Render with this template instead of the built-in default. Implies `-s`. |
 | `-V`, `--variable <KEY[:VAL]>` | Set a template variable. Repeatable. |
 | `-D`, `--print-default-template <FORMAT>` | Print a format's built-in template and exit. |
 
@@ -49,9 +48,6 @@ By default carta emits a document fragment. These wrap it in a complete document
 | `-M`, `--metadata <KEY[:VAL]>` | Set a document metadata field. Repeatable. |
 | `--metadata-file <FILE>` | Read metadata from a YAML or JSON file. |
 
-Metadata describes the document (title, author, date); variables are template inputs. Metadata is
-visible to filters and to the writers, so prefer `-M` when the value belongs to the document itself.
-
 ## Contents, numbering, and wrapping
 
 | Flag | Effect |
@@ -61,8 +57,6 @@ visible to filters and to the writers, so prefer `-M` when the value belongs to 
 | `-N`, `--number-sections` | Number section headings. |
 | `--wrap <auto\|none\|preserve>` | How paragraphs are laid out. Defaults to `auto`. |
 | `--columns <N>` | Fill column that `--wrap=auto` reflows to. |
-
-`--wrap=none` puts each paragraph on one line, `--wrap=preserve` keeps the source's own line breaks.
 
 ## Math
 
@@ -91,10 +85,7 @@ visible to filters and to the writers, so prefer `-M` when the value belongs to 
 | `--resource-path <SEARCHPATH>` | Directories searched for images and other resources, separated by the platform's path separator. Repeatable. |
 | `--embed-resources` | Inline referenced media into HTML output as `data:` URIs. |
 | `--self-contained` | Deprecated alias for `--embed-resources --standalone`. |
-| `--sandbox` | Disable network access; remote resources are left external. |
-
-Use `--sandbox` when converting untrusted documents, so a document cannot make carta fetch a URL it
-chose.
+| `--sandbox` | Disable network access so that remote resources are left external. |
 
 ## EPUB and word-processor targets
 
@@ -114,8 +105,6 @@ chose.
 | --- | --- |
 | `-F`, `--filter <PROGRAM>` | Pipe the document through an external program as JSON. Repeatable, applied in order. |
 
-Filters are fully compatible with pandoc.
-
 ## Data directory
 
 | Flag | Effect |
@@ -134,4 +123,4 @@ Defaults to `$XDG_DATA_HOME/carta`, or `~/.local/share/carta`.
 | `--version` | Print version information and exit. |
 
 Because formats are selected at compile time, these listings describe the binary in front of you
-rather than the project as a whole. The [compatibility page](/formats/) covers the full set.
+rather than the carta project itself.

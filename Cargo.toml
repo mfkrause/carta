@@ -21,7 +21,6 @@ clap = { version = "4", features = ["derive"] }
 unicode-general-category = "1"
 unicode-normalization = "0.1"
 caseless = "0.2"
-# The `serde` integration is gated: `carta-ast`'s own `serde` feature turns on `compact_str/serde`.
 compact_str = { version = "0.9" }
 memchr = "2"
 miniz_oxide = "0.9"
@@ -55,11 +54,9 @@ expect_used = "warn"
 panic = "warn"
 indexing_slicing = "warn"
 
-# Optimize dependencies to reduce test run time.
 [profile.dev.package."*"]
 opt-level = 2
 
-# Detect overflow in parser offsets and counts in release builds too.
 [profile.release]
 overflow-checks = true
 lto = true

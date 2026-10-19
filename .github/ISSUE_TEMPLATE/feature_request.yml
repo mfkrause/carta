@@ -3,12 +3,6 @@ description: Suggest a new format, extension, or capability.
 title: "feat: "
 labels: ["enhancement"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Have a look at the status table in the [README](https://github.com/mfkrause/carta#status)
-        and [`docs/STATUS.md`](https://github.com/mfkrause/carta/blob/main/docs/STATUS.md)
-        first. The feature may already be planned or in progress.
   - type: dropdown
     id: kind
     attributes:
@@ -28,13 +22,6 @@ body:
       description: What would you like carta to do?
     validations:
       required: true
-  - type: textarea
-    id: use-case
-    attributes:
-      label: Use case
-      description: What are you trying to accomplish? Concrete examples help a lot.
-    validations:
-      required: false
   - type: textarea
     id: references
     attributes:
