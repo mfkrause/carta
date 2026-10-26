@@ -94,6 +94,8 @@ impl Sequence {
         let period = match &value {
             Value::Str(_) => characters.as_ref().map_or(0, |characters| characters.len()),
             Value::Array(items) => items.len(),
+            Value::Content(blocks) => usize::from(!blocks.is_empty()),
+            Value::Inlines(inlines) => usize::from(!inlines.is_empty()),
             Value::Sequence(sequence) => sequence.length,
             _ => 1,
         };
