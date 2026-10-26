@@ -2,10 +2,12 @@
 //!
 //! Math becomes TeX. Unclosed markup delimiters remain literal text.
 
+use std::cell;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use regex::Regex;
 
@@ -19,7 +21,10 @@ use carta_core::{DeepStack, Error, Extension, Reader, ReaderOptions, Result, on_
 mod data;
 mod emoji;
 mod integer;
+mod sequence;
 mod show;
+
+use sequence::Sequence;
 #[cfg(test)]
 mod tests;
 
@@ -151,6 +156,8 @@ enum Value {
     Function(Callee, Vec<Arg>),
     /// A regular expression, as the pattern it was written with.
     Regex(String),
+    /// A shared sequence whose repeated content is copied only when consumed.
+    Sequence(Rc<Sequence>),
 }
 
 /// What a [`Value::Function`] calls.
@@ -222,10 +229,18 @@ struct Arg {
 }
 
 impl Value {
+    fn materialize(self) -> Self {
+        match self {
+            Value::Sequence(sequence) => sequence.materialize(),
+            value => value,
+        }
+    }
+
     /// Whether the value stands on its own as one or more blocks rather than folding into the
     /// surrounding paragraph.
     fn is_block(&self) -> bool {
         match self {
+            Value::Sequence(sequence) => sequence.is_block(),
             Value::Content(blocks) => {
                 blocks.len() > 1
                     || blocks
@@ -240,6 +255,7 @@ impl Value {
     /// The value as inline content, flattening block content and rendering literals as text.
     fn into_inlines(self) -> Vec<Inline> {
         match self {
+            Value::Sequence(sequence) => sequence.materialize().into_inlines(),
             Value::Inlines(inlines) => inlines,
             Value::Content(blocks) => blocks_to_inlines(blocks),
             Value::Str(text) => text_inlines(&text),
@@ -266,6 +282,7 @@ impl Value {
     /// The value as block content.
     fn into_blocks(self) -> Vec<Block> {
         match self {
+            Value::Sequence(sequence) => sequence.materialize().into_blocks(),
             Value::Content(mut blocks) => {
                 if let Some(inlines) = first_edge_inlines(&mut blocks)
                     && matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak))
@@ -294,6 +311,7 @@ impl Value {
     /// The value as plain text, for arguments that name a file, a URL, or a setting.
     fn as_text(&self) -> String {
         match self {
+            Value::Sequence(sequence) => sequence.materialize().as_text(),
             Value::Str(text) | Value::Ident(text) | Value::Label(text) => text.clone(),
             Value::Int(n) => n.to_string(),
             Value::Number(n, unit) => format_number(*n, unit),
@@ -314,6 +332,7 @@ impl Value {
     /// Whether the value counts as true where a condition is expected.
     fn is_truthy(&self) -> bool {
         match self {
+            Value::Sequence(sequence) => sequence.is_truthy(),
             Value::Bool(b) => *b,
             Value::Int(n) => !n.is_zero(),
             Value::Number(n, _) => *n != 0.0,
@@ -373,7 +392,11 @@ fn push_value<'a>(value: &'a Value, pending: &mut Vec<Weighed<'a>>) {
         Value::Str(text) | Value::Ident(text) | Value::Label(text) | Value::Regex(text) => {
             pending.push(Weighed::Text(text.len()));
         }
-        Value::Nothing | Value::Bool(_) | Value::Int(_) | Value::Number(..) => {}
+        Value::Nothing
+        | Value::Bool(_)
+        | Value::Int(_)
+        | Value::Number(..)
+        | Value::Sequence(_) => {}
     }
 }
 
@@ -973,7 +996,7 @@ struct Parser {
     flow: Option<Flow>,
     /// How much copied or repeated content may still materialize. Without a ceiling, a few
     /// operators or bindings can fill memory.
-    copies: usize,
+    copies: Rc<cell::Cell<usize>>,
 }
 
 /// A file pulled into the character arena by `#include` or `#import`.
@@ -1022,7 +1045,7 @@ impl Parser {
             line_bound: false,
             interrupt: None,
             flow: None,
-            copies,
+            copies: Rc::new(cell::Cell::new(copies)),
         }
     }
 
@@ -1750,7 +1773,7 @@ impl Parser {
     /// where the caller can place it beside the run.
     fn splice_code_value(&mut self, out: &mut Vec<Inline>, closer: Option<char>, blocks: bool) {
         let value = self.code_expression();
-        if blocks && matches!(value, Value::Content(_)) && value.is_block() {
+        if blocks && value.is_block() && !matches!(value, Value::Group(..)) {
             self.interrupt = Some(value.into_blocks());
             return;
         }
@@ -2256,7 +2279,10 @@ impl Parser {
                 value = match mutating_method(&mut value, &name, &args) {
                     Some(result) => {
                         if let Some(target) = target {
-                            self.env.insert(target.to_string(), value);
+                            self.env.insert(
+                                target.to_string(),
+                                Sequence::repeated(value, 1, &self.copies),
+                            );
                         }
                         result
                     }
@@ -2297,6 +2323,15 @@ impl Parser {
     /// Apply a method that needs the parser: one that calls a function it was handed, or that fixes
     /// arguments to one. Everything else is a pure transformation of the receiver.
     fn call_method(&mut self, value: Value, name: &str, args: &[Arg]) -> Value {
+        let value = match value {
+            Value::Sequence(sequence) => {
+                if let Some(value) = sequence.method(name, args) {
+                    return value;
+                }
+                sequence.materialize()
+            }
+            value => value,
+        };
         let function = args
             .iter()
             .find(|arg| arg.name.is_none())
@@ -2679,11 +2714,11 @@ impl Parser {
     /// source spelling them out can account for.
     fn bound_copy(&mut self, name: &str) -> Option<Value> {
         let bound = self.env.get(name)?;
-        let Some(left) = self.copies.checked_sub(value_weight(bound)) else {
-            self.copies = 0;
+        let Some(left) = self.copies.get().checked_sub(value_weight(bound)) else {
+            self.copies.set(0);
             return Some(Value::Nothing);
         };
-        self.copies = left;
+        self.copies.set(left);
         Some(bound.clone())
     }
 
@@ -2743,7 +2778,7 @@ impl Parser {
         let entry = match args
             .iter()
             .find(|arg| arg.name.is_none())
-            .map(|arg| &arg.value)
+            .map(|arg| arg.value.clone().materialize())
         {
             Some(Value::Array(items)) => MetaValue::MetaList(
                 items
@@ -2805,7 +2840,8 @@ impl Parser {
                 let value = self.line_expression();
                 if !name.is_empty() {
                     self.declared.push(name.clone());
-                    self.env.insert(name, value);
+                    self.env
+                        .insert(name, Sequence::repeated(value, 1, &self.copies));
                 }
             }
         }
@@ -3064,7 +3100,7 @@ impl Parser {
     /// Read `#import`, binding what a file or a standard module exposes.
     fn import_statement(&mut self) -> Value {
         self.skip_spaces();
-        let source = self.expression();
+        let source = self.expression().materialize();
         self.skip_spaces();
         let mut list = if self.eat(':') {
             self.skip_spaces();
@@ -3391,7 +3427,7 @@ impl Parser {
             self.bump();
             self.skip_spaces();
             let right = self.expression();
-            value = combine(value, right, operator, &mut self.copies);
+            value = combine(value, right, operator, &self.copies);
         }
         value
     }
@@ -3763,11 +3799,12 @@ impl Parser {
         let value = match operator {
             Some(op) => {
                 let left = self.bound_copy(&name).unwrap_or(Value::Nothing);
-                combine(left, right, op, &mut self.copies)
+                combine(left, right, op, &self.copies)
             }
             None => right,
         };
-        self.env.insert(name, value);
+        self.env
+            .insert(name, Sequence::repeated(value, 1, &self.copies));
         Some(Value::Nothing)
     }
 
@@ -3889,13 +3926,13 @@ impl Parser {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.product();
-                    value = combine(value, right, '+', &mut self.copies);
+                    value = combine(value, right, '+', &self.copies);
                 }
                 Some('-') if value.as_number().is_some() => {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.product();
-                    value = combine(value, right, '-', &mut self.copies);
+                    value = combine(value, right, '-', &self.copies);
                 }
                 _ => {
                     self.pos = saved;
@@ -3916,7 +3953,7 @@ impl Parser {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.negation();
-                    value = combine(value, right, op, &mut self.copies);
+                    value = combine(value, right, op, &self.copies);
                 }
                 _ => {
                     self.pos = saved;
@@ -3988,6 +4025,7 @@ fn range_values(args: &[Arg]) -> Vec<Value> {
 /// The values a `#for` loop walks over.
 fn iteration_values(value: &Value) -> Vec<Value> {
     match value {
+        Value::Sequence(sequence) => iteration_values(&sequence.materialize()),
         Value::Array(items) => items.clone(),
         Value::Dict(pairs) => pairs
             .iter()
@@ -4001,6 +4039,8 @@ fn iteration_values(value: &Value) -> Vec<Value> {
 
 /// Join two values the way a sequence of them joins: one laid after the other as content.
 fn join_values(left: Value, right: Value) -> Value {
+    let left = left.materialize();
+    let right = right.materialize();
     match (left, right) {
         (Value::Nothing, value) | (value, Value::Nothing) => value,
         (Value::Content(mut blocks), Value::Content(right)) => {
@@ -4116,7 +4156,7 @@ fn numeric_order(left: &Value, right: &Value) -> Option<Ordering> {
 }
 
 /// Combine two operands of a code-mode arithmetic or concatenation operator.
-fn combine(left: Value, right: Value, op: char, copies: &mut usize) -> Value {
+fn combine(left: Value, right: Value, op: char, copies: &Rc<cell::Cell<usize>>) -> Value {
     if let (Value::Int(a), Value::Int(b)) = (&left, &right) {
         let exact = match op {
             '-' => Some(a.subtract(b)),
@@ -4153,6 +4193,11 @@ fn combine(left: Value, right: Value, op: char, copies: &mut usize) -> Value {
     {
         return repeat_value(left, count, copies);
     }
+    if op == '+' && sequence::compatible(&left, &right) {
+        return Sequence::concatenate(left, right, copies);
+    }
+    let left = left.materialize();
+    let right = right.materialize();
     match (left, right) {
         (Value::Content(mut a), b) => {
             append_content(&mut a, b.into_blocks());
@@ -4193,41 +4238,19 @@ fn combine(left: Value, right: Value, op: char, copies: &mut usize) -> Value {
 fn repeatable(value: &Value) -> bool {
     matches!(
         value,
-        Value::Str(_) | Value::Array(_) | Value::Content(_) | Value::Inlines(_)
+        Value::Str(_)
+            | Value::Array(_)
+            | Value::Content(_)
+            | Value::Inlines(_)
+            | Value::Sequence(_)
     )
 }
 
 /// Repeat a sequence the given number of times.
-fn repeat_value(value: Value, count: f64, copies: &mut usize) -> Value {
-    let weight = value_weight(&value).max(1);
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_precision_loss
-    )]
-    let count = (count.max(0.0).min(MAX_ITERATIONS as f64) as usize).min(*copies / weight);
-    *copies = copies.saturating_sub(weight.saturating_mul(count));
-    match value {
-        Value::Str(text) => Value::Str(text.repeat(count)),
-        Value::Array(items) => Value::Array(
-            std::iter::repeat_n(items, count)
-                .flatten()
-                .collect::<Vec<_>>(),
-        ),
-        Value::Inlines(inlines) => Value::Inlines(
-            std::iter::repeat_n(inlines, count)
-                .flatten()
-                .collect::<Vec<_>>(),
-        ),
-        Value::Content(blocks) => {
-            let mut out = Vec::new();
-            for _ in 0..count {
-                append_content(&mut out, blocks.clone());
-            }
-            Value::Content(out)
-        }
-        other => other,
-    }
+fn repeat_value(value: Value, count: f64, copies: &Rc<cell::Cell<usize>>) -> Value {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let count = count.max(0.0) as usize;
+    Sequence::repeated(value, count, copies)
 }
 
 /// Flush the pending text buffer into the inline sequence.
@@ -4451,7 +4474,14 @@ enum ListMarker {
 
 impl Parser {
     /// Evaluate a call to a named element function.
-    fn call(&mut self, name: &str, args: Vec<Arg>) -> Value {
+    fn call(&mut self, name: &str, mut args: Vec<Arg>) -> Value {
+        if name != "type" {
+            for arg in &mut args {
+                if let Value::Sequence(sequence) = &arg.value {
+                    arg.value = sequence.materialize();
+                }
+            }
+        }
         match name {
             "emph" => Value::Inlines(vec![Inline::Emph(first_inlines(&args))]),
             "strong" => Value::Inlines(vec![Inline::Strong(first_inlines(&args))]),
@@ -4775,7 +4805,11 @@ fn first_blocks(args: &[Arg]) -> Vec<Block> {
 /// settings. A measure, a colour name, or a count configures the call; text and content are its
 /// body, however the body was written.
 fn is_body(value: &Value) -> bool {
-    matches!(value, Value::Content(_) | Value::Inlines(_) | Value::Str(_))
+    match value {
+        Value::Sequence(sequence) => matches!(sequence.type_name(), "content" | "string"),
+        Value::Content(_) | Value::Inlines(_) | Value::Str(_) => true,
+        _ => false,
+    }
 }
 
 /// The body a call like `#align(..)[..]` carries after its settings.
@@ -4827,6 +4861,7 @@ fn array_repr(items: &[Value]) -> String {
 
 fn value_repr(value: &Value) -> String {
     match value {
+        Value::Sequence(sequence) => value_repr(&sequence.materialize()),
         Value::Str(text) => format!("\"{text}\""),
         Value::Array(items) => array_repr(items),
         Value::Dict(pairs) => dict_repr(pairs),
@@ -4847,6 +4882,7 @@ fn dict_repr(pairs: &[(String, Value)]) -> String {
 /// The name code mode gives a value's type.
 fn type_name(value: &Value) -> &'static str {
     match value {
+        Value::Sequence(sequence) => sequence.type_name(),
         Value::Nothing => "none",
         Value::Bool(_) => "boolean",
         Value::Int(_) => "int",
@@ -4869,6 +4905,10 @@ fn type_name(value: &Value) -> &'static str {
 /// The value a dictionary holds under a name, for the `.name` reads that follow a value.
 fn field_value(value: &Value, name: &str) -> Option<Value> {
     match value {
+        Value::Sequence(sequence) if name == "text" && sequence.type_name() == "string" => {
+            Some(value.clone())
+        }
+        Value::Sequence(sequence) => field_value(&sequence.materialize(), name),
         Value::Dict(pairs) => pairs
             .iter()
             .find(|(key, _)| key == name)
@@ -5169,6 +5209,11 @@ fn order(left: &Value, right: &Value) -> Ordering {
 /// Apply a method that changes its receiver in place, yielding what the call itself stands for.
 /// `None` where the method is not one of those, leaving the receiver untouched.
 fn mutating_method(receiver: &mut Value, name: &str, args: &[Arg]) -> Option<Value> {
+    if matches!(name, "push" | "pop" | "insert" | "remove")
+        && let Value::Sequence(sequence) = receiver
+    {
+        *receiver = sequence.materialize();
+    }
     let positional: Vec<Value> = args
         .iter()
         .filter(|arg| arg.name.is_none())
@@ -5224,6 +5269,15 @@ fn mutating_method(receiver: &mut Value, name: &str, args: &[Arg]) -> Option<Val
 }
 
 fn method_value(value: Value, name: &str, args: &[Arg]) -> Value {
+    let value = match value {
+        Value::Sequence(sequence) => {
+            if let Some(value) = sequence.method(name, args) {
+                return value;
+            }
+            sequence.materialize()
+        }
+        value => value,
+    };
     if let Some(result) = dict_method(&value, name, args) {
         return result;
     }
@@ -5470,6 +5524,7 @@ fn replacement_count(args: &[Arg]) -> Option<usize> {
 /// into named ones, and anything else contributes a single positional argument.
 fn spread_arguments(value: Value) -> Vec<Arg> {
     match value {
+        Value::Sequence(sequence) => spread_arguments(sequence.materialize()),
         Value::Array(items) => items
             .into_iter()
             .map(|value| Arg { name: None, value })

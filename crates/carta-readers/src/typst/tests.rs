@@ -408,19 +408,14 @@ fn generated_regular_expressions_match_long_text() {
 }
 
 #[test]
-fn sequence_repetition_spends_the_materialization_allowance() {
-    let mut copies = 8;
-    let count = Value::Int(Integer::from(100usize));
-    let repeated = combine(
-        Value::Str("ab".to_string()),
-        count.clone(),
-        '*',
-        &mut copies,
-    );
-    assert_eq!(repeated, Value::Str("abab".to_string()));
+fn repeated_sequences_can_be_measured_and_sliced_without_copying() {
     assert_eq!(
-        combine(repeated, count, '*', &mut copies),
-        Value::Str(String::new())
+        inlines("#(\"ab\" * 1000000000).len()"),
+        vec![text("2000000000")]
+    );
+    assert_eq!(
+        inlines("#(\"ab\" * 1000000000).slice(-3)"),
+        vec![text("bab")]
     );
 }
 

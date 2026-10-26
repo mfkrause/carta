@@ -151,7 +151,15 @@ impl Parser {
         if self.peek() != Some(':') {
             return None;
         }
-        Some(self.arguments(start, close))
+        Some(
+            self.arguments(start, close)
+                .into_iter()
+                .map(|mut argument| {
+                    argument.value = argument.value.materialize();
+                    argument
+                })
+                .collect(),
+        )
     }
 
     /// Read the transform after a show rule's colon.
@@ -466,9 +474,9 @@ mod tests {
             r#"heading.where(level: "x" * 6666) body"#,
         ] {
             let mut parser = Parser::new(source.chars().collect(), None);
-            let copies = parser.copies;
+            let copies = parser.copies.get();
             assert!(parser.selector().is_none());
-            assert_eq!(parser.copies, copies);
+            assert_eq!(parser.copies.get(), copies);
         }
     }
 
