@@ -574,10 +574,13 @@ fn element_helpers_cover_structural_values() {
     );
     assert!(rotation_angle(&[positional_value(Value::Number(1.0, "em".to_string()))]).is_empty());
 
-    let terms = term_entries(&[positional_value(Value::Array(vec![
-        Value::Str("term".to_string()),
-        Value::Str("definition".to_string()),
-    ]))]);
+    let terms = term_entries(&[positional_value(Value::Array(
+        vec![
+            Value::Str("term".to_string()),
+            Value::Str("definition".to_string()),
+        ]
+        .into(),
+    ))]);
     assert_eq!(terms.len(), 1);
     assert_eq!(
         lorem(&[positional_value(Value::Number(5.0, String::new()))])
@@ -630,18 +633,24 @@ fn value_weight_visits_each_document_shape() {
     let value = Value::Content(blocks);
     assert!(value_weight(&value) > 40);
 
-    let compound = Value::Dict(vec![
-        ("array".to_string(), Value::Array(vec![Value::Bool(true)])),
-        (
-            "group".to_string(),
-            Value::Group(
-                GroupKind::Header,
-                vec![positional_value(Value::Str("x".to_string()))],
+    let compound = Value::Dict(
+        vec![
+            (
+                "array".to_string(),
+                Value::Array(vec![Value::Bool(true)].into()),
             ),
-        ),
-        ("label".to_string(), Value::Label("id".to_string())),
-        ("regex".to_string(), Value::Regex("x+".to_string())),
-    ]);
+            (
+                "group".to_string(),
+                Value::Group(
+                    GroupKind::Header,
+                    vec![positional_value(Value::Str("x".to_string()))].into(),
+                ),
+            ),
+            ("label".to_string(), Value::Label("id".to_string())),
+            ("regex".to_string(), Value::Regex("x+".to_string())),
+        ]
+        .into(),
+    );
     assert!(value_weight(&compound) > 15);
 }
 
@@ -660,11 +669,11 @@ fn value_text_covers_each_scalar_and_collection_shape() {
         assert_eq!(value.as_text(), expected);
     }
     assert_eq!(
-        Value::Array(vec![Value::Str("a".to_string()), Value::Bool(false)]).as_text(),
+        Value::Array(vec![Value::Str("a".to_string()), Value::Bool(false)].into()).as_text(),
         "a, false"
     );
     assert_eq!(
-        Value::Dict(vec![("key".to_string(), Value::Str("value".to_string()))]).as_text(),
+        Value::Dict(vec![("key".to_string(), Value::Str("value".to_string()))].into()).as_text(),
         "(key: \"value\")"
     );
     assert_eq!(
@@ -744,7 +753,8 @@ fn table_and_text_helpers_cover_edge_shapes() {
             named_value("rowspan", Value::Number(3.0, String::new())),
             named_value("align", Value::Ident("right".to_string())),
             positional_value(Value::Str("cell".to_string())),
-        ],
+        ]
+        .into(),
     ));
     assert_eq!((cell.col_span, cell.row_span), (2, 3));
     assert_eq!(cell.align, carta_ast::Alignment::AlignRight);

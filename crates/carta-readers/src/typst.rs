@@ -23,6 +23,9 @@ mod emoji;
 mod integer;
 mod sequence;
 mod show;
+mod values;
+
+use values::Values;
 
 use sequence::Sequence;
 #[cfg(test)]
@@ -142,18 +145,18 @@ enum Value {
     /// A label literal (`<key>`).
     Label(String),
     /// A comma-separated sequence written in parentheses.
-    Array(Vec<Value>),
+    Array(Values<Value>),
     /// A mapping written as `(name: value, ..)`, in the order the pairs were written.
-    Dict(Vec<(String, Value)>),
+    Dict(Values<(String, Value)>),
     /// Block-level content: a markup block or a block-producing element function.
     Content(Vec<Block>),
     /// Inline-level content produced by an element function.
     Inlines(Vec<Inline>),
     /// A table sub-element (`table.header`, `table.cell`, …) awaiting its enclosing table.
-    Group(GroupKind, Vec<Arg>),
+    Group(GroupKind, Values<Arg>),
     /// A function, together with the arguments a `.with(..)` has already fixed to it. It stands
     /// for whatever it computes once the remaining arguments arrive.
-    Function(Callee, Vec<Arg>),
+    Function(Callee, Values<Arg>),
     /// A regular expression, as the pattern it was written with.
     Regex(String),
     /// A shared sequence whose repeated content is copied only when consumed.
@@ -2234,7 +2237,7 @@ impl Parser {
             };
             let fixed = match &value {
                 Value::Function(_, fixed) => fixed.clone(),
-                _ => Vec::new(),
+                _ => Values::default(),
             };
             let argument = Arg {
                 name: None,
@@ -2403,7 +2406,7 @@ impl Parser {
             == Some(&',');
         match positional.len() {
             1 if !trailing_comma => positional.pop().unwrap_or(Value::Nothing),
-            _ => Value::Array(positional),
+            _ => Value::Array(positional.into()),
         }
     }
 
@@ -2658,9 +2661,13 @@ impl Parser {
             return Some(bound);
         }
         if let Some(bound) = self.functions.get(head) {
-            return Some(Value::Function(Callee::Closure(bound.clone()), Vec::new()));
+            return Some(Value::Function(
+                Callee::Closure(bound.clone()),
+                Values::default(),
+            ));
         }
-        (rest == "with").then(|| Value::Function(Callee::Named(head.to_string()), Vec::new()))
+        (rest == "with")
+            .then(|| Value::Function(Callee::Named(head.to_string()), Values::default()))
     }
 
     /// Call the function a name stands for: a `#let` binding first, then an element function, then
@@ -3304,10 +3311,13 @@ impl Parser {
         }
         self.env.insert(
             pack.name.clone(),
-            Value::Dict(vec![
-                ("pos".to_string(), Value::Array(rest)),
-                ("named".to_string(), Value::Dict(named)),
-            ]),
+            Value::Dict(
+                vec![
+                    ("pos".to_string(), Value::Array(rest.into())),
+                    ("named".to_string(), Value::Dict(named.into())),
+                ]
+                .into(),
+            ),
         );
     }
 
@@ -3381,7 +3391,7 @@ impl Parser {
                 Some(key @ ("author" | "keywords")) => {
                     let items = match &arg.value {
                         Value::Array(values) => values.clone(),
-                        other => vec![other.clone()],
+                        other => vec![other.clone()].into(),
                     };
                     let list: Vec<MetaValue> = items
                         .into_iter()
@@ -3809,7 +3819,7 @@ impl Parser {
     /// `-`, then `*` and `/`, with `not` tightest of all.
     fn argument_value(&mut self) -> Value {
         match self.closure_argument() {
-            Some(closure) => Value::Function(Callee::Closure(closure), Vec::new()),
+            Some(closure) => Value::Function(Callee::Closure(closure), Values::default()),
             None => self.disjunction(),
         }
     }
@@ -3955,10 +3965,10 @@ fn range_values(args: &[Arg]) -> Vec<Value> {
 fn iteration_values(value: &Value) -> Vec<Value> {
     match value {
         Value::Sequence(sequence) => iteration_values(&sequence.materialize()),
-        Value::Array(items) => items.clone(),
+        Value::Array(items) => items.clone().into(),
         Value::Dict(pairs) => pairs
             .iter()
-            .map(|(key, held)| Value::Array(vec![Value::Str(key.clone()), held.clone()]))
+            .map(|(key, held)| Value::Array(vec![Value::Str(key.clone()), held.clone()].into()))
             .collect(),
         Value::Str(text) => text.chars().map(|c| Value::Str(c.to_string())).collect(),
         Value::Nothing => Vec::new(),
@@ -4519,7 +4529,7 @@ impl Parser {
             .iter_mut()
             .find(|arg| arg.name.as_deref() == Some("align"))
         {
-            arg.value = Value::Array(alignments);
+            arg.value = Value::Array(alignments.into());
         }
         args
     }
@@ -4575,11 +4585,11 @@ impl Parser {
                 let args = self.expand_alignment(args);
                 Value::Content(vec![build_table(&args, Caption::default())])
             }
-            "table.header" | "grid.header" => Value::Group(GroupKind::Header, args),
-            "table.footer" | "grid.footer" => Value::Group(GroupKind::Footer, args),
-            "table.cell" | "grid.cell" => Value::Group(GroupKind::Cell, args),
+            "table.header" | "grid.header" => Value::Group(GroupKind::Header, args.into()),
+            "table.footer" | "grid.footer" => Value::Group(GroupKind::Footer, args.into()),
+            "table.cell" | "grid.cell" => Value::Group(GroupKind::Cell, args.into()),
             "table.hline" | "table.vline" | "grid.hline" | "grid.vline" => {
-                Value::Group(GroupKind::Rule, args)
+                Value::Group(GroupKind::Rule, args.into())
             }
             "figure" => Value::Content(vec![figure(&args)]),
             "bibliography" => {
@@ -4610,7 +4620,7 @@ impl Parser {
             "repr" => Value::Str(positional(&args).map_or_else(String::new, value_repr)),
             "type" => Value::Str(positional(&args).map_or("none", type_name).to_string()),
             "eval" => self.eval_call(&args),
-            "range" => Value::Array(range_values(&args)),
+            "range" => Value::Array(range_values(&args).into()),
             "par" | "layout" => Value::Nothing,
             _ => match name.strip_prefix("calc.") {
                 Some(function) => calc_call(function, &args),
@@ -5091,21 +5101,24 @@ fn characters_before(text: &str, offset: usize) -> Integer {
 /// One match of a string pattern, as the dictionary the language describes it with.
 fn match_entry(text: &str, span: (usize, usize), pattern: &Pattern) -> Value {
     let (start, end) = span;
-    Value::Dict(vec![
-        (
-            "start".to_string(),
-            Value::Int(characters_before(text, start)),
-        ),
-        ("end".to_string(), Value::Int(characters_before(text, end))),
-        (
-            "text".to_string(),
-            Value::Str(text.get(start..end).unwrap_or_default().to_string()),
-        ),
-        (
-            "captures".to_string(),
-            Value::Array(pattern.captures(text, start)),
-        ),
-    ])
+    Value::Dict(
+        vec![
+            (
+                "start".to_string(),
+                Value::Int(characters_before(text, start)),
+            ),
+            ("end".to_string(), Value::Int(characters_before(text, end))),
+            (
+                "text".to_string(),
+                Value::Str(text.get(start..end).unwrap_or_default().to_string()),
+            ),
+            (
+                "captures".to_string(),
+                Value::Array(pattern.captures(text, start).into()),
+            ),
+        ]
+        .into(),
+    )
 }
 
 /// Replace the pattern's first `count` matches, or all of them when no count is given.
@@ -5270,7 +5283,7 @@ fn dict_method(value: &Value, name: &str, args: &[Arg]) -> Option<Value> {
         "pairs" => Value::Array(
             pairs
                 .iter()
-                .map(|(key, held)| Value::Array(vec![Value::Str(key.clone()), held.clone()]))
+                .map(|(key, held)| Value::Array(vec![Value::Str(key.clone()), held.clone()].into()))
                 .collect(),
         ),
         _ => return None,
@@ -5297,13 +5310,13 @@ fn array_method(items: &[Value], name: &str, args: &[Arg]) -> Option<Value> {
                 .iter()
                 .enumerate()
                 .map(|(index, item)| {
-                    Value::Array(vec![Value::Int(Integer::from(index)), item.clone()])
+                    Value::Array(vec![Value::Int(Integer::from(index)), item.clone()].into())
                 })
                 .collect(),
         ),
         "slice" => {
             let (start, end) = slice_bounds(args, items.len());
-            Value::Array(items.get(start..end).unwrap_or_default().to_vec())
+            Value::Array(items.get(start..end).unwrap_or_default().to_vec().into())
         }
         "join" => {
             let separator = positional(args).cloned().unwrap_or(Value::Nothing);
@@ -5335,7 +5348,7 @@ fn array_method(items: &[Value], name: &str, args: &[Arg]) -> Option<Value> {
                                 .iter()
                                 .map(|other| other.get(index).cloned().unwrap_or(Value::Nothing)),
                         );
-                        Value::Array(row)
+                        Value::Array(row.into())
                     })
                     .collect(),
             )
@@ -5343,7 +5356,7 @@ fn array_method(items: &[Value], name: &str, args: &[Arg]) -> Option<Value> {
         "flatten" => {
             let mut flat = Vec::new();
             flatten_values(items, &mut flat);
-            Value::Array(flat)
+            Value::Array(flat.into())
         }
         "contains" => {
             let wanted = positional_text(args);
@@ -5356,7 +5369,7 @@ fn array_method(items: &[Value], name: &str, args: &[Arg]) -> Option<Value> {
                     unique.push(item.clone());
                 }
             }
-            Value::Array(unique)
+            Value::Array(unique.into())
         }
         "windows" => {
             let size = positional_index(args);
@@ -5365,7 +5378,7 @@ fn array_method(items: &[Value], name: &str, args: &[Arg]) -> Option<Value> {
                 (0..count)
                     .map(|start| {
                         let end = start.saturating_add(size);
-                        Value::Array(items.get(start..end).unwrap_or_default().to_vec())
+                        Value::Array(items.get(start..end).unwrap_or_default().to_vec().into())
                     })
                     .collect(),
             )
@@ -5400,7 +5413,7 @@ fn text_method(value: &Value, name: &str, args: &[Arg]) -> Option<Value> {
             Value::Bool(pattern().is_some_and(|pattern| pattern.find(&text, 0).is_some()))
         }
         "split" => match pattern() {
-            Some(pattern) => Value::Array(split_matches(&text, &pattern)),
+            Some(pattern) => Value::Array(split_matches(&text, &pattern).into()),
             None => Value::Array(
                 text.split_whitespace()
                     .map(|part| Value::Str(part.to_string()))

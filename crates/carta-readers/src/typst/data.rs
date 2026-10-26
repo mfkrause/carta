@@ -1,7 +1,7 @@
 //! The data-loading calls (`read`, `csv`, `json`, `toml`, `yaml`, `xml`): a named file's text
 //! turned into the code-mode value the rest of the document computes with.
 
-use super::{Integer, Value};
+use super::{Integer, Value, Values};
 use crate::xml::{Element, Node};
 use crate::yaml::{Scalar, Yaml};
 
@@ -14,7 +14,7 @@ pub(super) fn load(name: &str, text: &str) -> Option<Value> {
         "read" => Some(Value::Str(text.to_string())),
         "csv" => Some(rows(text)),
         "json" => Some(json(text)),
-        "toml" => Some(Value::Dict(toml(text))),
+        "toml" => Some(Value::Dict(toml(text).into())),
         "yaml" => Some(yaml(text)),
         "xml" => Some(xml(text)),
         _ => None,
@@ -24,7 +24,7 @@ pub(super) fn load(name: &str, text: &str) -> Option<Value> {
 /// A mapping with its keys in the order a loaded document exposes them: sorted by name.
 fn mapping(mut entries: Vec<(String, Value)>) -> Value {
     entries.sort_by(|left, right| left.0.cmp(&right.0));
-    Value::Dict(entries)
+    Value::Dict(entries.into())
 }
 
 /// Comma-separated records as an array of arrays of strings.
@@ -103,20 +103,23 @@ fn children(element: &Element) -> Vec<Value> {
         .iter()
         .map(|node| match node {
             Node::Text(text) => Value::Str(text.clone()),
-            Node::Element(child) => Value::Dict(vec![
-                ("tag".to_string(), Value::Str(child.name.clone())),
-                (
-                    "attrs".to_string(),
-                    mapping(
-                        child
-                            .attrs
-                            .iter()
-                            .map(|(key, held)| (key.clone(), Value::Str(held.clone())))
-                            .collect(),
+            Node::Element(child) => Value::Dict(
+                vec![
+                    ("tag".to_string(), Value::Str(child.name.clone())),
+                    (
+                        "attrs".to_string(),
+                        mapping(
+                            child
+                                .attrs
+                                .iter()
+                                .map(|(key, held)| (key.clone(), Value::Str(held.clone())))
+                                .collect(),
+                        ),
                     ),
-                ),
-                ("children".to_string(), Value::Array(children(child))),
-            ]),
+                    ("children".to_string(), Value::Array(children(child).into())),
+                ]
+                .into(),
+            ),
         })
         .collect()
 }
@@ -180,7 +183,7 @@ fn insert_at(table: &mut Vec<(String, Value)>, path: &[String], key: String, val
         return;
     };
     if !table.iter().any(|(name, _)| name == head) {
-        table.push((head.clone(), Value::Dict(Vec::new())));
+        table.push((head.clone(), Value::Dict(Values::default())));
     }
     if let Some((_, Value::Dict(inner))) = table.iter_mut().find(|(name, _)| name == head) {
         insert_at(inner, rest, key, value);
@@ -322,10 +325,9 @@ mod tests {
         };
         assert_eq!(
             records.get(1),
-            Some(&Value::Array(vec![
-                Value::Str("x,y".to_string()),
-                Value::Str("2".to_string()),
-            ]))
+            Some(&Value::Array(
+                vec![Value::Str("x,y".to_string()), Value::Str("2".to_string()),].into()
+            ))
         );
     }
 
@@ -339,10 +341,13 @@ mod tests {
         assert_eq!(field(&value, "b"), Value::Bool(true));
         assert_eq!(
             field(&value, "a"),
-            Value::Array(vec![
-                Value::Int(Integer::from(1i64)),
-                Value::Int(Integer::from(2i64))
-            ])
+            Value::Array(
+                vec![
+                    Value::Int(Integer::from(1i64)),
+                    Value::Int(Integer::from(2i64))
+                ]
+                .into()
+            )
         );
         assert_eq!(load("json", "{"), Some(Value::Nothing));
     }
@@ -371,16 +376,19 @@ mod tests {
     fn yaml_keeps_a_top_level_sequence_or_scalar() {
         assert_eq!(
             load("yaml", "- 1\n- two\n"),
-            Some(Value::Array(vec![
-                Value::Int(Integer::from(1i64)),
-                Value::Str("two".to_string())
-            ]))
+            Some(Value::Array(
+                vec![
+                    Value::Int(Integer::from(1i64)),
+                    Value::Str("two".to_string())
+                ]
+                .into()
+            ))
         );
         assert_eq!(
             load("yaml", "plain\n"),
             Some(Value::Str("plain".to_string()))
         );
-        assert_eq!(load("yaml", ""), Some(Value::Dict(Vec::new())));
+        assert_eq!(load("yaml", ""), Some(Value::Dict(Vec::new().into())));
     }
 
     #[test]
@@ -394,10 +402,13 @@ mod tests {
         assert_eq!(field(&value, "n"), Value::Int(Integer::from(42i64)));
         assert_eq!(
             field(&value, "arr"),
-            Value::Array(vec![
-                Value::Int(Integer::from(1i64)),
-                Value::Int(Integer::from(2i64))
-            ])
+            Value::Array(
+                vec![
+                    Value::Int(Integer::from(1i64)),
+                    Value::Int(Integer::from(2i64))
+                ]
+                .into()
+            )
         );
         assert_eq!(
             field(&field(&value, "inline"), "a"),

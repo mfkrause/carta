@@ -21,7 +21,7 @@ struct Part {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct Sequence {
-    parts: Vec<Part>,
+    parts: Values<Part>,
     kind: Kind,
     length: usize,
     block: bool,
@@ -79,7 +79,7 @@ impl Sequence {
             let mut part = part.clone();
             part.end = length;
             return Value::Sequence(Rc::new(Self {
-                parts: if length == 0 { Vec::new() } else { vec![part] },
+                parts: if length == 0 { Vec::new() } else { vec![part] }.into(),
                 kind,
                 length,
                 block: sequence.block,
@@ -115,7 +115,7 @@ impl Sequence {
             }]
         };
         Value::Sequence(Rc::new(Self {
-            parts,
+            parts: parts.into(),
             kind,
             length,
             block,
@@ -148,7 +148,7 @@ impl Sequence {
         }
         parts.append(&mut tail);
         Value::Sequence(Rc::new(Self {
-            parts,
+            parts: parts.into(),
             kind,
             length,
             block,
@@ -251,7 +251,7 @@ impl Sequence {
         }
         match self.kind {
             Kind::Text => Value::Str(text),
-            Kind::Array => Value::Array(items),
+            Kind::Array => Value::Array(items.into()),
             Kind::Content => Value::Content(blocks),
             Kind::Inlines => Value::Inlines(inlines),
         }
@@ -311,7 +311,7 @@ impl Sequence {
                     }]
                 };
                 Value::Sequence(Rc::new(Self {
-                    parts,
+                    parts: parts.into(),
                     kind: self.kind,
                     length: end - start,
                     block: self.block,
