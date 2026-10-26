@@ -3,8 +3,9 @@
 use crate::heading_ids::IdRegistry;
 use crate::tabs::expand_tabs;
 use carta_ast::Document;
-use carta_core::{Extensions, Reader, ReaderOptions, Result};
-use std::collections::BTreeMap;
+use carta_core::{Error, Extensions, Reader, ReaderOptions, Result};
+use std::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod block;
 mod definitions;
@@ -31,8 +32,12 @@ impl Reader for RstReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let lines = preprocess(input);
         let defs = collect_definitions(&lines);
+        let work = Cell::new(Some(
+            (1usize << 20).saturating_add(input.len().saturating_mul(64)),
+        ));
         let mut parser = Parser {
             defs: &defs,
+            work: &work,
             ext: options.extensions,
             heading_styles: Vec::new(),
             ids: IdRegistry::default(),
@@ -42,13 +47,16 @@ impl Reader for RstReader {
             custom_roles: BTreeMap::new(),
             default_role: DEFAULT_ROLE.to_string(),
             include_depth: 0,
-            active_substitutions: Vec::new(),
-            active_footnotes: Vec::new(),
+            active_substitutions: BTreeSet::new(),
+            active_footnotes: BTreeSet::new(),
             deferred: BTreeMap::new(),
         };
         let mut blocks = parser.blocks(&lines);
         if let Some(div) = parser.citation_block() {
             blocks.push(div);
+        }
+        if work.get().is_none() {
+            return Err(Error::OutputTooLarge);
         }
         parser.resolve_deferred(&mut blocks);
         Ok(Document {
@@ -180,6 +188,8 @@ const DEFAULT_ROLE: &str = "title-reference";
 
 struct Parser<'a> {
     defs: &'a Definitions,
+    /// Remaining expanded text work, shared with included documents.
+    work: &'a Cell<Option<usize>>,
     ext: Extensions,
     heading_styles: Vec<(char, bool)>,
     ids: IdRegistry,
@@ -192,14 +202,10 @@ struct Parser<'a> {
     default_role: String,
     /// How many nested `include` directives deep this parser is, bounding include recursion.
     include_depth: usize,
-    /// The chain of substitution names currently being expanded, by normalized name. A
-    /// substitution replacement is itself parsed as inline markup, so a definition that refers
-    /// to itself, directly or through a cycle of other definitions, would recurse without
-    /// bound and overflow the stack. RST forbids circular substitution references; a name already
-    /// on this stack is left unexpanded instead of re-entered.
-    active_substitutions: Vec<String>,
-    /// Footnote labels currently being expanded, used to bound nesting and detect named cycles.
-    active_footnotes: Vec<String>,
+    /// Substitution names being expanded; cyclic references stay unresolved.
+    active_substitutions: BTreeSet<String>,
+    /// Named footnotes being expanded; cyclic references stay unresolved.
+    active_footnotes: BTreeSet<String>,
     /// Every hyperlink-target name discovered while building the tree (explicit targets, internal
     /// targets, section titles, and the labels of phrase references with an embedded destination),
     /// mapped to its destination. Filled in document order so a later definition supersedes an
@@ -212,5 +218,13 @@ struct Parser<'a> {
 /// ignored, guarding against a cycle of files including one another.
 const MAX_INCLUDE_DEPTH: usize = 64;
 
-/// The deepest chain of nested footnote bodies parsed before further references stay literal.
-const MAX_FOOTNOTE_DEPTH: usize = 64;
+impl Parser<'_> {
+    fn spend(&self, amount: usize) -> bool {
+        let remaining = self
+            .work
+            .get()
+            .and_then(|remaining| remaining.checked_sub(amount.max(1)));
+        self.work.set(remaining);
+        remaining.is_some()
+    }
+}

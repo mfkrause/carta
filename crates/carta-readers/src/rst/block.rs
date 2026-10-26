@@ -19,6 +19,16 @@ use carta_core::Extension;
 
 impl Parser<'_> {
     pub(super) fn blocks(&mut self, lines: &[String]) -> Vec<Block> {
+        let weight = lines.iter().fold(0usize, |weight, line| {
+            weight.saturating_add(line.len()).saturating_add(1)
+        });
+        if !self.spend(weight) {
+            return Vec::new();
+        }
+        carta_core::with_stack(|| self.blocks_nested(lines))
+    }
+
+    fn blocks_nested(&mut self, lines: &[String]) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending_classes: Option<Vec<String>> = None;
         let mut pending_targets: Vec<String> = Vec::new();

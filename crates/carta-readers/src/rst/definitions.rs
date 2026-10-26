@@ -10,7 +10,8 @@ use super::{
 use crate::heading_ids::IdRegistry;
 use carta_ast::{Attr, Block, Inline};
 use carta_core::Extensions;
-use std::collections::BTreeMap;
+use std::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet};
 
 // definitions (pass one)
 
@@ -60,12 +61,18 @@ pub(super) struct RoleChain {
 
 /// Read and parse an included file, returning its blocks for splicing into the document. Returns
 /// `None` when the file cannot be read.
-pub(super) fn included_blocks(path: &str, ext: Extensions, depth: usize) -> Option<Vec<Block>> {
+pub(super) fn included_blocks(
+    path: &str,
+    ext: Extensions,
+    depth: usize,
+    work: &Cell<Option<usize>>,
+) -> Option<Vec<Block>> {
     let content = std::fs::read_to_string(path).ok()?;
     let lines = preprocess(&content);
     let defs = collect_definitions(&lines);
     let mut parser = Parser {
         defs: &defs,
+        work,
         ext,
         heading_styles: Vec::new(),
         ids: IdRegistry::default(),
@@ -75,8 +82,8 @@ pub(super) fn included_blocks(path: &str, ext: Extensions, depth: usize) -> Opti
         custom_roles: BTreeMap::new(),
         default_role: DEFAULT_ROLE.to_string(),
         include_depth: depth,
-        active_substitutions: Vec::new(),
-        active_footnotes: Vec::new(),
+        active_substitutions: BTreeSet::new(),
+        active_footnotes: BTreeSet::new(),
         deferred: BTreeMap::new(),
     };
     let mut blocks = parser.blocks(&lines);

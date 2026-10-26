@@ -8,9 +8,7 @@ use super::inline_helpers::{
     split_embedded_uri, trailing_reference_name,
 };
 use super::markers::is_citation_label;
-use super::{
-    MAX_FOOTNOTE_DEPTH, Parser, REF_SENTINEL, defer_reference, indirect_referent, normalize_name,
-};
+use super::{Parser, REF_SENTINEL, defer_reference, indirect_referent, normalize_name};
 use crate::inline_text::trim_inline_ends;
 use crate::smart_fold::{
     QuoteCtx, can_close_quote, can_open_quote, fold_dash_run_greedy, fold_ellipsis_run,
@@ -30,6 +28,13 @@ impl Parser<'_> {
     /// Parse inline markup without trimming the leading and trailing whitespace nodes. Interpreted
     /// text keeps the spacing around its content, so role content is parsed through this entry.
     fn inlines_no_trim(&mut self, text: &str) -> Vec<Inline> {
+        if !self.spend(text.len()) {
+            return Vec::new();
+        }
+        carta_core::with_stack(|| self.inlines_no_trim_nested(text))
+    }
+
+    fn inlines_no_trim_nested(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
         let smart = self.ext.contains(Extension::Smart);
         let mut out = Vec::new();
@@ -452,7 +457,7 @@ impl Parser<'_> {
         }
         let key = normalize_name(&name);
         // Keep cyclic substitutions unresolved to prevent unbounded recursion.
-        if self.active_substitutions.iter().any(|n| n == &key) {
+        if self.active_substitutions.contains(&key) {
             let mut display = Vec::new();
             push_text(&mut display, &format!("|{name}|"));
             return Some((
@@ -470,9 +475,9 @@ impl Parser<'_> {
         }
         let expansion = match self.defs.substitutions.get(&key).cloned() {
             Some(Substitution::Replace(text)) => {
-                self.active_substitutions.push(key.clone());
+                self.active_substitutions.insert(key.clone());
                 let inlines = self.inlines(&text);
-                self.active_substitutions.pop();
+                self.active_substitutions.remove(&key);
                 // A multi-inline replacement is kept together as one unit.
                 match inlines.len() {
                     1 => inlines,
@@ -553,15 +558,17 @@ impl Parser<'_> {
             return Some((vec![link], false, end));
         }
         let named = !matches!(label.as_str(), "#" | "*");
-        if self.active_footnotes.len() >= MAX_FOOTNOTE_DEPTH
-            || named && self.active_footnotes.iter().any(|active| active == &label)
-        {
+        if named && self.active_footnotes.contains(&label) {
             return None;
         }
         let body = self.footnote_body_for(&label)?;
-        self.active_footnotes.push(label);
+        if named {
+            self.active_footnotes.insert(label.clone());
+        }
         let blocks = self.blocks(&body);
-        self.active_footnotes.pop();
+        if named {
+            self.active_footnotes.remove(&label);
+        }
         Some((vec![Inline::Note(blocks)], true, end))
     }
 
@@ -678,91 +685,13 @@ impl Parser<'_> {
     /// Fill in every link and image destination left deferred during tree construction, now that all
     /// targets, sections, and phrase-reference labels have been registered.
     pub(super) fn resolve_deferred(&self, blocks: &mut [Block]) {
-        for block in blocks {
-            self.resolve_block(block);
-        }
-    }
-
-    fn resolve_block(&self, block: &mut Block) {
-        match block {
-            Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
-                self.resolve_inlines(inlines);
+        let mut resolve = |target: &mut Target| {
+            if let Some(name) = target.url.strip_prefix(REF_SENTINEL) {
+                target.url = self.lookup_url(name).into();
             }
-            Block::LineBlock(lines) => {
-                for line in lines {
-                    self.resolve_inlines(line);
-                }
-            }
-            Block::BlockQuote(children)
-            | Block::Div(_, children)
-            | Block::Figure(_, _, children) => self.resolve_deferred(children),
-            Block::BulletList(items) | Block::OrderedList(_, items) => {
-                for item in items {
-                    self.resolve_deferred(item);
-                }
-            }
-            Block::DefinitionList(items) => {
-                for (term, definitions) in items {
-                    self.resolve_inlines(term);
-                    for definition in definitions {
-                        self.resolve_deferred(definition);
-                    }
-                }
-            }
-            Block::Table(table) => self.resolve_table(table),
-            _ => {}
-        }
-    }
-
-    fn resolve_table(&self, table: &mut carta_ast::Table) {
-        self.resolve_caption(&mut table.caption);
-        let body_rows = table
-            .bodies
-            .iter_mut()
-            .flat_map(|body| body.head.iter_mut().chain(body.body.iter_mut()));
-        let rows = table
-            .head
-            .rows
-            .iter_mut()
-            .chain(body_rows)
-            .chain(table.foot.rows.iter_mut());
-        for row in rows {
-            for cell in &mut row.cells {
-                self.resolve_deferred(&mut cell.content);
-            }
-        }
-    }
-
-    fn resolve_caption(&self, caption: &mut carta_ast::Caption) {
-        if let Some(short) = &mut caption.short {
-            self.resolve_inlines(short);
-        }
-        self.resolve_deferred(&mut caption.long);
-    }
-
-    fn resolve_inlines(&self, inlines: &mut [Inline]) {
-        for inline in inlines {
-            match inline {
-                Inline::Link(_, children, target) | Inline::Image(_, children, target) => {
-                    if let Some(name) = target.url.strip_prefix(REF_SENTINEL) {
-                        target.url = self.lookup_url(name).into();
-                    }
-                    self.resolve_inlines(children);
-                }
-                Inline::Emph(children)
-                | Inline::Underline(children)
-                | Inline::Strong(children)
-                | Inline::Strikeout(children)
-                | Inline::Superscript(children)
-                | Inline::Subscript(children)
-                | Inline::SmallCaps(children)
-                | Inline::Quoted(_, children)
-                | Inline::Cite(_, children)
-                | Inline::Span(_, children) => self.resolve_inlines(children),
-                Inline::Note(blocks) => self.resolve_deferred(blocks),
-                _ => {}
-            }
-        }
+        };
+        carta_core::walk::for_each_link_target(blocks, &mut resolve);
+        carta_core::walk::for_each_image_target(blocks, &mut resolve);
     }
 
     fn next_anonymous(&mut self) -> String {

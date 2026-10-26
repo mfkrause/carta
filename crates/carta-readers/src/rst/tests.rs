@@ -54,6 +54,22 @@ fn recursive_footnote_does_not_overflow_the_stack() {
 }
 
 #[test]
+fn expanding_footnotes_report_excessive_output() {
+    use std::fmt::Write as _;
+
+    let mut source = String::from("[1]_\n\n");
+    for number in 1..41 {
+        let next = number + 1;
+        writeln!(source, ".. [{number}] [{next}]_ [{next}]_\n").expect("write definition");
+    }
+    source.push_str(".. [41] leaf\n");
+    assert!(matches!(
+        RstReader.read(&source, &ReaderOptions::default()),
+        Err(Error::OutputTooLarge)
+    ));
+}
+
+#[test]
 fn pipe_not_followed_by_space_does_not_stall_the_scan() {
     let _ = parse("\u{0b}\t|\u{0}");
     let _ = parse("   |x");

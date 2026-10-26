@@ -191,8 +191,12 @@ impl Parser<'_> {
             }
             "include" => {
                 if self.include_depth < MAX_INCLUDE_DEPTH
-                    && let Some(blocks) =
-                        included_blocks(argument.trim(), self.ext, self.include_depth + 1)
+                    && let Some(blocks) = included_blocks(
+                        argument.trim(),
+                        self.ext,
+                        self.include_depth + 1,
+                        self.work,
+                    )
                 {
                     out.extend(blocks);
                 }
