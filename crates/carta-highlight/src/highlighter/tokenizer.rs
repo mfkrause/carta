@@ -1,5 +1,6 @@
 //! The line tokenizer: walks the context stack, applies rules, and emits classified tokens.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use crate::grammar::{ContextSwitch, ContextTarget, Grammar, Matcher, Rule};
@@ -13,16 +14,7 @@ use super::helpers::{
 use super::{Frame, Highlighter, RegexKey};
 use crate::firstbytes::FirstBytes;
 
-/// The maximum number of steps taken tokenizing a single line before the remainder is emitted as
-/// ordinary text. Guards against a definition that could otherwise switch contexts without ever
-/// consuming input.
-const MAX_LINE_STEPS: usize = 100_000;
-
-/// The maximum depth of nested rule inclusion, guarding against cyclic `IncludeRules`.
-const MAX_INCLUDE_DEPTH: usize = 100;
-
-/// The maximum number of distinct context states allowed without consuming input.
-const MAX_NONCONSUMING_STATES: usize = 100;
+type State = (usize, usize, Vec<String>);
 
 /// The mutable state of an in-progress tokenization.
 pub(super) struct Tokenizer<'a> {
@@ -35,6 +27,7 @@ pub(super) struct Tokenizer<'a> {
     first_nonspace: Option<usize>,
     line_continuation: bool,
     pending_captures: Vec<String>,
+    minimum_depth: usize,
 }
 
 /// The result of running a matcher: the span it consumed.
@@ -60,6 +53,7 @@ impl<'a> Tokenizer<'a> {
             first_nonspace: None,
             line_continuation: false,
             pending_captures: Vec::new(),
+            minimum_depth: 1,
         }
     }
 
@@ -96,17 +90,10 @@ impl<'a> Tokenizer<'a> {
         }
 
         let mut tokens = Vec::new();
-        let mut steps = 0usize;
-        let mut nonconsuming_states = Vec::new();
+        let mut nonconsuming_states = BTreeMap::new();
         while self.pos < self.line.len() {
-            steps += 1;
-            if steps > MAX_LINE_STEPS {
-                let rest = self.remaining().to_string();
-                let kind = self.current_attr_kind();
-                tokens.push(Token::new(kind, rest));
-                break;
-            }
             let previous_position = self.pos;
+            self.minimum_depth = self.stack.len();
             match self.step() {
                 Step::Emitted(Some(token)) => tokens.push(token),
                 Step::Emitted(None) => {}
@@ -117,16 +104,12 @@ impl<'a> Tokenizer<'a> {
                 continue;
             }
 
-            let state = self.stack_identity();
-            if nonconsuming_states.contains(&state)
-                || nonconsuming_states.len() >= MAX_NONCONSUMING_STATES
-            {
+            if self.repeats_state(&mut nonconsuming_states) {
                 let rest = self.remaining().to_string();
                 let kind = self.current_attr_kind();
                 tokens.push(Token::new(kind, rest));
                 break;
             }
-            nonconsuming_states.push(state);
         }
 
         self.finish_line();
@@ -137,20 +120,18 @@ impl<'a> Tokenizer<'a> {
         if self.line_continuation {
             return;
         }
-        for _ in 0..self.stack.len().saturating_add(1) {
-            let (owner, switch) = match self.stack.last() {
-                Some(frame) => match frame.grammar.contexts.get(frame.context) {
-                    Some(ctx) => (Rc::clone(&frame.grammar), ctx.line_end_context.clone()),
-                    None => break,
-                },
-                None => break,
+        let mut states = BTreeMap::new();
+        while let Some(frame) = self.stack.last() {
+            let Some(ctx) = frame.grammar.contexts.get(frame.context) else {
+                break;
             };
+            let (owner, switch) = (Rc::clone(&frame.grammar), ctx.line_end_context.clone());
             if switch.pops == 0 && switch.push.is_none() {
                 break;
             }
-            let before = self.top_identity();
+            self.minimum_depth = self.stack.len();
             self.apply_switch(&switch, &owner);
-            if self.top_identity() == before {
+            if self.repeats_state(&mut states) {
                 break;
             }
         }
@@ -168,8 +149,9 @@ impl<'a> Tokenizer<'a> {
             return Step::Stop;
         };
         let ctx_attr: &str = &ctx.attribute;
+        let mut includes = BTreeSet::from([(Rc::as_ptr(&grammar) as usize, context)]);
         for rule in &ctx.rules {
-            if let Some(result) = self.try_rule(rule, &grammar, ctx_attr, 0) {
+            if let Some(result) = self.try_rule(rule, &grammar, ctx_attr, &mut includes) {
                 return Step::Emitted(result);
             }
         }
@@ -206,7 +188,7 @@ impl<'a> Tokenizer<'a> {
         rule: &Rule,
         grammar: &Rc<Grammar>,
         ctx_attr: &str,
-        depth: usize,
+        includes: &mut BTreeSet<(usize, usize)>,
     ) -> Option<Option<Token>> {
         if let Some(col) = rule.column
             && self.col != col
@@ -222,7 +204,7 @@ impl<'a> Tokenizer<'a> {
             include_attribute,
         } = &rule.matcher
         {
-            return self.include_rules(target, *include_attribute, ctx_attr, grammar, depth);
+            return self.include_rules(target, *include_attribute, ctx_attr, grammar, includes);
         }
 
         // A leading-byte test skips most rules without calling their matchers.
@@ -251,7 +233,7 @@ impl<'a> Tokenizer<'a> {
         // Children extend the match, keeping the parent's classification.
         if !rule.children.is_empty() {
             for child in &rule.children {
-                if let Some(child_tok) = self.try_rule(child, grammar, ctx_attr, depth) {
+                if let Some(child_tok) = self.try_rule(child, grammar, ctx_attr, includes) {
                     if let Some(tok) = child_tok {
                         text.push_str(&tok.text);
                     }
@@ -286,16 +268,18 @@ impl<'a> Tokenizer<'a> {
         include_attribute: bool,
         ctx_attr: &str,
         owner: &Rc<Grammar>,
-        depth: usize,
+        includes: &mut BTreeSet<(usize, usize)>,
     ) -> Option<Option<Token>> {
-        if depth >= MAX_INCLUDE_DEPTH {
-            return None;
-        }
         let (grammar, context) = self.resolve_target(target, owner)?;
         let ctx = grammar.contexts.get(context)?;
+        let key = (Rc::as_ptr(&grammar) as usize, context);
+        if !includes.insert(key) {
+            return None;
+        }
         let inner_attr: &str = &ctx.attribute;
         for rule in &ctx.rules {
-            if let Some(result) = self.try_rule(rule, &grammar, inner_attr, depth + 1) {
+            if let Some(result) = self.try_rule(rule, &grammar, inner_attr, includes) {
+                includes.remove(&key);
                 if include_attribute
                     && let Some(tok) = &result
                     && tok.kind == TokenKind::Normal
@@ -306,6 +290,7 @@ impl<'a> Tokenizer<'a> {
                 return Some(result);
             }
         }
+        includes.remove(&key);
         None
     }
 
@@ -634,29 +619,28 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn top_identity(&self) -> Option<(usize, usize)> {
-        self.stack
-            .last()
-            .map(|f| (Rc::as_ptr(&f.grammar) as usize, f.context))
-    }
-
-    fn stack_identity(&self) -> Vec<(usize, usize, Vec<String>)> {
-        self.stack
-            .iter()
-            .map(|frame| {
-                (
-                    Rc::as_ptr(&frame.grammar) as usize,
-                    frame.context,
-                    frame.captures.clone(),
-                )
-            })
-            .collect()
+    fn repeats_state(&self, states: &mut BTreeMap<State, usize>) -> bool {
+        // A repeated top frame loops if its lower stack has not changed.
+        states.retain(|_, depth| *depth <= self.minimum_depth + 1);
+        let Some(frame) = self.stack.last() else {
+            return true;
+        };
+        let state = (
+            Rc::as_ptr(&frame.grammar) as usize,
+            frame.context,
+            frame.captures.clone(),
+        );
+        let depth = self.stack.len();
+        states
+            .insert(state, depth)
+            .is_some_and(|before| depth >= before)
     }
 
     fn apply_switch(&mut self, switch: &ContextSwitch, owner: &Rc<Grammar>) {
         for _ in 0..switch.pops {
             if self.stack.len() > 1 {
                 self.stack.pop();
+                self.minimum_depth = self.minimum_depth.min(self.stack.len());
             }
         }
         if let Some(target) = &switch.push
