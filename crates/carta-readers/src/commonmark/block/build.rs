@@ -50,6 +50,12 @@ impl Parser {
         counter: &mut i32,
         map: &mut ExampleMap,
     ) {
+        carta_core::with_stack(|| {
+            self.number_examples_in_nested(index, counter, map);
+        });
+    }
+
+    fn number_examples_in_nested(&mut self, index: usize, counter: &mut i32, map: &mut ExampleMap) {
         let Some(node) = self.nodes.get(index) else {
             return;
         };
@@ -151,6 +157,10 @@ impl Parser {
     }
 
     pub(super) fn build_children(&self, index: usize) -> Vec<IrBlock> {
+        carta_core::with_stack(|| self.build_children_nested(index))
+    }
+
+    fn build_children_nested(&self, index: usize) -> Vec<IrBlock> {
         let Some(node) = self.nodes.get(index) else {
             return Vec::new();
         };

@@ -174,6 +174,19 @@ pub(super) fn gather_headers(
     numbering: &mut HeaderNumbering,
     cache: &mut HeaderParseCache,
 ) {
+    carta_core::with_stack(|| {
+        gather_headers_nested(ir, refs, notes, ext, numbering, cache);
+    });
+}
+
+fn gather_headers_nested(
+    ir: &[IrBlock],
+    refs: &mut RefMap,
+    notes: RefContext,
+    ext: Extensions,
+    numbering: &mut HeaderNumbering,
+    cache: &mut HeaderParseCache,
+) {
     for block in ir {
         match block {
             IrBlock::Heading(_, text) => {
@@ -226,6 +239,19 @@ fn resolve_blocks(
 }
 
 pub(super) fn resolve_block(
+    block: &IrBlock,
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+    cache: &mut HeaderParseCache,
+    out: &mut Vec<Block>,
+) {
+    carta_core::with_stack(|| {
+        resolve_block_nested(block, refs, notes, ext, cache, out);
+    });
+}
+
+fn resolve_block_nested(
     block: &IrBlock,
     refs: &RefMap,
     notes: RefContext,

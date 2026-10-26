@@ -34,6 +34,12 @@ pub(crate) fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
 /// no such table it stays an ordinary paragraph. Working in document order, a caption above a table
 /// is reached first, so it wins over one below. The pass recurses into nested block containers first.
 pub(super) fn attach_table_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
+    carta_core::with_stack(|| {
+        attach_table_captions_nested(blocks, ext);
+    });
+}
+
+fn attach_table_captions_nested(blocks: &mut Vec<IrBlock>, ext: Extensions) {
     for block in blocks.iter_mut() {
         match block {
             IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {

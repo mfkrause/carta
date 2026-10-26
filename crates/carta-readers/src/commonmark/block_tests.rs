@@ -332,10 +332,10 @@ use super::super::postprocess::split_trailing_attr;
 
 fn table_attr_and_caption(input: &str) -> (carta_ast::Attr, Option<String>) {
     let out = blocks(input);
-    match out.into_iter().next() {
-        Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
-        Some(IrBlock::TextTable(table)) => (table.attr, table.caption),
-        Some(IrBlock::GridTable(table)) => (table.attr, table.caption),
+    match out.first() {
+        Some(IrBlock::Table { attr, caption, .. }) => (attr.clone(), caption.clone()),
+        Some(IrBlock::TextTable(table)) => (table.attr.clone(), table.caption.clone()),
+        Some(IrBlock::GridTable(table)) => (table.attr.clone(), table.caption.clone()),
         other => panic!("expected a table, got {other:?}"),
     }
 }
@@ -400,9 +400,9 @@ fn caption_attributes_are_inert_without_the_extension() {
         "c {#t}",
         presets::COMMONMARK
     ));
-    let (attr, caption) = match table.into_iter().next() {
+    let (attr, caption) = match table.first() {
         Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
-        Some(IrBlock::TextTable(t)) => (t.attr, t.caption),
+        Some(IrBlock::TextTable(t)) => (&t.attr, &t.caption),
         other => panic!("expected a table, got {other:?}"),
     };
     assert!(attr.id.is_empty());

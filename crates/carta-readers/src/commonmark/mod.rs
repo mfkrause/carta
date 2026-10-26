@@ -103,6 +103,47 @@ pub(crate) enum IrBlock {
     TextTable(Box<texttable::TextTable>),
 }
 
+impl IrBlock {
+    fn take_children(&mut self, pending: &mut Vec<Vec<Self>>) {
+        match self {
+            Self::Div(_, children) | Self::BlockQuote(children) => {
+                if !children.is_empty() {
+                    pending.push(std::mem::take(children));
+                }
+            }
+            Self::BulletList(items) | Self::OrderedList(_, items) => pending.append(items),
+            Self::DefinitionList(items) => {
+                for item in items {
+                    pending.append(&mut item.definitions);
+                }
+            }
+            Self::Para(_)
+            | Self::Plain(_)
+            | Self::Heading(..)
+            | Self::CodeBlock(..)
+            | Self::RawHtml(_)
+            | Self::RawBlock(..)
+            | Self::ThematicBreak
+            | Self::LineBlock(_)
+            | Self::Table { .. }
+            | Self::GridTable(_)
+            | Self::TextTable(_) => {}
+        }
+    }
+}
+
+impl Drop for IrBlock {
+    fn drop(&mut self) {
+        let mut pending = Vec::new();
+        self.take_children(&mut pending);
+        while let Some(mut children) = pending.pop() {
+            for child in &mut children {
+                child.take_children(&mut pending);
+            }
+        }
+    }
+}
+
 /// One entry of a definition list: a term plus its definitions. The term holds raw text awaiting
 /// the inline phase; each definition is its block content (paragraph demotion to `Plain` already
 /// applied for tight entries).

@@ -61,6 +61,12 @@ impl HeaderNumbering {
 }
 
 fn walk(blocks: &mut [Block], numbering: &mut HeaderNumbering) {
+    carta_core::with_stack(|| {
+        walk_nested(blocks, numbering);
+    });
+}
+
+fn walk_nested(blocks: &mut [Block], numbering: &mut HeaderNumbering) {
     for block in blocks {
         match block {
             Block::Header(_, attr, inlines) => {

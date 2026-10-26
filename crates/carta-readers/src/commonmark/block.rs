@@ -254,14 +254,6 @@ struct Descent {
     consumed: bool,
 }
 
-/// The deepest a container (block quote, list item, fenced div, …) may nest. Past this the opener is
-/// left as ordinary text rather than descended into, so a pathologically nested input (thousands of
-/// `>` on one line, say) cannot build a tree deep enough for the recursive block/inline tree-walks
-/// to overflow the stack. Set well above any nesting a genuine document reaches, yet low enough that
-/// the walks stay within the smallest stack the reader runs on: a 1 MiB Windows main thread, or the
-/// sanitizer build the fuzzer uses, whose deeper per-frame cost still clears this ceiling comfortably.
-const MAX_CONTAINER_DEPTH: usize = 128;
-
 // Independent per-node flags; no pairing is invalid.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
@@ -285,11 +277,6 @@ struct Node {
     /// following body line is classified against the new line alone rather than re-verifying the
     /// header and delimiter (which never change) every time.
     pipe_table: bool,
-    /// This node's nesting depth in the block tree: the document root is `0` and every child is one
-    /// deeper than its parent. Read to cap how deeply containers may nest, so a pathologically nested
-    /// input cannot build a tree the recursive tree-walks would overflow the stack descending. Set
-    /// once, when the node is linked in by [`Parser::append_child`].
-    depth: usize,
 }
 
 impl Node {
@@ -304,7 +291,6 @@ impl Node {
             as_plain: false,
             last_line_blank: false,
             pipe_table: false,
-            depth: 0,
         }
     }
 }
@@ -375,7 +361,6 @@ impl Parser {
     pub(super) fn append_child(&mut self, parent: usize, mut node: Node) -> usize {
         let index = self.nodes.len();
         node.parent = parent;
-        node.depth = self.nodes.get(parent).map_or(0, |p| p.depth + 1);
         self.nodes.push(node);
         if let Some(parent_node) = self.nodes.get_mut(parent) {
             parent_node.children.push(index);
@@ -601,14 +586,6 @@ impl Parser {
         let mut started_new = false;
         if !blank {
             loop {
-                // Depth cap: pathological nesting leaves the rest of the line as text.
-                if self
-                    .nodes
-                    .get(container)
-                    .is_some_and(|n| n.depth >= MAX_CONTAINER_DEPTH)
-                {
-                    break;
-                }
                 cursor.note_indent();
                 if let Some(opened) = self.try_open(container, &mut cursor, following, line_index) {
                     started_new = true;
