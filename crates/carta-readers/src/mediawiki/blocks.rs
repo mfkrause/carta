@@ -597,7 +597,7 @@ fn plain_first_paragraph(blocks: &mut [Block]) {
     }
 }
 
-fn trim_chars(chars: &[char]) -> &[char] {
+pub(super) fn trim_chars(chars: &[char]) -> &[char] {
     let start = chars
         .iter()
         .position(|ch| !ch.is_whitespace())

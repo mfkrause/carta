@@ -1,11 +1,13 @@
 //! Parsing of wikitext tables into the table model.
 
+use std::ops::Range;
+
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Row, Table, TableBody, TableFoot,
     TableHead,
 };
 
-use super::{Parser, at, collect_range, line_end};
+use super::{Parser, at, collect_range, line_end, scan::ScanIndex};
 
 /// A table cell collected during the line scan, before its text is parsed into blocks. A `!`-marked
 /// cell is a header cell; the spans and attributes come from the cell's leading attribute list.
@@ -15,7 +17,7 @@ struct RawCell {
     col_span: i32,
     row_span: i32,
     attr: Attr,
-    content: String,
+    content: Range<usize>,
 }
 
 /// The alignment, spans, and attributes parsed from a cell's leading attribute list.
@@ -40,13 +42,35 @@ impl Parser<'_> {
     /// alignment, spans, identifier, and classes. The first row becomes the header when its first
     /// cell is a `!` header cell.
     pub(super) fn parse_table(&mut self, chars: &[char], pos: usize) -> (Block, usize) {
-        let after = table_block_end(chars, pos);
-        let region = collect_range(chars, pos, after);
-        (self.build_table(&region), after)
+        let after = self
+            .index
+            .table_end(chars, pos, false)
+            .map_or_else(|| table_block_end(chars, pos), |(_, after)| after);
+        let region = chars.get(pos..after).unwrap_or(&[]);
+        let block = if self.index.has_carriage(region) {
+            let text: String = region.iter().collect();
+            let normalized: Vec<char> = text.replace("\r\n", "\n").chars().collect();
+            let index = ScanIndex::new(&normalized);
+            let mut parser = Parser {
+                extensions: self.extensions,
+                link_counter: self.link_counter,
+                ids: std::mem::take(&mut self.ids),
+                categories: std::mem::take(&mut self.categories),
+                index: &index,
+            };
+            let block = parser.build_table(&normalized);
+            self.link_counter = parser.link_counter;
+            self.ids = parser.ids;
+            self.categories = parser.categories;
+            block
+        } else {
+            self.build_table(region)
+        };
+        (block, after)
     }
 
-    fn build_table(&mut self, region: &str) -> Block {
-        let (mut rows, caption_text) = scan_table_region(region);
+    fn build_table(&mut self, region: &[char]) -> Block {
+        let (mut rows, caption_text) = self.scan_table_region(region);
         // The first `|-` can open the first row; later markers close rows, including empty ones.
         if rows.first().is_some_and(Vec::is_empty) {
             rows.remove(0);
@@ -66,7 +90,7 @@ impl Parser<'_> {
             .and_then(|r| r.first())
             .is_some_and(|c| c.is_header);
 
-        let ast_rows = self.lay_grid(&rows, ncols, n_rows);
+        let ast_rows = self.lay_grid(&rows, ncols, n_rows, region);
 
         let (head_rows, body_rows) = if is_header_first {
             let mut iter = ast_rows.into_iter();
@@ -113,7 +137,13 @@ impl Parser<'_> {
     /// cannot reach past the last row, a `colspan` cannot reach past the last column (an overflowing
     /// cell is dropped), a cell skips columns still covered by a `rowspan` from an earlier row, and
     /// any column a row leaves uncovered is filled with an empty cell.
-    fn lay_grid(&mut self, rows: &[Vec<RawCell>], ncols: usize, n_rows: usize) -> Vec<Row> {
+    fn lay_grid(
+        &mut self,
+        rows: &[Vec<RawCell>],
+        ncols: usize,
+        n_rows: usize,
+        source: &[char],
+    ) -> Vec<Row> {
         let mut ast_rows: Vec<Row> = Vec::new();
         let mut occupied: Vec<i32> = vec![0; ncols];
         for (r, raw) in rows.iter().enumerate() {
@@ -129,8 +159,9 @@ impl Parser<'_> {
                 }
                 let col_span = col_count(c.col_span).min(ncols - col);
                 let row_span = c.row_span.max(1).min(available);
-                let content_chars: Vec<char> = c.content.trim().chars().collect();
-                let content = self.parse_cell_blocks(&content_chars);
+                let content =
+                    super::blocks::trim_chars(source.get(c.content.clone()).unwrap_or(&[]));
+                let content = self.parse_cell_blocks(content);
                 cells.push(Cell {
                     attr: c.attr.clone(),
                     align: c.align.clone(),
@@ -191,60 +222,53 @@ fn table_block_end(chars: &[char], pos: usize) -> usize {
     }
 }
 
-/// Scans the body of a `{|…|}` region into its rows of raw cells and an optional caption.
-/// Each `|-` closes the current row; nested tables are passed through verbatim as cell content.
-fn scan_table_region(region: &str) -> (Vec<Vec<RawCell>>, Option<String>) {
-    let mut caption_text: Option<String> = None;
-    let mut rows: Vec<Vec<RawCell>> = Vec::new();
-    let mut cur: Vec<RawCell> = Vec::new();
-    let mut open = OpenTarget::None;
-    let mut nest = 0i32;
-
-    let mut lines = region.lines();
-    lines.next(); // The opening `{|` line; any table attribute list it carries is dropped.
-    for line in lines {
-        let trimmed = line.trim_start();
-        if nest > 0 {
-            if trimmed.starts_with("{|") {
-                nest += 1;
-            } else if trimmed.starts_with("|}") {
-                nest -= 1;
+impl Parser<'_> {
+    fn scan_table_region(&self, chars: &[char]) -> (Vec<Vec<RawCell>>, Option<String>) {
+        let mut caption = None;
+        let mut rows = Vec::new();
+        let mut current = Vec::new();
+        let mut open = OpenTarget::None;
+        let mut line = self.line_end(chars, 0).saturating_add(1);
+        while line < chars.len() {
+            let end = self.line_end(chars, line);
+            let mut start = line;
+            while at(chars, start).is_some_and(char::is_whitespace) && start < end {
+                start += 1;
             }
-            append_continuation(open, &mut cur, &mut caption_text, line);
-            continue;
+            if at(chars, start) == Some('|') && at(chars, start + 1) == Some('}') {
+                break;
+            }
+            if at(chars, start) == Some('{') && at(chars, start + 1) == Some('|') {
+                let after = self
+                    .index
+                    .table_end(chars, start, true)
+                    .map_or_else(|| table_block_end(chars, start), |(_, after)| after);
+                let end = self.line_end(chars, after);
+                append_continuation(open, &mut current, &mut caption, chars, line..end);
+                line = end.saturating_add(1);
+                continue;
+            }
+            if at(chars, start) == Some('|') && at(chars, start + 1) == Some('+') {
+                caption = Some(collect_range(chars, start + 2, end));
+                open = OpenTarget::Caption;
+            } else if at(chars, start) == Some('|') && at(chars, start + 1) == Some('-') {
+                rows.push(std::mem::take(&mut current));
+                open = OpenTarget::None;
+            } else if matches!(at(chars, start), Some('|' | '!')) {
+                current.extend(parse_cell_line(
+                    at(chars, start) == Some('!'),
+                    chars,
+                    start + 1..end,
+                ));
+                open = OpenTarget::Cell;
+            } else {
+                append_continuation(open, &mut current, &mut caption, chars, line..end);
+            }
+            line = end.saturating_add(1);
         }
-        if trimmed.starts_with("|}") {
-            break;
-        }
-        if trimmed.starts_with("{|") {
-            nest += 1;
-            append_continuation(open, &mut cur, &mut caption_text, line);
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("|+") {
-            caption_text = Some(rest.to_string());
-            open = OpenTarget::Caption;
-            continue;
-        }
-        if trimmed.starts_with("|-") {
-            rows.push(std::mem::take(&mut cur));
-            open = OpenTarget::None;
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix('|') {
-            cur.extend(parse_cell_line(false, rest));
-            open = OpenTarget::Cell;
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix('!') {
-            cur.extend(parse_cell_line(true, rest));
-            open = OpenTarget::Cell;
-            continue;
-        }
-        append_continuation(open, &mut cur, &mut caption_text, line);
+        rows.push(current);
+        (rows, caption)
     }
-    rows.push(cur);
-    (rows, caption_text)
 }
 
 /// Builds the column specifications from the first row, taking each column's alignment from the
@@ -286,48 +310,42 @@ fn empty_cell() -> Cell {
 
 fn append_continuation(
     open: OpenTarget,
-    cur: &mut [RawCell],
+    current: &mut [RawCell],
     caption: &mut Option<String>,
-    line: &str,
+    source: &[char],
+    line: Range<usize>,
 ) {
     match open {
         OpenTarget::Cell => {
-            if let Some(cell) = cur.last_mut() {
-                cell.content.push('\n');
-                cell.content.push_str(line);
+            if let Some(cell) = current.last_mut() {
+                cell.content.end = line.end;
             }
         }
         OpenTarget::Caption => {
             if let Some(text) = caption {
                 text.push('\n');
-                text.push_str(line);
+                text.extend(source.get(line).unwrap_or(&[]));
             }
         }
         OpenTarget::None => {}
     }
 }
 
-/// Splits one cell-marker line into its cells. A `|` data line separates cells with `||`; a `!`
-/// header line additionally separates them with `!!`.
-fn parse_cell_line(is_header: bool, rest: &str) -> Vec<RawCell> {
-    split_cells(rest, is_header)
-        .iter()
-        .map(|chunk| parse_cell_chunk(is_header, chunk))
+fn parse_cell_line(is_header: bool, chars: &[char], region: Range<usize>) -> Vec<RawCell> {
+    split_cells(chars, region, is_header)
+        .into_iter()
+        .map(|chunk| parse_cell_chunk(is_header, chars, chunk))
         .collect()
 }
 
-/// Splits a marker line's text into per-cell chunks at top-level `||` (and, for a header line, `!!`)
-/// separators, leaving separators inside `[…]` or `{…}` groups untouched.
-fn split_cells(s: &str, header: bool) -> Vec<String> {
-    let chars: Vec<char> = s.chars().collect();
-    let n = chars.len();
-    let mut out: Vec<String> = Vec::new();
-    let mut start = 0usize;
+fn split_cells(chars: &[char], region: Range<usize>, header: bool) -> Vec<Range<usize>> {
+    let mut out = Vec::new();
+    let mut start = region.start;
     let mut square = 0i32;
     let mut curly = 0i32;
-    let mut i = 0usize;
-    while i < n {
-        match at(&chars, i) {
+    let mut position = start;
+    while position < region.end {
+        match at(chars, position) {
             Some('[') => square += 1,
             Some(']') => square = (square - 1).max(0),
             Some('{') => curly += 1,
@@ -335,34 +353,35 @@ fn split_cells(s: &str, header: bool) -> Vec<String> {
             _ => {}
         }
         if square == 0 && curly == 0 {
-            let pipe = at(&chars, i) == Some('|') && at(&chars, i + 1) == Some('|');
-            let bang = header && at(&chars, i) == Some('!') && at(&chars, i + 1) == Some('!');
+            let pipe = at(chars, position) == Some('|') && at(chars, position + 1) == Some('|');
+            let bang =
+                header && at(chars, position) == Some('!') && at(chars, position + 1) == Some('!');
             if pipe || bang {
-                out.push(collect_range(&chars, start, i));
-                i += 2;
-                start = i;
+                out.push(start..position);
+                position += 2;
+                start = position;
                 continue;
             }
         }
-        i += 1;
+        position += 1;
     }
-    out.push(collect_range(&chars, start, n));
+    out.push(start..region.end);
     out
 }
 
-/// Parses one cell chunk into a [`RawCell`], splitting a leading attribute list from the content at
-/// the first top-level `|` when the text before it is a valid attribute list.
-fn parse_cell_chunk(is_header: bool, chunk: &str) -> RawCell {
-    if let Some(idx) = find_attr_pipe(chunk)
-        && let Some(attrs) = parse_cell_attrs(chunk.get(..idx).unwrap_or(""))
+fn parse_cell_chunk(is_header: bool, chars: &[char], mut content: Range<usize>) -> RawCell {
+    let chunk = collect_range(chars, content.start, content.end);
+    if let Some(position) = find_attr_pipe(&chunk)
+        && let Some(attrs) = parse_cell_attrs(chunk.get(..position).unwrap_or(""))
     {
+        content.start += chunk.get(..position + 1).unwrap_or("").chars().count();
         return RawCell {
             is_header,
             align: attrs.align,
             col_span: attrs.col_span,
             row_span: attrs.row_span,
             attr: attrs.attr,
-            content: chunk.get(idx + 1..).unwrap_or("").to_string(),
+            content,
         };
     }
     RawCell {
@@ -371,7 +390,7 @@ fn parse_cell_chunk(is_header: bool, chunk: &str) -> RawCell {
         col_span: 1,
         row_span: 1,
         attr: Attr::default(),
-        content: chunk.to_string(),
+        content,
     }
 }
 

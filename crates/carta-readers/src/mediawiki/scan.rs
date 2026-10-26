@@ -13,6 +13,9 @@ pub(super) struct ScanIndex {
     angles: Vec<usize>,
     closes: Vec<usize>,
     tag_ends: Vec<usize>,
+    tables: Vec<(usize, Closing)>,
+    nested_tables: Vec<(usize, Closing)>,
+    carriages: Vec<usize>,
     tags: BTreeMap<String, Vec<(usize, Closing)>>,
 }
 
@@ -26,6 +29,9 @@ impl ScanIndex {
             closes: Vec::new(),
             tag_ends: vec![chars.len(); chars.len()],
             tags: BTreeMap::new(),
+            tables: Vec::new(),
+            nested_tables: Vec::new(),
+            carriages: Vec::new(),
         };
         // Resolve quoted endings once so malformed openers do not rescan the suffix.
         let (mut clear, mut single, mut double) = (chars.len(), chars.len(), chars.len());
@@ -36,6 +42,7 @@ impl ScanIndex {
                     index.angles.push(position);
                 }
                 '\n' => index.lines.push(position),
+                '\r' => index.carriages.push(position),
                 '<' if at(chars, position + 1) == Some('/') => index.closes.push(position),
                 '\'' => std::mem::swap(&mut clear, &mut single),
                 '"' => std::mem::swap(&mut clear, &mut double),
@@ -45,6 +52,7 @@ impl ScanIndex {
                 *slot = clear;
             }
         }
+        index.carriages.reverse();
         index.angles.reverse();
         index.lines.reverse();
         index.closes.reverse();
@@ -109,7 +117,47 @@ impl ScanIndex {
             entries.reverse();
             index.tags.insert(name, entries);
         }
+        index.tables = index.table_positions(chars, false);
+        index.nested_tables = index.table_positions(chars, true);
         index
+    }
+
+    fn table_positions(&self, chars: &[char], nested: bool) -> Vec<(usize, Closing)> {
+        let mut events = Vec::new();
+        let mut line = 0;
+        while line < chars.len() {
+            let end = self.line_end(chars, line);
+            let mut content = line;
+            while content < end
+                && at(chars, content).is_some_and(|ch| {
+                    if nested {
+                        ch.is_whitespace()
+                    } else {
+                        matches!(ch, ' ' | '\t')
+                    }
+                })
+            {
+                content += 1;
+            }
+            if at(chars, content) == Some('{') && at(chars, content + 1) == Some('|') {
+                events.push((content, false));
+            } else if at(chars, content) == Some('|') && at(chars, content + 1) == Some('}') {
+                events.push((content, true));
+            }
+            line = end + 1;
+        }
+        let mut pending = Vec::new();
+        let mut positions = Vec::with_capacity(events.len());
+        for (position, closing) in events.into_iter().rev() {
+            if closing {
+                pending.push((position, position + 2));
+            } else {
+                pending.pop();
+            }
+            positions.push((position, pending.last().copied()));
+        }
+        positions.reverse();
+        positions
     }
 
     fn range(&self, chars: &[char]) -> Option<(usize, usize)> {
@@ -151,6 +199,35 @@ impl ScanIndex {
             .unwrap_or(end)
             .min(end)
             - start
+    }
+
+    pub(super) fn table_end(
+        &self,
+        chars: &[char],
+        position: usize,
+        nested: bool,
+    ) -> Option<(usize, usize)> {
+        let (start, end) = self.range(chars)?;
+        let tables = if nested {
+            &self.nested_tables
+        } else {
+            &self.tables
+        };
+        let line_end = start + self.line_end(chars, position);
+        let (close, after) = tables
+            .get(tables.partition_point(|&(position, _)| position <= line_end))
+            .and_then(|&(_, closing)| closing)
+            .unwrap_or((end, end));
+        Some((close.min(end) - start, after.min(end) - start))
+    }
+
+    pub(super) fn has_carriage(&self, chars: &[char]) -> bool {
+        let Some((start, end)) = self.range(chars) else {
+            return chars.contains(&'\r');
+        };
+        self.carriages
+            .get(self.carriages.partition_point(|&position| position < start))
+            .is_some_and(|&position| position < end)
     }
 
     pub(super) fn tag_end(&self, start: usize, end: usize) -> Option<usize> {
