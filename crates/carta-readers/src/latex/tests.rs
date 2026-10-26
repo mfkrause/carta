@@ -177,7 +177,6 @@ fn macro_body_invoking_another_macro_expands_fully() {
     );
 }
 
-// nesting depth is released after each invocation, so a long sequence does not hit the cap
 #[test]
 fn nested_invocations_do_not_accumulate_depth() {
     let mut source = String::from("\\newcommand{\\a}{\\b}\n\\newcommand{\\b}{Z}\n\n");
@@ -218,7 +217,6 @@ fn expansion_ending_at_environment_boundary_matches_flattened() {
     );
 }
 
-// Test every nesting construct beyond the shared depth limit for stack safety.
 #[test]
 fn adversarially_nested_input_does_not_overflow_the_stack() {
     for opener in [

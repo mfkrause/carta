@@ -1140,7 +1140,6 @@
           "A `text:h` `outline-level` that overflows `i32` falls back to level 1 rather than the parsed value.",
           "A `content.xml` automatic style colliding by name with a `styles.xml` shared style overrides it rather than the shared definition winning.",
           "`ReaderOptions` are ignored, so `east_asian_line_breaks` has no effect (a soft break between CJK runs is kept).",
-          "Deeply nested (~62+) `json`→`odt` input is rejected by the shared recursion guard rather than converted.",
           "MathML `math:mfenced` loses its visible open/close delimiters (no `\\left`/`\\right`).",
           "A `mathvariant` on `math:mi` / `math:mstyle` is ignored, dropping the styled variant.",
           "A function-name script base is wrapped in redundant braces (`{\\sin}^{2}` rather than `\\sin^{2}`).",

@@ -317,8 +317,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   rather than the shared definition winning.
 - `ReaderOptions` are ignored, so `east_asian_line_breaks` has no effect (a soft break between CJK
   runs is kept).
-- Deeply nested (~62+) `json`→`odt` input is rejected by the shared recursion guard rather than
-  converted.
 - MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
 - A `mathvariant` on `math:mi` / `math:mstyle` is ignored, dropping the styled variant.
 - A function-name script base is wrapped in redundant braces (`{\sin}^{2}` rather than `\sin^{2}`).

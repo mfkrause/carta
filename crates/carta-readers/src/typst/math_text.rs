@@ -1,4 +1,4 @@
-//! Shared math text fragments, rendered only after parsing.
+//! Shared fragments for math output.
 
 use std::rc::Rc;
 

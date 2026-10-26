@@ -5,9 +5,8 @@ pub fn with_stack<T>(work: impl FnOnce() -> T) -> T {
     stacker::maybe_grow(64 * 1024, 1024 * 1024, work)
 }
 
-/// Virtual stack reserved for work whose recursion depth tracks input nesting. Large enough that
-/// even adversarially deep input cannot exhaust it; on demand-paged systems the reservation stays
-/// uncommitted until touched, so the cost is address space rather than resident memory.
+/// Virtual stack reserved for recursive conversions.
+/// Demand-paged systems commit memory only as recursive calls use it.
 pub const DEEP_STACK: usize = 256 * 1024 * 1024;
 
 /// The outcome of running work on a dedicated large stack.
