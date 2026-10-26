@@ -5,7 +5,7 @@ use carta_ast::{
     ListNumberDelim, ListNumberStyle, Row, Table, TableBody, TableFoot, TableHead,
 };
 
-use super::inline::{color_value, parse_inlines, plain_inlines, scan_budget};
+use super::inline::{Delimiters, color_value, parse_inlines, plain_inlines};
 use super::links::parse_image;
 use super::shared::{
     bare_block_macro_at, find_token, is_space, matches_at, slice_to_string, trim, trim_end,
@@ -797,6 +797,7 @@ fn drop_trailing_break(mut inlines: Vec<Inline>) -> Vec<Inline> {
 
 fn parse_table_row(chars: &[char], start: usize, end: usize) -> Vec<(bool, String)> {
     let mut cells = Vec::new();
+    let delimiters = Delimiters::new(chars, start, end);
     let (mut i, _) = trim(chars, start, end);
     while i < end {
         if chars.get(i) != Some(&'|') {
@@ -821,13 +822,10 @@ fn parse_table_row(chars: &[char], start: usize, end: usize) -> Vec<(bool, Strin
                     depth = depth.saturating_sub(1);
                     i += 1;
                 }
-                Some('!') if depth == 0 => {
-                    let mut budget = scan_budget(i, end);
-                    match parse_image(chars, i, end, &mut budget) {
-                        Some((_, next)) => i = next,
-                        None => i += 1,
-                    }
-                }
+                Some('!') if depth == 0 => match parse_image(chars, i, end, &delimiters) {
+                    Some((_, next)) => i = next,
+                    None => i += 1,
+                },
                 Some('|') if depth == 0 => break,
                 _ => i += 1,
             }

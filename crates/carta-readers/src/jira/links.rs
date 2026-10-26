@@ -2,7 +2,7 @@
 
 use carta_ast::{Attr, Inline, Target};
 
-use super::inline::{find_within, inlines_with, non_space};
+use super::inline::{Delimiters, inlines_with, non_space};
 use super::shared::{is_space, matches_at, slice_to_string};
 
 /// URL prefixes accepted as a bracketed link target. Schemes other than `mailto:` require `://`.
@@ -19,26 +19,30 @@ pub(super) fn parse_link(
     i: usize,
     hi: usize,
     depth: usize,
-    budget: &mut usize,
+    delimiters: &Delimiters,
 ) -> Option<(Inline, usize)> {
-    let close = find_within(chars, i + 1..hi, budget, |c| c == ']')?;
-    let pipes: Vec<usize> = (i + 1..close)
-        .filter(|&k| chars.get(k) == Some(&'|'))
-        .collect();
+    let close = delimiters.next(']', i + 1, hi)?;
+    let pipes = delimiters.positions('|', i + 1, close);
     // A third link segment must name a smart-link style; a fourth invalidates the link.
-    let (label_range, target_start, target_end, smart_class) = match pipes.as_slice() {
+    let (label_range, target_start, target_end, smart_class) = match pipes {
         [] => (None, i + 1, close, None),
         [p] => (Some((i + 1, *p)), p + 1, close, None),
         [p1, p2] => {
-            let third = slice_to_string(chars, p2 + 1, close);
-            if third != "smart-link" && third != "smart-card" {
-                return None;
-            }
-            (Some((i + 1, *p1)), p1 + 1, *p2, Some(third))
+            let third = ["smart-link", "smart-card"]
+                .into_iter()
+                .find(|name| close - p2 - 1 == name.len() && matches_at(chars, p2 + 1, name))?;
+            (Some((i + 1, *p1)), p1 + 1, *p2, Some(third.to_string()))
         }
         _ => return None,
     };
     let has_pipe = label_range.is_some();
+    if !matches!(chars.get(target_start), Some('#' | '~' | '^'))
+        && !LINK_URL_PREFIXES
+            .iter()
+            .any(|prefix| matches_at(chars, target_start, prefix))
+    {
+        return None;
+    }
     let target = slice_to_string(chars, target_start, target_end);
 
     let (url, class, default_label) = classify_link_target(&target, has_pipe)?;
@@ -96,12 +100,12 @@ pub(super) fn parse_image(
     chars: &[char],
     i: usize,
     hi: usize,
-    budget: &mut usize,
+    delimiters: &Delimiters,
 ) -> Option<(Inline, usize)> {
     if !non_space(chars, i + 1) {
         return None;
     }
-    let close = find_within(chars, i + 1..hi, budget, |c| c == '!')?;
+    let close = delimiters.next('!', i + 1, hi)?;
     let content = slice_to_string(chars, i + 1, close);
     let (src, props) = match content.split_once('|') {
         Some((s, p)) => (s.to_string(), Some(p.to_string())),

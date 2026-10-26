@@ -1,5 +1,7 @@
 //! Inline parsing of Jira wiki markup: text-effect spans, monospace, colour, citations, symbols, and breaks.
 
+use std::collections::BTreeMap;
+
 use carta_ast::{Attr, Inline, Target, ToCompactString};
 
 use super::links::{match_bare_url, parse_image, parse_link};
@@ -112,33 +114,105 @@ fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
     }
 }
 
-/// A forward-scan step budget proportional to the span. A dense run of unclosable openers would
-/// otherwise make each failed construct re-scan the whole suffix, so the total cost grows
-/// quadratically; charging one step per position examined keeps the scanning linear over the span.
-/// It is far above what any genuine construct needs, so a real close is always found, while a
-/// pathological run gives up and leaves the opener as literal text.
-pub(super) fn scan_budget(lo: usize, hi: usize) -> usize {
-    crate::inline_scan::scan_budget(hi.saturating_sub(lo))
+pub(super) struct Delimiters {
+    positions: BTreeMap<char, Vec<usize>>,
+    monospace: BTreeMap<usize, usize>,
+    colors: BTreeMap<isize, Vec<usize>>,
+    color_levels: Vec<(usize, isize)>,
 }
 
-/// Finds the first index in `range` whose character satisfies `pred`, charging one budget step per
-/// position examined and abandoning the scan (returning `None`) once the budget is spent.
-pub(super) fn find_within(
-    chars: &[char],
-    range: std::ops::Range<usize>,
-    budget: &mut usize,
-    pred: impl Fn(char) -> bool,
-) -> Option<usize> {
-    for k in range {
-        if *budget == 0 {
-            return None;
+impl Delimiters {
+    pub(super) fn new(chars: &[char], lo: usize, hi: usize) -> Self {
+        let mut index = Self {
+            positions: BTreeMap::new(),
+            monospace: BTreeMap::new(),
+            colors: BTreeMap::new(),
+            color_levels: Vec::new(),
+        };
+        let mut level = 0isize;
+        let mut position = lo;
+        while position < hi {
+            if let Some(&ch) = chars.get(position)
+                && matches!(ch, ']' | '!' | '}' | '|')
+            {
+                index.positions.entry(ch).or_default().push(position);
+            }
+            if chars.get(position) == Some(&'?')
+                && chars.get(position + 1) == Some(&'?')
+                && position > 0
+                && non_space(chars, position - 1)
+                && boundary(chars, position + 2)
+            {
+                index.positions.entry('?').or_default().push(position);
+            }
+            if matches_at(chars, position, "{color:") {
+                level += 1;
+                index.color_levels.push((position + 6, level));
+            } else if matches_at(chars, position, "{color}") {
+                index.colors.entry(level).or_default().push(position);
+                level -= 1;
+                index.color_levels.push((position + 7, level));
+            }
+            position += 1;
         }
-        *budget -= 1;
-        if chars.get(k).copied().is_some_and(&pred) {
-            return Some(k);
+        let mut next = vec![None; hi.saturating_sub(lo) + 3];
+        for position in (lo..hi).rev() {
+            let offset = position - lo;
+            let mut close = next.get(offset + 1).copied().flatten();
+            if chars.get(position) == Some(&'}')
+                && chars.get(position + 1) == Some(&'}')
+                && non_space(chars, position.saturating_sub(1))
+                && boundary(chars, position + 2)
+            {
+                close = Some(position);
+            }
+            if chars.get(position) == Some(&'{')
+                && chars.get(position + 1) == Some(&'{')
+                && can_open_monospace(chars, position)
+            {
+                let mut matched = next.get(offset + 2).copied().flatten();
+                if matched == Some(position + 2) {
+                    matched = next.get(offset + 3).copied().flatten();
+                }
+                if let Some(end) = matched {
+                    index.monospace.insert(position, end);
+                    close = next.get(end + 2 - lo).copied().flatten();
+                }
+            }
+            if let Some(slot) = next.get_mut(offset) {
+                *slot = close;
+            }
         }
+        index
     }
-    None
+
+    pub(super) fn positions(&self, marker: char, from: usize, hi: usize) -> &[usize] {
+        let Some(positions) = self.positions.get(&marker) else {
+            return &[];
+        };
+        let start = positions.partition_point(|&position| position < from);
+        let end = positions.partition_point(|&position| position < hi);
+        positions.get(start..end).unwrap_or_default()
+    }
+
+    pub(super) fn next(&self, marker: char, from: usize, hi: usize) -> Option<usize> {
+        self.positions(marker, from, hi).first().copied()
+    }
+
+    fn color_close(&self, from: usize, hi: usize) -> Option<usize> {
+        let end = self
+            .color_levels
+            .partition_point(|&(position, _)| position <= from);
+        let level = end
+            .checked_sub(1)
+            .and_then(|i| self.color_levels.get(i))
+            .map_or(0, |&(_, level)| level);
+        let closes = self.colors.get(&level)?;
+        closes
+            .get(closes.partition_point(|&position| position < from))
+            .copied()
+            .filter(|&position| position < hi)
+    }
 }
 
 /// Scans `lo..hi` left to right into tokens: literal runs accumulate into [`Tok::Text`], a flanking
@@ -149,7 +223,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
     let mut toks: Vec<Tok> = Vec::new();
     let mut pending = String::new();
     let mut i = lo;
-    let mut budget = scan_budget(lo, hi);
+    let delimiters = Delimiters::new(chars, lo, hi);
 
     while i < hi {
         let Some(&c) = chars.get(i) else {
@@ -196,7 +270,9 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
                 }
             }
             '?' => {
-                if let Some((next, inner)) = parse_citation(chars, i, hi, autolink, depth) {
+                if let Some((next, inner)) =
+                    parse_citation(chars, i, hi, autolink, depth, &delimiters)
+                {
                     pending.push('\u{2014}');
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(Inline::Space));
@@ -234,7 +310,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
             }
             '[' | '!' | '{' => {
                 if let Some((node, next)) =
-                    scan_construct(c, chars, i, hi, autolink, depth, &mut budget)
+                    scan_construct(c, chars, i, hi, autolink, depth, &delimiters)
                 {
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(node));
@@ -335,12 +411,12 @@ fn scan_construct(
     hi: usize,
     autolink: bool,
     depth: usize,
-    budget: &mut usize,
+    delimiters: &Delimiters,
 ) -> Option<(Inline, usize)> {
     match c {
-        '[' => parse_link(chars, i, hi, depth, budget),
-        '!' => parse_image(chars, i, hi, budget),
-        _ => parse_brace_inline(chars, i, hi, autolink, depth, budget),
+        '[' => parse_link(chars, i, hi, depth, delimiters),
+        '!' => parse_image(chars, i, hi, delimiters),
+        _ => parse_brace_inline(chars, i, hi, autolink, depth, delimiters),
     }
 }
 
@@ -438,12 +514,6 @@ fn scan_dash(
     i + 1
 }
 
-/// Index of the innermost open delimiter still awaiting a close, regardless of its marker.
-fn top_opener(acc: &[Tok]) -> Option<usize> {
-    acc.iter()
-        .rposition(|t| matches!(t, Tok::Delim { open: true, .. }))
-}
-
 /// Pairs flanking delimiters into spans. A closing delimiter binds only to the innermost open
 /// delimiter; it forms a span when that opener carries the same marker and they enclose non-empty
 /// content, and is otherwise left literal. Binding only to the innermost opener keeps spans strictly
@@ -451,6 +521,7 @@ fn top_opener(acc: &[Tok]) -> Option<usize> {
 /// at most two deep.
 fn resolve(toks: Vec<Tok>) -> Vec<Tok> {
     let mut acc: Vec<Tok> = Vec::new();
+    let mut openers = Vec::new();
     for tok in toks {
         let Tok::Delim {
             marker,
@@ -462,18 +533,22 @@ fn resolve(toks: Vec<Tok>) -> Vec<Tok> {
             continue;
         };
         if close
-            && let Some(open_idx) = top_opener(&acc)
+            && let Some(&open_idx) = openers.last()
             && matches!(acc.get(open_idx), Some(Tok::Delim { marker: m, .. }) if *m == marker)
             && acc.len() > open_idx + 1
         {
             let inner = finalize(acc.split_off(open_idx + 1));
             if same_marker_depth(&inner, marker) < 2 {
                 acc.pop();
+                openers.pop();
                 acc.push(Tok::Atom(make_span(marker, inner)));
                 continue;
             }
             // Nesting cap reached: the opener stays unmatched; resolved content returns to the stack.
             acc.extend(inner.into_iter().map(Tok::Atom));
+        }
+        if open {
+            openers.push(acc.len());
         }
         acc.push(Tok::Delim {
             marker,
@@ -591,6 +666,7 @@ fn parse_citation(
     hi: usize,
     autolink: bool,
     depth: usize,
+    delimiters: &Delimiters,
 ) -> Option<(usize, Vec<Inline>)> {
     if chars.get(i + 1) != Some(&'?') {
         return None;
@@ -599,19 +675,11 @@ fn parse_citation(
     if !left_boundary || !non_space(chars, i + 2) {
         return None;
     }
-    let mut j = i + 2;
-    while j < hi {
-        if chars.get(j) == Some(&'?')
-            && chars.get(j + 1) == Some(&'?')
-            && j > i + 2
-            && non_space(chars, j - 1)
-            && boundary(chars, j + 2)
-        {
-            return Some((j + 2, inlines_with(chars, i + 2, j, autolink, depth + 1)));
-        }
-        j += 1;
-    }
-    None
+    let close = delimiters.next('?', i + 3, hi)?;
+    Some((
+        close + 2,
+        inlines_with(chars, i + 2, close, autolink, depth + 1),
+    ))
 }
 
 /// A monospaced span opens at `i` (which holds the first `{` of `{{`) when its left neighbour is a
@@ -621,70 +689,20 @@ fn can_open_monospace(chars: &[char], i: usize) -> bool {
     left_boundary && non_space(chars, i + 2)
 }
 
-/// A monospaced span closes at `j` (holding the first `}` of `}}`) when the close is non-empty, its
-/// left neighbour is not whitespace, and the character after `}}` is a boundary.
-fn closes_monospace(chars: &[char], open: usize, j: usize) -> bool {
-    j > open + 2 && non_space(chars, j - 1) && boundary(chars, j + 2)
-}
-
-/// Finds the `}}` that closes the monospaced span opened at `i`, scanning across nested `{{ … }}`
-/// pairs so an inner span does not end the outer one. Returns the index of the closing `}}`, or
-/// `None` when the span is never closed.
-fn match_monospace_close(chars: &[char], i: usize, hi: usize) -> Option<usize> {
-    // The shared budget keeps nested-open scanning linear; a pathological run stays literal.
-    let mut budget = scan_budget(i, hi);
-    match_monospace_close_within(chars, i, hi, &mut budget, 0)
-}
-
-fn match_monospace_close_within(
-    chars: &[char],
-    i: usize,
-    hi: usize,
-    budget: &mut usize,
-    depth: usize,
-) -> Option<usize> {
-    if depth > MAX_INLINE_DEPTH {
-        return None;
-    }
-    let mut j = i + 2;
-    while j < hi {
-        if *budget == 0 {
-            return None;
-        }
-        *budget -= 1;
-        if chars.get(j) == Some(&'{')
-            && chars.get(j + 1) == Some(&'{')
-            && can_open_monospace(chars, j)
-            && let Some(nested) = match_monospace_close_within(chars, j, hi, budget, depth + 1)
-        {
-            j = nested + 2;
-            continue;
-        }
-        if chars.get(j) == Some(&'}')
-            && chars.get(j + 1) == Some(&'}')
-            && closes_monospace(chars, i, j)
-        {
-            return Some(j);
-        }
-        j += 1;
-    }
-    None
-}
-
 fn parse_brace_inline(
     chars: &[char],
     i: usize,
     hi: usize,
     autolink: bool,
     depth: usize,
-    budget: &mut usize,
+    delimiters: &Delimiters,
 ) -> Option<(Inline, usize)> {
     if chars.get(i + 1) == Some(&'{') {
         // Monospaced `{{ … }}`: a nested pair is skipped rather than ending the span early.
         if !can_open_monospace(chars, i) {
             return None;
         }
-        let close = match_monospace_close(chars, i, hi)?;
+        let close = delimiters.monospace.get(&i).copied()?;
         let inner = inlines_with(chars, i + 2, close, autolink, depth + 1);
         let text = carta_ast::to_plain_text(&inner);
         return Some((Inline::Code(Box::default(), text.into()), close + 2));
@@ -692,9 +710,17 @@ fn parse_brace_inline(
 
     if matches_at(chars, i, "{color:") {
         let value_start = i + "{color:".len();
-        let value_end = find_within(chars, value_start..hi, budget, |c| c == '}')?;
+        let value_end = delimiters.next('}', value_start, hi)?;
+        if value_end - value_start > 7
+            && !chars
+                .get(value_start..value_end)?
+                .iter()
+                .all(|ch| ch.is_alphabetic())
+        {
+            return None;
+        }
         let value = color_value(&slice_to_string(chars, value_start, value_end))?;
-        let close = match_color_close(chars, value_end + 1, hi, budget)?;
+        let close = delimiters.color_close(value_end + 1, hi)?;
         let inner = inlines_with(chars, value_end + 1, close, autolink, depth + 1);
         let attr = Attr {
             id: carta_ast::Text::default(),
@@ -706,7 +732,7 @@ fn parse_brace_inline(
 
     if matches_at(chars, i, "{anchor:") {
         let name_start = i + "{anchor:".len();
-        let name_end = find_within(chars, name_start..hi, budget, |c| c == '}')?;
+        let name_end = delimiters.next('}', name_start, hi)?;
         let name: String = chars
             .get(name_start..name_end)
             .unwrap_or_default()
@@ -741,33 +767,6 @@ pub(super) fn color_value(value: &str) -> Option<String> {
         && value.bytes().next().is_some_and(|b| b.is_ascii_digit())
     {
         return Some(format!("#{value}"));
-    }
-    None
-}
-
-/// Finds the `{color}` that closes the inline colour span whose content begins at `from`, balancing
-/// nested `{color:…}` opens so an inner close does not end the outer span early. Returns the index of
-/// the closing token, or `None` when the span is never closed within `from..hi`.
-fn match_color_close(chars: &[char], from: usize, hi: usize, budget: &mut usize) -> Option<usize> {
-    let mut depth = 1usize;
-    let mut k = from;
-    while k < hi {
-        if *budget == 0 {
-            return None;
-        }
-        *budget -= 1;
-        if matches_at(chars, k, "{color:") {
-            depth += 1;
-            k += "{color:".len();
-        } else if matches_at(chars, k, "{color}") {
-            depth -= 1;
-            if depth == 0 {
-                return Some(k);
-            }
-            k += "{color}".len();
-        } else {
-            k += 1;
-        }
     }
     None
 }

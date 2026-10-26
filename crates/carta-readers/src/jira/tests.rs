@@ -1,7 +1,5 @@
 use carta_ast::{Attr, Block, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, Target};
 
-use super::inline::scan_budget;
-use super::links::parse_link;
 use super::*;
 
 fn blocks(input: &str) -> Vec<Block> {
@@ -28,25 +26,11 @@ fn empty_input_yields_no_blocks() {
 }
 
 #[test]
-fn link_budget_does_not_fire_on_genuine_content() {
-    // A genuine link must parse identically under the default and an unbounded budget.
-    let lead = "See the docs and other notes here, for example: ".repeat(20);
-    let chars: Vec<char> = format!("{lead}[Example|https://example.com] end.")
-        .chars()
-        .collect();
-    let open = chars
-        .iter()
-        .position(|&c| c == '[')
-        .expect("input has a link opener");
-    let mut default_budget = scan_budget(0, chars.len());
-    let mut huge_budget = usize::MAX;
-    let with_default = parse_link(&chars, open, chars.len(), 0, &mut default_budget);
-    let with_huge = parse_link(&chars, open, chars.len(), 0, &mut huge_budget);
-    assert!(
-        with_default.is_some(),
-        "genuine link must parse under the default budget"
-    );
-    assert_eq!(with_default, with_huge);
+fn long_link_label_keeps_its_target() {
+    let label = "a".repeat(200_001);
+    let nodes = para(&format!("[{label}|https://example.com]"));
+    assert!(matches!(nodes.as_slice(), [Inline::Link(_, text, target)]
+        if text == &[str_node(&label)] && target.url == "https://example.com"));
 }
 
 #[test]

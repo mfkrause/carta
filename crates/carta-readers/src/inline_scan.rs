@@ -208,7 +208,7 @@ fn is_backslash_math_closer_bytes(text: &str, i: usize, slashes: usize, close: c
 /// A forward-scan step budget proportional to `span_len`, keeping scanning linear where a dense
 /// run of unclosable openers would otherwise re-scan the suffix per failed construct (quadratic).
 /// Far above any genuine construct's need; a capped run leaves the opener as literal text.
-#[cfg(any(feature = "jira", feature = "mediawiki"))]
+#[cfg(feature = "mediawiki")]
 pub(crate) fn scan_budget(span_len: usize) -> usize {
     span_len.saturating_mul(8).saturating_add(64).min(200_000)
 }
@@ -226,7 +226,7 @@ pub(crate) fn is_unicode_whitespace(ch: char) -> bool {
         || ch.is_whitespace()
 }
 
-#[cfg(all(test, any(feature = "jira", feature = "mediawiki")))]
+#[cfg(all(test, feature = "mediawiki"))]
 mod scan_budget_tests {
     use super::scan_budget;
 
