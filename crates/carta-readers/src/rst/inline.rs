@@ -28,9 +28,6 @@ impl Parser<'_> {
     /// Parse inline markup without trimming the leading and trailing whitespace nodes. Interpreted
     /// text keeps the spacing around its content, so role content is parsed through this entry.
     fn inlines_no_trim(&mut self, text: &str) -> Vec<Inline> {
-        if !self.spend(text.len()) {
-            return Vec::new();
-        }
         carta_core::with_stack(|| self.inlines_no_trim_nested(text))
     }
 
@@ -473,7 +470,13 @@ impl Parser<'_> {
                 end,
             ));
         }
-        let expansion = match self.defs.substitutions.get(&key).cloned() {
+        let definition = self.defs.substitutions.get(&key);
+        if let Some(definition) = definition
+            && !self.spend(definition.weight())
+        {
+            return None;
+        }
+        let expansion = match definition.cloned() {
             Some(Substitution::Replace(text)) => {
                 self.active_substitutions.insert(key.clone());
                 let inlines = self.inlines(&text);
@@ -562,6 +565,12 @@ impl Parser<'_> {
             return None;
         }
         let body = self.footnote_body_for(&label)?;
+        let weight = body.iter().fold(0usize, |weight, line| {
+            weight.saturating_add(line.len()).saturating_add(1)
+        });
+        if !self.spend(weight) {
+            return None;
+        }
         if named {
             self.active_footnotes.insert(label.clone());
         }

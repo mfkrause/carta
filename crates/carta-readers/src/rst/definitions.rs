@@ -4,14 +4,15 @@ use super::directives::{image_classes, image_parts, split_directive};
 use super::inline_helpers::push_text;
 use super::markers::{Explicit, classify_explicit, explicit_body, explicit_extent};
 use super::{
-    DEFAULT_ROLE, Parser, escape_uri, indent_of, indirect_referent, is_blank, line_at,
-    normalize_name, preprocess,
+    DEFAULT_ROLE, IncludeState, Includes, Parser, escape_uri, indent_of, indirect_referent,
+    is_blank, line_at, normalize_name, preprocess,
 };
 use crate::heading_ids::IdRegistry;
 use carta_ast::{Attr, Block, Inline};
 use carta_core::Extensions;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 // definitions (pass one)
 
@@ -35,6 +36,43 @@ pub(super) struct Definitions {
 pub(super) enum Substitution {
     Replace(String),
     Image(String, Attr, Vec<Inline>),
+}
+
+impl Substitution {
+    pub(super) fn weight(&self) -> usize {
+        match self {
+            Self::Replace(text) => text.len(),
+            Self::Image(url, attr, alt) => {
+                let classes = attr.classes.iter().fold(0usize, |weight, class| {
+                    weight.saturating_add(class.len().max(1))
+                });
+                let attributes = attr.attributes.iter().fold(0usize, |weight, (key, value)| {
+                    weight
+                        .saturating_add(key.len())
+                        .saturating_add(value.len())
+                        .saturating_add(1)
+                });
+                url.len()
+                    .saturating_add(attr.id.len())
+                    .saturating_add(classes)
+                    .saturating_add(attributes)
+                    .saturating_add(carta_core::budget::inlines_weight(alt))
+            }
+        }
+    }
+}
+
+struct Included<'a> {
+    files: &'a Includes,
+    path: &'a Path,
+}
+
+impl Drop for Included<'_> {
+    fn drop(&mut self) {
+        if let Some(state) = self.files.borrow_mut().get_mut(self.path) {
+            *state = IncludeState::Finished;
+        }
+    }
 }
 
 /// A custom interpreted-text role declared by a `role` directive: an optional base role whose
@@ -64,10 +102,33 @@ pub(super) struct RoleChain {
 pub(super) fn included_blocks(
     path: &str,
     ext: Extensions,
-    depth: usize,
     work: &Cell<Option<usize>>,
+    includes: &Includes,
 ) -> Option<Vec<Block>> {
-    let content = std::fs::read_to_string(path).ok()?;
+    let path = std::fs::canonicalize(path).ok()?;
+    if matches!(includes.borrow().get(&path), Some(IncludeState::Active)) {
+        return None;
+    }
+    let content = std::fs::read_to_string(&path).ok()?;
+    let new_source = includes
+        .borrow_mut()
+        .insert(path.clone(), IncludeState::Active)
+        .is_none();
+    let _included = Included {
+        files: includes,
+        path: &path,
+    };
+    if new_source {
+        work.set(
+            work.get()
+                .map(|remaining| remaining.saturating_add(content.len().saturating_mul(64))),
+        );
+    }
+    let remaining = work
+        .get()
+        .and_then(|remaining| remaining.checked_sub(content.len().max(1)));
+    work.set(remaining);
+    remaining?;
     let lines = preprocess(&content);
     let defs = collect_definitions(&lines);
     let mut parser = Parser {
@@ -81,7 +142,7 @@ pub(super) fn included_blocks(
         anonymous: 0,
         custom_roles: BTreeMap::new(),
         default_role: DEFAULT_ROLE.to_string(),
-        include_depth: depth,
+        includes,
         active_substitutions: BTreeSet::new(),
         active_footnotes: BTreeSet::new(),
         deferred: BTreeMap::new(),

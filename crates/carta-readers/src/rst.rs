@@ -4,8 +4,9 @@ use crate::heading_ids::IdRegistry;
 use crate::tabs::expand_tabs;
 use carta_ast::Document;
 use carta_core::{Error, Extensions, Reader, ReaderOptions, Result};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 
 mod block;
 mod definitions;
@@ -35,6 +36,7 @@ impl Reader for RstReader {
         let work = Cell::new(Some(
             (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         ));
+        let includes = RefCell::new(BTreeMap::new());
         let mut parser = Parser {
             defs: &defs,
             work: &work,
@@ -46,7 +48,7 @@ impl Reader for RstReader {
             anonymous: 0,
             custom_roles: BTreeMap::new(),
             default_role: DEFAULT_ROLE.to_string(),
-            include_depth: 0,
+            includes: &includes,
             active_substitutions: BTreeSet::new(),
             active_footnotes: BTreeSet::new(),
             deferred: BTreeMap::new(),
@@ -200,8 +202,7 @@ struct Parser<'a> {
     custom_roles: BTreeMap<String, RoleDef>,
     /// The role applied to interpreted text with no explicit role.
     default_role: String,
-    /// How many nested `include` directives deep this parser is, bounding include recursion.
-    include_depth: usize,
+    includes: &'a Includes,
     /// Substitution names being expanded; cyclic references stay unresolved.
     active_substitutions: BTreeSet<String>,
     /// Named footnotes being expanded; cyclic references stay unresolved.
@@ -214,9 +215,12 @@ struct Parser<'a> {
     deferred: BTreeMap<String, String>,
 }
 
-/// The deepest chain of nested `include` directives that is followed before further includes are
-/// ignored, guarding against a cycle of files including one another.
-const MAX_INCLUDE_DEPTH: usize = 64;
+enum IncludeState {
+    Active,
+    Finished,
+}
+
+type Includes = RefCell<BTreeMap<PathBuf, IncludeState>>;
 
 impl Parser<'_> {
     fn spend(&self, amount: usize) -> bool {

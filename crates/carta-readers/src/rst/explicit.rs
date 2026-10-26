@@ -7,7 +7,7 @@ use super::directives::{
     to_plain,
 };
 use super::markers::{Explicit, classify_explicit, explicit_body, explicit_extent};
-use super::{DEFAULT_ROLE, MAX_INCLUDE_DEPTH, PENDING_CLASS, Parser, indent_of, line_at};
+use super::{DEFAULT_ROLE, PENDING_CLASS, Parser, indent_of, line_at};
 use carta_ast::{Attr, Block, Caption, Format, Inline, MathType, Target};
 
 impl Parser<'_> {
@@ -190,13 +190,8 @@ impl Parser<'_> {
                 };
             }
             "include" => {
-                if self.include_depth < MAX_INCLUDE_DEPTH
-                    && let Some(blocks) = included_blocks(
-                        argument.trim(),
-                        self.ext,
-                        self.include_depth + 1,
-                        self.work,
-                    )
+                if let Some(blocks) =
+                    included_blocks(argument.trim(), self.ext, self.work, self.includes)
                 {
                     out.extend(blocks);
                 }
