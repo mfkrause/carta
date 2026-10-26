@@ -10,6 +10,7 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq not found on PATH" >&2; exit 
 
 # Buffered, so a field rejected halfway through leaves no half-written TOML behind.
 toml=$(jq -r '
+  if (.timings | length) == 0 then error("no timing results; run the full suite") else . end |
   # Reject missing fields to avoid publishing unmeasured values as zero.
   def q(field): if type == "string" then gsub("\\\\"; "\\\\") | gsub("\""; "\\\"") | "\"" + . + "\""
                 else error("missing or non-string \(field)") end;
