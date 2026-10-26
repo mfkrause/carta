@@ -107,10 +107,8 @@ fn parse_inlines_shared(
         cite_cache,
         interesting: interesting_chars(ext),
         backtick_runs: None,
-        raw_tex_budget: text.len().saturating_mul(8).saturating_add(64),
-        last_brace: std::cell::OnceCell::new(),
-        last_bracket: std::cell::OnceCell::new(),
-        env_last_close: BTreeMap::new(),
+        raw_tex_groups: std::cell::OnceCell::new(),
+        raw_tex_environments: std::cell::OnceCell::new(),
     };
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
@@ -174,21 +172,10 @@ struct InlineParser<'a> {
     /// never changes during inline parsing. A feature that mutated the buffer mid-parse would have
     /// to rebuild it.
     backtick_runs: Option<BTreeMap<usize, Vec<usize>>>,
-    /// Remaining work budget shared by all raw-TeX look-ahead scans in this buffer. Seeded from the
-    /// buffer length and charged the traversal length of each scan; when it reaches zero a raw-TeX
-    /// attempt reverts (the backslash stays literal, the same outcome an unmatched group already
-    /// produces). It caps the total look-ahead at O(n) so a run of never-closing openers cannot cost
-    /// O(n²); a genuine document, where each group is scanned once, never approaches the ceiling.
-    raw_tex_budget: usize,
-    /// Byte offset of the last `}` / last `]` in `text` (inner `None` when the delimiter is absent),
-    /// computed on the first raw-TeX group scan so buffers that never reach one skip the search. A
-    /// group scan starting past its closing delimiter's final occurrence cannot balance, so it fails
-    /// in O(1) without touching the budget.
-    last_brace: std::cell::OnceCell<Option<usize>>,
-    last_bracket: std::cell::OnceCell<Option<usize>>,
-    /// Per environment name, the start offset of the last `\end{NAME}` marker in `text` (inner `None`
-    /// when there is none). Scanning for an environment close past this offset cannot succeed.
-    env_last_close: BTreeMap<String, Option<usize>>,
+    /// Group opener offsets mapped to their closing ends, built on the first raw-TeX group scan.
+    raw_tex_groups: std::cell::OnceCell<BTreeMap<usize, usize>>,
+    /// Environment opening-group ends mapped to their matching closing-marker ends.
+    raw_tex_environments: std::cell::OnceCell<BTreeMap<usize, usize>>,
 }
 
 /// The ASCII characters that can begin an inline construct under `ext`; every other character is

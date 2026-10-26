@@ -307,14 +307,14 @@ impl InlineParser<'_> {
         let mut had_group = false;
         loop {
             match char_at(self.text, i) {
-                Some('{') => match self.scan_balanced_group(i, '{', '}') {
+                Some('{') => match self.scan_balanced_group(i) {
                     Some(end) => {
                         i = end;
                         had_group = true;
                     }
                     None => return false,
                 },
-                Some('[') => match self.scan_balanced_group(i, '[', ']') {
+                Some('[') => match self.scan_balanced_group(i) {
                     Some(end) => {
                         i = end;
                         had_group = true;
@@ -353,13 +353,10 @@ impl InlineParser<'_> {
         if char_at(self.text, name_end) != Some('{') {
             return false;
         }
-        let Some(group_end) = self.scan_balanced_group(name_end, '{', '}') else {
+        let Some(group_end) = self.scan_balanced_group(name_end) else {
             return false;
         };
-        let Some(env) = self.text.get(name_end + 1..group_end - 1) else {
-            return false;
-        };
-        let Some(end) = self.scan_environment_close(group_end, env) else {
+        let Some(end) = self.scan_environment_close(group_end) else {
             return false;
         };
         let source = match self.text.get(self.pos..end) {
@@ -374,123 +371,64 @@ impl InlineParser<'_> {
         true
     }
 
-    /// From `from`, find the index just past the `\end{ENV}` that closes an open `\begin{ENV}`,
-    /// tracking nested same-name environments by depth. `None` when no matching close is found.
-    fn scan_environment_close(&mut self, from: usize, env: &str) -> Option<usize> {
-        if self.raw_tex_budget == 0 {
-            return None;
-        }
-        // No matching close can occur past the last `\end{ENV}`; reject later opens in O(1).
-        if self
-            .last_environment_close(env)
-            .is_none_or(|last| from > last)
-        {
-            return None;
-        }
-        let mut depth = 1usize;
-        let mut i = from;
-        while let Some(ch) = char_at(self.text, i) {
-            if ch == '\\' {
-                if let Some(after) = self.match_environment_marker(i, "begin", env) {
-                    depth += 1;
-                    i = after;
-                    continue;
-                }
-                if let Some(after) = self.match_environment_marker(i, "end", env) {
-                    depth -= 1;
-                    if depth == 0 {
-                        self.charge_raw_tex(after - from);
-                        return Some(after);
+    /// Find the closing marker for the environment whose opening group ends at `from`.
+    fn scan_environment_close(&self, from: usize) -> Option<usize> {
+        self.raw_tex_environments
+            .get_or_init(|| {
+                let groups = self.raw_tex_group_ends();
+                let mut openings: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+                let mut ends = BTreeMap::new();
+                for (position, _) in self.text.match_indices('\\') {
+                    let tail = self.text.get(position..).unwrap_or_default();
+                    let (opening, group) = if tail.starts_with("\\begin{") {
+                        (true, position + 6)
+                    } else if tail.starts_with("\\end{") {
+                        (false, position + 4)
+                    } else {
+                        continue;
+                    };
+                    let Some(&end) = groups.get(&group) else {
+                        continue;
+                    };
+                    let Some(name) = self.text.get(group + 1..end - 1) else {
+                        continue;
+                    };
+                    if opening {
+                        openings.entry(name).or_default().push(end);
+                    } else if let Some(open) = openings.get_mut(name).and_then(Vec::pop) {
+                        ends.insert(open, end);
                     }
-                    i = after;
-                    continue;
+                }
+                ends
+            })
+            .get(&from)
+            .copied()
+    }
+
+    fn raw_tex_group_ends(&self) -> &BTreeMap<usize, usize> {
+        self.raw_tex_groups.get_or_init(|| {
+            let mut braces = Vec::new();
+            let mut brackets = Vec::new();
+            let mut ends = BTreeMap::new();
+            for (position, byte) in self.text.bytes().enumerate() {
+                let stack = match byte {
+                    b'{' | b'}' => &mut braces,
+                    b'[' | b']' => &mut brackets,
+                    _ => continue,
+                };
+                if matches!(byte, b'{' | b'[') {
+                    stack.push(position);
+                } else if let Some(open) = stack.pop() {
+                    ends.insert(open, position + 1);
                 }
             }
-            i += ch.len_utf8();
-        }
-        self.charge_raw_tex(i - from);
-        None
+            ends
+        })
     }
 
-    /// Byte offset where the last `\end{NAME}` marker begins, or `None` when the buffer holds none.
-    /// Computed once per environment name (a literal substring search) and cached.
-    fn last_environment_close(&mut self, env: &str) -> Option<usize> {
-        if let Some(&cached) = self.env_last_close.get(env) {
-            return cached;
-        }
-        let marker = format!("\\end{{{env}}}");
-        let last = self.text.rfind(&marker);
-        self.env_last_close.insert(env.to_owned(), last);
-        last
-    }
-
-    /// If the characters at `at` spell `\KEYWORD{ENV}` (e.g. `\end{equation}`), return the index
-    /// just past the closing brace; otherwise `None`.
-    fn match_environment_marker(&self, at: usize, keyword: &str, env: &str) -> Option<usize> {
-        let mut i = at;
-        if char_at(self.text, i) != Some('\\') {
-            return None;
-        }
-        i += 1;
-        for kc in keyword.chars() {
-            if char_at(self.text, i) != Some(kc) {
-                return None;
-            }
-            i += kc.len_utf8();
-        }
-        if char_at(self.text, i) != Some('{') {
-            return None;
-        }
-        i += 1;
-        for ec in env.chars() {
-            if char_at(self.text, i) != Some(ec) {
-                return None;
-            }
-            i += ec.len_utf8();
-        }
-        if char_at(self.text, i) != Some('}') {
-            return None;
-        }
-        Some(i + 1)
-    }
-
-    /// Scan a balanced group `open`…`close` starting at index `start` (which must hold `open`),
-    /// returning the index just past the matching `close`, or `None` if it never closes. Nested
-    /// same-kind delimiters are tracked by depth. `open` and `close` are ASCII delimiters.
-    fn scan_balanced_group(&mut self, start: usize, open: char, close: char) -> Option<usize> {
-        if self.raw_tex_budget == 0 {
-            return None;
-        }
-        // An opener past the last group closer cannot balance; reject it in O(1).
-        let last_close = match close {
-            '}' => *self.last_brace.get_or_init(|| self.text.rfind('}')),
-            ']' => *self.last_bracket.get_or_init(|| self.text.rfind(']')),
-            _ => return None,
-        };
-        if last_close.is_none_or(|last| start > last) {
-            return None;
-        }
-        let mut depth = 0usize;
-        let mut i = start;
-        while let Some(ch) = char_at(self.text, i) {
-            if ch == open {
-                depth += 1;
-            } else if ch == close {
-                depth -= 1;
-                if depth == 0 {
-                    self.charge_raw_tex(i + 1 - start);
-                    return Some(i + 1);
-                }
-            }
-            i += ch.len_utf8();
-        }
-        self.charge_raw_tex(i - start);
-        None
-    }
-
-    /// Charge a raw-TeX look-ahead scan's traversal length against the shared per-buffer budget.
-    fn charge_raw_tex(&mut self, steps: usize) {
-        self.raw_tex_budget = self.raw_tex_budget.saturating_sub(steps);
+    /// Find the end of a brace or bracket group at `start`.
+    fn scan_balanced_group(&self, start: usize) -> Option<usize> {
+        self.raw_tex_group_ends().get(&start).copied()
     }
 
     pub(super) fn code_span(&mut self) {

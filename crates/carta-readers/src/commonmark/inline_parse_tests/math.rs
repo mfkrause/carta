@@ -79,12 +79,7 @@ fn raw_tex_unbalanced_brace_reverts_whole_command() {
 
 #[test]
 fn raw_tex_unclosed_openers_stay_literal_at_scale() {
-    // the fast-fail and scan budget bound look-ahead cost without changing the parse: all-literal at any size
-    let cases = [
-        r"\a{".repeat(4096), // no `}` anywhere: close-delimiter fast-fail
-        format!("{}}}", r"\a{".repeat(4096)), // a single far `}` that never balances: budget backstop
-        r"\begin{x}".repeat(4096),            // no `\end{x}`: environment-close fast-fail
-    ];
+    let cases = [r"\a{".repeat(4096), r"\begin{x}".repeat(4096)];
     for input in cases {
         let parsed = pe(&input, raw_tex());
         assert!(
@@ -103,6 +98,8 @@ fn raw_tex_unclosed_openers_stay_literal_at_scale() {
             .collect();
         assert_eq!(rendered, input);
     }
+    let input = format!("{}}} {}", r"\a{".repeat(4096), r"\textbf{x}");
+    assert_eq!(pe(&input, raw_tex()).last(), Some(&tex(r"\textbf{x}")));
 }
 
 #[test]
