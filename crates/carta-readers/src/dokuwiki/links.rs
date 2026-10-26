@@ -281,7 +281,6 @@ pub(super) fn parse_footnote(
     chars: &[char],
     begin: usize,
     ctx: Ctx,
-    depth: usize,
     cache: &ScanCache,
 ) -> Option<(Inline, usize)> {
     let close = cache.find(begin + 2, "))")?;
@@ -289,10 +288,7 @@ pub(super) fn parse_footnote(
     if inner.trim().is_empty() {
         return None;
     }
-    Some((
-        Inline::Note(parse_blocks_str(&inner, ctx, depth + 1)),
-        close + 2,
-    ))
+    Some((Inline::Note(parse_blocks_str(&inner, ctx)), close + 2))
 }
 
 /// Parse a `%%…%%` no-formatting span: its content is taken verbatim as text. Like the emphasis
@@ -317,33 +313,23 @@ pub(super) fn parse_angle(
     chars: &[char],
     begin: usize,
     ctx: Ctx,
-    depth: usize,
     cache: &ScanCache,
 ) -> Option<(Vec<Inline>, usize)> {
     // A span tag with a blank interior is not markup; the opener stays literal text.
     if let Some((inner, end)) = tag_region(chars, begin, "<sub>", "</sub>", cache)
         && !is_blank(&inner)
     {
-        return Some((
-            vec![Inline::Subscript(scan_slice(&inner, ctx, depth + 1))],
-            end,
-        ));
+        return Some((vec![Inline::Subscript(scan_slice(&inner, ctx))], end));
     }
     if let Some((inner, end)) = tag_region(chars, begin, "<sup>", "</sup>", cache)
         && !is_blank(&inner)
     {
-        return Some((
-            vec![Inline::Superscript(scan_slice(&inner, ctx, depth + 1))],
-            end,
-        ));
+        return Some((vec![Inline::Superscript(scan_slice(&inner, ctx))], end));
     }
     if let Some((inner, end)) = tag_region(chars, begin, "<del>", "</del>", cache)
         && !is_blank(&inner)
     {
-        return Some((
-            vec![Inline::Strikeout(scan_slice(&inner, ctx, depth + 1))],
-            end,
-        ));
+        return Some((vec![Inline::Strikeout(scan_slice(&inner, ctx))], end));
     }
     if let Some((inner, end)) = tag_region(chars, begin, "<nowiki>", "</nowiki>", cache) {
         let text: String = inner.iter().collect();

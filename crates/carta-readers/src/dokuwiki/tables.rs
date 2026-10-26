@@ -17,7 +17,7 @@ pub(super) fn is_table_line(line: &str) -> bool {
 
 /// Parse a run of table rows. The first row sets the column count and per-column alignment, and is
 /// the header row when it opens with `^`; all remaining rows form the single body.
-pub(super) fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Block {
+pub(super) fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
     let mut rows: Vec<(bool, Vec<String>)> = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -45,7 +45,7 @@ pub(super) fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx, depth: us
     let mut head_rows = Vec::new();
     let mut body_rows = Vec::new();
     for (i, (header, cells)) in rows.iter().enumerate() {
-        let row = build_row(cells, col_count, ctx, depth);
+        let row = build_row(cells, col_count, ctx);
         if i == 0 && *header {
             head_rows.push(row);
         } else {
@@ -72,14 +72,14 @@ pub(super) fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx, depth: us
 }
 
 /// Build a table row, fitting it to `col_count` by truncating extra cells and padding short rows.
-fn build_row(cells: &[String], col_count: usize, ctx: Ctx, depth: usize) -> Row {
+fn build_row(cells: &[String], col_count: usize, ctx: Ctx) -> Row {
     let mut out = Vec::with_capacity(col_count);
     for i in 0..col_count {
         let trimmed = cells.get(i).map_or("", |c| c.trim());
         let content = if trimmed.is_empty() {
             Vec::new()
         } else {
-            vec![Block::Plain(inline_content(trimmed, ctx, depth))]
+            vec![Block::Plain(inline_content(trimmed, ctx))]
         };
         out.push(Cell {
             attr: Attr::default(),

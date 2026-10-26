@@ -48,7 +48,7 @@ impl Reader for DokuwikiReader {
         let text = normalize_newlines(input);
         let lines: Vec<&str> = text.split('\n').collect();
         let mut index = 0;
-        let mut blocks = parse_blocks(&lines, &mut index, ctx, 0);
+        let mut blocks = parse_blocks(&lines, &mut index, ctx);
         if options.extensions.contains(Extension::EastAsianLineBreaks) {
             strip_wide_line_breaks(&mut blocks);
         }
@@ -66,10 +66,6 @@ impl Reader for DokuwikiReader {
         })
     }
 }
-
-/// The deepest level of inline or block nesting that recursive parsing will follow. Beyond it,
-/// would-be delimiters are taken literally, bounding stack use on adversarial input.
-const MAX_DEPTH: usize = 32;
 
 #[cfg(test)]
 mod tests;

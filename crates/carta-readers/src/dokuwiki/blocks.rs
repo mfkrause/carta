@@ -6,19 +6,18 @@ use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::tabs::expand_tabs;
 use crate::transliterate::dokuwiki_asciify;
 
+use super::Ctx;
 use super::helpers::{TAB_STOP, find_subsequence, leading_columns, matches_at, run_length};
 use super::inline::inline_content;
 use super::lists::{opens_list, parse_list};
 use super::tables::{is_table_line, parse_table};
-use super::{Ctx, MAX_DEPTH};
 
 /// Parse a run of lines into blocks, advancing `index` past the consumed lines.
-pub(super) fn parse_blocks(
-    lines: &[&str],
-    index: &mut usize,
-    ctx: Ctx,
-    depth: usize,
-) -> Vec<Block> {
+pub(super) fn parse_blocks(lines: &[&str], index: &mut usize, ctx: Ctx) -> Vec<Block> {
+    carta_core::with_stack(|| parse_blocks_nested(lines, index, ctx))
+}
+
+fn parse_blocks_nested(lines: &[&str], index: &mut usize, ctx: Ctx) -> Vec<Block> {
     let mut blocks = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -30,13 +29,13 @@ pub(super) fn parse_blocks(
             blocks.push(Block::Header(
                 i64::from(level),
                 Box::default(),
-                inline_content(&title, ctx, depth),
+                inline_content(&title, ctx),
             ));
             *index += 1;
-            if !trailing.trim().is_empty() && depth < MAX_DEPTH {
+            if !trailing.trim().is_empty() {
                 let tail = [trailing.as_str()];
                 let mut tail_index = 0;
-                blocks.append(&mut parse_blocks(&tail, &mut tail_index, ctx, depth + 1));
+                blocks.append(&mut parse_blocks(&tail, &mut tail_index, ctx));
             }
             continue;
         }
@@ -45,11 +44,11 @@ pub(super) fn parse_blocks(
             continue;
         }
         if is_table_line(line) {
-            blocks.push(parse_table(lines, index, ctx, depth));
+            blocks.push(parse_table(lines, index, ctx));
             continue;
         }
         if opens_list(line) {
-            blocks.push(parse_list(lines, index, ctx, depth));
+            blocks.push(parse_list(lines, index, ctx));
             continue;
         }
         if is_indented_code(line) {
@@ -62,10 +61,10 @@ pub(super) fn parse_blocks(
             continue;
         }
         if quote_depth(line).is_some() {
-            blocks.push(parse_quote(lines, index, ctx, depth));
+            blocks.push(parse_quote(lines, index, ctx));
             continue;
         }
-        blocks.append(&mut parse_paragraph(lines, index, ctx, depth));
+        blocks.append(&mut parse_paragraph(lines, index, ctx));
     }
     blocks
 }
@@ -86,7 +85,7 @@ fn interrupts_paragraph(line: &str) -> bool {
 /// Gather consecutive non-interrupting lines into a paragraph. An embedded `<code>` or `<file>`
 /// region, even mid-line, breaks the run into the text before it, the region as its own block, and
 /// the text after it.
-fn parse_paragraph(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Vec<Block> {
+fn parse_paragraph(lines: &[&str], index: &mut usize, ctx: Ctx) -> Vec<Block> {
     let mut buffer = String::new();
     let mut first = true;
     while *index < lines.len() {
@@ -101,33 +100,31 @@ fn parse_paragraph(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) ->
         first = false;
         *index += 1;
     }
-    split_on_embedded_code(&buffer, ctx, depth)
+    split_on_embedded_code(&buffer, ctx)
 }
 
-/// Split a paragraph's text on the first embedded `<code>`/`<file>` region that has a closing tag:
-/// the text before becomes a paragraph, the region its own code block, and the remainder is split
-/// again. Text with no such region is a single paragraph (or nothing, when blank).
-fn split_on_embedded_code(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
+/// Split embedded code regions from a paragraph in source order.
+fn split_on_embedded_code(text: &str, ctx: Ctx) -> Vec<Block> {
     let chars: Vec<char> = text.chars().collect();
-    if depth < MAX_DEPTH
-        && let Some((start, block, end)) = find_embedded_code(&chars)
-    {
-        let mut out = Vec::new();
-        let before: String = chars.get(..start).unwrap_or(&[]).iter().collect();
+    let mut from = 0;
+    let mut out = Vec::new();
+    while let Some((start, block, end)) = find_embedded_code(chars.get(from..).unwrap_or(&[])) {
+        let before: String = chars
+            .get(from..from + start)
+            .unwrap_or(&[])
+            .iter()
+            .collect();
         if !before.trim().is_empty() {
-            out.push(Block::Para(inline_content(before.trim(), ctx, depth)));
+            out.push(Block::Para(inline_content(before.trim(), ctx)));
         }
         out.push(block);
-        let after: String = chars.get(end..).unwrap_or(&[]).iter().collect();
-        if !after.trim().is_empty() {
-            out.append(&mut split_on_embedded_code(&after, ctx, depth + 1));
-        }
-        out
-    } else if text.trim().is_empty() {
-        Vec::new()
-    } else {
-        vec![Block::Para(inline_content(text.trim(), ctx, depth))]
+        from += end;
     }
+    let tail: String = chars.get(from..).unwrap_or(&[]).iter().collect();
+    if !tail.trim().is_empty() {
+        out.push(Block::Para(inline_content(tail.trim(), ctx)));
+    }
+    out
 }
 
 /// The first `<code>`/`<file>` region in `chars` that carries a closing tag, as its start index, the
@@ -345,7 +342,7 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
 }
 
 /// Parse a run of blockquote lines, nesting by `>` depth.
-fn parse_quote(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Block {
+fn parse_quote(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
     let mut items = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -358,16 +355,19 @@ fn parse_quote(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Blo
         *index += 1;
     }
     let mut pos = 0;
-    Block::BlockQuote(build_quote(&items, &mut pos, 1, ctx, depth))
+    Block::BlockQuote(build_quote(&items, &mut pos, 1, ctx))
 }
 
 /// Build the blocks of a blockquote at nesting `level`, recursing into deeper runs.
-fn build_quote(
+fn build_quote(items: &[(usize, String)], pos: &mut usize, level: usize, ctx: Ctx) -> Vec<Block> {
+    carta_core::with_stack(|| build_quote_nested(items, pos, level, ctx))
+}
+
+fn build_quote_nested(
     items: &[(usize, String)],
     pos: &mut usize,
     level: usize,
     ctx: Ctx,
-    depth: usize,
 ) -> Vec<Block> {
     let mut blocks = Vec::new();
     while let Some((line_level, _)) = items.get(*pos) {
@@ -383,20 +383,12 @@ fn build_quote(
                 if !inlines.is_empty() {
                     inlines.push(Inline::LineBreak);
                 }
-                inlines.extend(inline_content(text, ctx, depth));
+                inlines.extend(inline_content(text, ctx));
                 *pos += 1;
             }
             blocks.push(Block::Plain(inlines));
-        } else if depth < MAX_DEPTH {
-            blocks.push(Block::BlockQuote(build_quote(
-                items,
-                pos,
-                level + 1,
-                ctx,
-                depth + 1,
-            )));
         } else {
-            *pos += 1;
+            blocks.push(Block::BlockQuote(build_quote(items, pos, level + 1, ctx)));
         }
     }
     blocks
@@ -406,6 +398,17 @@ fn build_quote(
 /// containers. The slug is formed from the heading's plain text (folded to ASCII first when `ascii`
 /// is set) and made unique within the document by the registry.
 pub(super) fn assign_heading_ids(
+    blocks: &mut [Block],
+    scheme: IdScheme,
+    ascii: bool,
+    registry: &mut IdRegistry,
+) {
+    carta_core::with_stack(|| {
+        assign_heading_ids_nested(blocks, scheme, ascii, registry);
+    });
+}
+
+fn assign_heading_ids_nested(
     blocks: &mut [Block],
     scheme: IdScheme,
     ascii: bool,
@@ -436,6 +439,12 @@ pub(super) fn assign_heading_ids(
 /// Drop soft line breaks that fall between two wide East Asian characters, where the break carries no
 /// visual width. The surrounding text runs are left separate rather than merged.
 pub(super) fn strip_wide_line_breaks(blocks: &mut [Block]) {
+    carta_core::with_stack(|| {
+        strip_wide_line_breaks_nested(blocks);
+    });
+}
+
+fn strip_wide_line_breaks_nested(blocks: &mut [Block]) {
     for block in blocks {
         match block {
             Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
@@ -458,6 +467,12 @@ pub(super) fn strip_wide_line_breaks(blocks: &mut [Block]) {
 
 /// Drop width-free soft breaks within one inline sequence, recursing into nested inline containers.
 fn strip_wide_in_inlines(inlines: &mut Vec<Inline>) {
+    carta_core::with_stack(|| {
+        strip_wide_in_inlines_nested(inlines);
+    });
+}
+
+fn strip_wide_in_inlines_nested(inlines: &mut Vec<Inline>) {
     for inline in inlines.iter_mut() {
         match inline {
             Inline::Emph(children)
@@ -568,8 +583,8 @@ fn is_east_asian_wide(c: char) -> bool {
 }
 
 /// Split text into lines and parse them as blocks.
-pub(super) fn parse_blocks_str(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
+pub(super) fn parse_blocks_str(text: &str, ctx: Ctx) -> Vec<Block> {
     let lines: Vec<&str> = text.split('\n').collect();
     let mut index = 0;
-    parse_blocks(&lines, &mut index, ctx, depth)
+    parse_blocks(&lines, &mut index, ctx)
 }

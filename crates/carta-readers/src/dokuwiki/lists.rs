@@ -2,9 +2,9 @@
 
 use carta_ast::{Block, ListAttributes, ListNumberDelim, ListNumberStyle};
 
+use super::Ctx;
 use super::helpers::leading_spaces;
 use super::inline::inline_content;
-use super::{Ctx, MAX_DEPTH};
 
 /// The list marker on a line: its indentation and whether it is ordered (`-`) rather than a bullet
 /// (`*`). A marker needs at least two leading spaces and a space after the marker character.
@@ -40,7 +40,7 @@ pub(super) fn opens_list(line: &str) -> bool {
 }
 
 /// Parse a thematically grouped run of list lines into one bullet or ordered list.
-pub(super) fn parse_list(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Block {
+pub(super) fn parse_list(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
     let start = *index;
     let mut items = Vec::new();
     while *index < lines.len() {
@@ -56,7 +56,7 @@ pub(super) fn parse_list(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usi
     let cutoff = list_cutoff(&items);
     let consumed = items.get(..cutoff).unwrap_or(&[]);
     let mut pos = 0;
-    let list = build_list(consumed, &mut pos, ctx, depth);
+    let list = build_list(consumed, &mut pos, ctx);
     // A marker-type switch or dedent below the opening level ends the list; rewind for a fresh parse.
     *index = start + pos;
     list
@@ -79,7 +79,11 @@ fn list_cutoff(items: &[(usize, bool, String)]) -> usize {
 
 /// Build one list (and its nested sublists) from the collected items, advancing `pos`. A deeper
 /// level opens a child list; the same level with the other marker ends this list.
-fn build_list(items: &[(usize, bool, String)], pos: &mut usize, ctx: Ctx, depth: usize) -> Block {
+fn build_list(items: &[(usize, bool, String)], pos: &mut usize, ctx: Ctx) -> Block {
+    carta_core::with_stack(|| build_list_nested(items, pos, ctx))
+}
+
+fn build_list_nested(items: &[(usize, bool, String)], pos: &mut usize, ctx: Ctx) -> Block {
     let (base_level, ordered) = items
         .get(*pos)
         .map_or((0, false), |(level, ordered, _)| (*level, *ordered));
@@ -92,20 +96,18 @@ fn build_list(items: &[(usize, bool, String)], pos: &mut usize, ctx: Ctx, depth:
             if *item_ordered != ordered {
                 break;
             }
-            let mut blocks = vec![Block::Plain(inline_content(text, ctx, depth))];
+            let mut blocks = vec![Block::Plain(inline_content(text, ctx))];
             *pos += 1;
-            if depth < MAX_DEPTH && items.get(*pos).is_some_and(|(l, _, _)| *l > base_level) {
-                blocks.push(build_list(items, pos, ctx, depth + 1));
+            if items.get(*pos).is_some_and(|(l, _, _)| *l > base_level) {
+                blocks.push(build_list(items, pos, ctx));
             }
             entries.push(blocks);
-        } else if depth < MAX_DEPTH {
-            let child = build_list(items, pos, ctx, depth + 1);
+        } else {
+            let child = build_list(items, pos, ctx);
             match entries.last_mut() {
                 Some(last) => last.push(child),
                 None => entries.push(vec![child]),
             }
-        } else {
-            *pos += 1;
         }
     }
     if ordered {
