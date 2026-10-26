@@ -549,12 +549,12 @@ fn element_helpers_cover_structural_values() {
 
     let content = Value::Content(vec![Block::Para(vec![text("body")])]);
     assert_eq!(
-        place_like("hide", &[positional_value(content.clone())]),
+        place_like("hide", vec![positional_value(content.clone())]),
         Value::Nothing
     );
-    assert_eq!(place_like("place", &[]), Value::Nothing);
+    assert_eq!(place_like("place", vec![]), Value::Nothing);
     assert!(matches!(
-        place_like("place", &[positional_value(content)]),
+        place_like("place", vec![positional_value(content)]),
         Value::Content(_)
     ));
 
@@ -574,7 +574,7 @@ fn element_helpers_cover_structural_values() {
     );
     assert!(rotation_angle(&[positional_value(Value::Number(1.0, "em".to_string()))]).is_empty());
 
-    let terms = term_entries(&[positional_value(Value::Array(
+    let terms = term_entries(vec![positional_value(Value::Array(
         vec![
             Value::Str("term".to_string()),
             Value::Str("definition".to_string()),
@@ -593,7 +593,7 @@ fn element_helpers_cover_structural_values() {
 #[test]
 fn value_weight_visits_each_document_shape() {
     let table = build_table(
-        &[
+        vec![
             named_value("columns", Value::Int(Integer::from(2usize))),
             positional_value(Value::Str("a".to_string())),
             positional_value(Value::Str("b".to_string())),
@@ -746,7 +746,7 @@ fn table_and_text_helpers_cover_edge_shapes() {
     ]);
     assert!(flattened.contains(&Inline::LineBreak));
 
-    let cell = cell_from(&Value::Group(
+    let cell = cell_from(Value::Group(
         GroupKind::Cell,
         vec![
             named_value("colspan", Value::Number(2.0, String::new())),

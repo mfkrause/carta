@@ -2644,11 +2644,11 @@ impl Parser {
                 return self.invoke(&callee, &fixed, args);
             }
             Some(Value::Ident(target)) if !self.functions.contains_key(&name) => {
-                return self.named_call(&target, &args);
+                return self.named_call(&target, args);
             }
             _ => {}
         }
-        self.named_call(&name, &args)
+        self.named_call(&name, args)
     }
 
     /// A copy of what `name` binds, spending the copying allowance that copy takes. Yields nothing
@@ -2686,20 +2686,17 @@ impl Parser {
 
     /// Call the function a name stands for: a `#let` binding first, then an element function, then
     /// whatever a whole-module import supplies.
-    fn named_call(&mut self, name: &str, args: &[Arg]) -> Value {
-        if let Some(value) = self.user_call(name, args) {
+    fn named_call(&mut self, name: &str, args: Vec<Arg>) -> Value {
+        if let Some(value) = self.user_call(name, &args) {
             return value;
         }
         if name == "bibliography" {
-            self.record_bibliography(args);
+            self.record_bibliography(&args);
         }
-        let value = self.call(name, args.to_vec());
-        if matches!(value, Value::Nothing)
-            && let Some(found) = self.glob_call(name, args)
-        {
-            return found;
+        match self.element_call(name, args) {
+            Ok(value) => value,
+            Err(args) => self.glob_call(name, &args).unwrap_or(Value::Nothing),
         }
-        value
     }
 
     /// Call a function value, with the arguments a partial application fixed coming first.
@@ -2708,7 +2705,7 @@ impl Parser {
         all.extend(args);
         match callee {
             Callee::Closure(function) => self.call_bound(function, &all),
-            Callee::Named(name) => self.named_call(name, &all),
+            Callee::Named(name) => self.named_call(name, all),
         }
     }
 
@@ -4485,7 +4482,15 @@ enum ListMarker {
 
 impl Parser {
     /// Evaluate a call to a named element function.
-    fn call(&mut self, name: &str, mut args: Vec<Arg>) -> Value {
+    fn call(&mut self, name: &str, args: Vec<Arg>) -> Value {
+        self.element_call(name, args).unwrap_or(Value::Nothing)
+    }
+
+    fn element_call(
+        &mut self,
+        name: &str,
+        mut args: Vec<Arg>,
+    ) -> std::result::Result<Value, Vec<Arg>> {
         if name != "type" {
             for arg in &mut args {
                 if let Value::Sequence(sequence) = &arg.value {
@@ -4493,22 +4498,38 @@ impl Parser {
                 }
             }
         }
-        match name {
-            "emph" => Value::Inlines(vec![Inline::Emph(first_inlines(&args))]),
-            "strong" => Value::Inlines(vec![Inline::Strong(first_inlines(&args))]),
-            "strike" => Value::Inlines(vec![Inline::Strikeout(first_inlines(&args))]),
-            "underline" => Value::Inlines(vec![Inline::Underline(first_inlines(&args))]),
+        Ok(match name {
+            "emph" => Value::Inlines(vec![Inline::Emph(take_first(&mut args).into_inlines())]),
+            "strong" => Value::Inlines(vec![Inline::Strong(take_first(&mut args).into_inlines())]),
+            "strike" => Value::Inlines(vec![Inline::Strikeout(
+                take_first(&mut args).into_inlines(),
+            )]),
+            "underline" => Value::Inlines(vec![Inline::Underline(
+                take_first(&mut args).into_inlines(),
+            )]),
             "overline" | "highlight" => Value::Nothing,
-            "smallcaps" => Value::Inlines(vec![Inline::SmallCaps(first_inlines(&args))]),
-            "super" => Value::Inlines(vec![Inline::Superscript(first_inlines(&args))]),
-            "sub" => Value::Inlines(vec![Inline::Subscript(first_inlines(&args))]),
-            "upper" => Value::Inlines(map_text(first_inlines(&args), str::to_uppercase)),
-            "lower" => Value::Inlines(map_text(first_inlines(&args), str::to_lowercase)),
-            "text" => match body_blocks(&args) {
+            "smallcaps" => Value::Inlines(vec![Inline::SmallCaps(
+                take_first(&mut args).into_inlines(),
+            )]),
+            "super" => Value::Inlines(vec![Inline::Superscript(
+                take_first(&mut args).into_inlines(),
+            )]),
+            "sub" => Value::Inlines(vec![Inline::Subscript(
+                take_first(&mut args).into_inlines(),
+            )]),
+            "upper" => Value::Inlines(map_text(
+                take_first(&mut args).into_inlines(),
+                str::to_uppercase,
+            )),
+            "lower" => Value::Inlines(map_text(
+                take_first(&mut args).into_inlines(),
+                str::to_lowercase,
+            )),
+            "text" => match body_blocks(&mut args) {
                 Some(blocks) => Value::Content(blocks),
-                None => text_call(&args),
+                None => text_call(args),
             },
-            "footnote" => Value::Inlines(vec![Inline::Note(first_blocks(&args))]),
+            "footnote" => Value::Inlines(vec![Inline::Note(take_first(&mut args).into_blocks())]),
             "cite" => Value::Inlines(vec![citation(
                 &positional_text(&args),
                 citation_mode(named(&args, "form")),
@@ -4520,7 +4541,7 @@ impl Parser {
                     .map(Value::into_inlines)
                     .unwrap_or_default(),
             )]),
-            "link" => link_call(&args),
+            "link" => link_call(args),
             "image" => Value::Inlines(vec![image(&args, self.base())]),
             "raw" => raw_call(&args),
             "label" => Value::Label(positional_text(&args)),
@@ -4528,37 +4549,37 @@ impl Parser {
             "linebreak" => Value::Inlines(vec![Inline::LineBreak]),
             "datetime" => datetime(&args),
             "parbreak" | "colbreak" | "v" | "outline" | "counter" | "numbering" | "metadata"
-            | "place" | "hide" | "repeat" | "pad" | "move" | "scale" => place_like(name, &args),
+            | "place" | "hide" | "repeat" | "pad" | "move" | "scale" => place_like(name, args),
             "rotate" => wrap_body(
-                &args,
                 Attr {
                     classes: vec!["rotate".into()],
                     attributes: rotation_angle(&args),
                     ..Attr::default()
                 },
-                content_inlines(&args),
+                take_body,
+                &mut args,
             ),
             "read" | "csv" | "json" | "toml" | "yaml" | "xml" => self.data_call(name, &args),
             "h" => Value::Inlines(vec![Inline::Str(horizontal_space(&args).as_str().into())]),
             "lorem" => Value::Inlines(text_inlines(&lorem(&args))),
             "box" => wrap_body(
-                &args,
                 Attr {
                     classes: vec!["box".into()],
                     ..Attr::default()
                 },
-                first_inlines(&args),
+                take_first,
+                &mut args,
             ),
             "align" => wrap_body(
-                &args,
                 Attr {
                     attributes: vec![("align".into(), alignment_name(&args).as_str().into())],
                     ..Attr::default()
                 },
-                content_inlines(&args),
+                take_body,
+                &mut args,
             ),
-            _ => self.container_call(name, args),
-        }
+            _ => return self.container_call(name, args),
+        })
     }
 
     /// Evaluate a call to an element function that sets a block or a container.
@@ -4599,17 +4620,21 @@ impl Parser {
         args
     }
 
-    fn container_call(&mut self, name: &str, args: Vec<Arg>) -> Value {
-        match name {
-            "block" | "context" => Value::Content(first_blocks(&args)),
+    fn container_call(
+        &mut self,
+        name: &str,
+        mut args: Vec<Arg>,
+    ) -> std::result::Result<Value, Vec<Arg>> {
+        Ok(match name {
+            "block" | "context" => Value::Content(take_first(&mut args).into_blocks()),
             "stack" => Value::Content(vec![Block::Div(
                 Box::new(Attr {
                     attributes: vec![("stack".into(), stack_direction(&args).into())],
                     ..Attr::default()
                 }),
-                args.iter()
+                args.into_iter()
                     .filter(|arg| arg.name.is_none())
-                    .map(|arg| Block::Div(Box::default(), arg.value.clone().into_blocks()))
+                    .map(|arg| Block::Div(Box::default(), arg.value.into_blocks()))
                     .collect(),
             )]),
             "columns" => Value::Content(vec![Block::Div(
@@ -4618,7 +4643,7 @@ impl Parser {
                     attributes: vec![("count".into(), column_count(&args).into())],
                     ..Attr::default()
                 }),
-                content_blocks(&args),
+                take_body(&mut args).into_blocks(),
             )]),
             "rect" | "circle" | "ellipse" | "square" | "polygon" | "path" | "curve" => {
                 Value::Content(vec![Block::Div(
@@ -4626,7 +4651,7 @@ impl Parser {
                         classes: vec![name.into()],
                         ..Attr::default()
                     }),
-                    first_blocks(&args),
+                    take_first(&mut args).into_blocks(),
                 )])
             }
             "line" => Value::Content(vec![Block::HorizontalRule]),
@@ -4638,17 +4663,17 @@ impl Parser {
                 }),
                 vec![Block::HorizontalRule],
             )]),
-            "heading" => Self::heading_call(&args),
-            "quote" => Self::quote_call(&args),
-            "list" => Value::Content(vec![Block::BulletList(item_bodies(&args))]),
+            "heading" => Self::heading_call(&mut args),
+            "quote" => Self::quote_call(&mut args),
+            "list" => Value::Content(vec![Block::BulletList(item_bodies(args))]),
             "enum" => Value::Content(vec![Block::OrderedList(
                 enumeration_from(&args, &self.enumeration),
-                item_bodies(&args),
+                item_bodies(args),
             )]),
-            "terms" => Value::Content(vec![Block::DefinitionList(term_entries(&args))]),
+            "terms" => Value::Content(vec![Block::DefinitionList(term_entries(args))]),
             "table" | "grid" => {
                 let args = self.expand_alignment(args);
-                Value::Content(vec![build_table(&args, Caption::default())])
+                Value::Content(vec![build_table(args, Caption::default())])
             }
             "table.header" | "grid.header" => Value::Group(GroupKind::Header, args.into()),
             "table.footer" | "grid.footer" => Value::Group(GroupKind::Footer, args.into()),
@@ -4656,7 +4681,7 @@ impl Parser {
             "table.hline" | "table.vline" | "grid.hline" | "grid.vline" => {
                 Value::Group(GroupKind::Rule, args.into())
             }
-            "figure" => Value::Content(vec![figure(&args)]),
+            "figure" => Value::Content(vec![figure(args)]),
             "bibliography" => {
                 let heading =
                     bibliography_title(&args).map(|title| Block::Header(1, Box::default(), title));
@@ -4689,23 +4714,29 @@ impl Parser {
             "par" | "layout" => Value::Nothing,
             _ => match name.strip_prefix("calc.") {
                 Some(function) => calc_call(function, &args),
-                None => Self::unknown_call(name, args),
+                None => return Self::unknown_call(name, args),
             },
-        }
+        })
     }
 
     /// A call this reader does not model: a symbol path resolves to its character, anything else
     /// degrades to the content it was given.
-    fn unknown_call(name: &str, args: Vec<Arg>) -> Value {
+    fn unknown_call(name: &str, args: Vec<Arg>) -> std::result::Result<Value, Vec<Arg>> {
         if let Some(rest) = name
             .strip_prefix("sym.")
             .or_else(|| name.strip_prefix("math."))
             && let Some(entry) = symbol(rest)
         {
-            return Value::Inlines(vec![Inline::Str(entry.glyph.into())]);
+            return Ok(Value::Inlines(vec![Inline::Str(entry.glyph.into())]));
         }
         if let Some(entry) = symbol(name) {
-            return Value::Inlines(vec![Inline::Str(entry.glyph.into())]);
+            return Ok(Value::Inlines(vec![Inline::Str(entry.glyph.into())]));
+        }
+        if !args
+            .iter()
+            .any(|arg| arg.name.is_none() && matches!(arg.value, Value::Content(_)))
+        {
+            return Err(args);
         }
         let content: Vec<Block> = args
             .into_iter()
@@ -4714,13 +4745,13 @@ impl Parser {
             .flat_map(|arg| arg.value.into_blocks())
             .collect();
         if content.is_empty() {
-            Value::Nothing
+            Ok(Value::Nothing)
         } else {
-            Value::Content(content)
+            Ok(Value::Content(content))
         }
     }
 
-    fn heading_call(args: &[Arg]) -> Value {
+    fn heading_call(args: &mut [Arg]) -> Value {
         let level = named(args, "level")
             .and_then(Value::as_number)
             .unwrap_or(1.0);
@@ -4729,17 +4760,17 @@ impl Parser {
         Value::Content(vec![Block::Header(
             i64::from(level),
             Box::default(),
-            content_inlines(args),
+            take_body(args).into_inlines(),
         )])
     }
 
-    fn quote_call(args: &[Arg]) -> Value {
+    fn quote_call(args: &mut [Arg]) -> Value {
         if !matches!(named(args, "block"), Some(Value::Bool(true))) {
-            let mut body = content_inlines(args);
+            let mut body = take_body(args).into_inlines();
             trim_edge_space(&mut body);
             return Value::Inlines(vec![Inline::Quoted(QuoteType::DoubleQuote, body)]);
         }
-        let mut blocks = content_blocks(args);
+        let mut blocks = take_body(args).into_blocks();
         let source = named(args, "attribution");
         let attributed = source.is_some_and(|value| {
             !matches!(value, Value::Nothing)
@@ -4758,15 +4789,15 @@ impl Parser {
 }
 
 /// `#place`-like layout primitives: keep any content they wrap, drop the placement itself.
-fn place_like(name: &str, args: &[Arg]) -> Value {
+fn place_like(name: &str, args: Vec<Arg>) -> Value {
     if matches!(name, "hide" | "repeat" | "move" | "scale") {
         return Value::Nothing;
     }
     let blocks: Vec<Block> = args
-        .iter()
+        .into_iter()
         .filter(|arg| arg.name.is_none())
         .filter(|arg| matches!(arg.value, Value::Content(_) | Value::Inlines(_)))
-        .flat_map(|arg| arg.value.clone().into_blocks())
+        .flat_map(|arg| arg.value.into_blocks())
         .collect();
     if blocks.is_empty() {
         return Value::Nothing;
@@ -4796,20 +4827,21 @@ fn rotation_angle(args: &[Arg]) -> Vec<(Text, Text)> {
     vec![("angle".into(), text.as_str().into())]
 }
 
-/// The first positional argument as inline content.
-fn first_inlines(args: &[Arg]) -> Vec<Inline> {
-    args.iter()
+fn take_first(args: &mut [Arg]) -> Value {
+    args.iter_mut()
         .find(|arg| arg.name.is_none())
-        .map(|arg| arg.value.clone().into_inlines())
-        .unwrap_or_default()
+        .map_or(Value::Nothing, |arg| {
+            std::mem::replace(&mut arg.value, Value::Nothing)
+        })
 }
 
-/// The first positional argument as block content.
-fn first_blocks(args: &[Arg]) -> Vec<Block> {
-    args.iter()
-        .find(|arg| arg.name.is_none())
-        .map(|arg| arg.value.clone().into_blocks())
-        .unwrap_or_default()
+fn take_body(args: &mut [Arg]) -> Value {
+    args.iter_mut()
+        .rev()
+        .find(|arg| arg.name.is_none() && is_body(&arg.value))
+        .map_or(Value::Nothing, |arg| {
+            std::mem::replace(&mut arg.value, Value::Nothing)
+        })
 }
 
 /// Whether a positional argument stands as the content a call wraps rather than one of its
@@ -4831,37 +4863,53 @@ fn body_argument(args: &[Arg]) -> Option<&Value> {
         .map(|arg| &arg.value)
 }
 
-/// The body a call carries after its settings, as inline content.
-fn content_inlines(args: &[Arg]) -> Vec<Inline> {
-    body_argument(args)
-        .map(|value| value.clone().into_inlines())
-        .unwrap_or_default()
-}
-
 /// The blocks a content argument holds when what it holds is block-level: more than one block, or
 /// one block that is not a paragraph. Content that stays inline reports `None`.
-fn body_blocks(args: &[Arg]) -> Option<Vec<Block>> {
-    let blocks = content_blocks(args);
-    match blocks.as_slice() {
-        [] | [Block::Para(_) | Block::Plain(_)] => None,
-        _ => Some(blocks),
+fn body_blocks(args: &mut [Arg]) -> Option<Vec<Block>> {
+    let body = body_argument(args)?;
+    let Value::Content(blocks) = body else {
+        return None;
+    };
+    let mut count = 0;
+    for (index, block) in blocks.iter().enumerate() {
+        match block {
+            Block::Plain(inlines) => {
+                let start = usize::from(
+                    index == 0
+                        && matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak)),
+                );
+                let end = if index + 1 == blocks.len() {
+                    inlines
+                        .iter()
+                        .rposition(|inline| !matches!(inline, Inline::Space | Inline::SoftBreak))
+                        .map_or(0, |position| position + 1)
+                } else {
+                    inlines.len()
+                };
+                if end <= start {
+                    continue;
+                }
+            }
+            Block::Para(_) => {}
+            _ => return Some(take_body(args).into_blocks()),
+        }
+        count += 1;
+        if count > 1 {
+            return Some(take_body(args).into_blocks());
+        }
     }
+    None
 }
 
-/// Wrap a styled body in the attributes its call sets: a division when the body is block-level, a
-/// span otherwise.
-fn wrap_body(args: &[Arg], attr: Attr, inlines: Vec<Inline>) -> Value {
+/// Wrap a styled body in a division or span according to its block structure.
+fn wrap_body(attr: Attr, select: fn(&mut [Arg]) -> Value, args: &mut [Arg]) -> Value {
     match body_blocks(args) {
         Some(blocks) => Value::Content(vec![Block::Div(Box::new(attr), blocks)]),
-        None => Value::Inlines(vec![Inline::Span(Box::new(attr), inlines)]),
+        None => Value::Inlines(vec![Inline::Span(
+            Box::new(attr),
+            select(args).into_inlines(),
+        )]),
     }
-}
-
-/// The body a call carries after its settings, as block content.
-fn content_blocks(args: &[Arg]) -> Vec<Block> {
-    body_argument(args)
-        .map(|value| value.clone().into_blocks())
-        .unwrap_or_default()
 }
 
 /// An array written out the way source code spells it, for an array that reached content position.
@@ -5670,14 +5718,15 @@ fn map_text(inlines: Vec<Inline>, transform: fn(&str) -> String) -> Vec<Inline> 
 }
 
 /// `#text(..)`: only a bold weight changes the document model; other styling is presentational.
-fn text_call(args: &[Arg]) -> Value {
-    let body = content_inlines(args);
+fn text_call(mut args: Vec<Arg>) -> Value {
+    let bold = named(&args, "weight").is_some_and(|value| value.as_text() == "bold");
+    let body = take_body(&mut args).into_inlines();
     let body = if body.is_empty() {
-        text_inlines(&positional_text(args))
+        text_inlines(&positional_text(&args))
     } else {
         body
     };
-    if named(args, "weight").is_some_and(|value| value.as_text() == "bold") {
+    if bold {
         return Value::Inlines(vec![Inline::Strong(body)]);
     }
     Value::Inlines(body)
@@ -5767,13 +5816,14 @@ fn fraction_space(fraction: f64) -> char {
 }
 
 /// Read the term list entries, each written as a term and description pair.
-fn term_entries(args: &[Arg]) -> Vec<(Vec<Inline>, Vec<Vec<Block>>)> {
-    args.iter()
+fn term_entries(args: Vec<Arg>) -> Vec<(Vec<Inline>, Vec<Vec<Block>>)> {
+    args.into_iter()
         .filter(|arg| arg.name.is_none())
-        .filter_map(|arg| match &arg.value {
+        .filter_map(|arg| match arg.value {
             Value::Array(items) if items.len() == 2 => {
-                let term = items.first()?.clone().into_inlines();
-                let description = items.get(1)?.clone().into_blocks();
+                let mut items = items.into_iter();
+                let term = items.next()?.into_inlines();
+                let description = items.next()?.into_blocks();
                 Some((term, vec![description]))
             }
             _ => None,
@@ -5791,17 +5841,17 @@ fn raw_call(args: &[Arg]) -> Value {
     Value::Inlines(vec![Inline::Code(Box::default(), body.as_str().into())])
 }
 
-fn link_call(args: &[Arg]) -> Value {
-    let url = match positional(args) {
+fn link_call(mut args: Vec<Arg>) -> Value {
+    let url = match positional(&args) {
         Some(Value::Label(name)) => format!("#{name}"),
-        _ => positional_text(args),
+        _ => positional_text(&args),
     };
     // An absent or empty link body uses the destination; a rule counts as body content.
-    let past_target: Vec<&Value> = args
-        .iter()
+    let past_target: Vec<&mut Value> = args
+        .iter_mut()
         .filter(|arg| arg.name.is_none())
         .skip(1)
-        .map(|arg| &arg.value)
+        .map(|arg| &mut arg.value)
         .collect();
     let written = past_target
         .into_iter()
@@ -5809,7 +5859,7 @@ fn link_call(args: &[Arg]) -> Value {
         .find(|value| is_body(value))
         .filter(|value| !matches!(value, Value::Content(blocks) if blocks.is_empty()));
     let body = match written {
-        Some(value) => value.clone().into_inlines(),
+        Some(value) => std::mem::replace(value, Value::Nothing).into_inlines(),
         None => vec![Inline::Str(url.as_str().into())],
     };
     Value::Inlines(vec![Inline::Link(
@@ -5923,11 +5973,11 @@ fn alignment_name(args: &[Arg]) -> String {
 }
 
 /// The bodies of the items an explicit `#list(..)` / `#enum(..)` call carries.
-fn item_bodies(args: &[Arg]) -> Vec<Vec<Block>> {
-    args.iter()
+fn item_bodies(args: Vec<Arg>) -> Vec<Vec<Block>> {
+    args.into_iter()
         .filter(|arg| arg.name.is_none())
         .map(|arg| {
-            let blocks = arg.value.clone().into_blocks();
+            let blocks = arg.value.into_blocks();
             if blocks.is_empty() {
                 vec![Block::Para(Vec::new())]
             } else {
@@ -5964,8 +6014,8 @@ reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Ex
 occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 
 /// Build a figure: a wrapped table takes the caption directly, anything else becomes a figure block.
-fn figure(args: &[Arg]) -> Block {
-    let mut caption_inlines = named(args, "caption")
+fn figure(mut args: Vec<Arg>) -> Block {
+    let mut caption_inlines = named(&args, "caption")
         .map(|value| value.clone().into_inlines())
         .unwrap_or_default();
     trim_edge_space(&mut caption_inlines);
@@ -5977,32 +6027,38 @@ fn figure(args: &[Arg]) -> Block {
             vec![Block::Para(caption_inlines)]
         },
     };
-    let body = first_blocks(args);
-    if let [Block::Table(table)] = body.as_slice() {
-        let mut table = table.clone();
-        table.caption = caption;
-        return Block::Table(table);
+    let mut body = take_first(&mut args).into_blocks();
+    if body.len() == 1
+        && let Some(block) = body.pop()
+    {
+        match block.into_parts() {
+            BlockParts::Table(mut table) => {
+                table.caption = caption;
+                return Block::Table(table);
+            }
+            other => body.push(other.into()),
+        }
     }
     Block::Figure(Box::default(), Box::new(caption), body)
 }
 
 /// Assemble a table from the column settings and the flat sequence of cells that follows them.
-fn build_table(args: &[Arg], caption: Caption) -> Block {
-    let columns = column_specs(args);
+fn build_table(args: Vec<Arg>, caption: Caption) -> Block {
+    let columns = column_specs(&args);
     let count = columns.len().max(1);
     let mut head_rows = Vec::new();
     let mut foot_rows = Vec::new();
     let mut body_rows = Vec::new();
     let mut pending: Vec<Cell> = Vec::new();
-    for arg in args.iter().filter(|arg| arg.name.is_none()) {
-        match &arg.value {
+    for arg in args.into_iter().filter(|arg| arg.name.is_none()) {
+        match arg.value {
             Value::Group(GroupKind::Header, inner) => {
                 body_rows.extend(lay_out_rows(std::mem::take(&mut pending), count));
-                head_rows.extend(lay_out_rows(cells_from(inner), count));
+                head_rows.extend(lay_out_rows(cells_from(inner.into()), count));
             }
             Value::Group(GroupKind::Footer, inner) => {
                 body_rows.extend(lay_out_rows(std::mem::take(&mut pending), count));
-                foot_rows.extend(lay_out_rows(cells_from(inner), count));
+                foot_rows.extend(lay_out_rows(cells_from(inner.into()), count));
             }
             Value::Group(GroupKind::Rule, _) => {}
             other => pending.push(cell_from(other)),
@@ -6031,10 +6087,10 @@ fn build_table(args: &[Arg], caption: Caption) -> Block {
 }
 
 /// The cells a `table.header(..)` / `table.footer(..)` grouping contributes.
-fn cells_from(args: &[Arg]) -> Vec<Cell> {
-    args.iter()
+fn cells_from(args: Vec<Arg>) -> Vec<Cell> {
+    args.into_iter()
         .filter(|arg| arg.name.is_none())
-        .map(|arg| cell_from(&arg.value))
+        .map(|arg| cell_from(arg.value))
         .collect()
 }
 
@@ -6128,16 +6184,16 @@ fn lay_out_rows(cells: Vec<Cell>, count: usize) -> Vec<Row> {
     rows
 }
 
-fn cell_from(value: &Value) -> Cell {
-    if let Value::Group(GroupKind::Cell, inner) = value {
-        let col_span = named(inner, "colspan")
+fn cell_from(value: Value) -> Cell {
+    if let Value::Group(GroupKind::Cell, mut inner) = value {
+        let col_span = named(&inner, "colspan")
             .and_then(Value::as_number)
             .map_or(1, |n| {
                 #[allow(clippy::cast_possible_truncation)]
                 let span = n as i64;
                 span.max(1)
             });
-        let row_span = named(inner, "rowspan")
+        let row_span = named(&inner, "rowspan")
             .and_then(Value::as_number)
             .map_or(1, |n| {
                 #[allow(clippy::cast_possible_truncation)]
@@ -6146,10 +6202,10 @@ fn cell_from(value: &Value) -> Cell {
             });
         return Cell {
             attr: Attr::default(),
-            align: named(inner, "align").map_or(Alignment::AlignDefault, alignment_of),
+            align: named(&inner, "align").map_or(Alignment::AlignDefault, alignment_of),
             row_span,
             col_span,
-            content: first_blocks(inner),
+            content: take_first(&mut inner).into_blocks(),
         };
     }
     Cell {
@@ -6157,7 +6213,7 @@ fn cell_from(value: &Value) -> Cell {
         align: Alignment::AlignDefault,
         row_span: 1,
         col_span: 1,
-        content: value.clone().into_blocks(),
+        content: value.into_blocks(),
     }
 }
 
