@@ -179,81 +179,57 @@ pub(super) fn starts_block_tag(chars: &[char], pos: usize) -> bool {
         .any(|name| tag_name_matches(chars, pos + 1, name))
 }
 
-/// The count of `<ref>` tags opened but not yet closed within `chars[start..end]`. A self-closing
-/// `<ref … />` opens nothing; verbatim regions are stepped over so a `<ref>` inside `<nowiki>` does
-/// not count. Used to keep a paragraph open until a `<ref>` note's body is complete.
-pub(super) fn open_ref_depth(
-    chars: &[char],
-    start: usize,
-    end: usize,
-    bounds: ScanBounds<'_>,
-) -> i32 {
-    let mut depth = 0i32;
-    let mut i = start;
-    while i < end {
-        if at(chars, i) == Some('<') {
-            if let Some(after) = verbatim_region_end(chars, i, bounds) {
-                i = after;
-                continue;
-            }
-            if at(chars, i + 1) == Some('/') {
-                if tag_name_matches(chars, i + 2, "ref") {
-                    depth = (depth - 1).max(0);
-                }
-            } else if tag_name_matches(chars, i + 1, "ref")
-                && let Some((_, _, self_closing, after)) = open_tag_bounded(chars, i, bounds)
-            {
-                if !self_closing {
-                    depth += 1;
-                }
-                i = after;
-                continue;
-            }
-        }
-        i += 1;
-    }
-    depth
+pub(super) struct ReferenceScan {
+    position: usize,
+    open: Vec<bool>,
 }
 
-/// Whether the innermost `<ref>` still open at `end` has a body that begins on a fresh line: its
-/// open tag is the last non-blank thing on its line. Such a note is read as block content, so its
-/// body may hold lists and other block constructs; a note opened with text on the same line reads as
-/// inline content and a following block-level line ends it instead of joining it.
-pub(super) fn open_ref_block_bodied(
-    chars: &[char],
-    start: usize,
-    end: usize,
-    bounds: ScanBounds<'_>,
-) -> bool {
-    let mut stack: Vec<bool> = Vec::new();
-    let mut i = start;
-    while i < end {
-        if at(chars, i) == Some('<') {
-            if let Some(after) = verbatim_region_end(chars, i, bounds) {
-                i = after;
-                continue;
-            }
-            if at(chars, i + 1) == Some('/') {
-                if tag_name_matches(chars, i + 2, "ref") {
-                    stack.pop();
-                }
-            } else if tag_name_matches(chars, i + 1, "ref")
-                && let Some((_, _, self_closing, after)) = open_tag_bounded(chars, i, bounds)
-            {
-                if !self_closing {
-                    let mut j = after;
-                    while matches!(at(chars, j), Some(' ' | '\t')) {
-                        j += 1;
-                    }
-                    stack.push(matches!(at(chars, j), None | Some('\n')));
-                }
-                i = after;
-                continue;
-            }
+impl ReferenceScan {
+    pub(super) fn new(position: usize) -> Self {
+        Self {
+            position,
+            open: Vec::new(),
         }
-        i += 1;
     }
-    stack.last().copied().unwrap_or(false)
+
+    /// Return whether the innermost open note starts with a block body.
+    pub(super) fn until(
+        &mut self,
+        chars: &[char],
+        end: usize,
+        bounds: ScanBounds<'_>,
+    ) -> Option<bool> {
+        while self.position < end {
+            let position = self.position;
+            if at(chars, position) == Some('<') {
+                if let Some(after) = verbatim_region_end(chars, position, bounds) {
+                    self.position = after;
+                    continue;
+                }
+                if at(chars, position + 1) == Some('/') {
+                    if tag_name_matches(chars, position + 2, "ref") {
+                        self.open.pop();
+                    }
+                } else if tag_name_matches(chars, position + 1, "ref")
+                    && let Some((_, _, self_closing, after)) =
+                        open_tag_bounded(chars, position, bounds)
+                {
+                    if !self_closing {
+                        let mut content = after;
+                        while matches!(at(chars, content), Some(' ' | '\t')) {
+                            content += 1;
+                        }
+                        self.open
+                            .push(matches!(at(chars, content), None | Some('\n')));
+                    }
+                    self.position = after;
+                    continue;
+                }
+            }
+            self.position += 1;
+        }
+        self.open.last().copied()
+    }
 }
 
 /// The role of a recognized HTML element, or `None` when the name is not a recognized HTML tag (in

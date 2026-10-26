@@ -10,8 +10,8 @@ use super::emphasis::{
 };
 use super::links::para_or_figure;
 use super::tags::{
-    close_tag_bounded, close_tag_parse, enclosed, html_li_content_bounds, open_ref_block_bodied,
-    open_ref_depth, open_tag_bounded, starts_block_tag, tag_attribute, tag_name_matches,
+    ReferenceScan, close_tag_bounded, close_tag_parse, enclosed, html_li_content_bounds,
+    open_tag_bounded, starts_block_tag, tag_attribute, tag_name_matches,
 };
 use super::{
     Parser, ScanBounds, Tok, at, balanced_braces, collect_range, format_html, format_mediawiki,
@@ -292,6 +292,7 @@ impl Parser<'_> {
     ) -> (Vec<Block>, usize) {
         let n = chars.len();
         let mut cur = pos;
+        let mut references = ReferenceScan::new(pos);
         let content_end = loop {
             let le = self.line_end(chars, cur);
             if le >= n {
@@ -304,10 +305,10 @@ impl Parser<'_> {
                 break le;
             }
             // Keep unclosed note bodies across blank lines; block openers join only block notes.
-            let ref_open = open_ref_depth(chars, pos, next, bounds) > 0;
+            let reference = references.until(chars, next, bounds);
             let next_end = self.line_end(chars, next);
             if is_blank(chars, next, next_end) {
-                if ref_open {
+                if reference.is_some() {
                     cur = next;
                     continue;
                 }
@@ -315,7 +316,7 @@ impl Parser<'_> {
                 break le;
             }
             if line_starts_block_scan(chars, next, scan) {
-                if ref_open && open_ref_block_bodied(chars, pos, next, bounds) {
+                if reference == Some(true) {
                     cur = next;
                     continue;
                 }
