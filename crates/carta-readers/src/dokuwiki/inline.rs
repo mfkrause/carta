@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Inline, MathType, QuoteType, Target, to_plain_text};
+use carta_ast::{Inline, InlineParts, MathType, QuoteType, Target, to_plain_text};
 
 use crate::entities;
 use crate::inline_text::trim_inline_ends;
@@ -835,26 +835,29 @@ fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
 fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::with_capacity(inlines.len());
     for inline in inlines {
-        match inline {
-            Inline::Str(s) => {
+        match inline.into_parts() {
+            InlineParts::Str(s) => {
                 if let Some(Inline::Str(prev)) = out.last_mut() {
                     prev.push_str(&s);
                 } else if !s.is_empty() {
                     out.push(Inline::Str(s));
                 }
             }
-            Inline::Space | Inline::SoftBreak => match out.last() {
-                Some(Inline::Space) => {}
-                Some(Inline::SoftBreak) => {
-                    if matches!(inline, Inline::Space)
-                        && let Some(slot) = out.last_mut()
-                    {
-                        *slot = Inline::Space;
+            space @ (InlineParts::Space | InlineParts::SoftBreak) => {
+                let inline = Inline::from(space);
+                match out.last() {
+                    Some(Inline::Space) => {}
+                    Some(Inline::SoftBreak) => {
+                        if matches!(inline, Inline::Space)
+                            && let Some(slot) = out.last_mut()
+                        {
+                            *slot = Inline::Space;
+                        }
                     }
+                    _ => out.push(inline),
                 }
-                _ => out.push(inline),
-            },
-            other => out.push(other),
+            }
+            other => out.push(other.into()),
         }
     }
     out

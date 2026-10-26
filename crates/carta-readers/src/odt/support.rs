@@ -48,9 +48,9 @@ pub(super) fn flush_code(out: &mut Vec<Block>, code: &mut Vec<String>) {
 pub(super) fn compact(mut blocks: Vec<Block>) -> Vec<Block> {
     if blocks.len() == 1
         && matches!(blocks.first(), Some(Block::Para(_)))
-        && let Some(Block::Para(inlines)) = blocks.pop()
+        && let Some(Block::Para(inlines)) = blocks.pop().as_mut()
     {
-        blocks.push(Block::Plain(inlines));
+        blocks.push(Block::Plain(std::mem::take(inlines)));
     }
     blocks
 }

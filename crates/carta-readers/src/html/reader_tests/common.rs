@@ -33,8 +33,8 @@ pub(super) fn first_block(input: &str) -> Block {
 }
 
 pub(super) fn para_inlines(input: &str) -> Vec<Inline> {
-    match first_block(input) {
-        Block::Para(inlines) | Block::Plain(inlines) => inlines,
+    match first_block(input).into_parts() {
+        carta_ast::BlockParts::Para(inlines) | carta_ast::BlockParts::Plain(inlines) => inlines,
         other => panic!("expected a paragraph, got {other:?}"),
     }
 }
@@ -46,8 +46,14 @@ pub(super) fn read_with_text_ext(input: &str, added: &[Extension]) -> Vec<Block>
 }
 
 pub(super) fn para_inlines_ext(input: &str, added: &[Extension]) -> Vec<Inline> {
-    match read_with_text_ext(input, added).into_iter().next() {
-        Some(Block::Para(inlines) | Block::Plain(inlines)) => inlines,
+    match read_with_text_ext(input, added)
+        .into_iter()
+        .next()
+        .map(Block::into_parts)
+    {
+        Some(carta_ast::BlockParts::Para(inlines) | carta_ast::BlockParts::Plain(inlines)) => {
+            inlines
+        }
         other => panic!("expected a paragraph, got {other:?}"),
     }
 }

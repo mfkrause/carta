@@ -1,6 +1,6 @@
 //! Emphasis resolution, smart quotes, and inline coalescing.
 
-use carta_ast::{Inline, QuoteType};
+use carta_ast::{Inline, InlineParts, QuoteType};
 
 use super::{Tok, raw_html};
 
@@ -167,27 +167,27 @@ pub(super) fn apply_smart_quotes(inlines: Vec<Inline>) -> Vec<Inline> {
 /// Applies the double-quote fold to the inline children of a container, leaving leaf and opaque
 /// inlines (text, code, math, raw passthrough, notes) untouched.
 fn smart_descend(inline: Inline) -> Inline {
-    match inline {
-        Inline::Emph(v) => Inline::Emph(apply_smart_quotes(v)),
-        Inline::Underline(v) => Inline::Underline(apply_smart_quotes(v)),
-        Inline::Strong(v) => Inline::Strong(apply_smart_quotes(v)),
-        Inline::Strikeout(v) => Inline::Strikeout(apply_smart_quotes(v)),
-        Inline::Superscript(v) => Inline::Superscript(apply_smart_quotes(v)),
-        Inline::Subscript(v) => Inline::Subscript(apply_smart_quotes(v)),
-        Inline::SmallCaps(v) => Inline::SmallCaps(apply_smart_quotes(v)),
-        Inline::Quoted(quote_type, v) => Inline::Quoted(quote_type, apply_smart_quotes(v)),
-        Inline::Span(attr, v) => Inline::Span(attr, apply_smart_quotes(v)),
-        Inline::Link(attr, v, target) => Inline::Link(attr, apply_smart_quotes(v), target),
-        Inline::Image(attr, v, target) => Inline::Image(attr, apply_smart_quotes(v), target),
-        other => other,
+    match inline.into_parts() {
+        InlineParts::Emph(v) => Inline::Emph(apply_smart_quotes(v)),
+        InlineParts::Underline(v) => Inline::Underline(apply_smart_quotes(v)),
+        InlineParts::Strong(v) => Inline::Strong(apply_smart_quotes(v)),
+        InlineParts::Strikeout(v) => Inline::Strikeout(apply_smart_quotes(v)),
+        InlineParts::Superscript(v) => Inline::Superscript(apply_smart_quotes(v)),
+        InlineParts::Subscript(v) => Inline::Subscript(apply_smart_quotes(v)),
+        InlineParts::SmallCaps(v) => Inline::SmallCaps(apply_smart_quotes(v)),
+        InlineParts::Quoted(quote_type, v) => Inline::Quoted(quote_type, apply_smart_quotes(v)),
+        InlineParts::Span(attr, v) => Inline::Span(attr, apply_smart_quotes(v)),
+        InlineParts::Link(attr, v, target) => Inline::Link(attr, apply_smart_quotes(v), target),
+        InlineParts::Image(attr, v, target) => Inline::Image(attr, apply_smart_quotes(v), target),
+        other => other.into(),
     }
 }
 
 fn flatten_smart(inlines: Vec<Inline>) -> Vec<SmartUnit> {
     let mut units: Vec<SmartUnit> = Vec::new();
     for inline in inlines {
-        match inline {
-            Inline::Str(text) => {
+        match inline.into_parts() {
+            InlineParts::Str(text) => {
                 for c in text.chars() {
                     if c == '"' {
                         units.push(SmartUnit::Quote);
@@ -196,10 +196,10 @@ fn flatten_smart(inlines: Vec<Inline>) -> Vec<SmartUnit> {
                     }
                 }
             }
-            space @ (Inline::Space | Inline::SoftBreak | Inline::LineBreak) => {
-                units.push(SmartUnit::Space(space));
+            space @ (InlineParts::Space | InlineParts::SoftBreak | InlineParts::LineBreak) => {
+                units.push(SmartUnit::Space(space.into()));
             }
-            other => units.push(SmartUnit::Node(other)),
+            other => units.push(SmartUnit::Node(other.into())),
         }
     }
     units
@@ -270,16 +270,16 @@ fn next_smart_quote(units: &[SmartUnit], from: usize, hi: usize) -> Option<usize
 pub(super) fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     for inline in inlines {
-        let inline = match inline {
-            Inline::Emph(xs) => Inline::Emph(coalesce(xs)),
-            Inline::Strong(xs) => Inline::Strong(coalesce(xs)),
-            Inline::Strikeout(xs) => Inline::Strikeout(coalesce(xs)),
-            Inline::Superscript(xs) => Inline::Superscript(coalesce(xs)),
-            Inline::Subscript(xs) => Inline::Subscript(coalesce(xs)),
-            Inline::Underline(xs) => Inline::Underline(coalesce(xs)),
-            Inline::SmallCaps(xs) => Inline::SmallCaps(coalesce(xs)),
-            Inline::Span(attr, xs) => Inline::Span(attr, coalesce(xs)),
-            other => other,
+        let inline = match inline.into_parts() {
+            InlineParts::Emph(xs) => Inline::Emph(coalesce(xs)),
+            InlineParts::Strong(xs) => Inline::Strong(coalesce(xs)),
+            InlineParts::Strikeout(xs) => Inline::Strikeout(coalesce(xs)),
+            InlineParts::Superscript(xs) => Inline::Superscript(coalesce(xs)),
+            InlineParts::Subscript(xs) => Inline::Subscript(coalesce(xs)),
+            InlineParts::Underline(xs) => Inline::Underline(coalesce(xs)),
+            InlineParts::SmallCaps(xs) => Inline::SmallCaps(coalesce(xs)),
+            InlineParts::Span(attr, xs) => Inline::Span(attr, coalesce(xs)),
+            other => other.into(),
         };
         match (out.last_mut(), &inline) {
             (Some(Inline::Str(prev)), Inline::Str(next)) => prev.push_str(next),
@@ -395,9 +395,9 @@ pub(super) fn preformat_transform(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let mut run = String::new();
     for inline in inlines {
-        match inline {
-            Inline::Str(s) => run.push_str(&s.replace(' ', "\u{a0}")),
-            Inline::Space | Inline::SoftBreak => run.push('\u{a0}'),
+        match inline.into_parts() {
+            InlineParts::Str(s) => run.push_str(&s.replace(' ', "\u{a0}")),
+            InlineParts::Space | InlineParts::SoftBreak => run.push('\u{a0}'),
             other => {
                 if !run.is_empty() {
                     out.push(Inline::Code(
@@ -405,7 +405,7 @@ pub(super) fn preformat_transform(inlines: Vec<Inline>) -> Vec<Inline> {
                         std::mem::take(&mut run).into(),
                     ));
                 }
-                out.push(preformat_descend(other));
+                out.push(preformat_descend(other.into()));
             }
         }
     }
@@ -418,16 +418,16 @@ pub(super) fn preformat_transform(inlines: Vec<Inline>) -> Vec<Inline> {
 /// Recurses preformatting into a wrapper inline, leaving leaf inlines (code, math, breaks, raw)
 /// untouched.
 fn preformat_descend(inline: Inline) -> Inline {
-    match inline {
-        Inline::Emph(xs) => Inline::Emph(preformat_transform(xs)),
-        Inline::Strong(xs) => Inline::Strong(preformat_transform(xs)),
-        Inline::Strikeout(xs) => Inline::Strikeout(preformat_transform(xs)),
-        Inline::Superscript(xs) => Inline::Superscript(preformat_transform(xs)),
-        Inline::Subscript(xs) => Inline::Subscript(preformat_transform(xs)),
-        Inline::Underline(xs) => Inline::Underline(preformat_transform(xs)),
-        Inline::SmallCaps(xs) => Inline::SmallCaps(preformat_transform(xs)),
-        Inline::Span(attr, xs) => Inline::Span(attr, preformat_transform(xs)),
-        Inline::Link(attr, xs, target) => Inline::Link(attr, preformat_transform(xs), target),
-        other => other,
+    match inline.into_parts() {
+        InlineParts::Emph(xs) => Inline::Emph(preformat_transform(xs)),
+        InlineParts::Strong(xs) => Inline::Strong(preformat_transform(xs)),
+        InlineParts::Strikeout(xs) => Inline::Strikeout(preformat_transform(xs)),
+        InlineParts::Superscript(xs) => Inline::Superscript(preformat_transform(xs)),
+        InlineParts::Subscript(xs) => Inline::Subscript(preformat_transform(xs)),
+        InlineParts::Underline(xs) => Inline::Underline(preformat_transform(xs)),
+        InlineParts::SmallCaps(xs) => Inline::SmallCaps(preformat_transform(xs)),
+        InlineParts::Span(attr, xs) => Inline::Span(attr, preformat_transform(xs)),
+        InlineParts::Link(attr, xs, target) => Inline::Link(attr, preformat_transform(xs), target),
+        other => other.into(),
     }
 }

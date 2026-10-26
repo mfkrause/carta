@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::mem;
 
-use carta_ast::{Attr, Block, Caption, Inline, MetaValue, Text};
+use carta_ast::{Attr, Block, BlockParts, Caption, Inline, MetaValue, Text};
 use carta_core::Extensions;
 
 use crate::heading_ids::IdRegistry;
@@ -163,8 +163,8 @@ fn apply_affiliated(block: Block, pending: &mut Affiliated) -> Block {
         return block;
     }
     let Affiliated { caption, name } = mem::take(pending);
-    match block {
-        Block::Para(inlines) if is_lone_image(&inlines) => {
+    match block.into_parts() {
+        BlockParts::Para(inlines) if is_lone_image(&inlines) => {
             let attr = Attr {
                 id: name.unwrap_or_default().into(),
                 ..Attr::default()
@@ -176,13 +176,13 @@ fn apply_affiliated(block: Block, pending: &mut Affiliated) -> Block {
                 vec![Block::Plain(inlines)],
             )
         }
-        Block::CodeBlock(mut attr, text) => {
+        BlockParts::CodeBlock(mut attr, text) => {
             if let Some(name) = name {
                 attr.id = name.into();
             }
             Block::CodeBlock(attr, text)
         }
-        other => other,
+        other => other.into(),
     }
 }
 

@@ -1,7 +1,7 @@
 //! Directive body parsing and shared attribute and table helpers.
 
 use super::markers::field_marker;
-use carta_ast::{Alignment, Attr, Block, Cell, Inline, Row};
+use carta_ast::{Alignment, Attr, Block, BlockParts, Cell, Inline, Row};
 
 // directive helpers
 
@@ -421,8 +421,8 @@ pub(super) fn splice_lone_span(mut inlines: Vec<Inline>) -> Vec<Inline> {
         [Inline::Span(attr, _)]
             if attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty()
     );
-    if lone_plain_span && let Some(Inline::Span(_, inner)) = inlines.pop() {
-        return inner;
+    if lone_plain_span && let Some(Inline::Span(_, inner)) = inlines.pop().as_mut() {
+        return std::mem::take(inner);
     }
     inlines
 }
@@ -544,8 +544,8 @@ pub(super) fn capitalize(text: &str) -> String {
 
 /// Demote a leading paragraph to a plain block, leaving any other block unchanged.
 pub(super) fn to_plain(block: Block) -> Block {
-    match block {
-        Block::Para(inlines) => Block::Plain(inlines),
-        other => other,
+    match block.into_parts() {
+        BlockParts::Para(inlines) => Block::Plain(inlines),
+        other => other.into(),
     }
 }

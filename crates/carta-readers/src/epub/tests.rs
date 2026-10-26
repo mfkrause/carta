@@ -423,7 +423,7 @@ fn deeply_nested_markup_reads_from_a_small_caller_stack() {
     );
     let epub = build(&opf, &[("OEBPS/a.xhtml", body.as_bytes())]);
 
-    // Use a shallow caller stack; leak the deep tree to avoid recursive drop overflow.
+    // Parsing and dropping the document must fit a shallow caller stack.
     let depth = std::thread::Builder::new()
         .stack_size(512 * 1024)
         .spawn(move || {
@@ -431,7 +431,7 @@ fn deeply_nested_markup_reads_from_a_small_caller_stack() {
                 .read_media(&epub, &options())
                 .expect("read deeply nested epub");
             let depth = div_nesting_depth(&document.blocks);
-            std::mem::forget(document);
+            drop(document);
             depth
         })
         .expect("spawn shallow caller")

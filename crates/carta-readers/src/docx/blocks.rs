@@ -83,15 +83,15 @@ impl BlockSink {
     }
 
     /// Records a table, folding a preceding caption into its caption slot when one is held.
-    pub(super) fn emit_table(&mut self, block: Block) {
+    pub(super) fn emit_table(&mut self, mut block: Block) {
         self.flush();
-        if let Block::Table(mut table) = block {
+        if let Block::Table(table) = &mut block {
             match self.pending_caption.take() {
                 Some(long) => {
                     table.caption = Caption { short: None, long };
-                    self.place(Block::Table(table), Attachable::None);
+                    self.place(block, Attachable::None);
                 }
-                None => self.place(Block::Table(table), Attachable::Table),
+                None => self.place(block, Attachable::Table),
             }
         } else {
             self.release_caption();
@@ -106,12 +106,12 @@ impl BlockSink {
         match self.last_attachable {
             Attachable::Figure if matches!(self.blocks.last(), Some(Block::Para(_))) => {
                 self.last_attachable = Attachable::None;
-                if let Some(Block::Para(inlines)) = self.blocks.pop() {
+                if let Some(Block::Para(inlines)) = self.blocks.pop().as_mut() {
                     self.place(
                         Block::Figure(
                             Box::default(),
                             Box::new(Caption { short: None, long }),
-                            vec![Block::Plain(inlines)],
+                            vec![Block::Plain(std::mem::take(inlines))],
                         ),
                         Attachable::None,
                     );
@@ -119,9 +119,8 @@ impl BlockSink {
             }
             Attachable::Table if matches!(self.blocks.last(), Some(Block::Table(_))) => {
                 self.last_attachable = Attachable::None;
-                if let Some(Block::Table(mut table)) = self.blocks.pop() {
+                if let Some(Block::Table(table)) = self.blocks.last_mut() {
                     table.caption = Caption { short: None, long };
-                    self.place(Block::Table(table), Attachable::None);
                 }
             }
             _ => {

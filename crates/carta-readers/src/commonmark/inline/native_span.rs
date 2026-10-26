@@ -1,6 +1,6 @@
 //! Pair literal `<span>`/`</span>` raw-inline HTML into span nodes after inline resolution.
 
-use carta_ast::{Attr, Inline};
+use carta_ast::{Attr, Inline, InlineParts};
 
 use super::super::scan::{char_at, scan_entity};
 
@@ -57,20 +57,20 @@ fn pair_spans_level(
 
 /// Re-pair spans inside the child lists of a container inline.
 fn recurse_span_children(inline: Inline) -> Inline {
-    match inline {
-        Inline::Emph(c) => Inline::Emph(pair_native_spans(c)),
-        Inline::Underline(c) => Inline::Underline(pair_native_spans(c)),
-        Inline::Strong(c) => Inline::Strong(pair_native_spans(c)),
-        Inline::Strikeout(c) => Inline::Strikeout(pair_native_spans(c)),
-        Inline::Superscript(c) => Inline::Superscript(pair_native_spans(c)),
-        Inline::Subscript(c) => Inline::Subscript(pair_native_spans(c)),
-        Inline::SmallCaps(c) => Inline::SmallCaps(pair_native_spans(c)),
-        Inline::Quoted(q, c) => Inline::Quoted(q, pair_native_spans(c)),
-        Inline::Cite(cites, c) => Inline::Cite(cites, pair_native_spans(c)),
-        Inline::Link(a, c, t) => Inline::Link(a, pair_native_spans(c), t),
-        Inline::Image(a, c, t) => Inline::Image(a, pair_native_spans(c), t),
-        Inline::Span(a, c) => Inline::Span(a, pair_native_spans(c)),
-        other => other,
+    match inline.into_parts() {
+        InlineParts::Emph(c) => Inline::Emph(pair_native_spans(c)),
+        InlineParts::Underline(c) => Inline::Underline(pair_native_spans(c)),
+        InlineParts::Strong(c) => Inline::Strong(pair_native_spans(c)),
+        InlineParts::Strikeout(c) => Inline::Strikeout(pair_native_spans(c)),
+        InlineParts::Superscript(c) => Inline::Superscript(pair_native_spans(c)),
+        InlineParts::Subscript(c) => Inline::Subscript(pair_native_spans(c)),
+        InlineParts::SmallCaps(c) => Inline::SmallCaps(pair_native_spans(c)),
+        InlineParts::Quoted(q, c) => Inline::Quoted(q, pair_native_spans(c)),
+        InlineParts::Cite(cites, c) => Inline::Cite(cites, pair_native_spans(c)),
+        InlineParts::Link(a, c, t) => Inline::Link(a, pair_native_spans(c), t),
+        InlineParts::Image(a, c, t) => Inline::Image(a, pair_native_spans(c), t),
+        InlineParts::Span(a, c) => Inline::Span(a, pair_native_spans(c)),
+        other => other.into(),
     }
 }
 

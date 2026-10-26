@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use carta_ast::{Attr, Block, Document, Format, Inline, MetaValue, Target, Text};
+use carta_ast::{
+    Attr, Block, BlockParts, Document, Format, Inline, InlineParts, MetaValue, Target, Text,
+};
 use carta_core::container::zip;
 use carta_core::walk::{for_each_image_target, for_each_link_target};
 use carta_core::{
@@ -329,17 +331,19 @@ fn drop_toc_nav(blocks: Vec<Block>) -> Vec<Block> {
 /// Apply [`drop_toc_nav`] to a block's own children, so a navigation nested inside a container is
 /// removed too.
 fn descend_toc_nav(block: Block) -> Block {
-    match block {
-        Block::Div(attr, inner) => Block::Div(attr, drop_toc_nav(inner)),
-        Block::BlockQuote(inner) => Block::BlockQuote(drop_toc_nav(inner)),
-        Block::Figure(attr, caption, inner) => Block::Figure(attr, caption, drop_toc_nav(inner)),
-        Block::BulletList(items) => {
+    match block.into_parts() {
+        BlockParts::Div(attr, inner) => Block::Div(attr, drop_toc_nav(inner)),
+        BlockParts::BlockQuote(inner) => Block::BlockQuote(drop_toc_nav(inner)),
+        BlockParts::Figure(attr, caption, inner) => {
+            Block::Figure(attr, caption, drop_toc_nav(inner))
+        }
+        BlockParts::BulletList(items) => {
             Block::BulletList(items.into_iter().map(drop_toc_nav).collect())
         }
-        Block::OrderedList(attr, items) => {
+        BlockParts::OrderedList(attr, items) => {
             Block::OrderedList(attr, items.into_iter().map(drop_toc_nav).collect())
         }
-        other => other,
+        other => other.into(),
     }
 }
 
@@ -407,8 +411,8 @@ fn transform_blocks(blocks: Vec<Block>, ctx: TransformCtx) -> Vec<Block> {
 }
 
 fn transform_into(block: Block, ctx: TransformCtx, out: &mut Vec<Block>) {
-    match block {
-        Block::Div(attr, inner) => match classify_div(&attr) {
+    match block.into_parts() {
+        BlockParts::Div(attr, inner) => match classify_div(&attr) {
             DivKind::Drop => {}
             DivKind::Flatten => {
                 for child in inner {
@@ -421,15 +425,15 @@ fn transform_into(block: Block, ctx: TransformCtx, out: &mut Vec<Block>) {
                 out.push(Block::Div(attr, transform_blocks(inner, ctx)));
             }
         },
-        Block::Header(level, mut attr, inlines) => {
+        BlockParts::Header(level, mut attr, inlines) => {
             normalize(&mut attr, ctx.basename);
             out.push(Block::Header(level, attr, transform_inlines(inlines, ctx)));
         }
-        Block::CodeBlock(mut attr, code) => {
+        BlockParts::CodeBlock(mut attr, code) => {
             normalize(&mut attr, ctx.basename);
             out.push(Block::CodeBlock(attr, code));
         }
-        Block::Figure(mut attr, mut caption, inner) => {
+        BlockParts::Figure(mut attr, mut caption, inner) => {
             normalize(&mut attr, ctx.basename);
             caption.long = transform_blocks(std::mem::take(&mut caption.long), ctx);
             caption.short = caption
@@ -438,33 +442,33 @@ fn transform_into(block: Block, ctx: TransformCtx, out: &mut Vec<Block>) {
                 .map(|short| transform_inlines(short, ctx));
             out.push(Block::Figure(attr, caption, transform_blocks(inner, ctx)));
         }
-        Block::Table(mut table) => {
+        BlockParts::Table(mut table) => {
             normalize(&mut table.attr, ctx.basename);
             transform_table(table.as_mut(), ctx);
             out.push(Block::Table(table));
         }
-        Block::Plain(inlines) => {
+        BlockParts::Plain(inlines) => {
             out.push(Block::Plain(transform_inlines(inlines, ctx)));
         }
-        Block::Para(inlines) => {
+        BlockParts::Para(inlines) => {
             out.push(Block::Para(transform_inlines(inlines, ctx)));
         }
-        Block::LineBlock(lines) => out.push(Block::LineBlock(
+        BlockParts::LineBlock(lines) => out.push(Block::LineBlock(
             lines
                 .into_iter()
                 .map(|line| transform_inlines(line, ctx))
                 .collect(),
         )),
-        Block::BlockQuote(inner) => {
+        BlockParts::BlockQuote(inner) => {
             out.push(Block::BlockQuote(transform_blocks(inner, ctx)));
         }
-        Block::OrderedList(attrs, items) => {
+        BlockParts::OrderedList(attrs, items) => {
             out.push(Block::OrderedList(attrs, transform_item_lists(items, ctx)));
         }
-        Block::BulletList(items) => {
+        BlockParts::BulletList(items) => {
             out.push(Block::BulletList(transform_item_lists(items, ctx)));
         }
-        Block::DefinitionList(items) => out.push(Block::DefinitionList(
+        BlockParts::DefinitionList(items) => out.push(Block::DefinitionList(
             items
                 .into_iter()
                 .map(|(term, defs)| {
@@ -475,7 +479,7 @@ fn transform_into(block: Block, ctx: TransformCtx, out: &mut Vec<Block>) {
                 })
                 .collect(),
         )),
-        other @ (Block::RawBlock(..) | Block::HorizontalRule) => out.push(other),
+        other @ (BlockParts::RawBlock(..) | BlockParts::HorizontalRule) => out.push(other.into()),
     }
 }
 
@@ -514,12 +518,12 @@ fn transform_inlines(inlines: Vec<Inline>, ctx: TransformCtx) -> Vec<Inline> {
 }
 
 fn transform_inline(inline: Inline, ctx: TransformCtx) -> Inline {
-    match inline {
-        Inline::Span(mut attr, children) => {
+    match inline.into_parts() {
+        InlineParts::Span(mut attr, children) => {
             normalize(&mut attr, ctx.basename);
             Inline::Span(attr, transform_inlines(children, ctx))
         }
-        Inline::Link(mut attr, children, target) => {
+        InlineParts::Link(mut attr, children, target) => {
             if is_noteref(&attr)
                 && let Some(id) = target.url.strip_prefix('#')
             {
@@ -532,23 +536,25 @@ fn transform_inline(inline: Inline, ctx: TransformCtx) -> Inline {
             normalize(&mut attr, ctx.basename);
             Inline::Link(attr, transform_inlines(children, ctx), target)
         }
-        Inline::Image(mut attr, alt, target) => {
+        InlineParts::Image(mut attr, alt, target) => {
             normalize(&mut attr, ctx.basename);
             Inline::Image(attr, transform_inlines(alt, ctx), target)
         }
-        Inline::Code(mut attr, code) => {
+        InlineParts::Code(mut attr, code) => {
             normalize(&mut attr, ctx.basename);
             Inline::Code(attr, code)
         }
-        Inline::Emph(children) => Inline::Emph(transform_inlines(children, ctx)),
-        Inline::Underline(children) => Inline::Underline(transform_inlines(children, ctx)),
-        Inline::Strong(children) => Inline::Strong(transform_inlines(children, ctx)),
-        Inline::Strikeout(children) => Inline::Strikeout(transform_inlines(children, ctx)),
-        Inline::Superscript(children) => Inline::Superscript(transform_inlines(children, ctx)),
-        Inline::Subscript(children) => Inline::Subscript(transform_inlines(children, ctx)),
-        Inline::SmallCaps(children) => Inline::SmallCaps(transform_inlines(children, ctx)),
-        Inline::Quoted(kind, children) => Inline::Quoted(kind, transform_inlines(children, ctx)),
-        Inline::Cite(mut citations, children) => {
+        InlineParts::Emph(children) => Inline::Emph(transform_inlines(children, ctx)),
+        InlineParts::Underline(children) => Inline::Underline(transform_inlines(children, ctx)),
+        InlineParts::Strong(children) => Inline::Strong(transform_inlines(children, ctx)),
+        InlineParts::Strikeout(children) => Inline::Strikeout(transform_inlines(children, ctx)),
+        InlineParts::Superscript(children) => Inline::Superscript(transform_inlines(children, ctx)),
+        InlineParts::Subscript(children) => Inline::Subscript(transform_inlines(children, ctx)),
+        InlineParts::SmallCaps(children) => Inline::SmallCaps(transform_inlines(children, ctx)),
+        InlineParts::Quoted(kind, children) => {
+            Inline::Quoted(kind, transform_inlines(children, ctx))
+        }
+        InlineParts::Cite(mut citations, children) => {
             for citation in &mut citations {
                 let prefix = std::mem::take(&mut citation.prefix);
                 let suffix = std::mem::take(&mut citation.suffix);
@@ -557,13 +563,15 @@ fn transform_inline(inline: Inline, ctx: TransformCtx) -> Inline {
             }
             Inline::Cite(citations, transform_inlines(children, ctx))
         }
-        Inline::Note(blocks) => Inline::Note(transform_blocks(blocks, ctx.with_resolve(false))),
-        other @ (Inline::Str(_)
-        | Inline::Space
-        | Inline::SoftBreak
-        | Inline::LineBreak
-        | Inline::Math(..)
-        | Inline::RawInline(..)) => other,
+        InlineParts::Note(blocks) => {
+            Inline::Note(transform_blocks(blocks, ctx.with_resolve(false)))
+        }
+        other @ (InlineParts::Str(_)
+        | InlineParts::Space
+        | InlineParts::SoftBreak
+        | InlineParts::LineBreak
+        | InlineParts::Math(..)
+        | InlineParts::RawInline(..)) => other.into(),
     }
 }
 
@@ -618,27 +626,29 @@ fn is_noteref(attr: &Attr) -> bool {
 fn collect_notes(blocks: Vec<Block>, notes: &mut Notes) -> Vec<Block> {
     let mut out = Vec::with_capacity(blocks.len());
     for block in blocks {
-        match block {
-            Block::Div(attr, inner) if is_note(&attr) => {
+        match block.into_parts() {
+            BlockParts::Div(attr, inner) if is_note(&attr) => {
                 if !attr.id.is_empty() {
                     notes.entry(attr.id.to_string()).or_insert(inner);
                 }
             }
-            Block::Div(attr, inner) => out.push(Block::Div(attr, collect_notes(inner, notes))),
-            Block::BlockQuote(inner) => out.push(Block::BlockQuote(collect_notes(inner, notes))),
-            Block::OrderedList(list_attr, items) => {
+            BlockParts::Div(attr, inner) => out.push(Block::Div(attr, collect_notes(inner, notes))),
+            BlockParts::BlockQuote(inner) => {
+                out.push(Block::BlockQuote(collect_notes(inner, notes)));
+            }
+            BlockParts::OrderedList(list_attr, items) => {
                 out.push(Block::OrderedList(
                     list_attr,
                     collect_note_items(items, notes),
                 ));
             }
-            Block::BulletList(items) => {
+            BlockParts::BulletList(items) => {
                 out.push(Block::BulletList(collect_note_items(items, notes)));
             }
-            Block::Figure(attr, caption, inner) => {
+            BlockParts::Figure(attr, caption, inner) => {
                 out.push(Block::Figure(attr, caption, collect_notes(inner, notes)));
             }
-            Block::DefinitionList(items) => {
+            BlockParts::DefinitionList(items) => {
                 out.push(Block::DefinitionList(
                     items
                         .into_iter()
@@ -646,11 +656,11 @@ fn collect_notes(blocks: Vec<Block>, notes: &mut Notes) -> Vec<Block> {
                         .collect(),
                 ));
             }
-            Block::Table(mut table) => {
+            BlockParts::Table(mut table) => {
                 collect_notes_table(table.as_mut(), notes);
                 out.push(Block::Table(table));
             }
-            other => out.push(other),
+            other => out.push(other.into()),
         }
     }
     out

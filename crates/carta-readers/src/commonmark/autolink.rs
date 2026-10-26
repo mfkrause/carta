@@ -3,7 +3,7 @@
 //! Markdown adds `uri`/`email` classes, accepts single-label email domains, and leaves `www.` literal.
 //! Strict mode leaves links unclassed, requires dotted email domains, and links `www.` hosts.
 
-use carta_ast::{Attr, Inline, Target};
+use carta_ast::{Attr, Inline, InlineParts, Target};
 
 use super::scan::char_at;
 
@@ -31,26 +31,30 @@ pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>, markdown: bool) {
     let taken = std::mem::take(inlines);
     let mut out = Vec::with_capacity(taken.len());
     for inline in taken {
-        match inline {
+        match inline.into_parts() {
             // Any new URL scheme without `//` must extend this trigger set.
-            Inline::Str(s) => {
+            InlineParts::Str(s) => {
                 if s.contains("://") || s.contains('@') || s.contains("www.") {
                     split_text(&s, markdown, &mut out);
                 } else {
                     out.push(Inline::Str(s));
                 }
             }
-            Inline::Emph(mut v) => out.push(Inline::Emph(recurse(&mut v, markdown))),
-            Inline::Underline(mut v) => out.push(Inline::Underline(recurse(&mut v, markdown))),
-            Inline::Strong(mut v) => out.push(Inline::Strong(recurse(&mut v, markdown))),
-            Inline::Strikeout(mut v) => out.push(Inline::Strikeout(recurse(&mut v, markdown))),
-            Inline::Superscript(mut v) => out.push(Inline::Superscript(recurse(&mut v, markdown))),
-            Inline::Subscript(mut v) => out.push(Inline::Subscript(recurse(&mut v, markdown))),
-            Inline::SmallCaps(mut v) => out.push(Inline::SmallCaps(recurse(&mut v, markdown))),
-            Inline::Quoted(q, mut v) => out.push(Inline::Quoted(q, recurse(&mut v, markdown))),
-            Inline::Span(a, mut v) => out.push(Inline::Span(a, recurse(&mut v, markdown))),
-            Inline::Image(a, mut v, t) => out.push(Inline::Image(a, recurse(&mut v, markdown), t)),
-            other => out.push(other),
+            InlineParts::Emph(mut v) => out.push(Inline::Emph(recurse(&mut v, markdown))),
+            InlineParts::Underline(mut v) => out.push(Inline::Underline(recurse(&mut v, markdown))),
+            InlineParts::Strong(mut v) => out.push(Inline::Strong(recurse(&mut v, markdown))),
+            InlineParts::Strikeout(mut v) => out.push(Inline::Strikeout(recurse(&mut v, markdown))),
+            InlineParts::Superscript(mut v) => {
+                out.push(Inline::Superscript(recurse(&mut v, markdown)));
+            }
+            InlineParts::Subscript(mut v) => out.push(Inline::Subscript(recurse(&mut v, markdown))),
+            InlineParts::SmallCaps(mut v) => out.push(Inline::SmallCaps(recurse(&mut v, markdown))),
+            InlineParts::Quoted(q, mut v) => out.push(Inline::Quoted(q, recurse(&mut v, markdown))),
+            InlineParts::Span(a, mut v) => out.push(Inline::Span(a, recurse(&mut v, markdown))),
+            InlineParts::Image(a, mut v, t) => {
+                out.push(Inline::Image(a, recurse(&mut v, markdown), t));
+            }
+            other => out.push(other.into()),
         }
     }
     *inlines = out;

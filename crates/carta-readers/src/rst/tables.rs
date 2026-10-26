@@ -74,13 +74,13 @@ impl Parser<'_> {
     ) {
         let widths = directive_widths(options);
         let mut rows: Vec<Vec<Vec<Block>>> = Vec::new();
-        for block in self.blocks(content) {
-            if let Block::BulletList(items) = block {
+        for mut block in self.blocks(content) {
+            if let Block::BulletList(items) = &mut block {
                 for item in items {
                     let mut cells = Vec::new();
                     for inner in item {
                         if let Block::BulletList(cell_items) = inner {
-                            cells.extend(cell_items);
+                            cells.append(cell_items);
                         }
                     }
                     rows.push(cells);
@@ -332,9 +332,9 @@ impl Parser<'_> {
             .collect();
         let mut content = self.blocks(&region);
         if let [Block::Para(_)] = content.as_slice()
-            && let Some(Block::Para(inlines)) = content.pop()
+            && let Some(Block::Para(inlines)) = content.pop().as_mut()
         {
-            content.push(Block::Plain(inlines));
+            content.push(Block::Plain(std::mem::take(inlines)));
         }
         Cell {
             attr: Attr::default(),

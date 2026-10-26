@@ -2,7 +2,7 @@
 
 use std::mem::take;
 
-use carta_ast::{Inline, Target};
+use carta_ast::{Inline, InlineParts, Target};
 
 /// The active character formatting. Copied on group entry and restored on exit. Compared for
 /// equality to merge adjacent text sharing the same formatting into one run. Each field is an
@@ -221,8 +221,8 @@ pub(super) fn strip_heading_emphasis(mut inlines: Vec<Inline>) -> Vec<Inline> {
             Some(Inline::Strong(_) | Inline::Emph(_)) => {}
             _ => break,
         }
-        match inlines.pop() {
-            Some(Inline::Strong(children) | Inline::Emph(children)) => inlines = children,
+        match inlines.pop().map(Inline::into_parts) {
+            Some(InlineParts::Strong(children) | InlineParts::Emph(children)) => inlines = children,
             _ => break,
         }
     }
@@ -380,14 +380,14 @@ fn flush_link(target: &Target, run: &mut Vec<Inline>, out: &mut Vec<Inline>) {
 /// Decomposes an inline into its character-formatting wrapper and children, or returns it unchanged
 /// when it is not one of the wrappers a run can carry.
 fn into_wrapper(inline: Inline) -> std::result::Result<(Wrapper, Vec<Inline>), Inline> {
-    match inline {
-        Inline::Strong(children) => Ok((Wrapper::Strong, children)),
-        Inline::Emph(children) => Ok((Wrapper::Emph, children)),
-        Inline::Strikeout(children) => Ok((Wrapper::Strikeout, children)),
-        Inline::Subscript(children) => Ok((Wrapper::Subscript, children)),
-        Inline::Superscript(children) => Ok((Wrapper::Superscript, children)),
-        Inline::SmallCaps(children) => Ok((Wrapper::SmallCaps, children)),
-        Inline::Underline(children) => Ok((Wrapper::Underline, children)),
-        other => Err(other),
+    match inline.into_parts() {
+        InlineParts::Strong(children) => Ok((Wrapper::Strong, children)),
+        InlineParts::Emph(children) => Ok((Wrapper::Emph, children)),
+        InlineParts::Strikeout(children) => Ok((Wrapper::Strikeout, children)),
+        InlineParts::Subscript(children) => Ok((Wrapper::Subscript, children)),
+        InlineParts::Superscript(children) => Ok((Wrapper::Superscript, children)),
+        InlineParts::SmallCaps(children) => Ok((Wrapper::SmallCaps, children)),
+        InlineParts::Underline(children) => Ok((Wrapper::Underline, children)),
+        other => Err(other.into()),
     }
 }

@@ -94,10 +94,11 @@ pub fn shift_heading_levels(document: &mut Document, by: i64) {
             .take_while(|block| matches!(block, Block::Header(level, _, _) if level.saturating_add(by) == 0))
             .count();
         let mut lifted: Vec<_> = document.blocks.drain(..promoted).collect();
-        if let Some(Block::Header(_, _, inlines)) = lifted.pop() {
-            document
-                .meta
-                .insert(Text::from("title"), MetaValue::MetaInlines(inlines));
+        if let Some(Block::Header(_, _, inlines)) = lifted.pop().as_mut() {
+            document.meta.insert(
+                Text::from("title"),
+                MetaValue::MetaInlines(std::mem::take(inlines)),
+            );
         }
     }
     walk::for_each_block(&mut document.blocks, &mut |block| {
@@ -467,7 +468,7 @@ mod tests {
             header(2, &[], "Two"),
             header(3, &[], "Three"),
         ];
-        let Some(Block::BulletList(items)) = build_toc(&blocks, 2, false, true) else {
+        let Some(Block::BulletList(items)) = &build_toc(&blocks, 2, false, true) else {
             panic!("expected a contents list");
         };
         assert_eq!(items.len(), 1);
@@ -497,7 +498,7 @@ mod tests {
     #[test]
     fn toc_entry_links_to_heading() {
         let blocks = vec![header(1, &[], "One")];
-        let Some(Block::BulletList(items)) = build_toc(&blocks, 3, true, true) else {
+        let Some(Block::BulletList(items)) = &build_toc(&blocks, 3, true, true) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
@@ -534,7 +535,7 @@ mod tests {
                 Inline::Note(vec![Block::Para(vec![Inline::Str("note".into())])]),
             ],
         );
-        let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
+        let Some(Block::BulletList(items)) = &build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
@@ -549,7 +550,7 @@ mod tests {
     #[test]
     fn toc_without_anchors_omits_entry_ids() {
         let blocks = vec![header(1, &[], "One")];
-        let Some(Block::BulletList(items)) = build_toc(&blocks, 3, false, false) else {
+        let Some(Block::BulletList(items)) = &build_toc(&blocks, 3, false, false) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
@@ -565,7 +566,7 @@ mod tests {
     #[test]
     fn toc_entry_without_an_id_is_plain_text() {
         let heading = Block::Header(1, Box::default(), vec![Inline::Str("Untitled".into())]);
-        let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
+        let Some(Block::BulletList(items)) = &build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {

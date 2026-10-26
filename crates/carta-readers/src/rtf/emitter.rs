@@ -471,9 +471,9 @@ impl Emitter {
     pub(super) fn finish_inlines(mut self) -> Vec<Inline> {
         let mut out = Vec::new();
         let trailing = self.take_inlines();
-        for block in self.blocks {
-            if let Block::Para(inlines) | Block::Plain(inlines) = block {
-                out.extend(inlines);
+        for mut block in self.blocks {
+            if let Block::Para(inlines) | Block::Plain(inlines) = &mut block {
+                out.append(inlines);
             }
         }
         out.extend(trailing);

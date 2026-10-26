@@ -9,8 +9,10 @@ fn parse(input: &str) -> Vec<Block> {
 }
 
 fn inlines(input: &str) -> Vec<Inline> {
-    match parse(input).into_iter().next() {
-        Some(Block::Para(inlines) | Block::Plain(inlines)) => inlines,
+    match parse(input).into_iter().next().map(Block::into_parts) {
+        Some(carta_ast::BlockParts::Para(inlines) | carta_ast::BlockParts::Plain(inlines)) => {
+            inlines
+        }
         other => panic!("expected a paragraph, got {other:?}"),
     }
 }

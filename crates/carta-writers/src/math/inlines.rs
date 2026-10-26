@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use carta_ast::{Inline, ToCompactString};
+use carta_ast::{Inline, InlineParts, ToCompactString};
 
 use super::parse::{Atom, Body, Delim, ModKind, ScriptKind, TextPiece};
 use super::symbols::{self, Alphabet, Class, is_limit_glyph};
@@ -164,9 +164,9 @@ fn wrap_styled_atom(inlines: Vec<Inline>, style: Style) -> Vec<Inline> {
 fn strip_italic(inlines: Vec<Inline>) -> Vec<Inline> {
     inlines
         .into_iter()
-        .flat_map(|i| match i {
-            Inline::Emph(inner) => strip_italic(inner),
-            other => vec![other],
+        .flat_map(|i| match i.into_parts() {
+            InlineParts::Emph(inner) => strip_italic(inner),
+            other => vec![other.into()],
         })
         .collect()
 }
@@ -844,15 +844,15 @@ fn upright_inner(arg: &[Atom]) -> Option<Vec<Inline>> {
 fn flatten_emph(inlines: Vec<Inline>) -> Vec<Inline> {
     inlines
         .into_iter()
-        .map(|i| match i {
-            Inline::Emph(inner) => {
+        .map(|i| match i.into_parts() {
+            InlineParts::Emph(inner) => {
                 if let [Inline::Str(s)] = inner.as_slice() {
                     Inline::Str(s.clone())
                 } else {
                     Inline::Emph(inner)
                 }
             }
-            other => other,
+            other => other.into(),
         })
         .collect()
 }

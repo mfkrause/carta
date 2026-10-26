@@ -20,7 +20,7 @@ fn duplicate_identifiers_are_disambiguated() {
     let result = blocks("<h1>Sec</h1><h2>Sec</h2>");
     let ids: Vec<&str> = result
         .iter()
-        .filter_map(|block| match block {
+        .filter_map(|block| match &block {
             Block::Header(_, attr, _) => Some(attr.id.as_str()),
             _ => None,
         })
@@ -186,7 +186,7 @@ fn unknown_inline_element_is_transparent() {
 
 #[test]
 fn data_attributes_drop_their_prefix() {
-    let Block::Div(attr, _) = first_block(r#"<div id="d" data-role="note">x</div>"#) else {
+    let Block::Div(attr, _) = &first_block(r#"<div id="d" data-role="note">x</div>"#) else {
         panic!("expected div");
     };
     assert_eq!(attr.id, "d");
@@ -198,7 +198,7 @@ fn data_attributes_drop_their_prefix() {
 
 #[test]
 fn boolean_and_unquoted_attributes_parse() {
-    let Block::OrderedList(attrs, _) = first_block("<ol reversed start=5><li>a</li></ol>") else {
+    let Block::OrderedList(attrs, _) = &first_block("<ol reversed start=5><li>a</li></ol>") else {
         panic!("expected ordered list");
     };
     assert_eq!(attrs.start, 5);
@@ -282,7 +282,7 @@ fn self_closing_span_has_no_children() {
 
 #[test]
 fn explicit_id_on_heading_is_preserved() {
-    let Block::Header(_, attr, _) = first_block(r#"<h2 id="custom">Title</h2>"#) else {
+    let Block::Header(_, attr, _) = &first_block(r#"<h2 id="custom">Title</h2>"#) else {
         panic!("expected header");
     };
     assert_eq!(attr.id, "custom");

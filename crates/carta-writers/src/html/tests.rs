@@ -179,16 +179,6 @@ mod xml_sanitize_tests {
         use carta_ast::{Block, Inline};
         use std::thread;
 
-        // recursive `Drop` of the chain would overflow the small stack independently of what is under test
-        fn dismantle(mut block: Block) {
-            while let Block::BlockQuote(mut children) = block {
-                match children.pop() {
-                    Some(child) => block = child,
-                    None => break,
-                }
-            }
-        }
-
         // modest stack: without the serializer's on-demand stack growth this depth faults
         let rendered = thread::Builder::new()
             .stack_size(1024 * 1024)
@@ -204,7 +194,7 @@ mod xml_sanitize_tests {
                 let mut out = String::new();
                 state.blocks(&mut out, std::slice::from_ref(&block));
                 let opened = out.starts_with("<blockquote>");
-                dismantle(block);
+                drop(block);
                 opened
             })
             .expect("spawn render thread")

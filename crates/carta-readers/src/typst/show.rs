@@ -1,6 +1,6 @@
 //! Evaluate Typst show-rule matching and replacement content.
 
-use carta_ast::{Block, Inline};
+use carta_ast::{Block, BlockParts, Inline, InlineParts};
 
 use super::{
     Arg, Function, MAX_DEPTH, MAX_ITERATIONS, Parser, Pattern, Value, compile_regex, positional,
@@ -237,25 +237,29 @@ impl Parser {
 
     /// Rewrite the content a block holds, leaving the block itself in place.
     fn rewrite_within(&mut self, rule: &Rule, block: Block) -> Block {
-        match block {
-            Block::Para(inlines) => Block::Para(self.rewrite_inlines(rule, inlines)),
-            Block::Plain(inlines) => Block::Plain(self.rewrite_inlines(rule, inlines)),
-            Block::Header(level, attr, inlines) => {
+        match block.into_parts() {
+            BlockParts::Para(inlines) => Block::Para(self.rewrite_inlines(rule, inlines)),
+            BlockParts::Plain(inlines) => Block::Plain(self.rewrite_inlines(rule, inlines)),
+            BlockParts::Header(level, attr, inlines) => {
                 Block::Header(level, attr, self.rewrite_inlines(rule, inlines))
             }
-            Block::LineBlock(lines) => Block::LineBlock(
+            BlockParts::LineBlock(lines) => Block::LineBlock(
                 lines
                     .into_iter()
                     .map(|line| self.rewrite_inlines(rule, line))
                     .collect(),
             ),
-            Block::BlockQuote(children) => Block::BlockQuote(self.rewrite_blocks(rule, children)),
-            Block::Div(attr, children) => Block::Div(attr, self.rewrite_blocks(rule, children)),
-            Block::BulletList(items) => Block::BulletList(self.rewrite_items(rule, items)),
-            Block::OrderedList(attributes, items) => {
+            BlockParts::BlockQuote(children) => {
+                Block::BlockQuote(self.rewrite_blocks(rule, children))
+            }
+            BlockParts::Div(attr, children) => {
+                Block::Div(attr, self.rewrite_blocks(rule, children))
+            }
+            BlockParts::BulletList(items) => Block::BulletList(self.rewrite_items(rule, items)),
+            BlockParts::OrderedList(attributes, items) => {
                 Block::OrderedList(attributes, self.rewrite_items(rule, items))
             }
-            Block::DefinitionList(entries) => Block::DefinitionList(
+            BlockParts::DefinitionList(entries) => Block::DefinitionList(
                 entries
                     .into_iter()
                     .map(|(term, definitions)| {
@@ -266,14 +270,14 @@ impl Parser {
                     })
                     .collect(),
             ),
-            Block::Figure(attr, mut caption, children) => {
+            BlockParts::Figure(attr, mut caption, children) => {
                 if let Some(short) = caption.short.take() {
                     caption.short = Some(self.rewrite_inlines(rule, short));
                 }
                 caption.long = self.rewrite_blocks(rule, caption.long);
                 Block::Figure(attr, caption, self.rewrite_blocks(rule, children))
             }
-            Block::Table(mut table) => {
+            BlockParts::Table(mut table) => {
                 if let Some(short) = table.caption.short.take() {
                     table.caption.short = Some(self.rewrite_inlines(rule, short));
                 }
@@ -287,7 +291,7 @@ impl Parser {
                 }
                 Block::Table(table)
             }
-            other => other,
+            other => other.into(),
         }
     }
 
@@ -349,33 +353,41 @@ impl Parser {
 
     /// Rewrite the content an inline holds, leaving the inline itself in place.
     fn rewrite_inline_within(&mut self, rule: &Rule, inline: Inline) -> Inline {
-        match inline {
-            Inline::Emph(children) => Inline::Emph(self.rewrite_inlines(rule, children)),
-            Inline::Strong(children) => Inline::Strong(self.rewrite_inlines(rule, children)),
-            Inline::Underline(children) => Inline::Underline(self.rewrite_inlines(rule, children)),
-            Inline::Strikeout(children) => Inline::Strikeout(self.rewrite_inlines(rule, children)),
-            Inline::Superscript(children) => {
+        match inline.into_parts() {
+            InlineParts::Emph(children) => Inline::Emph(self.rewrite_inlines(rule, children)),
+            InlineParts::Strong(children) => Inline::Strong(self.rewrite_inlines(rule, children)),
+            InlineParts::Underline(children) => {
+                Inline::Underline(self.rewrite_inlines(rule, children))
+            }
+            InlineParts::Strikeout(children) => {
+                Inline::Strikeout(self.rewrite_inlines(rule, children))
+            }
+            InlineParts::Superscript(children) => {
                 Inline::Superscript(self.rewrite_inlines(rule, children))
             }
-            Inline::Subscript(children) => Inline::Subscript(self.rewrite_inlines(rule, children)),
-            Inline::SmallCaps(children) => Inline::SmallCaps(self.rewrite_inlines(rule, children)),
-            Inline::Quoted(kind, children) => {
+            InlineParts::Subscript(children) => {
+                Inline::Subscript(self.rewrite_inlines(rule, children))
+            }
+            InlineParts::SmallCaps(children) => {
+                Inline::SmallCaps(self.rewrite_inlines(rule, children))
+            }
+            InlineParts::Quoted(kind, children) => {
                 Inline::Quoted(kind, self.rewrite_inlines(rule, children))
             }
-            Inline::Cite(citations, children) => {
+            InlineParts::Cite(citations, children) => {
                 Inline::Cite(citations, self.rewrite_inlines(rule, children))
             }
-            Inline::Link(attr, children, target) => {
+            InlineParts::Link(attr, children, target) => {
                 Inline::Link(attr, self.rewrite_inlines(rule, children), target)
             }
-            Inline::Image(attr, children, target) => {
+            InlineParts::Image(attr, children, target) => {
                 Inline::Image(attr, self.rewrite_inlines(rule, children), target)
             }
-            Inline::Span(attr, children) => {
+            InlineParts::Span(attr, children) => {
                 Inline::Span(attr, self.rewrite_inlines(rule, children))
             }
-            Inline::Note(blocks) => Inline::Note(self.rewrite_blocks(rule, blocks)),
-            other => other,
+            InlineParts::Note(blocks) => Inline::Note(self.rewrite_blocks(rule, blocks)),
+            other => other.into(),
         }
     }
 }

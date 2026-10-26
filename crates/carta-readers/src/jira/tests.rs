@@ -10,8 +10,8 @@ fn blocks(input: &str) -> Vec<Block> {
 }
 
 fn para(input: &str) -> Vec<Inline> {
-    match blocks(input).into_iter().next() {
-        Some(Block::Para(inlines)) => inlines,
+    match blocks(input).into_iter().next().map(Block::into_parts) {
+        Some(carta_ast::BlockParts::Para(inlines)) => inlines,
         other => panic!("expected a paragraph, got {other:?}"),
     }
 }

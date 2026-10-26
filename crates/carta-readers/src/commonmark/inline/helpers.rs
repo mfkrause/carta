@@ -354,23 +354,23 @@ fn scan_target_title(text: &str, start: usize) -> Option<(String, usize)> {
 /// destination is an email autolink (the destination gained a `mailto:` scheme), so it carries the
 /// `email` class; every other angle autolink is a URI autolink and carries `uri`. Bare URLs linked
 /// by the autolink post-pass keep an empty class list and never reach here.
-pub(super) fn classify_angle_autolink(inline: Inline) -> Inline {
-    let Inline::Link(mut attr, text, target) = inline else {
+pub(super) fn classify_angle_autolink(mut inline: Inline) -> Inline {
+    let Inline::Link(attr, text, target) = &mut inline else {
         return inline;
     };
     let is_email = matches!(text.first(), Some(Inline::Str(shown)) if *shown != target.url);
     attr.classes
         .push(if is_email { "email" } else { "uri" }.into());
-    Inline::Link(attr, text, target)
+    inline
 }
 
 /// Percent-encode the destination of a link, leaving its shown text untouched.
-pub(super) fn escape_link_destination(inline: Inline) -> Inline {
-    let Inline::Link(attr, text, mut target) = inline else {
+pub(super) fn escape_link_destination(mut inline: Inline) -> Inline {
+    let Inline::Link(_, _, target) = &mut inline else {
         return inline;
     };
     target.url = escape_uri(&target.url).into();
-    Inline::Link(attr, text, target)
+    inline
 }
 
 /// The characters an original-Markdown backslash escape recognizes regardless of

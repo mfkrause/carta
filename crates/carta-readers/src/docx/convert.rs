@@ -652,9 +652,9 @@ impl Converter<'_> {
         let mut blocks = self.convert_blocks(cell);
         self.in_title_block = outer_title_block;
         if matches!(blocks.as_slice(), [Block::Para(_)])
-            && let Some(Block::Para(inlines)) = blocks.pop()
+            && let Some(Block::Para(inlines)) = blocks.pop().as_mut()
         {
-            return vec![Block::Plain(inlines)];
+            return vec![Block::Plain(std::mem::take(inlines))];
         }
         blocks
     }

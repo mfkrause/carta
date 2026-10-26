@@ -7,6 +7,7 @@
 mod ast;
 #[cfg(feature = "serde")]
 mod codec;
+mod drop;
 #[cfg(feature = "serde")]
 mod serde_impls;
 

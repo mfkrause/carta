@@ -583,10 +583,10 @@ fn finalize(toks: Vec<Tok>) -> Vec<Inline> {
 
 /// Merges `next` into `last` when they are two strings or two spans of the same kind, returning
 /// `None` on success and `Some(next)` when they do not combine.
-fn merge_adjacent(last: &mut Inline, next: Inline) -> Option<Inline> {
-    match (last, next) {
+fn merge_adjacent(last: &mut Inline, mut next: Inline) -> Option<Inline> {
+    match (last, &mut next) {
         (Inline::Str(a), Inline::Str(b)) => {
-            a.push_str(&b);
+            a.push_str(b);
             None
         }
         (Inline::Strong(a), Inline::Strong(b))
@@ -595,10 +595,10 @@ fn merge_adjacent(last: &mut Inline, next: Inline) -> Option<Inline> {
         | (Inline::Superscript(a), Inline::Superscript(b))
         | (Inline::Subscript(a), Inline::Subscript(b))
         | (Inline::Strikeout(a), Inline::Strikeout(b)) => {
-            a.extend(b);
+            a.append(b);
             None
         }
-        (_, other) => Some(other),
+        _ => Some(next),
     }
 }
 

@@ -690,13 +690,13 @@ fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
             Some((key, value)) => (key, MetaValue::MetaString(value.into())),
             None => (spec.as_str(), MetaValue::MetaBool(true)),
         };
-        let next = match map.remove(key) {
+        let next = match map.remove(key).map(MetaValue::into_parts) {
             None => value,
-            Some(MetaValue::MetaList(mut items)) => {
+            Some(carta_ast::MetaValueParts::MetaList(mut items)) => {
                 items.push(value);
                 MetaValue::MetaList(items)
             }
-            Some(first) => MetaValue::MetaList(vec![first, value]),
+            Some(first) => MetaValue::MetaList(vec![first.into(), value]),
         };
         map.insert(key.to_owned(), next);
     }

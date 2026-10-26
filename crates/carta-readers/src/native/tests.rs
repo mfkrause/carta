@@ -201,20 +201,20 @@ fn parses_figure_with_caption() {
     let block = only_block(
         r#"Figure ("f", [], []) (Caption Nothing [Plain [Str "cap"]]) [Para [Str "body"]]"#,
     );
-    let Block::Figure(attr, caption, blocks) = block else {
+    let Block::Figure(attr, caption, blocks) = &block else {
         panic!("expected a figure");
     };
     assert_eq!(attr.id, "f");
     assert_eq!(caption.short, None);
     assert_eq!(caption.long, vec![Block::Plain(vec![str_inline("cap")])]);
-    assert_eq!(blocks, vec![Block::Para(vec![str_inline("body")])]);
+    assert_eq!(*blocks, vec![Block::Para(vec![str_inline("body")])]);
 }
 
 #[test]
 fn parses_caption_with_short_inlines() {
     let block =
         only_block(r#"Figure ("", [], []) (Caption (Just [Str "s"]) [Plain [Str "l"]]) []"#);
-    let Block::Figure(_, caption, _) = block else {
+    let Block::Figure(_, caption, _) = &block else {
         panic!("expected a figure");
     };
     assert_eq!(caption.short, Some(vec![str_inline("s")]));
@@ -311,7 +311,7 @@ fn parses_cite_with_all_fields() {
     let block = only_block(
         r#"Para [Cite [Citation {citationId = "x", citationPrefix = [Str "see"], citationSuffix = [Str "p1"], citationMode = AuthorInText, citationNoteNum = 2, citationHash = 0}] [Str "[@x]"]]"#,
     );
-    let Block::Para(inlines) = block else {
+    let Block::Para(inlines) = &block else {
         panic!("expected a paragraph");
     };
     let citation = match inlines.first() {
@@ -334,7 +334,7 @@ fn parses_table_with_head_body_and_foot() {
         [TableBody ("", [], []) (RowHeadColumns 0) [] [Row ("", [], []) [Cell ("", [], []) AlignLeft (RowSpan 1) (ColSpan 1) [Plain [Str "B"]]]]]
         (TableFoot ("", [], []) [])"#;
     let block = only_block(input);
-    let Block::Table(table) = block else {
+    let Block::Table(table) = &block else {
         panic!("expected a table");
     };
     assert_eq!(table.col_specs.len(), 2);
@@ -390,7 +390,7 @@ fn parses_negative_and_floating_numbers() {
     let block = only_block(
         r#"Table ("", [], []) (Caption Nothing []) [(AlignDefault, ColWidth 1.5e-1)] (TableHead ("", [], []) []) [] (TableFoot ("", [], []) [])"#,
     );
-    let Block::Table(table) = block else {
+    let Block::Table(table) = &block else {
         panic!("expected a table");
     };
     assert_eq!(

@@ -528,8 +528,8 @@ pub(super) fn split_on_command(raw: &str, name: &str) -> Vec<String> {
 
 /// Converts a paragraph made up solely of images (and spacing) into a plain block, matching how a
 /// bare image line reads inside a figure.
-pub(super) fn demote_image_para(block: Block) -> Block {
-    if let Block::Para(inlines) = &block {
+pub(super) fn demote_image_para(mut block: Block) -> Block {
+    if let Block::Para(inlines) = &mut block {
         let has_image = inlines.iter().any(|i| matches!(i, Inline::Image(..)));
         let only_images = inlines.iter().all(|i| {
             matches!(
@@ -537,11 +537,8 @@ pub(super) fn demote_image_para(block: Block) -> Block {
                 Inline::Image(..) | Inline::Space | Inline::SoftBreak | Inline::LineBreak
             )
         });
-        if has_image
-            && only_images
-            && let Block::Para(inlines) = block
-        {
-            return Block::Plain(inlines);
+        if has_image && only_images {
+            return Block::Plain(std::mem::take(inlines));
         }
     }
     block

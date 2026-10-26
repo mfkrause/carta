@@ -1,6 +1,6 @@
 //! Smart typography and inline-code text folding: quotes, dashes, ellipses, and math spans.
 
-use carta_ast::{Attr, Inline, MathType, QuoteType};
+use carta_ast::{Attr, Inline, InlineParts, MathType, QuoteType};
 
 use super::helpers::{push_str, push_text};
 use crate::smart_fold::{fold_dash_run_greedy, fold_ellipsis_run};
@@ -19,48 +19,48 @@ pub(super) fn codify(out: &mut Vec<Inline>, inlines: Vec<Inline>, attr: &Attr) {
         }
     };
     for inline in inlines {
-        match inline {
-            Inline::Str(text) => run.push_str(&text),
-            Inline::Space | Inline::SoftBreak => run.push(' '),
-            Inline::Emph(children) => {
+        match inline.into_parts() {
+            InlineParts::Str(text) => run.push_str(&text),
+            InlineParts::Space | InlineParts::SoftBreak => run.push(' '),
+            InlineParts::Emph(children) => {
                 flush(&mut run, out);
                 out.push(Inline::Emph(codified(children, attr)));
             }
-            Inline::Strong(children) => {
+            InlineParts::Strong(children) => {
                 flush(&mut run, out);
                 out.push(Inline::Strong(codified(children, attr)));
             }
-            Inline::Strikeout(children) => {
+            InlineParts::Strikeout(children) => {
                 flush(&mut run, out);
                 out.push(Inline::Strikeout(codified(children, attr)));
             }
-            Inline::Underline(children) => {
+            InlineParts::Underline(children) => {
                 flush(&mut run, out);
                 out.push(Inline::Underline(codified(children, attr)));
             }
-            Inline::Superscript(children) => {
+            InlineParts::Superscript(children) => {
                 flush(&mut run, out);
                 out.push(Inline::Superscript(codified(children, attr)));
             }
-            Inline::Subscript(children) => {
+            InlineParts::Subscript(children) => {
                 flush(&mut run, out);
                 out.push(Inline::Subscript(codified(children, attr)));
             }
-            Inline::SmallCaps(children) => {
+            InlineParts::SmallCaps(children) => {
                 flush(&mut run, out);
                 out.push(Inline::SmallCaps(codified(children, attr)));
             }
-            Inline::Span(span_attr, children) => {
+            InlineParts::Span(span_attr, children) => {
                 flush(&mut run, out);
                 out.push(Inline::Span(span_attr, codified(children, attr)));
             }
-            Inline::Link(link_attr, children, target) => {
+            InlineParts::Link(link_attr, children, target) => {
                 flush(&mut run, out);
                 out.push(Inline::Link(link_attr, codified(children, attr), target));
             }
             other => {
                 flush(&mut run, out);
-                out.push(other);
+                out.push(other.into());
             }
         }
     }

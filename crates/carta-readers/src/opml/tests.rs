@@ -86,8 +86,8 @@ fn text_attribute_tokenizes_on_whitespace() {
 
 fn first_header_inlines(input: &str) -> Vec<Inline> {
     let document = read(input);
-    match document.blocks.into_iter().next() {
-        Some(Block::Header(_, _, inlines)) => inlines,
+    match document.blocks.into_iter().next().map(Block::into_parts) {
+        Some(carta_ast::BlockParts::Header(_, _, inlines)) => inlines,
         _ => panic!("expected a header"),
     }
 }
@@ -208,7 +208,7 @@ fn link_outline_wraps_heading_in_a_link_to_its_url() {
 #[test]
 fn link_outline_without_url_links_to_an_empty_target() {
     let document = read("<opml><body><outline type=\"LINK\" text=\"Site\"/></body></opml>");
-    let Some(Block::Header(_, _, inlines)) = document.blocks.into_iter().next() else {
+    let Some(Block::Header(_, _, inlines)) = document.blocks.first() else {
         panic!("expected a header");
     };
     let Some(Inline::Link(_, _, target)) = inlines.first() else {

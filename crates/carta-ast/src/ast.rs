@@ -12,10 +12,11 @@ macro_rules! node_enum {
         $vis:vis enum $name:ident {
             $(
                 $(#[$variant_meta:meta])*
-                $variant:ident $( ( $($payload:ty),* ) )?
+                $variant:ident $( ( $($field:ident: $payload:ty $(=> $take:expr)?),* ) )?
             ),* $(,)?
         }
         tags: $tags:ident
+        parts: $parts:ident
     ) => {
         $(#[$enum_meta])*
         $vis enum $name {
@@ -25,9 +26,75 @@ macro_rules! node_enum {
             ),*
         }
 
+        /// Owned fields of a node, for transformation without cloning its children.
+        #[derive(Debug, Clone, PartialEq)]
+        $vis enum $parts {
+            $(
+                $(#[$variant_meta])*
+                $variant $( ( $($payload),* ) )?
+            ),*
+        }
+
+        impl $name {
+            /// Takes the fields out of this node for an owned pattern match.
+            #[must_use]
+            $vis fn into_parts(mut self) -> $parts {
+                match &mut self {
+                    $(Self::$variant $(($($field),*))? => {
+                        $parts::$variant $(($(node_enum!(@take $field $(, $take)?)),*))?
+                    }),*
+                }
+            }
+        }
+
+        impl From<$parts> for $name {
+            fn from(parts: $parts) -> Self {
+                match parts {
+                    $($parts::$variant $(($($field),*))? => Self::$variant $(($($field),*))?),*
+                }
+            }
+        }
+
+        impl Clone for $name {
+            fn clone(&self) -> Self {
+                stacker::maybe_grow(64 * 1024, 1024 * 1024, || match self {
+                    $(Self::$variant $(($($field),*))? => Self::$variant $(($($field.clone()),*))?),*
+                })
+            }
+        }
+
+        impl PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                stacker::maybe_grow(64 * 1024, 1024 * 1024, || match self {
+                    $(Self::$variant $(($($field),*))? => {
+                        $(let fields = ($($field,)*);)?
+                        if let Self::$variant $(($($field),*))? = other {
+                            true $(&& fields == ($($field,)*))?
+                        } else {
+                            false
+                        }
+                    }),*
+                })
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                stacker::maybe_grow(64 * 1024, 1024 * 1024, || match self {
+                    $(Self::$variant $(($($field),*))? => {
+                        let mut tuple = formatter.debug_tuple(stringify!($variant));
+                        $($(tuple.field($field);)*)?
+                        tuple.finish()
+                    }),*
+                })
+            }
+        }
+
         /// JSON `t` tags of every variant of the enum above, in declaration order.
         $vis const $tags: &[&str] = &[$(stringify!($variant)),*];
     };
+    (@take $field:ident) => { std::mem::take($field) };
+    (@take $field:ident, $take:expr) => { $take };
 }
 
 /// Every textual payload in the tree. A small-string type that stores payloads up to 24 bytes
@@ -94,73 +161,72 @@ pub struct Format(pub Text);
 
 node_enum! {
     /// A block-level node of the document body.
-    #[derive(Debug, Clone, PartialEq)]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Block {
         /// Inline content standing alone without paragraph semantics (a tight list item, a
         /// table cell).
-        Plain(Vec<Inline>),
+        Plain(inlines: Vec<Inline>),
         /// A paragraph.
-        Para(Vec<Inline>),
+        Para(inlines: Vec<Inline>),
         /// A sequence of lines whose divisions are preserved.
-        LineBlock(Vec<Vec<Inline>>),
+        LineBlock(lines: Vec<Vec<Inline>>),
         /// A block of verbatim code with its attributes.
-        CodeBlock(Box<Attr>, Text),
+        CodeBlock(attributes: Box<Attr>, text: Text),
         /// Verbatim content in the named format, emitted only by that format's writers.
-        RawBlock(Format, Text),
+        RawBlock(format: Format => Format(std::mem::take(&mut format.0)), text: Text),
         /// A quoted block sequence.
-        BlockQuote(Vec<Block>),
+        BlockQuote(blocks: Vec<Block>),
         /// A numbered list: the marker configuration plus one block sequence per item.
-        OrderedList(ListAttributes, Vec<Vec<Block>>),
+        OrderedList(attributes: ListAttributes => attributes.clone(), items: Vec<Vec<Block>>),
         /// A bulleted list: one block sequence per item.
-        BulletList(Vec<Vec<Block>>),
+        BulletList(items: Vec<Vec<Block>>),
         /// A definition list: each entry pairs a term with its definition bodies.
-        DefinitionList(Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
+        DefinitionList(entries: Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
         /// A section heading: level, attributes, and heading text.
-        Header(i64, Box<Attr>, Vec<Inline>),
+        Header(level: i64, attributes: Box<Attr>, inlines: Vec<Inline>),
         /// A thematic break.
         HorizontalRule,
         /// A table; see [`Table`].
-        Table(Box<Table>),
+        Table(table: Box<Table>),
         /// A figure: attributes, caption, and content.
-        Figure(Box<Attr>, Box<Caption>, Vec<Block>),
+        Figure(attributes: Box<Attr>, caption: Box<Caption>, blocks: Vec<Block>),
         /// A generic attributed block container.
-        Div(Box<Attr>, Vec<Block>),
+        Div(attributes: Box<Attr>, blocks: Vec<Block>),
     }
     tags: BLOCK_TAGS
+    parts: BlockParts
 }
 
 node_enum! {
     /// An inline node: a piece of text or an intra-paragraph construct.
-    #[derive(Debug, Clone, PartialEq)]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Inline {
         /// A run of text.
-        Str(Text),
+        Str(text: Text),
         /// Emphasized content, conventionally italic.
-        Emph(Vec<Inline>),
+        Emph(inlines: Vec<Inline>),
         /// Underlined content.
-        Underline(Vec<Inline>),
+        Underline(inlines: Vec<Inline>),
         /// Strong content, conventionally bold.
-        Strong(Vec<Inline>),
+        Strong(inlines: Vec<Inline>),
         /// Struck-out content.
-        Strikeout(Vec<Inline>),
+        Strikeout(inlines: Vec<Inline>),
         /// Superscripted content.
-        Superscript(Vec<Inline>),
+        Superscript(inlines: Vec<Inline>),
         /// Subscripted content.
-        Subscript(Vec<Inline>),
+        Subscript(inlines: Vec<Inline>),
         /// Small-caps content.
-        SmallCaps(Vec<Inline>),
+        SmallCaps(inlines: Vec<Inline>),
         /// Quoted content, with the quotation-mark kind alongside.
-        Quoted(QuoteType, Vec<Inline>),
+        Quoted(kind: QuoteType => kind.clone(), inlines: Vec<Inline>),
         /// A citation: the references cited plus the source text they were written as.
-        Cite(Vec<Citation>, Vec<Inline>),
+        Cite(citations: Vec<Citation>, inlines: Vec<Inline>),
         /// A span of verbatim code with its attributes.
-        Code(Box<Attr>, Text),
+        Code(attributes: Box<Attr>, text: Text),
         /// An inter-word space.
         Space,
         /// A soft line break: a source newline that renders as breakable space.
@@ -168,42 +234,43 @@ node_enum! {
         /// A hard line break.
         LineBreak,
         /// A math payload, inline or display.
-        Math(MathType, Text),
+        Math(kind: MathType => kind.clone(), text: Text),
         /// Verbatim content in the named format, emitted only by that format's writers.
-        RawInline(Format, Text),
+        RawInline(format: Format => Format(std::mem::take(&mut format.0)), text: Text),
         /// A link: attributes, link text, and destination.
-        Link(Box<Attr>, Vec<Inline>, Box<Target>),
+        Link(attributes: Box<Attr>, inlines: Vec<Inline>, target: Box<Target>),
         /// An image: attributes, alt text, and source.
-        Image(Box<Attr>, Vec<Inline>, Box<Target>),
+        Image(attributes: Box<Attr>, inlines: Vec<Inline>, target: Box<Target>),
         /// A footnote or endnote holding block content.
-        Note(Vec<Block>),
+        Note(blocks: Vec<Block>),
         /// A generic attributed inline container.
-        Span(Box<Attr>, Vec<Inline>),
+        Span(attributes: Box<Attr>, inlines: Vec<Inline>),
     }
     tags: INLINE_TAGS
+    parts: InlineParts
 }
 
 node_enum! {
     /// A metadata value. Documents carry a `String`-keyed map of these.
-    #[derive(Debug, Clone, PartialEq)]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum MetaValue {
         /// A nested map of metadata values.
-        MetaMap(BTreeMap<Text, MetaValue>),
+        MetaMap(values: BTreeMap<Text, MetaValue>),
         /// A list of metadata values.
-        MetaList(Vec<MetaValue>),
+        MetaList(values: Vec<MetaValue>),
         /// A boolean.
-        MetaBool(bool),
+        MetaBool(value: bool),
         /// A plain string.
-        MetaString(Text),
+        MetaString(text: Text),
         /// Inline markup content.
-        MetaInlines(Vec<Inline>),
+        MetaInlines(inlines: Vec<Inline>),
         /// Block-level content.
-        MetaBlocks(Vec<Block>),
+        MetaBlocks(blocks: Vec<Block>),
     }
     tags: META_VALUE_TAGS
+    parts: MetaValueParts
 }
 
 /// The quotation-mark kind of an [`Inline::Quoted`] span.

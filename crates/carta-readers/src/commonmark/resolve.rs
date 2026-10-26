@@ -344,8 +344,8 @@ fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
         return para(inlines);
     }
     let one: Result<[Inline; 1], Vec<Inline>> = inlines.try_into();
-    match one {
-        Ok([Inline::Image(mut attr, alt, target)]) if !alt.is_empty() => {
+    match one.map(|[inline]| [inline.into_parts()]) {
+        Ok([carta_ast::InlineParts::Image(mut attr, alt, target)]) if !alt.is_empty() => {
             let figure_attr = Attr {
                 id: std::mem::take(&mut attr.id),
                 classes: Vec::new(),
@@ -362,7 +362,7 @@ fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
                 vec![Block::Plain(vec![image])],
             )
         }
-        Ok([only]) => para(vec![only]),
+        Ok([only]) => para(vec![only.into()]),
         Err(inlines) => para(inlines),
     }
 }

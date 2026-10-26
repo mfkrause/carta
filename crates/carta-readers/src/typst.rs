@@ -12,9 +12,9 @@ use std::rc::Rc;
 use regex::Regex;
 
 use carta_ast::{
-    Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,
-    Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row,
-    Table, TableBody, TableFoot, TableHead, Target, Text,
+    Alignment, Attr, Block, BlockParts, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth,
+    Document, Inline, InlineParts, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
+    MetaValue, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target, Text,
 };
 use carta_core::{DeepStack, Error, Extension, Reader, ReaderOptions, Result, on_deep_stack};
 
@@ -723,14 +723,18 @@ fn text_inlines(text: &str) -> Vec<Inline> {
 fn blocks_to_inlines(blocks: Vec<Block>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     for block in blocks {
-        let part = match block {
-            Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => inlines,
-            Block::Div(_, children) | Block::BlockQuote(children) => blocks_to_inlines(children),
-            Block::CodeBlock(attr, code) => vec![Inline::Code(attr, code)],
-            Block::BulletList(items) | Block::OrderedList(_, items) => {
+        let part = match block.into_parts() {
+            BlockParts::Para(inlines)
+            | BlockParts::Plain(inlines)
+            | BlockParts::Header(_, _, inlines) => inlines,
+            BlockParts::Div(_, children) | BlockParts::BlockQuote(children) => {
+                blocks_to_inlines(children)
+            }
+            BlockParts::CodeBlock(attr, code) => vec![Inline::Code(attr, code)],
+            BlockParts::BulletList(items) | BlockParts::OrderedList(_, items) => {
                 items.into_iter().flat_map(blocks_to_inlines).collect()
             }
-            Block::DefinitionList(entries) => entries
+            BlockParts::DefinitionList(entries) => entries
                 .into_iter()
                 .flat_map(|(term, definitions)| {
                     let mut entry = term;
@@ -740,7 +744,7 @@ fn blocks_to_inlines(blocks: Vec<Block>) -> Vec<Inline> {
                     entry
                 })
                 .collect(),
-            Block::Table(table) => table_to_inlines(*table),
+            BlockParts::Table(table) => table_to_inlines(*table),
             _ => continue,
         };
         if part.is_empty() {
@@ -3993,13 +3997,13 @@ fn join_values(left: Value, right: Value) -> Value {
 /// Append content to content, continuing an open paragraph rather than starting a new one.
 fn append_content(blocks: &mut Vec<Block>, next: Vec<Block>) {
     let mut next = next.into_iter();
-    let Some(first) = next.next() else {
+    let Some(mut first) = next.next() else {
         return;
     };
     let closed = closes_paragraph(blocks);
-    match (blocks.last_mut(), first) {
-        (Some(Block::Para(tail)), Block::Para(mut head)) if !closed => tail.append(&mut head),
-        (_, block) => blocks.extend(without_leading_edge(block)),
+    match (blocks.last_mut(), &mut first) {
+        (Some(Block::Para(tail)), Block::Para(head)) if !closed => tail.append(head),
+        _ => blocks.extend(without_leading_edge(first)),
     }
     blocks.extend(next);
 }
@@ -5570,9 +5574,9 @@ fn named<'a>(args: &'a [Arg], key: &str) -> Option<&'a Value> {
 fn map_text(inlines: Vec<Inline>, transform: fn(&str) -> String) -> Vec<Inline> {
     inlines
         .into_iter()
-        .map(|inline| match inline {
-            Inline::Str(text) => Inline::Str(transform(&text).as_str().into()),
-            other => other,
+        .map(|inline| match inline.into_parts() {
+            InlineParts::Str(text) => Inline::Str(transform(&text).as_str().into()),
+            other => other.into(),
         })
         .collect()
 }
@@ -6140,10 +6144,10 @@ fn alignment_of(value: &Value) -> Alignment {
 /// Join text nodes that ended up next to each other, so each run of text is one node.
 fn merge_text_runs(inlines: &mut Vec<Inline>) {
     let mut out: Vec<Inline> = Vec::with_capacity(inlines.len());
-    for inline in inlines.drain(..) {
-        match (out.last_mut(), inline) {
-            (Some(Inline::Str(previous)), Inline::Str(text)) => previous.push_str(&text),
-            (_, other) => out.push(other),
+    for mut inline in inlines.drain(..) {
+        match (out.last_mut(), &mut inline) {
+            (Some(Inline::Str(previous)), Inline::Str(text)) => previous.push_str(text),
+            _ => out.push(inline),
         }
     }
     *inlines = out;
@@ -6153,23 +6157,22 @@ fn merge_text_runs(inlines: &mut Vec<Inline>) {
 fn merge_citations(inlines: &mut Vec<Inline>) {
     let mut out: Vec<Inline> = Vec::with_capacity(inlines.len());
     let mut held_space = false;
-    for inline in inlines.drain(..) {
+    for mut inline in inlines.drain(..) {
         let after_cite = matches!(out.last(), Some(Inline::Cite(..)));
         if matches!(inline, Inline::Space) && after_cite && !held_space {
             held_space = true;
             continue;
         }
-        match (out.last_mut(), inline) {
-            (Some(Inline::Cite(citations, body)), Inline::Cite(mut next, mut text)) => {
-                citations.append(&mut next);
-                body.append(&mut text);
+        if let (Some(Inline::Cite(citations, body)), Inline::Cite(next, text)) =
+            (out.last_mut(), &mut inline)
+        {
+            citations.append(next);
+            body.append(text);
+        } else {
+            if held_space {
+                out.push(Inline::Space);
             }
-            (_, other) => {
-                if held_space {
-                    out.push(Inline::Space);
-                }
-                out.push(other);
-            }
+            out.push(inline);
         }
         held_space = false;
     }

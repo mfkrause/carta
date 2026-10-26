@@ -7,8 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline,
-    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table,
-    TableBody, TableFoot, TableHead, Target, Text,
+    InlineParts, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType,
+    Row, Table, TableBody, TableFoot, TableHead, Target, Text,
 };
 use carta_core::{Extension, Reader, ReaderOptions, Result};
 
@@ -1633,21 +1633,21 @@ fn collapse_spaces(text: &str) -> String {
 fn normalize(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::with_capacity(inlines.len());
     for inline in inlines {
-        match inline {
-            Inline::Str(text) => match out.last_mut() {
+        match inline.into_parts() {
+            InlineParts::Str(text) => match out.last_mut() {
                 Some(Inline::Str(previous)) => previous.push_str(&text),
                 _ => out.push(Inline::Str(text)),
             },
-            Inline::Space => {
+            InlineParts::Space => {
                 if !matches!(out.last(), Some(Inline::Space | Inline::SoftBreak)) {
                     out.push(Inline::Space);
                 }
             }
-            Inline::SoftBreak => match out.last_mut() {
+            InlineParts::SoftBreak => match out.last_mut() {
                 Some(last @ (Inline::Space | Inline::SoftBreak)) => *last = Inline::SoftBreak,
                 _ => out.push(Inline::SoftBreak),
             },
-            other => match (out.last_mut(), other) {
+            other => match (out.last_mut(), Inline::from(other)) {
                 (Some(last), other) if merges(last, &other) => extend_wrapper(last, other),
                 (_, other) => out.push(other),
             },
@@ -1682,13 +1682,13 @@ fn extend_wrapper(left: &mut Inline, right: Inline) {
     else {
         return;
     };
-    let (Inline::Emph(source)
-    | Inline::Underline(source)
-    | Inline::Strong(source)
-    | Inline::Strikeout(source)
-    | Inline::Superscript(source)
-    | Inline::Subscript(source)
-    | Inline::SmallCaps(source)) = right
+    let (InlineParts::Emph(source)
+    | InlineParts::Underline(source)
+    | InlineParts::Strong(source)
+    | InlineParts::Strikeout(source)
+    | InlineParts::Superscript(source)
+    | InlineParts::Subscript(source)
+    | InlineParts::SmallCaps(source)) = right.into_parts()
     else {
         return;
     };
@@ -2406,7 +2406,7 @@ mod tests {
                 Block::Para(inlines) => inlines.clone(),
                 _ => Vec::new(),
             })
-            .filter_map(|inline| match inline {
+            .filter_map(|inline| match &inline {
                 Inline::Link(_, content, _) => Some(format!("{content:?}")),
                 _ => None,
             })

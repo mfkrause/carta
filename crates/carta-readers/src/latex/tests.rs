@@ -86,11 +86,11 @@ fn ref_becomes_tagged_link_with_bracketed_label() {
 
 #[test]
 fn cref_variants_carry_their_reference_kind() {
-    let kinds = |input: &str| match parse(input).into_iter().next() {
-        Some(Block::Para(inlines)) => inlines
+    let kinds = |input: &str| match parse(input).into_iter().next().map(Block::into_parts) {
+        Some(carta_ast::BlockParts::Para(inlines)) => inlines
             .into_iter()
-            .filter_map(|inline| match inline {
-                Inline::Link(attr, _, _) => attr
+            .filter_map(|inline| match inline.into_parts() {
+                carta_ast::InlineParts::Link(attr, _, _) => attr
                     .attributes
                     .into_iter()
                     .find(|(k, _)| k == "reference-type")

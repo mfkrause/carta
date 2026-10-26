@@ -6,7 +6,7 @@ use carta_core::{Extension, Extensions};
 
 #[test]
 fn line_block_div_becomes_line_block() {
-    let Block::LineBlock(lines) = first_block(r#"<div class="line-block">a<br>b</div>"#) else {
+    let Block::LineBlock(lines) = &first_block(r#"<div class="line-block">a<br>b</div>"#) else {
         panic!("expected line block");
     };
     assert_eq!(lines.len(), 2);
@@ -193,7 +193,7 @@ fn tex_math_double_backslash_on_splits_inline_and_display() {
 fn header_ids(input: &str, added: &[Extension]) -> Vec<String> {
     read_with_text_ext(input, added)
         .into_iter()
-        .filter_map(|block| match block {
+        .filter_map(|block| match &block {
             Block::Header(_, attr, _) => Some(attr.id.to_string()),
             _ => None,
         })
@@ -225,7 +225,7 @@ fn gfm_auto_identifiers_need_auto_identifiers_to_take_effect() {
         Extensions::from_list(&[Extension::GfmAutoIdentifiers]),
     )
     .into_iter()
-    .filter_map(|block| match block {
+    .filter_map(|block| match &block {
         Block::Header(_, attr, _) => Some(attr.id.to_string()),
         _ => None,
     })

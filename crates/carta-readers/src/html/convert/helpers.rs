@@ -1,7 +1,8 @@
 //! Inline run assembly, attribute extraction, tag serialization, and block-flow helpers.
 
 use carta_ast::{
-    Attr, Block, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, Target,
+    Attr, Block, BlockParts, Inline, InlineParts, ListAttributes, ListNumberDelim, ListNumberStyle,
+    MathType, Target,
 };
 
 use super::super::tree::{Element, Node, attr_value, style_property};
@@ -9,11 +10,11 @@ use super::super::tree::{Element, Node, attr_value, style_property};
 /// Merge a finished inline into a run, joining adjacent strings and collapsing adjacent breaks the
 /// way [`push_text`] does, so a smart pass over one text node fuses cleanly with its neighbors.
 pub(super) fn absorb(out: &mut Vec<Inline>, inline: Inline) {
-    match inline {
-        Inline::Str(text) => push_str(out, &text),
-        Inline::Space => push_break(out, false),
-        Inline::SoftBreak => push_break(out, true),
-        other => out.push(other),
+    match inline.into_parts() {
+        InlineParts::Str(text) => push_str(out, &text),
+        InlineParts::Space => push_break(out, false),
+        InlineParts::SoftBreak => push_break(out, true),
+        other => out.push(other.into()),
     }
 }
 
@@ -35,15 +36,15 @@ pub(super) fn merge_adjacent_formatting(out: &mut Vec<Inline>, inline: Inline) {
         out.push(inline);
         return;
     }
-    let next = match inline {
-        Inline::Emph(children)
-        | Inline::Strong(children)
-        | Inline::Strikeout(children)
-        | Inline::Underline(children)
-        | Inline::Superscript(children)
-        | Inline::Subscript(children) => children,
+    let next = match inline.into_parts() {
+        InlineParts::Emph(children)
+        | InlineParts::Strong(children)
+        | InlineParts::Strikeout(children)
+        | InlineParts::Underline(children)
+        | InlineParts::Superscript(children)
+        | InlineParts::Subscript(children) => children,
         other => {
-            out.push(other);
+            out.push(other.into());
             return;
         }
     };
@@ -380,9 +381,9 @@ pub(super) fn fix_plains(blocks: Vec<Block>, flow: Flow) -> Vec<Block> {
     }
     blocks
         .into_iter()
-        .map(|block| match block {
-            Block::Plain(inlines) => Block::Para(inlines),
-            other => other,
+        .map(|block| match block.into_parts() {
+            BlockParts::Plain(inlines) => Block::Para(inlines),
+            other => other.into(),
         })
         .collect()
 }

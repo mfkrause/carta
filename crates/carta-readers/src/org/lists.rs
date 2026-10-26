@@ -2,7 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Block, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MetaValue, Text};
+use carta_ast::{
+    Block, BlockParts, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MetaValue, Text,
+};
 use carta_core::{Extension, Extensions};
 
 use crate::heading_ids::IdRegistry;
@@ -243,9 +245,9 @@ fn prepend_checkbox(blocks: &mut Vec<Block>, glyph: &str) {
 fn tighten(blocks: Vec<Block>) -> Vec<Block> {
     blocks
         .into_iter()
-        .map(|b| match b {
-            Block::Para(inlines) => Block::Plain(inlines),
-            other => other,
+        .map(|b| match b.into_parts() {
+            BlockParts::Para(inlines) => Block::Plain(inlines),
+            other => other.into(),
         })
         .collect()
 }
