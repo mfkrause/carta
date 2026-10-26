@@ -202,6 +202,7 @@ dependencies = [
  "quick-xml",
  "serde",
  "serde_json",
+ "stacker",
 ]
 
 [[package]]

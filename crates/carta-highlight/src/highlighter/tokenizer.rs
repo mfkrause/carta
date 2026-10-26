@@ -16,6 +16,12 @@ use crate::firstbytes::FirstBytes;
 
 type State = (usize, usize, Vec<String>);
 
+#[derive(Default)]
+struct States {
+    frames: BTreeMap<Rc<State>, usize>,
+    depths: BTreeMap<usize, Vec<Rc<State>>>,
+}
+
 /// The mutable state of an in-progress tokenization.
 pub(super) struct Tokenizer<'a> {
     hl: &'a Highlighter,
@@ -90,7 +96,7 @@ impl<'a> Tokenizer<'a> {
         }
 
         let mut tokens = Vec::new();
-        let mut nonconsuming_states = BTreeMap::new();
+        let mut nonconsuming_states = States::default();
         while self.pos < self.line.len() {
             let previous_position = self.pos;
             self.minimum_depth = self.stack.len();
@@ -100,7 +106,7 @@ impl<'a> Tokenizer<'a> {
                 Step::Stop => break,
             }
             if self.pos != previous_position {
-                nonconsuming_states.clear();
+                nonconsuming_states = States::default();
                 continue;
             }
 
@@ -120,7 +126,7 @@ impl<'a> Tokenizer<'a> {
         if self.line_continuation {
             return;
         }
-        let mut states = BTreeMap::new();
+        let mut states = States::default();
         while let Some(frame) = self.stack.last() {
             let Some(ctx) = frame.grammar.contexts.get(frame.context) else {
                 break;
@@ -270,28 +276,31 @@ impl<'a> Tokenizer<'a> {
         owner: &Rc<Grammar>,
         includes: &mut BTreeSet<(usize, usize)>,
     ) -> Option<Option<Token>> {
-        let (grammar, context) = self.resolve_target(target, owner)?;
-        let ctx = grammar.contexts.get(context)?;
-        let key = (Rc::as_ptr(&grammar) as usize, context);
-        if !includes.insert(key) {
-            return None;
-        }
-        let inner_attr: &str = &ctx.attribute;
-        for rule in &ctx.rules {
-            if let Some(result) = self.try_rule(rule, &grammar, inner_attr, includes) {
-                includes.remove(&key);
-                if include_attribute
-                    && let Some(tok) = &result
-                    && tok.kind == TokenKind::Normal
-                {
-                    let kind = kind_for(owner, ctx_attr);
-                    return Some(Some(Token::new(kind, tok.text.clone())));
-                }
-                return Some(result);
+        // Acyclic include graphs can outgrow the caller's stack.
+        stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
+            let (grammar, context) = self.resolve_target(target, owner)?;
+            let ctx = grammar.contexts.get(context)?;
+            let key = (Rc::as_ptr(&grammar) as usize, context);
+            if !includes.insert(key) {
+                return None;
             }
-        }
-        includes.remove(&key);
-        None
+            let inner_attr: &str = &ctx.attribute;
+            for rule in &ctx.rules {
+                if let Some(result) = self.try_rule(rule, &grammar, inner_attr, includes) {
+                    includes.remove(&key);
+                    if include_attribute
+                        && let Some(tok) = &result
+                        && tok.kind == TokenKind::Normal
+                    {
+                        let kind = kind_for(owner, ctx_attr);
+                        return Some(Some(Token::new(kind, tok.text.clone())));
+                    }
+                    return Some(result);
+                }
+            }
+            includes.remove(&key);
+            None
+        })
     }
 
     #[allow(clippy::too_many_lines)]
@@ -619,21 +628,37 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn repeats_state(&self, states: &mut BTreeMap<State, usize>) -> bool {
+    fn repeats_state(&self, states: &mut States) -> bool {
         // A repeated top frame loops if its lower stack has not changed.
-        states.retain(|_, depth| *depth <= self.minimum_depth + 1);
+        let keep = self.minimum_depth.saturating_add(1);
+        if states
+            .depths
+            .last_key_value()
+            .is_some_and(|(&depth, _)| depth > keep)
+        {
+            for (depth, entries) in states.depths.split_off(&keep.saturating_add(1)) {
+                for state in entries {
+                    if states.frames.get(&state) == Some(&depth) {
+                        states.frames.remove(&state);
+                    }
+                }
+            }
+        }
         let Some(frame) = self.stack.last() else {
             return true;
         };
-        let state = (
+        let state = Rc::new((
             Rc::as_ptr(&frame.grammar) as usize,
             frame.context,
             frame.captures.clone(),
-        );
+        ));
         let depth = self.stack.len();
-        states
-            .insert(state, depth)
-            .is_some_and(|before| depth >= before)
+        let repeats = states
+            .frames
+            .insert(Rc::clone(&state), depth)
+            .is_some_and(|before| depth >= before);
+        states.depths.entry(depth).or_default().push(state);
+        repeats
     }
 
     fn apply_switch(&mut self, switch: &ContextSwitch, owner: &Rc<Grammar>) {
