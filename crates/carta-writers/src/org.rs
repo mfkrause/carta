@@ -6,7 +6,7 @@ use carta_ast::{
     Attr, Block, Caption, Cell, Citation, CitationMode, Document, Format, Inline, ListAttributes,
     ListNumberDelim, MathType, QuoteType, Row, Table, Target, Text, to_plain_text,
 };
-use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_hang,
@@ -31,17 +31,19 @@ pub struct OrgWriter;
 
 impl Writer for OrgWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        let width = options.columns.unwrap_or(FILL_COLUMN);
-        let mut state = State {
-            wrap: options.wrap,
-            width,
-            smart: options.extensions.contains(Extension::Smart),
-            task_lists: options.extensions.contains(Extension::TaskLists),
-            citations: options.extensions.contains(Extension::Citations),
-            notes: Vec::new(),
-        };
-        let body = state.blocks(&document.blocks, width, false);
-        Ok(append_notes(body, &state.notes))
+        budget::scope(document, || {
+            let width = options.columns.unwrap_or(FILL_COLUMN);
+            let mut state = State {
+                wrap: options.wrap,
+                width,
+                smart: options.extensions.contains(Extension::Smart),
+                task_lists: options.extensions.contains(Extension::TaskLists),
+                citations: options.extensions.contains(Extension::Citations),
+                notes: Vec::new(),
+            };
+            let body = state.blocks(&document.blocks, width, false);
+            Ok(append_notes(body, &state.notes))
+        })
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -147,9 +149,12 @@ impl State {
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
-        // Org has no syntactic depth ceiling; the cap keeps an absurd level from unbounded allocation.
-        const MAX_HEADLINE_LEVEL: i64 = 32;
-        let stars = "*".repeat(usize::try_from(level.clamp(1, MAX_HEADLINE_LEVEL)).unwrap_or(1));
+        let level = usize::try_from(level.max(1)).unwrap_or(usize::MAX);
+        budget::charge(level);
+        if budget::exhausted() {
+            return String::new();
+        }
+        let stars = "*".repeat(level);
         let text = self.flat(inlines);
         let heading = format!("{stars} {text}");
         let props = properties(attr);
