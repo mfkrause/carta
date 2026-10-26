@@ -1,5 +1,10 @@
 //! Run deeply recursive conversions on a dedicated stack with [`on_deep_stack`].
 
+/// Runs recursive work with stack growth on demand.
+pub fn with_stack<T>(work: impl FnOnce() -> T) -> T {
+    stacker::maybe_grow(64 * 1024, 1024 * 1024, work)
+}
+
 /// Virtual stack reserved for work whose recursion depth tracks input nesting. Large enough that
 /// even adversarially deep input cannot exhaust it; on demand-paged systems the reservation stays
 /// uncommitted until touched, so the cost is address space rather than resident memory.

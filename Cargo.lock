@@ -190,6 +190,7 @@ dependencies = [
  "carta-highlight",
  "miniz_oxide",
  "serde_json",
+ "stacker",
  "thiserror",
 ]
 

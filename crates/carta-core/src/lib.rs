@@ -23,7 +23,7 @@ pub mod walk;
 
 pub use extensions::{Extension, Extensions, presets};
 pub use media::{MediaBag, MediaItem};
-pub use stack::{DEEP_STACK, DeepStack, on_deep_stack};
+pub use stack::{DEEP_STACK, DeepStack, on_deep_stack, with_stack};
 
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]

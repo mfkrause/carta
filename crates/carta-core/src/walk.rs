@@ -30,6 +30,10 @@ pub fn for_each_document_inline(document: &mut Document, visit: &mut dyn FnMut(&
 }
 
 fn metadata_inlines(value: &mut MetaValue, visit: &mut dyn FnMut(&mut Inline)) {
+    crate::with_stack(|| metadata_inlines_nested(value, visit));
+}
+
+fn metadata_inlines_nested(value: &mut MetaValue, visit: &mut dyn FnMut(&mut Inline)) {
     match value {
         MetaValue::MetaMap(values) => {
             for value in values.values_mut() {
@@ -61,6 +65,10 @@ pub fn for_each_link_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Tar
 /// (list items, table cells, notes, captions, and the rest) in document order. A block is reported
 /// before the blocks it holds, so a callback may replace one and still have the replacement walked.
 pub fn for_each_block(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Block)) {
+    crate::with_stack(|| for_each_block_nested(blocks, visit));
+}
+
+fn for_each_block_nested(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Block)) {
     for block in blocks {
         visit(block);
         descend_blocks(block, visit);
@@ -111,6 +119,10 @@ fn descend_blocks(block: &mut Block, visit: &mut dyn FnMut(&mut Block)) {
 
 /// The blocks an inline run carries, which only a footnote holds.
 fn blocks_in_inlines(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Block)) {
+    crate::with_stack(|| blocks_in_inlines_nested(inlines, visit));
+}
+
+fn blocks_in_inlines_nested(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Block)) {
     for inline in inlines {
         match inline {
             Inline::Note(blocks) => for_each_block(blocks, visit),
@@ -159,6 +171,10 @@ fn block_inlines(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Inline)) {
 }
 
 fn visit_block(block: &mut Block, visit: &mut dyn FnMut(&mut Inline)) {
+    crate::with_stack(|| visit_block_nested(block, visit));
+}
+
+fn visit_block_nested(block: &mut Block, visit: &mut dyn FnMut(&mut Inline)) {
     match block {
         Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
             visit_inlines(inlines, visit);
@@ -217,6 +233,10 @@ fn visit_caption(caption: &mut Caption, visit: &mut dyn FnMut(&mut Inline)) {
 }
 
 fn visit_inlines(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Inline)) {
+    crate::with_stack(|| visit_inlines_nested(inlines, visit));
+}
+
+fn visit_inlines_nested(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Inline)) {
     for inline in inlines {
         visit(inline);
         match inline {

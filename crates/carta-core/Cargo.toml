@@ -37,4 +37,5 @@ carta-ast = { workspace = true }
 carta-highlight = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
+stacker = { workspace = true }
 miniz_oxide = { workspace = true, optional = true }

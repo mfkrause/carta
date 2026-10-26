@@ -631,7 +631,12 @@ pub fn slug_gfm(text: &str) -> String {
 }
 
 fn push_plain_text(inlines: &[Inline], out: &mut String) {
-    for inline in inlines {
+    let mut pending = vec![inlines.iter()];
+    while let Some(inlines) = pending.last_mut() {
+        let Some(inline) = inlines.next() else {
+            pending.pop();
+            continue;
+        };
         match inline {
             Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => out.push_str(text),
             Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
@@ -646,13 +651,19 @@ fn push_plain_text(inlines: &[Inline], out: &mut String) {
             | Inline::Cite(_, xs)
             | Inline::Link(_, xs, _)
             | Inline::Image(_, xs, _)
-            | Inline::Span(_, xs) => push_plain_text(xs, out),
+            | Inline::Span(_, xs) => pending.push(xs.iter()),
             Inline::RawInline(..) | Inline::Note(_) => {}
         }
     }
 }
 
 fn push_plain_inlines(inlines: &[Inline], out: &mut Vec<Inline>) {
+    stacker::maybe_grow(64 * 1024, 1024 * 1024, || {
+        push_plain_inlines_nested(inlines, out);
+    });
+}
+
+fn push_plain_inlines_nested(inlines: &[Inline], out: &mut Vec<Inline>) {
     for inline in inlines {
         match inline {
             Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => {

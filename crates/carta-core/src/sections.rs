@@ -63,6 +63,10 @@ impl Counters {
 /// counts from.
 fn min_heading_level(blocks: &[Block]) -> usize {
     fn walk(blocks: &[Block], min: &mut Option<usize>) {
+        crate::with_stack(|| walk_nested(blocks, min));
+    }
+
+    fn walk_nested(blocks: &[Block], min: &mut Option<usize>) {
         for block in blocks {
             match block {
                 Block::Header(level, _, _) => {
@@ -120,6 +124,10 @@ pub fn number_sections(blocks: &mut [Block]) {
 }
 
 fn number_in(blocks: &mut [Block], counters: &mut Counters) {
+    crate::with_stack(|| number_in_nested(blocks, counters));
+}
+
+fn number_in_nested(blocks: &mut [Block], counters: &mut Counters) {
     for block in blocks {
         match block {
             Block::Header(level, attr, inlines) => {
@@ -187,6 +195,19 @@ fn collect_entries(
     counters: &mut Counters,
     entries: &mut Vec<Entry>,
 ) {
+    crate::with_stack(|| {
+        collect_entries_nested(blocks, depth, numbered, anchors, counters, entries);
+    });
+}
+
+fn collect_entries_nested(
+    blocks: &[Block],
+    depth: usize,
+    numbered: bool,
+    anchors: bool,
+    counters: &mut Counters,
+    entries: &mut Vec<Entry>,
+) {
     for block in blocks {
         match block {
             Block::Header(level, attr, inlines) => {
@@ -210,6 +231,10 @@ fn collect_entries(
 /// Turn a flat, document-order list of entries into a nested bullet list: each entry's deeper-level
 /// followers become its sub-list.
 fn nest(entries: &[Entry]) -> Vec<Vec<Block>> {
+    crate::with_stack(|| nest_nested(entries))
+}
+
+fn nest_nested(entries: &[Entry]) -> Vec<Vec<Block>> {
     let mut items = Vec::new();
     let mut rest = entries;
     while let Some((first, tail)) = rest.split_first() {
@@ -273,6 +298,10 @@ fn toc_entry(
 /// Strip a heading's inlines for use in a contents entry: drop footnotes and replace each link with
 /// its own content (an anchor cannot nest inside the entry's anchor), recursing through styled spans.
 fn clean_toc_inlines(inlines: &[Inline]) -> Vec<Inline> {
+    crate::with_stack(|| clean_toc_inlines_nested(inlines))
+}
+
+fn clean_toc_inlines_nested(inlines: &[Inline]) -> Vec<Inline> {
     let mut out = Vec::new();
     for inline in inlines {
         match inline {
