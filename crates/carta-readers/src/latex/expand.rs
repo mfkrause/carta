@@ -238,7 +238,7 @@ impl Parser {
         let raw: String = self
             .frames
             .last()
-            .and_then(|frame| frame.chars.get(start..frame.pos))
+            .and_then(|frame| frame.source.chars.get(start..frame.pos))
             .unwrap_or_default()
             .iter()
             .collect();
@@ -334,15 +334,14 @@ impl Parser {
         self.expansions.calls.set(self.expansions.calls.get() - 1);
         if !expanded.is_empty() {
             self.expansions.active.borrow_mut().insert(call.clone());
-            self.frames.push(Frame {
-                chars: expanded.chars().collect(),
-                pos: 0,
-                expansion: Some(Rc::new(Expansion {
+            self.frames.push(Frame::new(
+                &expanded,
+                Some(Rc::new(Expansion {
                     call,
                     state: Rc::clone(&self.expansions),
                     parent,
                 })),
-            });
+            ));
         }
         true
     }

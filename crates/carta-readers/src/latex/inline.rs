@@ -16,7 +16,7 @@ use super::support::{
     switch_kind, symbol_text, trim_inlines, unescape_url, word_accent,
 };
 use super::tables::image_attributes;
-use super::{Frame, InlineStop, MAX_NEST_DEPTH, Parser, Stop};
+use super::{Frame, InlineStop, Parser, Stop};
 
 impl Parser {
     // Paragraph & inline
@@ -26,19 +26,12 @@ impl Parser {
         trim_inlines(inlines)
     }
 
-    /// Parses an inline run until `stop`. At the nesting ceiling the run is left unparsed; every
-    /// caller consumes the opening delimiter first, so the enclosing loop still makes progress.
+    /// Parse inlines until `stop`.
     pub(super) fn parse_inlines(&mut self, stop: InlineStop) -> Vec<Inline> {
-        if self.nest_depth >= MAX_NEST_DEPTH {
-            return Vec::new();
-        }
-        self.nest_depth += 1;
-        let inlines = self.parse_inlines_bounded(stop);
-        self.nest_depth = self.nest_depth.saturating_sub(1);
-        inlines
+        carta_core::with_stack(|| self.parse_inlines_inner(stop))
     }
 
-    fn parse_inlines_bounded(&mut self, stop: InlineStop) -> Vec<Inline> {
+    fn parse_inlines_inner(&mut self, stop: InlineStop) -> Vec<Inline> {
         let mut out = Vec::new();
         let mut buf = String::new();
         loop {
@@ -635,16 +628,15 @@ impl Parser {
         Some(code)
     }
 
-    /// A sub-parser over `source` that inherits the shared context (extensions, smart mode, macro
-    /// table, section base level, expansion state and nesting depth) but starts with fresh cursor and output state
-    /// (metadata and heading ids). It never inherits float context.
+    /// Parse a new source with shared macro definitions and fresh output state.
     pub(super) fn child(&self, source: &str, in_figure: bool) -> Parser {
+        let expansion = self.frames.last().and_then(|frame| frame.expansion.clone());
+        self.child_frame(Frame::new(source, expansion), in_figure)
+    }
+
+    fn child_frame(&self, frame: Frame, in_figure: bool) -> Parser {
         Parser {
-            frames: vec![Frame {
-                chars: source.chars().collect(),
-                pos: 0,
-                expansion: self.frames.last().and_then(|frame| frame.expansion.clone()),
-            }],
+            frames: vec![frame],
             ext: self.ext,
             smart: self.smart,
             meta: BTreeMap::new(),
@@ -654,7 +646,6 @@ impl Parser {
             in_figure,
             in_float: false,
             expansions: Rc::clone(&self.expansions),
-            nest_depth: self.nest_depth,
             last_ws_had_newline: false,
         }
     }
@@ -663,10 +654,32 @@ impl Parser {
         if self.cur() != Some('{') {
             return Vec::new();
         }
-        // Slice out the balanced group and parse it as a sub-document so paragraph breaks work.
-        let source = self.read_group_raw().unwrap_or_default();
-        let mut sub = self.child(&source, self.in_figure);
+        let mut sub = if let Some(frame) = self.group_frame() {
+            self.child_frame(frame, self.in_figure)
+        } else {
+            let source = self.read_group_raw().unwrap_or_default();
+            self.child(&source, self.in_figure)
+        };
         sub.parse_blocks(&Stop::Eof)
+    }
+
+    fn group_frame(&mut self) -> Option<Frame> {
+        self.drop_exhausted_frames();
+        let single = self.frames.len() == 1;
+        let frame = self.frames.last_mut()?;
+        let close = frame.source.group_ends.get(frame.pos).copied()?;
+        if close >= frame.end && !single {
+            return None;
+        }
+        let end = close.min(frame.end);
+        let group = Frame {
+            source: Rc::clone(&frame.source),
+            pos: frame.pos + 1,
+            end,
+            expansion: frame.expansion.clone(),
+        };
+        frame.pos = end + usize::from(end < frame.end);
+        Some(group)
     }
 
     pub(super) fn parse_group_inlines(&mut self) -> Vec<Inline> {

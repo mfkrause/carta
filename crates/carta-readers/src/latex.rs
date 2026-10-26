@@ -48,7 +48,6 @@ impl Reader for LatexReader {
                     (1usize << 20).saturating_add(input.len().saturating_mul(64)),
                 ),
             }),
-            nest_depth: 0,
             last_ws_had_newline: false,
         };
 
@@ -141,9 +140,52 @@ struct Macro {
 /// bottom frame holds the source text; each macro expansion pushes a new frame that is read to
 /// exhaustion, then popped, so the expansion's characters are consumed in place of the invocation.
 struct Frame {
-    chars: Vec<char>,
+    source: Rc<Source>,
     pos: usize,
+    end: usize,
     expansion: Option<Rc<Expansion>>,
+}
+
+struct Source {
+    chars: Vec<char>,
+    group_ends: Vec<usize>,
+}
+
+impl Source {
+    fn new(text: &str) -> Self {
+        let chars: Vec<char> = text.chars().collect();
+        let mut group_ends = vec![chars.len(); chars.len()];
+        let mut pending = Vec::new();
+        let mut position = 0;
+        while let Some(ch) = chars.get(position) {
+            match ch {
+                '\\' => position += 1,
+                '{' => pending.push(position),
+                '}' => {
+                    if let Some(open) = pending.pop()
+                        && let Some(slot) = group_ends.get_mut(open)
+                    {
+                        *slot = position;
+                    }
+                }
+                _ => {}
+            }
+            position += 1;
+        }
+        Self { chars, group_ends }
+    }
+}
+
+impl Frame {
+    fn new(text: &str, expansion: Option<Rc<Expansion>>) -> Self {
+        let source = Rc::new(Source::new(text));
+        Self {
+            end: source.chars.len(),
+            source,
+            pos: 0,
+            expansion,
+        }
+    }
 }
 
 type MacroCall = (String, Rc<Macro>, Vec<String>);
@@ -195,9 +237,6 @@ struct Parser {
     /// hoisted out as the float's caption.
     in_float: bool,
     expansions: Rc<Expansions>,
-    /// Current block/inline nesting depth, shared by both parsing funnels and inherited by
-    /// sub-parsers, bounded so adversarially nested input cannot exhaust the stack.
-    nest_depth: u32,
     /// Whether the most recently consumed inter-word whitespace contained a newline, so the gap
     /// renders as a soft break rather than a plain space.
     last_ws_had_newline: bool,
@@ -218,23 +257,17 @@ enum InlineStop {
     QuoteDouble,
 }
 
-const MAX_NEST_DEPTH: u32 = 256;
-
 impl Parser {
     /// Replaces the input frames while preserving macro definitions and expansion state.
     fn set_source(&mut self, source: &str) {
-        self.frames = vec![Frame {
-            chars: source.chars().collect(),
-            pos: 0,
-            expansion: None,
-        }];
+        self.frames = vec![Frame::new(source, None)];
     }
 
     /// Pops finished expansion frames, retaining the source frame.
     fn drop_exhausted_frames(&mut self) {
         while self.frames.len() > 1 {
             match self.frames.last() {
-                Some(frame) if frame.pos >= frame.chars.len() => {
+                Some(frame) if frame.pos >= frame.end => {
                     self.frames.pop();
                 }
                 _ => break,
@@ -243,18 +276,22 @@ impl Parser {
     }
 
     fn cur(&self) -> Option<char> {
-        self.frames
-            .iter()
-            .rev()
-            .find_map(|frame| frame.chars.get(frame.pos).copied())
+        self.frames.iter().rev().find_map(|frame| {
+            frame
+                .source
+                .chars
+                .get(frame.pos..frame.end)
+                .and_then(|chars| chars.first())
+                .copied()
+        })
     }
 
     fn at(&self, offset: usize) -> Option<char> {
         let mut remaining = offset;
         for frame in self.frames.iter().rev() {
-            let available = frame.chars.len().saturating_sub(frame.pos);
+            let available = frame.end.saturating_sub(frame.pos);
             if remaining < available {
-                return frame.chars.get(frame.pos + remaining).copied();
+                return frame.source.chars.get(frame.pos + remaining).copied();
             }
             remaining -= available;
         }
@@ -264,7 +301,12 @@ impl Parser {
     fn bump(&mut self) -> Option<char> {
         self.drop_exhausted_frames();
         let frame = self.frames.last_mut()?;
-        let c = frame.chars.get(frame.pos).copied();
+        let c = frame
+            .source
+            .chars
+            .get(frame.pos..frame.end)
+            .and_then(|chars| chars.first())
+            .copied();
         if c.is_some() {
             frame.pos += 1;
         }
@@ -297,19 +339,12 @@ impl Parser {
 
     // Block level
 
-    /// Parses blocks until `stop`. At the nesting ceiling the body is left unparsed; every caller
-    /// consumes the construct that led here, so the enclosing loop still makes progress.
+    /// Parse blocks until `stop`.
     fn parse_blocks(&mut self, stop: &Stop) -> Vec<Block> {
-        if self.nest_depth >= MAX_NEST_DEPTH {
-            return Vec::new();
-        }
-        self.nest_depth += 1;
-        let blocks = self.parse_blocks_bounded(stop);
-        self.nest_depth = self.nest_depth.saturating_sub(1);
-        blocks
+        carta_core::with_stack(|| self.parse_blocks_inner(stop))
     }
 
-    fn parse_blocks_bounded(&mut self, stop: &Stop) -> Vec<Block> {
+    fn parse_blocks_inner(&mut self, stop: &Stop) -> Vec<Block> {
         let mut blocks = Vec::new();
         loop {
             self.skip_block_ws();
