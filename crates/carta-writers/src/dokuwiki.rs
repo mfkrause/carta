@@ -476,9 +476,6 @@ fn escape(text: &str) -> String {
 /// one row of the source table, so a break within its content cannot stand as a newline; preserved
 /// source breaks fold into the forced-break marker `\\ ` instead.
 ///
-/// Padding to the widest cell means a table nested in a cell is paid for once per row of the
-/// enclosing column, so the rendering is charged against the write's output ceiling and abandoned
-/// once that ceiling is passed, both before the rows are rendered and once they are in hand.
 fn render_table(table: &Table, wrap: WrapMode) -> String {
     if budget::exhausted() {
         return String::new();
@@ -639,8 +636,7 @@ fn cell_block(block: &Block, wrap: WrapMode) -> String {
     }
 }
 
-/// The width of each column: the longest content cell (measured in characters) that starts in
-/// that column.
+/// The width of each column, measured between forced line breaks.
 fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
     let mut widths = vec![0usize; columns];
     for row in rows {
@@ -648,7 +644,12 @@ fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
             if let Slot::Cell(text) = slot
                 && let Some(width) = widths.get_mut(column)
             {
-                *width = (*width).max(text.chars().count());
+                *width = (*width).max(
+                    text.split("\\\\ ")
+                        .map(|line| line.chars().count())
+                        .max()
+                        .unwrap_or(0),
+                );
             }
         }
     }
@@ -676,6 +677,7 @@ fn render_row(row: &RenderedRow, widths: &[usize], aligns: &[Alignment]) -> Stri
 /// right; left and right add a one-space gutter on each side; center adds two.
 fn pad_cell(text: &str, width: usize, align: &Alignment) -> String {
     let content = text.chars().count();
+    let width = width.max(content);
     match align {
         Alignment::AlignDefault => {
             let fill = width.saturating_sub(content);
@@ -757,9 +759,8 @@ mod tests {
         );
     }
 
-    // Nested table padding multiplies output per row; reject output above the size limit.
     #[test]
-    fn a_table_nested_through_padded_cells_is_refused_past_the_output_ceiling() {
+    fn nested_table_padding_uses_line_widths() {
         use carta_ast::{ColSpec, ColWidth, TableBody, TableHead};
 
         fn row(content: Vec<Block>) -> Row {
@@ -802,9 +803,10 @@ mod tests {
             blocks: vec![block],
             ..Document::default()
         };
-        assert!(matches!(
-            DokuwikiWriter.write(&document, &WriterOptions::default()),
-            Err(carta_core::Error::OutputTooLarge)
-        ));
+        let rendered = DokuwikiWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap();
+        assert!(rendered.contains("innermost"));
+        assert!(rendered.len() < 100_000);
     }
 }
