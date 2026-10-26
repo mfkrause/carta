@@ -59,7 +59,7 @@ fn split_lines(input: &str) -> Vec<&str> {
 }
 
 /// Document-level index of lines that could close a code fence, one sorted list per marker kind.
-/// Each entry is `(line index, run length)` for a line that, read at the document root, satisfies
+/// Each entry is `(line index, longest remaining run)` for a line that, read at the document root, satisfies
 /// the closing-fence test (`indent <= 3` and a run of at least three markers followed only by
 /// whitespace). Consulting this instead of rescanning every remaining line keeps unclosed-fence
 /// spam from costing O(n²) in the greedy (markdown-dialect) paragraph mode.
@@ -80,9 +80,7 @@ impl FenceCloseCandidates {
             _ => return false,
         };
         let start = candidates.partition_point(|&(index, _)| index <= after);
-        candidates
-            .get(start..)
-            .is_some_and(|rest| rest.iter().any(|&(_, run)| run >= length))
+        candidates.get(start).is_some_and(|&(_, run)| run >= length)
     }
 }
 
@@ -100,6 +98,13 @@ fn build_fence_close_candidates(lines: &[&str]) -> FenceCloseCandidates {
             {
                 bucket.push((index, run));
             }
+        }
+    }
+    for bucket in [&mut candidates.backtick, &mut candidates.tilde] {
+        let mut longest = 0;
+        for (_, run) in bucket.iter_mut().rev() {
+            longest = longest.max(*run);
+            *run = longest;
         }
     }
     candidates
