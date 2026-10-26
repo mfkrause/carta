@@ -16,7 +16,7 @@ use carta_ast::{
     Document, Inline, InlineParts, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
     MetaValue, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target, Text,
 };
-use carta_core::{DeepStack, Error, Extension, Reader, ReaderOptions, Result, on_deep_stack};
+use carta_core::{Error, Extension, Reader, ReaderOptions, Result};
 
 mod data;
 mod emoji;
@@ -33,8 +33,7 @@ mod tests;
 
 use integer::Integer;
 
-/// The deepest level of nesting that recursive parsing follows. Beyond it, would-be delimiters are
-/// taken literally, bounding stack use on adversarial input.
+/// The deepest math group that recursive parsing follows.
 const MAX_DEPTH: usize = 64;
 
 /// Bound on the values one loop walks over, so a runaway range cannot exhaust memory. It sits far
@@ -63,11 +62,7 @@ pub struct TypstReader;
 
 impl Reader for TypstReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        match on_deep_stack(|| parse_document(input, options)) {
-            DeepStack::Completed(document) => document,
-            DeepStack::Panicked => Err(Error::Container("worker thread failed".into())),
-            DeepStack::NotSpawned => parse_document(input, options),
-        }
+        parse_document(input, options)
     }
 }
 
@@ -313,6 +308,10 @@ impl Value {
 
     /// The value as plain text, for arguments that name a file, a URL, or a setting.
     fn as_text(&self) -> String {
+        carta_core::with_stack(|| self.as_text_nested())
+    }
+
+    fn as_text_nested(&self) -> String {
         match self {
             Value::Sequence(sequence) => sequence.materialize().as_text(),
             Value::Str(text) | Value::Ident(text) | Value::Label(text) => text.clone(),
@@ -724,6 +723,10 @@ fn text_inlines(text: &str) -> Vec<Inline> {
 /// entries of a list and the cells of a table run together, since each already stands apart in the
 /// text it holds.
 fn blocks_to_inlines(blocks: Vec<Block>) -> Vec<Inline> {
+    carta_core::with_stack(|| blocks_to_inlines_nested(blocks))
+}
+
+fn blocks_to_inlines_nested(blocks: Vec<Block>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     for block in blocks {
         let part = match block.into_parts() {
@@ -873,8 +876,9 @@ fn numbering_markers(pattern: &str) -> Option<(ListNumberStyle, ListNumberDelim)
     Some((style, delim))
 }
 
-/// The markup parser: a cursor over the source characters plus the bindings and metadata that
-/// code-mode statements accumulate.
+type GroupEnds = BTreeMap<(usize, char, char), (usize, Option<usize>)>;
+
+/// The markup parser and the bindings and metadata that code statements collect.
 struct Parser {
     /// Every character the parse may read: the document, then each file `#include` or `#import`
     /// pulled in, appended so a binding can keep pointing at the range holding its body.
@@ -883,8 +887,7 @@ struct Parser {
     pos: usize,
     /// One past the last character the current (possibly nested) parse may read.
     limit: usize,
-    /// Current recursion depth, against [`MAX_DEPTH`].
-    depth: usize,
+    group_ends: cell::RefCell<GroupEnds>,
     /// Bindings introduced by `#let`.
     env: BTreeMap<String, Value>,
     /// The names the innermost code block bound, which go away again when it closes.
@@ -903,6 +906,7 @@ struct Parser {
     directories: BTreeMap<usize, Option<PathBuf>>,
     /// The files whose text is currently being parsed, so a cycle of references terminates.
     open: BTreeSet<PathBuf>,
+    loaded: BTreeSet<PathBuf>,
     /// Where an included file's own trailing newline ended a line, closing the paragraph that the
     /// `#include` sits in.
     line_closed: Option<usize>,
@@ -955,7 +959,7 @@ impl Parser {
             source,
             pos: 0,
             limit,
-            depth: 0,
+            group_ends: cell::RefCell::new(BTreeMap::new()),
             env: BTreeMap::new(),
             declared: Vec::new(),
             meta: BTreeMap::new(),
@@ -965,6 +969,7 @@ impl Parser {
             evaluated: None,
             directories: BTreeMap::from([(0, base)]),
             open: BTreeSet::new(),
+            loaded: BTreeSet::new(),
             line_closed: None,
             aliases: BTreeMap::new(),
             globs: Vec::new(),
@@ -1037,15 +1042,10 @@ impl Parser {
 
     /// Parse a sub-range as its own markup region, keeping bindings and metadata shared.
     fn sub_blocks(&mut self, start: usize, end: usize) -> Vec<Block> {
-        if self.depth >= MAX_DEPTH {
-            return vec![Block::Plain(text_inlines(&self.slice(start, end)))];
-        }
         let (saved_pos, saved_limit) = (self.pos, self.limit);
         self.pos = start;
         self.limit = end.min(saved_limit);
-        self.depth = self.depth.saturating_add(1);
         let blocks = self.blocks(0);
-        self.depth = self.depth.saturating_sub(1);
         self.pos = saved_pos;
         self.limit = saved_limit;
         blocks
@@ -1059,6 +1059,10 @@ impl Parser {
     /// Parse blocks whose lines are indented by at least `min_indent` columns. The cursor must sit
     /// at the start of a line and is left at the first line that falls outside the region.
     fn blocks(&mut self, min_indent: usize) -> Vec<Block> {
+        carta_core::with_stack(|| self.blocks_nested(min_indent))
+    }
+
+    fn blocks_nested(&mut self, min_indent: usize) -> Vec<Block> {
         let mut out: Vec<Block> = Vec::new();
         let outer = std::mem::replace(&mut self.indent, min_indent);
         let mut heading: Option<usize> = None;
@@ -1525,22 +1529,6 @@ impl Parser {
         self.inline_run_from(Vec::new(), closer, false)
     }
 
-    /// Take the rest of the line as literal text, the fallback once nesting reaches [`MAX_DEPTH`].
-    /// A run that owes its caller a closer still reports failure, but one that does not must
-    /// consume something so the block scan keeps advancing.
-    fn literal_line(&mut self, mut out: Vec<Inline>, closer: Option<char>) -> Option<Vec<Inline>> {
-        closer.is_none().then(|| {
-            let start = self.pos;
-            while !matches!(self.peek(), None | Some('\n')) {
-                self.bump();
-            }
-            let text = self.slice(start, self.pos);
-            out.extend(text_inlines(text.trim_end()));
-            trim_trailing_space(&mut out);
-            out
-        })
-    }
-
     /// Scan inline content onto an already-started run, as [`inline_run`](Self::inline_run) does.
     ///
     /// `interruptible` says whether the caller can place blocks beside the run, which lets a code
@@ -1551,9 +1539,15 @@ impl Parser {
         closer: Option<char>,
         interruptible: bool,
     ) -> Option<Vec<Inline>> {
-        if self.depth >= MAX_DEPTH {
-            return self.literal_line(out, closer);
-        }
+        carta_core::with_stack(|| self.inline_run_from_nested(out, closer, interruptible))
+    }
+
+    fn inline_run_from_nested(
+        &mut self,
+        out: Vec<Inline>,
+        closer: Option<char>,
+        interruptible: bool,
+    ) -> Option<Vec<Inline>> {
         let mut out: Vec<Inline> = out;
         let mut text = String::new();
         let mut shorthand = false;
@@ -1740,9 +1734,7 @@ impl Parser {
             return None;
         }
         self.bump();
-        self.depth = self.depth.saturating_add(1);
         let inner = self.inline_run(Some(delimiter));
-        self.depth = self.depth.saturating_sub(1);
         match inner {
             Some(children) if delimiter == '*' => Some(Inline::Strong(children)),
             Some(children) => Some(Inline::Emph(children)),
@@ -2071,8 +2063,13 @@ impl Parser {
     /// Find the offset of the delimiter closing the one at the cursor, skipping strings, raw spans,
     /// comments, and escapes.
     fn balanced(&self, open: char, close: char) -> Option<usize> {
+        if let Some(&(limit, end)) = self.group_ends.borrow().get(&(self.pos, open, close))
+            && (end.is_some() || limit >= self.limit)
+        {
+            return end.filter(|&end| end < self.limit);
+        }
         let mut index = self.pos.saturating_add(1);
-        let mut nesting = 1usize;
+        let mut pending = vec![self.pos];
         while index < self.limit {
             let Some(c) = self.at(index) else { break };
             match c {
@@ -2136,16 +2133,25 @@ impl Parser {
                     }
                     continue;
                 }
-                _ if c == open => nesting = nesting.saturating_add(1),
+                _ if c == open => pending.push(index),
                 _ if c == close => {
-                    nesting = nesting.saturating_sub(1);
-                    if nesting == 0 {
+                    if let Some(start) = pending.pop() {
+                        self.group_ends
+                            .borrow_mut()
+                            .insert((start, open, close), (self.limit, Some(index)));
+                    }
+                    if pending.is_empty() {
                         return Some(index);
                     }
                 }
                 _ => {}
             }
             index = index.saturating_add(1);
+        }
+        for start in pending {
+            self.group_ends
+                .borrow_mut()
+                .insert((start, open, close), (self.limit, None));
         }
         None
     }
@@ -2161,12 +2167,7 @@ impl Parser {
         }
         self.bump();
         self.line_closed = None;
-        if self.depth >= MAX_DEPTH {
-            return Value::Nothing;
-        }
-        self.depth = self.depth.saturating_add(1);
         let value = self.expression();
-        self.depth = self.depth.saturating_sub(1);
         // An exit outside an expression cannot catch the rest of the document.
         self.flow = None;
         value
@@ -2350,6 +2351,10 @@ impl Parser {
     }
 
     fn primary_expression(&mut self) -> Value {
+        carta_core::with_stack(|| self.primary_expression_nested())
+    }
+
+    fn primary_expression_nested(&mut self) -> Value {
         let Some(c) = self.peek() else {
             return Value::Nothing;
         };
@@ -2385,9 +2390,18 @@ impl Parser {
             return Value::Nothing;
         };
         let args = self.arguments(self.pos.saturating_add(1), close);
-        let body = self.slice(self.pos.saturating_add(1), close);
+        let dictionary = args.is_empty()
+            && self
+                .source
+                .get(self.pos.saturating_add(1)..close)
+                .is_some_and(|body| {
+                    body.iter()
+                        .filter(|ch| !ch.is_whitespace())
+                        .copied()
+                        .eq([':'])
+                });
         self.pos = close.saturating_add(1);
-        if args.iter().any(|arg| arg.name.is_some()) || body.trim() == ":" {
+        if args.iter().any(|arg| arg.name.is_some()) || dictionary {
             return Value::Dict(
                 args.into_iter()
                     .filter_map(|arg| Some((arg.name?, arg.value)))
@@ -2430,7 +2444,7 @@ impl Parser {
         let start = self.pos.saturating_add(1);
         let mut blocks = self.sub_blocks(start, close);
         self.pos = close.saturating_add(1);
-        pad_content_edges(&mut blocks, &self.slice(start, close));
+        pad_content_edges(&mut blocks, self.source.get(start..close).unwrap_or(&[]));
         blocks
     }
 
@@ -2642,16 +2656,16 @@ impl Parser {
     /// source spelling them out can account for.
     fn bound_copy(&mut self, name: &str) -> Option<Value> {
         let bound = self.env.get(name)?;
-        let Some(left) = self
-            .work
-            .get()
-            .and_then(|left| left.checked_sub(value_weight(bound)))
-        else {
-            self.work.set(None);
+        if !self.spend(value_weight(bound)) {
             return Some(Value::Nothing);
-        };
-        self.work.set(Some(left));
+        }
         Some(bound.clone())
+    }
+
+    fn spend(&self, amount: usize) -> bool {
+        let left = self.work.get().and_then(|left| left.checked_sub(amount));
+        self.work.set(left);
+        left.is_some()
     }
 
     /// The value a dotted path's head stands for when the dots read members of that value rather
@@ -2826,11 +2840,12 @@ impl Parser {
     /// started when no closure is written there.
     fn closure_parameters(&mut self) -> Option<Vec<Parameter>> {
         let saved = self.pos;
+        let mut range = None;
         let parameters = if self.peek() == Some('(') {
             let close = self.balanced('(', ')')?;
-            let parameters = self.parameters(self.pos.saturating_add(1), close);
+            range = Some((self.pos.saturating_add(1), close));
             self.pos = close.saturating_add(1);
-            parameters
+            Vec::new()
         } else {
             let single = self.read_identifier();
             if single.is_empty() {
@@ -2849,7 +2864,7 @@ impl Parser {
             return None;
         }
         self.skip_spaces();
-        Some(parameters)
+        Some(range.map_or(parameters, |(start, end)| self.parameters(start, end)))
     }
 
     /// Step over the rest of the argument at the cursor, stopping on the comma that ends it.
@@ -3144,13 +3159,14 @@ impl Parser {
     /// Append a referenced file's characters to the arena. A file that cannot be read, or one
     /// already being parsed further up the chain, contributes nothing.
     fn open_source(&mut self, reference: &str) -> Option<Loaded> {
-        if reference.is_empty() || self.depth >= MAX_DEPTH {
+        if reference.is_empty() {
             return None;
         }
         let path = match self.base() {
             Some(base) => base.join(reference),
             None => PathBuf::from(reference),
         };
+        let path = path.canonicalize().unwrap_or(path);
         if !self.open.insert(path.clone()) {
             return None;
         }
@@ -3158,8 +3174,20 @@ impl Parser {
             self.open.remove(&path);
             return None;
         };
+        let source = normalize(&text);
+        if self.loaded.insert(path.clone())
+            && let Some(work) = self.work.get()
+        {
+            self.work.set(Some(
+                work.saturating_add(source.len().saturating_mul(WORK_PER_CHARACTER)),
+            ));
+        }
+        if !self.spend(source.len()) {
+            self.open.remove(&path);
+            return None;
+        }
         let start = self.source.len();
-        self.source.extend(normalize(&text));
+        self.source.extend(source);
         let end = self.source.len();
         let base = path
             .parent()
@@ -3188,7 +3216,10 @@ impl Parser {
     /// Evaluate a string of source as code, as `#eval` does.
     fn eval_call(&mut self, args: &[Arg]) -> Value {
         let source = positional_text(args);
-        if source.is_empty() || self.depth >= MAX_DEPTH {
+        if source.is_empty() {
+            return Value::Nothing;
+        }
+        if !self.spend(source.len()) {
             return Value::Nothing;
         }
         let start = self.source.len();
@@ -3199,9 +3230,7 @@ impl Parser {
         let (saved_pos, saved_limit) = (self.pos, self.limit);
         self.pos = start;
         self.limit = end;
-        self.depth = self.depth.saturating_add(1);
         let value = self.argument_value();
-        self.depth = self.depth.saturating_sub(1);
         self.pos = saved_pos;
         self.limit = saved_limit;
         value
@@ -3214,9 +3243,7 @@ impl Parser {
         let saved_evaluated = self.evaluated.take();
         self.pos = loaded.start;
         self.limit = loaded.end;
-        self.depth = self.depth.saturating_add(1);
         let blocks = self.blocks(0);
-        self.depth = self.depth.saturating_sub(1);
         self.evaluated = saved_evaluated;
         self.pos = saved_pos;
         self.limit = saved_limit;
@@ -3232,14 +3259,30 @@ impl Parser {
 
     /// Evaluate a function body with its parameters bound to the given arguments.
     fn call_bound(&mut self, bound: &Function, args: &[Arg]) -> Value {
+        carta_core::with_stack(|| self.call_bound_nested(bound, args))
+    }
+
+    fn call_bound_nested(&mut self, bound: &Function, args: &[Arg]) -> Value {
+        let mut copied = std::mem::size_of::<Function>();
+        for parameter in &bound.parameters {
+            copied = copied
+                .saturating_add(std::mem::size_of::<Parameter>())
+                .saturating_add(parameter.name.len().saturating_mul(2));
+            if let Some(value) = self.env.get(&parameter.name) {
+                copied = copied.saturating_add(value_weight(value));
+            }
+        }
+        for argument in args {
+            copied = copied.saturating_add(value_weight(&argument.value));
+        }
+        if !self.spend(copied) {
+            return Value::Nothing;
+        }
         let Function {
             parameters,
             body,
             limit,
         } = bound.clone();
-        if self.depth >= MAX_DEPTH {
-            return Value::Nothing;
-        }
         let outer: Vec<Option<Value>> = parameters
             .iter()
             .map(|parameter| self.env.get(&parameter.name).cloned())
@@ -3248,9 +3291,7 @@ impl Parser {
         let (saved_pos, saved_limit) = (self.pos, self.limit);
         self.pos = body;
         self.limit = limit;
-        self.depth = self.depth.saturating_add(1);
         let value = self.argument_value();
-        self.depth = self.depth.saturating_sub(1);
         let value = match self.flow.take() {
             Some(Flow::Return(returned)) => returned,
             _ => value,
@@ -3518,7 +3559,7 @@ impl Parser {
     fn run_padded_body(&mut self, body: Body) -> Value {
         match (self.run_body(body), body) {
             (Value::Content(mut blocks), Body::Markup(start, end)) => {
-                pad_content_edges(&mut blocks, &self.slice(start, end));
+                pad_content_edges(&mut blocks, self.source.get(start..end).unwrap_or(&[]));
                 Value::Content(blocks)
             }
             (value, _) => value,
@@ -3607,6 +3648,13 @@ impl Parser {
         let mut rounds = 0usize;
         while rounds < MAX_ITERATIONS && self.truth(condition.0, condition.1) {
             rounds = rounds.saturating_add(1);
+            if !self.spend(self.env.iter().fold(0usize, |weight, (name, value)| {
+                weight
+                    .saturating_add(name.len())
+                    .saturating_add(value_weight(value))
+            })) {
+                break;
+            }
             let before = self.env.clone();
             let round = self.run_padded_body(body);
             joined = join_values(joined, round);
@@ -3669,6 +3717,13 @@ impl Parser {
 
     /// Evaluate the statements written between `start` and `end`, joining their values into one.
     fn code_range(&mut self, start: usize, end: usize) -> Value {
+        if !self.spend(self.env.iter().fold(0usize, |weight, (name, value)| {
+            weight
+                .saturating_add(name.len())
+                .saturating_add(value_weight(value))
+        })) {
+            return Value::Nothing;
+        }
         let (saved_pos, saved_limit) = (self.pos, self.limit);
         let bound = std::mem::take(&mut self.line_bound);
         let outer_scope = std::mem::take(&mut self.declared);
@@ -3818,6 +3873,10 @@ impl Parser {
     /// The operators bind in the usual order, loosest first: `or`, `and`, the comparisons, `+` and
     /// `-`, then `*` and `/`, with `not` tightest of all.
     fn argument_value(&mut self) -> Value {
+        carta_core::with_stack(|| self.argument_value_nested())
+    }
+
+    fn argument_value_nested(&mut self) -> Value {
         match self.closure_argument() {
             Some(closure) => Value::Function(Callee::Closure(closure), Values::default()),
             None => self.disjunction(),
@@ -4242,10 +4301,10 @@ fn collapse_separators(out: &mut Vec<Inline>) {
 }
 
 /// The separator a run of whitespace stands for: a break when it spans a line, a space otherwise.
-fn edge_separator(whitespace: &str) -> Option<Inline> {
+fn edge_separator(whitespace: &[char]) -> Option<Inline> {
     if whitespace.is_empty() {
         None
-    } else if whitespace.contains('\n') {
+    } else if whitespace.contains(&'\n') {
         Some(Inline::SoftBreak)
     } else {
         Some(Inline::Space)
@@ -4254,12 +4313,18 @@ fn edge_separator(whitespace: &str) -> Option<Inline> {
 
 /// Restore the separators the whitespace at the ends of a content block stands for. Block parsing
 /// drops them, yet they still separate the content from whatever surrounds the block inline.
-fn pad_content_edges(blocks: &mut Vec<Block>, raw: &str) {
-    let lead = raw
-        .get(..raw.len() - raw.trim_start().len())
-        .unwrap_or_default();
-    let trail = raw.get(raw.trim_end().len()..).unwrap_or_default();
-    if raw.trim().is_empty() {
+fn pad_content_edges(blocks: &mut Vec<Block>, raw: &[char]) {
+    let start = raw
+        .iter()
+        .position(|ch| !ch.is_whitespace())
+        .unwrap_or(raw.len());
+    let end = raw
+        .iter()
+        .rposition(|ch| !ch.is_whitespace())
+        .map_or(start, |position| position + 1);
+    let lead = raw.get(..start).unwrap_or(&[]);
+    let trail = raw.get(end..).unwrap_or(&[]);
+    if start == raw.len() {
         if let Some(separator) = edge_separator(raw) {
             blocks.push(Block::Plain(vec![separator]));
         }
@@ -4806,6 +4871,10 @@ fn array_repr(items: &[Value]) -> String {
 }
 
 fn value_repr(value: &Value) -> String {
+    carta_core::with_stack(|| value_repr_nested(value))
+}
+
+fn value_repr_nested(value: &Value) -> String {
     match value {
         Value::Sequence(sequence) => value_repr(&sequence.materialize()),
         Value::Str(text) => format!("\"{text}\""),
@@ -5156,6 +5225,12 @@ fn split_matches(text: &str, pattern: &Pattern) -> Vec<Value> {
 
 /// Flatten nested arrays into one sequence of the values they hold.
 fn flatten_values(items: &[Value], out: &mut Vec<Value>) {
+    carta_core::with_stack(|| {
+        flatten_values_nested(items, out);
+    });
+}
+
+fn flatten_values_nested(items: &[Value], out: &mut Vec<Value>) {
     for item in items {
         match item {
             Value::Array(nested) => flatten_values(nested, out),
@@ -6243,6 +6318,12 @@ fn resolve_references(blocks: &mut [Block], mut labels: BTreeSet<Text>) {
 
 /// Apply a visitor to every inline sequence in the tree, innermost sequences last.
 fn walk_inlines(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Vec<Inline>)) {
+    carta_core::with_stack(|| {
+        walk_inlines_nested(blocks, visit);
+    });
+}
+
+fn walk_inlines_nested(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Vec<Inline>)) {
     let apply = visit_inlines;
     for block in blocks {
         match block {
@@ -6296,6 +6377,12 @@ fn walk_inlines(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Vec<Inline>)) {
 }
 
 fn visit_inlines(inlines: &mut Vec<Inline>, visit: &mut dyn FnMut(&mut Vec<Inline>)) {
+    carta_core::with_stack(|| {
+        visit_inlines_nested(inlines, visit);
+    });
+}
+
+fn visit_inlines_nested(inlines: &mut Vec<Inline>, visit: &mut dyn FnMut(&mut Vec<Inline>)) {
     visit(inlines);
     for inline in inlines.iter_mut() {
         match inline {
@@ -6320,6 +6407,12 @@ fn visit_inlines(inlines: &mut Vec<Inline>, visit: &mut dyn FnMut(&mut Vec<Inlin
 /// Drop the soft breaks that sit between two wide East Asian characters, where the source newline
 /// carries no width of its own.
 fn strip_wide_line_breaks(blocks: &mut [Block]) {
+    carta_core::with_stack(|| {
+        strip_wide_line_breaks_nested(blocks);
+    });
+}
+
+fn strip_wide_line_breaks_nested(blocks: &mut [Block]) {
     for block in blocks {
         match block {
             Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
@@ -6384,6 +6477,12 @@ fn table_rows(table: &mut Table) -> Vec<Vec<&mut Vec<Block>>> {
 }
 
 fn strip_wide_in_inlines(inlines: &mut Vec<Inline>) {
+    carta_core::with_stack(|| {
+        strip_wide_in_inlines_nested(inlines);
+    });
+}
+
+fn strip_wide_in_inlines_nested(inlines: &mut Vec<Inline>) {
     for inline in inlines.iter_mut() {
         match inline {
             Inline::Emph(children)

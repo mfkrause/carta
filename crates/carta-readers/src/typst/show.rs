@@ -3,8 +3,7 @@
 use carta_ast::{Block, BlockParts, Inline, InlineParts};
 
 use super::{
-    Arg, Function, MAX_DEPTH, MAX_ITERATIONS, Parser, Pattern, Value, compile_regex, positional,
-    table_rows,
+    Arg, Function, MAX_ITERATIONS, Parser, Pattern, Value, compile_regex, positional, table_rows,
 };
 
 /// What a show rule picks out.
@@ -102,8 +101,9 @@ impl Parser {
         {
             return Vec::new();
         }
+        let start = self.pos;
         let mut governed = self.blocks(self.indent);
-        if let Some(separator) = super::edge_separator(&whitespace)
+        if let Some(separator) = super::edge_separator(self.source.get(start..index).unwrap_or(&[]))
             && let Some(inlines) = super::first_edge_inlines(&mut governed)
         {
             inlines.insert(0, separator);
@@ -192,11 +192,19 @@ impl Parser {
 
     /// The value a transform yields for one match.
     fn substitute(&mut self, transform: &Transform, matched: Value) -> Value {
-        if self.depth >= MAX_DEPTH {
-            return matched;
+        carta_core::with_stack(|| self.substitute_nested(transform, matched))
+    }
+
+    fn substitute_nested(&mut self, transform: &Transform, matched: Value) -> Value {
+        let copied = match transform {
+            Transform::Fixed(value) => super::value_weight(value),
+            Transform::Element(_) => super::value_weight(&matched),
+            _ => 1,
+        };
+        if !self.spend(copied) {
+            return Value::Nothing;
         }
-        self.depth = self.depth.saturating_add(1);
-        let value = match transform {
+        match transform {
             Transform::Keep => matched,
             Transform::Fixed(fixed) => fixed.clone(),
             Transform::Element(name) => {
@@ -216,13 +224,15 @@ impl Parser {
                 }];
                 self.call_bound(&function.clone(), &args)
             }
-        };
-        self.depth = self.depth.saturating_sub(1);
-        value
+        }
     }
 
     /// Rewrite a block sequence, replacing what the rule picks out and descending into the rest.
     fn rewrite_blocks(&mut self, rule: &Rule, blocks: Vec<Block>) -> Vec<Block> {
+        carta_core::with_stack(|| self.rewrite_blocks_nested(rule, blocks))
+    }
+
+    fn rewrite_blocks_nested(&mut self, rule: &Rule, blocks: Vec<Block>) -> Vec<Block> {
         let mut out = Vec::with_capacity(blocks.len());
         for block in blocks {
             if block_selected(rule, &block) {
@@ -305,6 +315,10 @@ impl Parser {
 
     /// Rewrite an inline sequence, replacing what the rule picks out and descending into the rest.
     fn rewrite_inlines(&mut self, rule: &Rule, inlines: Vec<Inline>) -> Vec<Inline> {
+        carta_core::with_stack(|| self.rewrite_inlines_nested(rule, inlines))
+    }
+
+    fn rewrite_inlines_nested(&mut self, rule: &Rule, inlines: Vec<Inline>) -> Vec<Inline> {
         let mut out = Vec::with_capacity(inlines.len());
         for inline in inlines {
             if let Some(matched) = inline_selected(rule, &inline) {

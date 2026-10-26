@@ -976,3 +976,11 @@ fn malformed_show_rules_leave_following_content_readable() {
         assert_eq!(parse(source), vec![Block::Para(vec![text("body")])]);
     }
 }
+
+#[test]
+fn recursive_functions_report_resource_exhaustion() {
+    assert!(matches!(
+        TypstReader.read("#let f() = f()\n#f()", &ReaderOptions::default()),
+        Err(Error::OutputTooLarge)
+    ));
+}
