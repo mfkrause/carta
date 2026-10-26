@@ -120,10 +120,10 @@ fn header(
     let text = inline_run(items, width, wrap, smart);
     let heading = if attr.classes.iter().any(|class| class == "unnumbered") {
         format!("#heading(level: {level}, numbering: none)[{text}]")
+    } else if level > 32 {
+        format!("#heading(depth: {level})[{text}]")
     } else {
-        // The cap keeps an absurd level from forcing an unbounded marker allocation.
-        const MAX_HEADING_LEVEL: i64 = 32;
-        let depth = usize::try_from(level.clamp(1, MAX_HEADING_LEVEL)).unwrap_or(1);
+        let depth = usize::try_from(level.max(1)).unwrap_or(1);
         format!("{} {text}", "=".repeat(depth))
     };
     match label(&attr.id) {
