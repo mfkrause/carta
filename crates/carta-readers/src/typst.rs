@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,
@@ -42,16 +42,14 @@ const COPIES_PER_CHAR: usize = 64;
 /// the long loops a few lines can spell out, never run into the ceiling.
 const BASE_COPIES: usize = 1 << 20;
 
-/// Largest regular expression accepted for compilation. Larger generated patterns can take
-/// disproportionate time to optimize while adding no practical document value.
-const MAX_REGEX_BYTES: usize = 1 << 16;
-
-/// Compile a regular expression within the parser's work bound.
-fn compile_regex(source: &str) -> Option<Regex> {
-    if source.len() > MAX_REGEX_BYTES {
-        return None;
+/// Compile a regular expression within the engine's compiled-size limit.
+fn compile_regex(source: &str) -> Option<Pattern> {
+    if !source.is_empty() && regex::escape(source) == source {
+        return Some(Pattern::Text(source.to_string()));
     }
-    Regex::new(source).ok()
+    Regex::new(source)
+        .ok()
+        .map(|regex| Pattern::Expression(Box::new(regex)))
 }
 
 /// Parses Typst markup into the document model.
@@ -5030,9 +5028,7 @@ impl Pattern {
     /// The pattern an argument writes, or `None` where a regular expression does not compile.
     fn of(value: Option<&Value>) -> Option<Self> {
         match value? {
-            Value::Regex(source) => {
-                compile_regex(source).map(|regex| Pattern::Expression(Box::new(regex)))
-            }
+            Value::Regex(source) => compile_regex(source),
             other => Some(Pattern::Text(other.as_text())),
         }
     }
@@ -5047,8 +5043,8 @@ impl Pattern {
                 (start, start.saturating_add(needle.len()))
             }
             Pattern::Expression(regex) => {
-                let found = regex.find(rest).ok().flatten()?;
-                (found.start(), found.end())
+                let found = regex.find_at(text, from)?;
+                return Some((found.start(), found.end()));
             }
         };
         Some((from.saturating_add(start), from.saturating_add(end)))
@@ -5056,6 +5052,12 @@ impl Pattern {
 
     /// Every place the pattern matches, as byte ranges that do not overlap.
     fn find_all(&self, text: &str) -> Vec<(usize, usize)> {
+        if let Pattern::Expression(regex) = self {
+            return regex
+                .find_iter(text)
+                .map(|found| (found.start(), found.end()))
+                .collect();
+        }
         let mut spans = Vec::new();
         let mut from = 0usize;
         while let Some((start, end)) = self.find(text, from) {
@@ -5071,10 +5073,10 @@ impl Pattern {
 
     /// The groups the pattern captured at a match, as the text of each.
     fn captures(&self, text: &str, start: usize) -> Vec<Value> {
-        let (Pattern::Expression(regex), Some(rest)) = (self, text.get(start..)) else {
+        let Pattern::Expression(regex) = self else {
             return Vec::new();
         };
-        let Ok(Some(found)) = regex.captures(rest) else {
+        let Some(found) = regex.captures_at(text, start) else {
             return Vec::new();
         };
         found

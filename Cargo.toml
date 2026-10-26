@@ -25,6 +25,7 @@ compact_str = { version = "0.9" }
 memchr = "2"
 miniz_oxide = "0.9"
 fancy-regex = "0.19"
+regex = "1"
 quick-xml = "0.42"
 insta = "1"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }

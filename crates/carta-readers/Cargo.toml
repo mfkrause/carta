@@ -43,7 +43,7 @@ man = []
 latex = []
 org = []
 rtf = []
-typst = ["dep:fancy-regex", "dep:serde_json", "csv"]
+typst = ["dep:regex", "dep:serde_json", "csv"]
 
 [dependencies]
 carta-ast = { workspace = true }
@@ -56,7 +56,7 @@ caseless = { workspace = true, optional = true }
 # Parses JSON metadata files; YAML files go through the in-crate parser.
 serde_json = { workspace = true, optional = true }
 # Backs the pattern selectors of Typst show rules.
-fancy-regex = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
 
 [build-dependencies]
 serde_json = { workspace = true }

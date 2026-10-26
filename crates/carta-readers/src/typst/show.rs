@@ -1,10 +1,10 @@
 //! Evaluate Typst show-rule matching and replacement content.
 
 use carta_ast::{Block, Inline};
-use fancy_regex::Regex;
 
 use super::{
-    Arg, Function, MAX_DEPTH, MAX_ITERATIONS, Parser, Value, compile_regex, positional, table_rows,
+    Arg, Function, MAX_DEPTH, MAX_ITERATIONS, Parser, Pattern, Value, compile_regex, positional,
+    table_rows,
 };
 
 /// What a show rule picks out.
@@ -12,7 +12,7 @@ enum Selector {
     /// A literal run of characters inside a text run.
     Text(String),
     /// A pattern over the characters of a text run.
-    Pattern(Box<Regex>),
+    Pattern(Pattern),
     /// Elements of one kind, narrowed by the fields a `where` call fixes.
     Element(String, Vec<(String, Value)>),
 }
@@ -126,7 +126,7 @@ impl Parser {
                 return None;
             };
             let pattern = compile_regex(source)?;
-            return Some(Selector::Pattern(Box::new(pattern)));
+            return Some(Selector::Pattern(pattern));
         }
         let Some(element) = name.strip_suffix(".where") else {
             return Some(Selector::Element(name, Vec::new()));
@@ -316,7 +316,7 @@ impl Parser {
     fn rewrite_text(&mut self, rule: &Rule, text: &str) -> Option<Vec<Inline>> {
         let spans = match rule.selector.as_ref()? {
             Selector::Text(needle) => literal_spans(text, needle),
-            Selector::Pattern(pattern) => pattern_spans(pattern, text),
+            Selector::Pattern(pattern) => pattern.find_all(text),
             Selector::Element(..) => return None,
         };
         if spans.is_empty() {
@@ -453,34 +453,6 @@ fn literal_spans(text: &str, needle: &str) -> Vec<(usize, usize)> {
         }
     }
     spans
-}
-
-/// Where a pattern matches in a text, left to right and without overlap.
-fn pattern_spans(pattern: &Regex, text: &str) -> Vec<(usize, usize)> {
-    let mut spans = Vec::new();
-    let mut cursor = 0;
-    while cursor <= text.len() && spans.len() < MAX_ITERATIONS {
-        let Ok(Some(found)) = pattern.find_from_pos(text, cursor) else {
-            break;
-        };
-        spans.push((found.start(), found.end()));
-        // An empty match would otherwise be found again at the same place forever.
-        cursor = if found.end() > found.start() {
-            found.end()
-        } else {
-            next_boundary(text, found.end())
-        };
-    }
-    spans
-}
-
-/// The next character boundary past an offset.
-fn next_boundary(text: &str, from: usize) -> usize {
-    let mut next = from.saturating_add(1);
-    while next < text.len() && !text.is_char_boundary(next) {
-        next = next.saturating_add(1);
-    }
-    next
 }
 
 #[cfg(test)]

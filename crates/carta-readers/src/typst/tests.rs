@@ -402,12 +402,9 @@ fn reused_bindings_stay_within_the_copying_allowance() {
 }
 
 #[test]
-fn generated_regular_expressions_stay_within_the_compilation_bound() {
-    let source = format!(
-        "#show regex(\"a\" * {}): \"x\"\nbody\n",
-        MAX_REGEX_BYTES + 1
-    );
-    assert_eq!(parse(&source), vec![Block::Para(vec![text("body")])]);
+fn generated_regular_expressions_match_long_text() {
+    let source = format!("#show regex(\"a\" * 65537): \"x\"\n{}\n", "a".repeat(65537));
+    assert_eq!(parse(&source), vec![Block::Para(vec![text("x")])]);
 }
 
 #[test]
