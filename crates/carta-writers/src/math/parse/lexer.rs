@@ -1,5 +1,7 @@
 //! Tokenizer and user-macro expansion for TeX math source.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use super::{Token, skip_spaces};
 
 /// Whether the character one position past the current peek is a digit. Used to decide whether a
@@ -98,9 +100,36 @@ pub(super) fn tokenize(src: &str) -> Vec<Token> {
     tokens
 }
 
-/// Maximum macro substitutions and total tokens scanned or copied across all expansion passes.
+/// Initial expansion allowances, extended in proportion to the source's token weight.
 const MACRO_EXPANSION_BUDGET: usize = 4096;
 const MACRO_TOKEN_BUDGET: usize = 65_536;
+
+type Call = (String, Vec<Vec<Token>>);
+
+struct Frame {
+    tokens: std::vec::IntoIter<Token>,
+    call: Option<Call>,
+}
+
+fn next_token(frames: &mut Vec<Frame>, active: &mut BTreeSet<Call>) -> Option<Token> {
+    while let Some(frame) = frames.last_mut() {
+        if let Some(token) = frame.tokens.next() {
+            return Some(token);
+        }
+        if let Some(call) = frames.pop()?.call {
+            active.remove(&call);
+        }
+    }
+    None
+}
+
+fn token_weight(token: &Token) -> usize {
+    match token {
+        Token::Command(text) | Token::Number(text) => text.len().max(1),
+        Token::Char(character) => character.len_utf8(),
+        _ => 1,
+    }
+}
 
 /// One `\newcommand`/`\renewcommand` definition: its mandatory-argument count and its replacement
 /// body, in which each `#n` placeholder is recorded as a parameter reference.
@@ -231,23 +260,39 @@ fn parse_macro_definition(tokens: &[Token], start: usize) -> Option<(String, Mac
 }
 
 /// Read the `params` arguments a macro use supplies: a braced group contributes its inner tokens, an
-/// unbraced token contributes itself. Returns `None` if the stream runs out before every argument is
-/// read, so the use is left unexpanded.
+/// unbraced token contributes itself. Returns `None` for a missing or unclosed argument.
 fn read_macro_arguments(
-    tokens: &[Token],
-    pos: &mut usize,
+    frames: &mut Vec<Frame>,
+    active: &mut BTreeSet<Call>,
     params: usize,
 ) -> Option<Vec<Vec<Token>>> {
     let mut arguments = Vec::with_capacity(params);
     for _ in 0..params {
-        skip_spaces(tokens, pos);
-        match tokens.get(*pos)? {
-            Token::GroupOpen => arguments.push(read_group(tokens, pos)?),
-            single => {
-                arguments.push(vec![single.clone()]);
-                *pos += 1;
-            }
+        let mut token = next_token(frames, active)?;
+        while token == Token::Space {
+            token = next_token(frames, active)?;
         }
+        if token != Token::GroupOpen {
+            arguments.push(vec![token]);
+            continue;
+        }
+        let mut group = Vec::new();
+        let mut depth = 1usize;
+        loop {
+            let token = next_token(frames, active)?;
+            match token {
+                Token::GroupOpen => depth += 1,
+                Token::GroupClose => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            group.push(token);
+        }
+        arguments.push(group);
     }
     Some(arguments)
 }
@@ -257,7 +302,7 @@ fn read_macro_arguments(
 /// arguments. A stream that defines no macro is returned untouched. Returns `None` when expansion
 /// exceeds its work limits, so the whole expression falls back to verbatim.
 pub(super) fn expand_macros(tokens: Vec<Token>) -> Option<Vec<Token>> {
-    let mut macros: std::collections::BTreeMap<String, Macro> = std::collections::BTreeMap::new();
+    let mut macros: BTreeMap<String, Macro> = BTreeMap::new();
     let mut stripped = Vec::new();
     let mut pos = 0;
     while let Some(tok) = tokens.get(pos) {
@@ -275,47 +320,50 @@ pub(super) fn expand_macros(tokens: Vec<Token>) -> Option<Vec<Token>> {
     if macros.is_empty() {
         return Some(tokens);
     }
-    let mut current = stripped;
-    let mut budget = MACRO_EXPANSION_BUDGET;
-    let mut token_budget = MACRO_TOKEN_BUDGET;
-    loop {
-        token_budget = token_budget.checked_sub(current.len())?;
-        let mut expanded = Vec::new();
-        let mut changed = false;
-        let mut index = 0;
-        while let Some(tok) = current.get(index) {
-            if budget > 0
-                && let Token::Command(name) = tok
-                && let Some(definition) = macros.get(name)
-            {
-                let mut after = index + 1;
-                if let Some(arguments) =
-                    read_macro_arguments(&current, &mut after, definition.params)
-                {
-                    for piece in &definition.body {
-                        let replacement = match piece {
-                            BodyPiece::Literal(token) => std::slice::from_ref(token),
-                            BodyPiece::Param(reference) => arguments.get(reference - 1)?.as_slice(),
-                        };
-                        token_budget = token_budget.checked_sub(replacement.len())?;
-                        expanded.extend(replacement.iter().cloned());
-                    }
-                    index = after;
-                    changed = true;
-                    budget -= 1;
-                    continue;
-                }
-            }
-            token_budget = token_budget.checked_sub(1)?;
-            expanded.push(tok.clone());
-            index += 1;
-        }
-        current = expanded;
-        if !changed {
-            return Some(current);
-        }
-        if budget == 0 {
+    let weight = tokens
+        .iter()
+        .map(token_weight)
+        .fold(0usize, usize::saturating_add);
+    let mut budget = weight
+        .saturating_mul(64)
+        .saturating_add(MACRO_EXPANSION_BUDGET);
+    let mut token_budget = weight.saturating_mul(64).saturating_add(MACRO_TOKEN_BUDGET);
+    let mut active = BTreeSet::new();
+    let mut frames = vec![Frame {
+        tokens: stripped.into_iter(),
+        call: None,
+    }];
+    let mut output = Vec::new();
+    while let Some(token) = next_token(&mut frames, &mut active) {
+        let Token::Command(name) = &token else {
+            output.push(token);
+            continue;
+        };
+        let Some(definition) = macros.get(name) else {
+            output.push(token);
+            continue;
+        };
+        budget = budget.checked_sub(1)?;
+        let arguments = read_macro_arguments(&mut frames, &mut active, definition.params)?;
+        let call = (name.clone(), arguments.clone());
+        if !active.insert(call.clone()) {
             return None;
         }
+        let mut expanded = Vec::new();
+        for piece in &definition.body {
+            let replacement = match piece {
+                BodyPiece::Literal(token) => std::slice::from_ref(token),
+                BodyPiece::Param(reference) => arguments.get(reference - 1)?.as_slice(),
+            };
+            for token in replacement {
+                token_budget = token_budget.checked_sub(token_weight(token))?;
+                expanded.push(token.clone());
+            }
+        }
+        frames.push(Frame {
+            tokens: expanded.into_iter(),
+            call: Some(call),
+        });
     }
+    Some(output)
 }

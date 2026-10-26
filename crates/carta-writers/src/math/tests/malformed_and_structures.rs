@@ -31,7 +31,11 @@ fn finite_macros_expand_with_arguments() {
 
 #[test]
 fn macro_argument_copying_is_bounded() {
-    let source = format!(r"\newcommand{{\a}}[1]{{#1#1}}\a{{{}}}", "x".repeat(40_000));
+    let mut body = String::from("x");
+    for _ in 0..30 {
+        body = format!(r"\a{{{body}}}");
+    }
+    let source = format!(r"\newcommand{{\a}}[1]{{#1#1}}{body}");
     assert_eq!(to_inlines(&source), None);
     assert_eq!(to_typst(&source), None);
 }

@@ -19,7 +19,7 @@ use lexer::{expand_macros, tokenize};
 use scripts::{ScriptChain, attach_prime, attach_script, prime_detaches};
 
 /// One lexical token of TeX math source.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Token {
     /// A control sequence without its leading backslash (e.g. `alpha`, `frac`).
     Command(String),
