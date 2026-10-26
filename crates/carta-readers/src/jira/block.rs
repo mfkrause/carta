@@ -730,6 +730,12 @@ struct ListItem {
 /// longer than this depth nests inside the current item, so a lone `*** x` produces three nested
 /// lists even with no shallower item preceding it.
 fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
+    carta_core::with_stack(|| {
+        build_lists_nested(items, depth, out);
+    });
+}
+
+fn build_lists_nested(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
     let mut idx = 0;
     while idx < items.len() {
         let Some(group_char) = marker_char(items, idx, depth) else {
@@ -779,11 +785,13 @@ fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
 fn marker_char(items: &[ListItem], idx: usize, depth: usize) -> Option<char> {
     items
         .get(idx)
-        .and_then(|it| it.marker.chars().nth(depth - 1))
+        .and_then(|item| item.marker.as_bytes().get(depth.checked_sub(1)?))
+        .copied()
+        .map(char::from)
 }
 
 fn marker_len(items: &[ListItem], idx: usize) -> usize {
-    items.get(idx).map_or(0, |it| it.marker.chars().count())
+    items.get(idx).map_or(0, |item| item.marker.len())
 }
 
 /// Removes a forced line break that ends a block's inline content. A line break with nothing after
