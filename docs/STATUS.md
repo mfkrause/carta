@@ -185,11 +185,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - With `raw_tex` off (the default), an unknown command is dropped together with its bracket and
   brace arguments and an unknown environment becomes a classed `Div`; under `raw_tex` both are
   preserved verbatim as raw LaTeX.
-- Macro expansion (`\newcommand`, `\renewcommand`, `\providecommand`, `\DeclareRobustCommand`,
-  `\def`, `\let`) handles numbered parameters and one optional-argument default and is bounded to a
-  fixed nesting depth; delimited parameters, `\csname`/`\expandafter`, catcode changes, and
-  recursive or multi-optional macros are unsupported. With `latex_macros` off, each definition is
-  left verbatim as a raw block.
+- Delimited macro parameters, `\let` bindings, `\csname`/`\expandafter`, catcode changes, and
+  multi-optional macros are unsupported. Expansion has a work allowance based on the source length.
 - Cross-reference commands (`\ref`, `\eqref`, `\autoref`, `\cref`, `\pageref`) resolve to a link
   whose visible text is a bracketed `[label]` placeholder rather than the target's counter number.
 - Multi-line math environments (`align`, `gather`, `multline`, `eqnarray`, `alignat`, `flalign`, …)
