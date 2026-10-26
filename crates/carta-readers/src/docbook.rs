@@ -3,7 +3,7 @@
 //! Unknown wrappers retain their content. Section nesting determines heading levels.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline,
@@ -1977,11 +1977,7 @@ fn scan(input: &str) -> Element {
 /// The general entities a document declares for itself, by the name each answers to.
 type Entities = BTreeMap<String, String>;
 
-/// How many times a declaration's text is re-read for further references before it stands as it is.
-const MAX_ENTITY_ROUNDS: usize = 8;
-
-/// Ceiling on the text one substitution pass may add. Past it a reference stands as written, so a
-/// declaration that nests inside itself cannot exhaust memory.
+/// Ceiling on the text entity expansion may add; references past it stand as written.
 const MAX_ENTITY_GROWTH: usize = 1 << 22;
 
 /// The general entities the internal declaration subset defines. A name the character reference
@@ -2024,20 +2020,39 @@ fn declared_entities(input: &str) -> Entities {
     entities
 }
 
-/// Reads each declaration's text for references to the others, until none is left or the rounds run
-/// out. A declaration that still names something after that stands with the reference in place.
+/// Resolve declarations after their dependencies; circular declarations remain unresolved.
 fn resolve_declarations(entities: &mut Entities) {
-    for _ in 0..MAX_ENTITY_ROUNDS {
-        let snapshot = entities.clone();
-        let mut budget = MAX_ENTITY_GROWTH;
-        let mut changed = false;
-        for value in entities.values_mut() {
-            let expanded = substitute_entities(value, &snapshot, &mut budget).into_owned();
-            changed |= expanded != *value;
-            *value = expanded;
+    let definitions = std::mem::take(entities);
+    let mut waiting = BTreeMap::new();
+    let mut dependents: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let mut ready = Vec::new();
+    for (name, value) in &definitions {
+        let dependencies: BTreeSet<_> = entity_references(value)
+            .into_iter()
+            .filter_map(|(_, _, name)| definitions.contains_key(name).then_some(name))
+            .collect();
+        if dependencies.is_empty() {
+            ready.push(name.as_str());
         }
-        if !changed {
-            return;
+        waiting.insert(name.as_str(), dependencies.len());
+        for dependency in dependencies {
+            dependents.entry(dependency).or_default().push(name);
+        }
+    }
+    let mut budget = MAX_ENTITY_GROWTH;
+    while let Some(name) = ready.pop() {
+        let Some(value) = definitions.get(name) else {
+            continue;
+        };
+        let expanded = substitute_entities(value, entities, &mut budget).into_owned();
+        entities.insert(name.to_string(), expanded);
+        for dependent in dependents.get(name).into_iter().flatten() {
+            if let Some(count) = waiting.get_mut(dependent) {
+                *count -= 1;
+                if *count == 0 {
+                    ready.push(dependent);
+                }
+            }
         }
     }
 }
@@ -2086,13 +2101,31 @@ fn substitute_entities<'a>(
     if entities.is_empty() || !input.contains('&') {
         return Cow::Borrowed(input);
     }
-    let bytes = input.as_bytes();
     let mut out = String::with_capacity(input.len());
     let mut copied = 0;
+    for (start, end, name) in entity_references(input) {
+        if let Some(text) = entities.get(name).filter(|text| text.len() <= *budget) {
+            out.push_str(input.get(copied..start).unwrap_or_default());
+            out.push_str(text);
+            *budget -= text.len();
+            copied = end;
+        }
+    }
+    if copied == 0 {
+        return Cow::Borrowed(input);
+    }
+    out.push_str(input.get(copied..).unwrap_or_default());
+    Cow::Owned(out)
+}
+
+/// Entity-reference ranges and names outside comments and character data sections.
+fn entity_references(input: &str) -> Vec<(usize, usize, &str)> {
+    let bytes = input.as_bytes();
+    let mut references = Vec::new();
     let mut index = 0;
     while let Some(offset) = bytes
         .get(index..)
-        .and_then(|rest| rest.iter().position(|byte| matches!(byte, b'&' | b'<')))
+        .and_then(|rest| memchr::memchr2(b'&', b'<', rest))
     {
         index += offset;
         if starts_with(bytes, index, b"<!--") {
@@ -2107,26 +2140,22 @@ fn substitute_entities<'a>(
             index += 1;
             continue;
         }
-        let replacement = find_byte(bytes, index, b';')
-            .and_then(|semi| Some((input.get(index + 1..semi)?, semi)))
-            .and_then(|(name, semi)| Some((entities.get(name)?, semi)))
-            .filter(|(text, _)| text.len() <= *budget);
-        match replacement {
-            Some((text, semi)) => {
-                out.push_str(input.get(copied..index).unwrap_or_default());
-                out.push_str(text);
-                *budget -= text.len();
-                index = semi + 1;
-                copied = index;
+        let start = index;
+        index += 1;
+        while bytes
+            .get(index)
+            .is_some_and(|byte| !matches!(byte, b'&' | b'<' | b';'))
+        {
+            index += 1;
+        }
+        if bytes.get(index) == Some(&b';') {
+            if let Some(name) = input.get(start + 1..index) {
+                references.push((start, index + 1, name));
             }
-            None => index += 1,
+            index += 1;
         }
     }
-    if copied == 0 {
-        return Cow::Borrowed(input);
-    }
-    out.push_str(input.get(copied..).unwrap_or_default());
-    Cow::Owned(out)
+    references
 }
 
 /// Replaces character references with the characters they name. A reference that names nothing, or
@@ -2296,6 +2325,21 @@ mod tests {
     #[test]
     fn character_references_resolve_and_unknown_ones_stay_verbatim() {
         assert_eq!(decode_entities("&copy;&#65;&#x42;&nope;"), "\u{a9}AB&nope;");
+    }
+
+    #[test]
+    fn entity_chains_resolve_to_their_text() {
+        use std::fmt::Write as _;
+
+        let mut source = String::from("<!DOCTYPE article [<!ENTITY e0 'leaf'>");
+        for level in 1..=512 {
+            write!(source, "<!ENTITY e{level} '&e{};'>", level - 1).unwrap();
+        }
+        source.push_str("]><article><para>&e512;</para></article>");
+        assert_eq!(
+            read(&source),
+            vec![Block::Para(vec![Inline::Str("leaf".into())])]
+        );
     }
 
     #[test]
