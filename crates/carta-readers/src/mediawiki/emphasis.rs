@@ -10,11 +10,7 @@ enum Unit {
     Node(Inline),
 }
 
-/// Resolves apostrophe emphasis. Runs of two apostrophes open and close `Emph`, three open and close
-/// `Strong`. The structure is found by recursive descent with backtracking: at each run the parser
-/// tries to open the span whose width fits, parses its content up to a matching closing run, and
-/// falls back to a literal apostrophe when no span can be formed. A span is never reopened by its
-/// immediate parent of the same kind, and a span's content has its outer whitespace removed.
+/// Resolve apostrophe emphasis, preferring strong spans and trimming their outer whitespace.
 pub(super) fn resolve_emphasis(toks: Vec<Tok>) -> Vec<Inline> {
     let mut units: Vec<Unit> = Vec::new();
     for tok in toks {
@@ -26,9 +22,41 @@ pub(super) fn resolve_emphasis(toks: Vec<Tok>) -> Vec<Inline> {
         }
     }
     let runs = apostrophe_runs(&units);
-    // Bound the backtracking work so adversarial apostrophe-dense input cannot blow up.
-    let mut budget = crate::inline_scan::scan_budget(units.len());
-    let (nodes, _, _) = parse_runs(&units, &runs, 0, None, &mut budget);
+    let ends = emphasis_ends(&runs);
+    let mut frames = Vec::new();
+    let mut nodes = Vec::new();
+    let mut units = units.into_iter().enumerate();
+    while let Some((position, unit)) = units.next() {
+        match unit {
+            Unit::Node(inline) => nodes.push(inline),
+            Unit::Apostrophe => {
+                let closer = frames.last().map(|(strong, _)| *strong);
+                match emphasis_step(&runs, &ends, position, closer) {
+                    EmphasisStep::Open(strong, _) => {
+                        for _ in 1..emphasis_width(strong) {
+                            units.next();
+                        }
+                        frames.push((strong, std::mem::take(&mut nodes)));
+                    }
+                    EmphasisStep::Close(_) => {
+                        if let Some((strong, mut parent)) = frames.pop() {
+                            for _ in 1..emphasis_width(strong) {
+                                units.next();
+                            }
+                            let body = strip_outer_whitespace(nodes);
+                            parent.push(if strong {
+                                Inline::Strong(body)
+                            } else {
+                                Inline::Emph(body)
+                            });
+                            nodes = parent;
+                        }
+                    }
+                    EmphasisStep::Literal => nodes.push(Inline::Str("'".into())),
+                }
+            }
+        }
+    }
     nodes
 }
 
@@ -50,86 +78,68 @@ fn emphasis_width(strong: bool) -> usize {
     if strong { 3 } else { 2 }
 }
 
-/// Tries to open an emphasis span of the given kind at the apostrophe run starting at `i`. Returns
-/// the span node and the index just past its closing run, or `None` if no matching closer is found
-/// or the span would be empty.
-fn try_open(
-    units: &[Unit],
-    runs: &[usize],
-    i: usize,
-    strong: bool,
-    budget: &mut usize,
-) -> Option<(Inline, usize)> {
-    if *budget == 0 {
-        return None;
-    }
-    *budget -= 1;
-    let width = emphasis_width(strong);
-    let (body, next, closed) = parse_runs(units, runs, i + width, Some(strong), budget);
-    if !closed || body.is_empty() {
-        return None;
-    }
-    let body = strip_outer_whitespace(body);
-    Some((
-        if strong {
-            Inline::Strong(body)
-        } else {
-            Inline::Emph(body)
-        },
-        next,
-    ))
+enum EmphasisStep {
+    Open(bool, usize),
+    Close(usize),
+    Literal,
 }
 
-/// Parses content until the run that closes `closer` (or end of input when `closer` is `None`).
-/// Returns the collected nodes, the index reached, and whether a closer was found.
-///
-/// At each apostrophe run, a wider `'''…'''` strong span is preferred over a `''…''` emphasis span,
-/// and closing the enclosing span takes precedence over opening a same-kind span. A run that opens
-/// nothing and closes nothing is emitted as literal apostrophes.
-fn parse_runs(
-    units: &[Unit],
+fn emphasis_step(
     runs: &[usize],
-    start: usize,
+    ends: &[[Option<usize>; 2]],
+    position: usize,
     closer: Option<bool>,
-    budget: &mut usize,
-) -> (Vec<Inline>, usize, bool) {
-    let mut nodes: Vec<Inline> = Vec::new();
-    let mut pos = start;
-    while let Some(unit) = units.get(pos) {
-        match unit {
-            Unit::Node(inline) => {
-                nodes.push(inline.clone());
-                pos += 1;
-            }
-            Unit::Apostrophe => {
-                let run = runs.get(pos).copied().unwrap_or(0);
-                if run >= emphasis_width(true)
-                    && closer != Some(true)
-                    && let Some((span, next)) = try_open(units, runs, pos, true, budget)
-                {
-                    nodes.push(span);
-                    pos = next;
-                    continue;
-                }
-                if let Some(strong) = closer
-                    && run >= emphasis_width(strong)
-                {
-                    return (nodes, pos + emphasis_width(strong), true);
-                }
-                if run >= emphasis_width(false)
-                    && closer != Some(false)
-                    && let Some((span, next)) = try_open(units, runs, pos, false, budget)
-                {
-                    nodes.push(span);
-                    pos = next;
-                    continue;
-                }
-                nodes.push(Inline::Str("'".into()));
-                pos += 1;
+) -> EmphasisStep {
+    let run = runs.get(position).copied().unwrap_or(0);
+    let opening = |strong| {
+        let width = emphasis_width(strong);
+        let end = ends
+            .get(position + width)?
+            .get(usize::from(strong))
+            .copied()
+            .flatten()?;
+        (run >= width && closer != Some(strong) && end > position + 2 * width).then_some(end)
+    };
+    if let Some(end) = opening(true) {
+        return EmphasisStep::Open(true, end);
+    }
+    if let Some(strong) = closer
+        && run >= emphasis_width(strong)
+    {
+        return EmphasisStep::Close(position + emphasis_width(strong));
+    }
+    if let Some(end) = opening(false) {
+        return EmphasisStep::Open(false, end);
+    }
+    EmphasisStep::Literal
+}
+
+fn emphasis_ends(runs: &[usize]) -> Vec<[Option<usize>; 2]> {
+    let mut ends = vec![[None; 2]; runs.len() + 1];
+    for position in (0..runs.len()).rev() {
+        for strong in [false, true] {
+            let end = match emphasis_step(runs, &ends, position, Some(strong)) {
+                EmphasisStep::Open(_, next) => ends
+                    .get(next)
+                    .and_then(|pair| pair.get(usize::from(strong)))
+                    .copied()
+                    .flatten(),
+                EmphasisStep::Close(next) => Some(next),
+                EmphasisStep::Literal => ends
+                    .get(position + 1)
+                    .and_then(|pair| pair.get(usize::from(strong)))
+                    .copied()
+                    .flatten(),
+            };
+            if let Some(slot) = ends
+                .get_mut(position)
+                .and_then(|pair| pair.get_mut(usize::from(strong)))
+            {
+                *slot = end;
             }
         }
     }
-    (nodes, pos, closer.is_none())
+    ends
 }
 
 pub(super) fn strip_outer_whitespace(mut inlines: Vec<Inline>) -> Vec<Inline> {
@@ -159,9 +169,14 @@ enum SmartUnit {
 /// literal `"`. Single quotes, which mark emphasis, are left untouched. The fold also descends into
 /// the children of container inlines.
 pub(super) fn apply_smart_quotes(inlines: Vec<Inline>) -> Vec<Inline> {
+    carta_core::with_stack(|| apply_smart_quotes_nested(inlines))
+}
+
+fn apply_smart_quotes_nested(inlines: Vec<Inline>) -> Vec<Inline> {
     let recursed: Vec<Inline> = inlines.into_iter().map(smart_descend).collect();
-    let units = flatten_smart(recursed);
-    resolve_double_quotes(&units, 0, units.len())
+    let mut units = flatten_smart(recursed);
+    let length = units.len();
+    resolve_double_quotes(&mut units, 0, length)
 }
 
 /// Applies the double-quote fold to the inline children of a container, leaving leaf and opaque
@@ -205,12 +220,12 @@ fn flatten_smart(inlines: Vec<Inline>) -> Vec<SmartUnit> {
     units
 }
 
-fn resolve_double_quotes(units: &[SmartUnit], lo: usize, hi: usize) -> Vec<Inline> {
+fn resolve_double_quotes(units: &mut [SmartUnit], lo: usize, hi: usize) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let mut buf = String::new();
     let mut i = lo;
     while i < hi {
-        match units.get(i) {
+        match units.get_mut(i) {
             Some(SmartUnit::Quote) => {
                 if smart_quote_opens(units, i, hi)
                     && let Some(j) = next_smart_quote(units, i + 1, hi)
@@ -232,7 +247,7 @@ fn resolve_double_quotes(units: &[SmartUnit], lo: usize, hi: usize) -> Vec<Inlin
             }
             Some(SmartUnit::Space(inline) | SmartUnit::Node(inline)) => {
                 flush_smart_buf(&mut buf, &mut out);
-                out.push(inline.clone());
+                out.push(std::mem::replace(inline, Inline::Space));
                 i += 1;
             }
             None => break,
@@ -268,6 +283,10 @@ fn next_smart_quote(units: &[SmartUnit], from: usize, hi: usize) -> Option<usize
 /// Merges adjacent string runs so a span never holds two consecutive [`Inline::Str`] nodes,
 /// descending into the markup wrappers a reader produces.
 pub(super) fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
+    carta_core::with_stack(|| coalesce_nested(inlines))
+}
+
+fn coalesce_nested(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     for inline in inlines {
         let inline = match inline.into_parts() {
@@ -320,6 +339,10 @@ pub(super) fn drop_east_asian_breaks(inlines: Vec<Inline>) -> Vec<Inline> {
 /// The last rendered character of an inline, descending into wrapper inlines, or `None` for one that
 /// renders no character at the boundary (a break, image, or note).
 fn trailing_char(inline: &Inline) -> Option<char> {
+    carta_core::with_stack(|| trailing_char_nested(inline))
+}
+
+fn trailing_char_nested(inline: &Inline) -> Option<char> {
     match inline {
         Inline::Str(s) | Inline::Code(_, s) | Inline::Math(_, s) | Inline::RawInline(_, s) => {
             s.chars().next_back()
@@ -342,6 +365,10 @@ fn trailing_char(inline: &Inline) -> Option<char> {
 /// The first rendered character of an inline, descending into wrapper inlines, or `None` for one
 /// that renders no character at the boundary.
 fn leading_char(inline: &Inline) -> Option<char> {
+    carta_core::with_stack(|| leading_char_nested(inline))
+}
+
+fn leading_char_nested(inline: &Inline) -> Option<char> {
     match inline {
         Inline::Str(s) | Inline::Code(_, s) | Inline::Math(_, s) | Inline::RawInline(_, s) => {
             s.chars().next()
@@ -392,6 +419,10 @@ fn is_wide_char(c: char) -> bool {
 /// [`Inline::Code`] while markup wrappers keep their structure with code interiors. A space inside a
 /// code run is held as a non-breaking space so the rendered width is preserved.
 pub(super) fn preformat_transform(inlines: Vec<Inline>) -> Vec<Inline> {
+    carta_core::with_stack(|| preformat_transform_nested(inlines))
+}
+
+fn preformat_transform_nested(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let mut run = String::new();
     for inline in inlines {

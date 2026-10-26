@@ -1,4 +1,4 @@
-//! Inline scanners and scan budgets shared by readers.
+//! Inline scanners shared by readers.
 
 #[cfg(any(feature = "commonmark", feature = "html"))]
 use carta_ast::MathType;
@@ -205,14 +205,6 @@ fn is_backslash_math_closer_bytes(text: &str, i: usize, slashes: usize, close: c
         && char_at(text, i + slashes) == Some(close)
 }
 
-/// A forward-scan step budget proportional to `span_len`, keeping scanning linear where a dense
-/// run of unclosable openers would otherwise re-scan the suffix per failed construct (quadratic).
-/// Far above any genuine construct's need; a capped run leaves the opener as literal text.
-#[cfg(feature = "mediawiki")]
-pub(crate) fn scan_budget(span_len: usize) -> usize {
-    span_len.saturating_mul(8).saturating_add(64).min(200_000)
-}
-
 /// Whether `ch` is whitespace for the inline scanners: the spec's literal whitespace set plus any
 /// Unicode whitespace.
 #[cfg(any(feature = "commonmark", feature = "html"))]
@@ -224,18 +216,6 @@ pub(crate) fn is_unicode_whitespace(ch: char) -> bool {
         || ch == '\u{0b}'
         || ch == '\r'
         || ch.is_whitespace()
-}
-
-#[cfg(all(test, feature = "mediawiki"))]
-mod scan_budget_tests {
-    use super::scan_budget;
-
-    #[test]
-    fn scan_budget_scales_then_caps() {
-        assert_eq!(scan_budget(0), 64);
-        assert_eq!(scan_budget(1_000), 8_064);
-        assert_eq!(scan_budget(1_000_000), 200_000);
-    }
 }
 
 #[cfg(all(test, feature = "commonmark"))]

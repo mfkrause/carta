@@ -24,12 +24,7 @@ mod entities;
     feature = "odt"
 ))]
 mod heading_ids;
-#[cfg(any(
-    feature = "commonmark",
-    feature = "html",
-    feature = "jira",
-    feature = "mediawiki"
-))]
+#[cfg(any(feature = "commonmark", feature = "html"))]
 mod inline_scan;
 #[cfg(any(
     feature = "dokuwiki",
