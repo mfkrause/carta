@@ -157,19 +157,33 @@ bench_pair() {
     note_err "$label" "$(head -n 3 "$BENCH_OUT/.hf.err")"
     return
   fi
-  local x_mean x_sd p_mean p_sd runs
-  x_mean=$(jq -r '.results[] | select(.command=="carta")  | .mean'   "$json")
-  x_sd=$(jq   -r '.results[] | select(.command=="carta")  | .stddev' "$json")
-  p_mean=$(jq -r '.results[] | select(.command=="pandoc") | .mean'   "$json")
-  p_sd=$(jq   -r '.results[] | select(.command=="pandoc") | .stddev' "$json")
-  runs=$(jq   -r '[.results[].times | length] | min'                 "$json")
+  local statistics x_mean x_sd p_mean p_sd runs
+  if ! statistics=$(jq -er '
+    .results
+    | map({
+        name: (.name // .command),
+        mean: (.summary.time_wall_clock.mean // .mean),
+        deviation: (.summary.time_wall_clock.stddev // .stddev),
+        runs: ((.measurements // .times) | length)
+      })
+    | (map(select(.name == "carta")) | first) as $carta
+    | (map(select(.name == "pandoc")) | first) as $pandoc
+    | [$carta.mean, $carta.deviation, $pandoc.mean, $pandoc.deviation,
+       ([$carta.runs, $pandoc.runs] | min)]
+    | if all(.[]; type == "number") then @tsv else error("missing timing statistics") end
+  ' "$json"); then
+    note_err "$label" "invalid timing results in $json"
+    return
+  fi
+  read -r x_mean x_sd p_mean p_sd runs <<<"$statistics"
 
   local x_rss p_rss
   x_rss=$(measure_rss "$input" $OX $xargs)
   p_rss=$(measure_rss "$input" $ORACLE $oargs)
 
   emit_row "$label" "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss"
-  record_timing "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss" "$runs"
+  record_timing "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss" "$runs" \
+    || note_err "$label" "failed to record timing"
 }
 
 # record_timing <bytes> <carta_mean> <carta_sd> <pandoc_mean> <pandoc_sd> <carta_rss> <pandoc_rss> <runs>

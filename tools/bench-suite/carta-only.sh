@@ -20,7 +20,7 @@ time_one() { # <label> <input> <args...>
     return 1
   fi
   awk -v l="$label" '{ }' </dev/null
-  jq -r --arg l "$label" '.results[0] | "\($l)\t\(.mean*1000)\t\(.stddev*1000)"' "$json"
+  jq -r --arg l "$label" '.results[0] | (.summary.time_wall_clock // .) | "\($l)\t\(.mean*1000)\t\(.stddev*1000)"' "$json"
 }
 
 for fmt in commonmark html; do
