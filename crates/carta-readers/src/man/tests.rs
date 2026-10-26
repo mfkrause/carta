@@ -743,8 +743,11 @@ fn nested_macro_call_expands_in_place_preserving_order() {
 
 #[test]
 fn macro_whose_expansion_synthesizes_its_own_call_terminates() {
-    // `\$.M` creates fresh recursive invocations that only the document budget can stop.
-    let _ = read(".TH T 1\n.de M\ntext\n\\$.M\n..\n.M\n");
+    let document = read(".TH T 1\n.de M\ntext\n\\$.M\n..\n.M\n");
+    assert_eq!(
+        document.blocks,
+        vec![Block::Para(vec![Inline::Str("text".into())])]
+    );
 }
 
 #[test]
@@ -755,7 +758,6 @@ fn macro_with_repeated_bodiless_tags_terminates() {
 
 #[test]
 fn macro_argument_doubling_across_synthesized_calls_terminates() {
-    // Each re-invocation doubles the argument length; the byte budget must cut it off.
     let _ = read(".TH T 1\n.de M\n\\$.M \"\\$1\\$1\"\n..\n.M xxxxxxxx\n");
 }
 

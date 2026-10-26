@@ -1,5 +1,6 @@
 //! Read roff documents that use the `man` macro package.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{Attr, Block, Document, Inline, MetaValue, slug, slug_gfm, to_plain_text};
@@ -28,16 +29,10 @@ type Strings = BTreeMap<String, String>;
 /// The deepest a `\*` interpolation may recurse, bounding self-referential string definitions.
 const MAX_STRING_DEPTH: usize = 8;
 
-/// The most lines all macro expansion may produce across a document. The budget is cumulative
-/// rather than per-invocation because argument substitution can synthesize a fresh call line
-/// (`\$` followed by a non-digit leaves the rest of the line intact, so `\$.X` expands to the call
-/// `.X`), and each such invocation restarts with an empty recursion guard; only a shared budget
-/// makes that cycle terminate.
+/// The most lines macro expansion may materialize across a document.
 const MAX_MACRO_EXPANSION_LINES: usize = 100_000;
 
-/// The most bytes all macro expansion may produce across a document, counting nested-call argument
-/// substitution as well as emitted lines. Bounds calls that double an argument's length on each
-/// synthesized re-invocation, which the line budget alone would let grow geometrically.
+/// The most bytes macro expansion may materialize, including substituted arguments.
 const MAX_MACRO_EXPANSION_BYTES: usize = 1 << 22;
 
 /// The unspent portion of the document-wide macro-expansion budget.
@@ -297,61 +292,54 @@ impl Parser {
         body
     }
 
-    /// Expands a macro invocation into a flat list of lines, substituting the call's arguments for
-    /// `\$N` references and inlining any nested macro calls. Re-entrant calls and the document-wide
-    /// expansion budget bound the expansion so a self- or mutually-referential macro cannot loop
-    /// forever.
+    /// Expands a macro invocation to lines, stopping cycles before materializing their bodies again.
     fn expand_macro_call(&mut self, name: &str, args: &[String]) -> Vec<String> {
         let mut out = Vec::new();
-        let mut active = BTreeSet::new();
-        let mut budget = self.expansion_budget;
-        self.expand_macro_into(name, args, &mut active, &mut out, &mut budget);
-        self.expansion_budget = budget;
-        out
-    }
-
-    fn expand_macro_into(
-        &self,
-        name: &str,
-        args: &[String],
-        active: &mut BTreeSet<String>,
-        out: &mut Vec<String>,
-        budget: &mut ExpansionBudget,
-    ) {
-        if budget.exhausted() || active.contains(name) {
-            return;
-        }
-        let Some(body) = self.macros.get(name) else {
-            return;
+        let Some((name, body)) = self.macros.get_key_value(name) else {
+            return out;
         };
-        active.insert(name.to_owned());
-        for raw in body {
+        let mut frames = vec![(name.as_str(), body.as_slice(), args.to_vec(), 0usize)];
+        let mut active = BTreeSet::new();
+        active.insert(name.as_str());
+        let mut budget = self.expansion_budget;
+        while let Some((name, body, arguments, position)) = frames.last_mut() {
             if budget.exhausted() {
                 break;
             }
-            match control_parts(raw) {
-                Some((inner, inner_rest))
-                    if !is_comment(raw) && self.macros.contains_key(inner) =>
-                {
-                    // Substituted arguments debit the budget even unemitted, bounding nested-call growth.
-                    let substituted = substitute_macro_args(inner_rest, args);
-                    budget.debit(substituted.len());
-                    let inner_args = split_args(&substituted);
-                    self.expand_macro_into(inner, &inner_args, active, out, budget);
+            let Some(raw) = body.get(*position) else {
+                active.remove(*name);
+                frames.pop();
+                continue;
+            };
+            *position += 1;
+            let request = control_parts(raw).is_some();
+            let line = if request {
+                Cow::Borrowed(raw.as_str())
+            } else {
+                Cow::Owned(substitute_macro_args(raw, arguments))
+            };
+            if let Some((inner, rest)) = control_parts(&line)
+                && !is_comment(&line)
+                && let Some((name, body)) = self.macros.get_key_value(inner)
+            {
+                if !active.insert(name.as_str()) {
+                    continue;
                 }
-                // Request lines pass verbatim; argument references fall to escape processing (nothing).
-                Some(_) => {
-                    budget.debit(raw.len());
-                    out.push(raw.clone());
-                }
-                None => {
-                    let substituted = substitute_macro_args(raw, args);
-                    budget.debit(substituted.len());
-                    out.push(substituted);
-                }
+                let rest = if request {
+                    Cow::Owned(substitute_macro_args(rest, arguments))
+                } else {
+                    Cow::Borrowed(rest)
+                };
+                budget.debit(rest.len());
+                let arguments = split_args(&rest);
+                frames.push((name.as_str(), body.as_slice(), arguments, 0));
+            } else {
+                budget.debit(line.len());
+                out.push(line.into_owned());
             }
         }
-        active.remove(name);
+        self.expansion_budget = budget;
+        out
     }
 
     /// Parses a sequence of blocks until the context's terminator (or end of input). A terminator
