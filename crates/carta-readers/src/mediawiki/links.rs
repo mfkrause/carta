@@ -5,7 +5,7 @@ use carta_ast::{Attr, Block, Caption, Inline, QuoteType, Target, ToCompactString
 use super::emphasis::coalesce;
 use super::{Parser, at, collect_range, find_char};
 
-impl Parser {
+impl Parser<'_> {
     pub(super) fn external_link(
         &mut self,
         chars: &[char],

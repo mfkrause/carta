@@ -34,7 +34,7 @@ enum OpenTarget {
     Cell,
 }
 
-impl Parser {
+impl Parser<'_> {
     /// Parses a `{|`-delimited table into a [`Block::Table`], returning the index past the closing
     /// `|}`. Table and row attribute lists are dropped; a cell's attribute list supplies its
     /// alignment, spans, identifier, and classes. The first row becomes the header when its first

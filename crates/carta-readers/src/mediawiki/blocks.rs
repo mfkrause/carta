@@ -10,24 +10,17 @@ use super::emphasis::{
 };
 use super::links::para_or_figure;
 use super::tags::{
-    close_tag_parse, enclosed, html_li_content_bounds, open_ref_block_bodied, open_ref_depth,
-    open_tag_bounded, starts_block_tag, tag_attribute, tag_name_matches,
+    close_tag_bounded, close_tag_parse, enclosed, html_li_content_bounds, open_ref_block_bodied,
+    open_ref_depth, open_tag_bounded, starts_block_tag, tag_attribute, tag_name_matches,
 };
 use super::{
-    MAX_BLOCK_DEPTH, Parser, ScanBounds, Tok, at, balanced_braces, collect_range, format_html,
-    format_mediawiki, is_blank, line_end, skip_construct, template_opens,
+    Parser, ScanBounds, Tok, at, balanced_braces, collect_range, format_html, format_mediawiki,
+    is_blank, line_end, skip_construct, template_opens,
 };
 
-impl Parser {
+impl Parser<'_> {
     pub(super) fn parse_blocks(&mut self, chars: &[char]) -> Vec<Block> {
-        self.depth += 1;
-        if self.depth > MAX_BLOCK_DEPTH {
-            self.depth -= 1;
-            return degraded_blocks(chars);
-        }
-        let blocks = self.parse_blocks_inner(chars);
-        self.depth -= 1;
-        blocks
+        carta_core::with_stack(|| self.parse_blocks_inner(chars))
     }
 
     fn parse_blocks_inner(&mut self, chars: &[char]) -> Vec<Block> {
@@ -35,12 +28,12 @@ impl Parser {
         let mut pos = 0;
         let mut line_start = true;
         let n = chars.len();
-        let bounds = ScanBounds::of(chars);
+        let bounds = self.bounds(chars);
         // Shared heading-region memo: each line's region resolves at most once; nested slices get their own memo.
         let mut scan = HeaderScan::default();
         while pos < n {
             if line_start {
-                let le = line_end(chars, pos);
+                let le = self.line_end(chars, pos);
                 if is_blank(chars, pos, le) {
                     pos = if le < n { le + 1 } else { le };
                     continue;
@@ -84,7 +77,7 @@ impl Parser {
                 }
                 if c == '-' && is_hr_line(chars, pos) {
                     blocks.push(Block::HorizontalRule);
-                    let le2 = line_end(chars, pos);
+                    let le2 = self.line_end(chars, pos);
                     pos = if le2 < n { le2 + 1 } else { le2 };
                     line_start = true;
                     continue;
@@ -127,7 +120,7 @@ impl Parser {
         pos: usize,
         scan: &mut HeaderScan,
     ) -> Option<(i32, Vec<Inline>, usize)> {
-        let le = line_end(chars, pos);
+        let le = self.line_end(chars, pos);
         let mut m = 0;
         while pos + m < le && at(chars, pos + m) == Some('=') {
             m += 1;
@@ -149,7 +142,7 @@ impl Parser {
         let mut p = pos;
         let mut lines: Vec<Vec<Inline>> = Vec::new();
         while at(chars, p) == Some(' ') {
-            let le = line_end(chars, p);
+            let le = self.line_end(chars, p);
             let content = collect_range(chars, p + 1, le);
             lines.push(self.preformatted_line(&content));
             if le >= n {
@@ -172,7 +165,7 @@ impl Parser {
         &mut self,
         chars: &[char],
         pos: usize,
-        bounds: ScanBounds,
+        bounds: ScanBounds<'_>,
     ) -> Option<(Block, usize)> {
         let (name, raw_open, self_closing, after_open) = open_tag_bounded(chars, pos, bounds)?;
         match name.as_str() {
@@ -180,9 +173,10 @@ impl Parser {
                 if self_closing {
                     return Some((Block::BlockQuote(Vec::new()), after_open));
                 }
-                let (inner, after) = enclosed(chars, after_open, "blockquote", bounds);
-                let inner_chars: Vec<char> = inner.chars().collect();
-                Some((Block::BlockQuote(self.parse_blocks(&inner_chars)), after))
+                let (end, after) = close_tag_bounded(chars, after_open, "blockquote", bounds)
+                    .unwrap_or((chars.len(), chars.len()));
+                let inner = chars.get(after_open..end).unwrap_or(&[]);
+                Some((Block::BlockQuote(self.parse_blocks(inner)), after))
             }
             "pre" => {
                 let (inner, after) = enclosed(chars, after_open, "pre", bounds);
@@ -236,7 +230,7 @@ impl Parser {
         ordered: bool,
         raw_open: &str,
         self_closing: bool,
-        bounds: ScanBounds,
+        bounds: ScanBounds<'_>,
     ) -> (Block, usize) {
         let mut items: Vec<Vec<Block>> = Vec::new();
         let mut i = start;
@@ -261,16 +255,9 @@ impl Parser {
                         open_tag_bounded(chars, i, bounds)
                 {
                     let (content_end, next) = html_li_content_bounds(chars, after_li, bounds);
-                    let content: Vec<char> = collect_range(chars, after_li, content_end)
-                        .chars()
-                        .collect();
-                    let mut blocks = self.parse_blocks(&content);
-                    if let Some(Block::Para(inlines)) = blocks.first() {
-                        let inlines = inlines.clone();
-                        if let Some(first) = blocks.first_mut() {
-                            *first = Block::Plain(inlines);
-                        }
-                    }
+                    let content = chars.get(after_li..content_end).unwrap_or(&[]);
+                    let mut blocks = self.parse_blocks(content);
+                    plain_first_paragraph(&mut blocks);
                     items.push(blocks);
                     i = next;
                     continue;
@@ -301,33 +288,31 @@ impl Parser {
         chars: &[char],
         pos: usize,
         scan: &mut HeaderScan,
-        bounds: ScanBounds,
+        bounds: ScanBounds<'_>,
     ) -> (Vec<Block>, usize) {
         let n = chars.len();
-        let mut pieces: Vec<String> = Vec::new();
         let mut cur = pos;
-        loop {
-            let le = line_end(chars, cur);
-            pieces.push(collect_range(chars, cur, le));
+        let content_end = loop {
+            let le = self.line_end(chars, cur);
             if le >= n {
                 cur = le;
-                break;
+                break le;
             }
             let next = le + 1;
             if next >= n {
                 cur = next;
-                break;
+                break le;
             }
             // Keep unclosed note bodies across blank lines; block openers join only block notes.
             let ref_open = open_ref_depth(chars, pos, next, bounds) > 0;
-            let next_end = line_end(chars, next);
+            let next_end = self.line_end(chars, next);
             if is_blank(chars, next, next_end) {
                 if ref_open {
                     cur = next;
                     continue;
                 }
                 cur = if next_end < n { next_end + 1 } else { next_end };
-                break;
+                break le;
             }
             if line_starts_block_scan(chars, next, scan) {
                 if ref_open && open_ref_block_bodied(chars, pos, next, bounds) {
@@ -335,12 +320,11 @@ impl Parser {
                     continue;
                 }
                 cur = next;
-                break;
+                break le;
             }
             cur = next;
-        }
-        let raw = pieces.join("\n");
-        let trimmed = raw.trim();
+        };
+        let trimmed = trim_chars(chars.get(pos..content_end).unwrap_or(&[]));
         if trimmed.is_empty() {
             return (Vec::new(), cur);
         }
@@ -350,9 +334,8 @@ impl Parser {
     /// Parses a paragraph's text into blocks. Recognized block-level HTML tags split the run: the
     /// text on either side becomes its own paragraph and each tag becomes a raw block, so a `<div>`
     /// embedded in prose interrupts the paragraph exactly where it appears.
-    fn parse_block_content(&mut self, text: &str) -> Vec<Block> {
-        let chars: Vec<char> = text.chars().collect();
-        let toks = self.lex(&chars, false, true);
+    fn parse_block_content(&mut self, chars: &[char]) -> Vec<Block> {
+        let toks = self.lex(chars, false, true);
         let smart = self.smart();
         let east_asian = self.extensions.contains(Extension::EastAsianLineBreaks);
         let mut blocks: Vec<Block> = Vec::new();
@@ -386,7 +369,7 @@ impl Parser {
         if !suppressed {
             return self.parse_blocks(chars);
         }
-        let bounds = ScanBounds::of(chars);
+        let bounds = self.bounds(chars);
         let (mut blocks, after) =
             self.parse_paragraph(chars, 0, &mut HeaderScan::default(), bounds);
         if let Some(rest) = chars.get(after..) {
@@ -397,11 +380,11 @@ impl Parser {
 
     /// Parses the content of a `<ref>` note as blocks; a lone paragraph becomes a [`Block::Plain`].
     pub(super) fn note_blocks(&mut self, chars: &[char]) -> Vec<Block> {
-        let blocks = self.parse_blocks(chars);
-        match blocks.as_slice() {
-            [Block::Para(inlines)] => vec![Block::Plain(inlines.clone())],
-            _ => blocks,
+        let mut blocks = self.parse_blocks(chars);
+        if blocks.len() == 1 {
+            plain_first_paragraph(&mut blocks);
         }
+        blocks
     }
 }
 
@@ -584,19 +567,6 @@ pub(super) fn is_list_marker(c: char) -> bool {
     matches!(c, '*' | '#' | ':' | ';')
 }
 
-/// Flat fallback used when block nesting reaches [`MAX_BLOCK_DEPTH`]: the remaining text becomes a
-/// single paragraph of its literal content, with no further block structure parsed, so deeply
-/// stacked constructs cannot exhaust the stack during parsing or serialization.
-fn degraded_blocks(chars: &[char]) -> Vec<Block> {
-    let text = collect_range(chars, 0, chars.len());
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        Vec::new()
-    } else {
-        vec![Block::Para(vec![Inline::Str(trimmed.into())])]
-    }
-}
-
 fn finish_inline_block(chars: &[char], pos: usize) -> (usize, bool) {
     let le = line_end(chars, pos);
     if is_blank(chars, pos, le) {
@@ -617,4 +587,24 @@ fn trim_code(inner: &str) -> String {
         .or_else(|| stripped.strip_suffix('\n'))
         .unwrap_or(stripped)
         .to_string()
+}
+
+fn plain_first_paragraph(blocks: &mut [Block]) {
+    if let Some(first) = blocks.first_mut()
+        && let Block::Para(inlines) = first
+    {
+        *first = Block::Plain(std::mem::take(inlines));
+    }
+}
+
+fn trim_chars(chars: &[char]) -> &[char] {
+    let start = chars
+        .iter()
+        .position(|ch| !ch.is_whitespace())
+        .unwrap_or(chars.len());
+    let end = chars
+        .iter()
+        .rposition(|ch| !ch.is_whitespace())
+        .map_or(start, |position| position + 1);
+    chars.get(start..end).unwrap_or(&[])
 }

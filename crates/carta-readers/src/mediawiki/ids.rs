@@ -8,7 +8,7 @@ use crate::transliterate::transliterate_ascii;
 
 use super::Parser;
 
-impl Parser {
+impl Parser<'_> {
     pub(super) fn make_id(&mut self, inlines: &[Inline]) -> String {
         let plain = to_plain_text(inlines);
         if self.extensions.contains(Extension::GfmAutoIdentifiers) {

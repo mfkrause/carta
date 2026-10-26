@@ -7,6 +7,7 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use self::preprocess::{expand_tabs, extract_behavior_switches, strip_comments};
 use crate::heading_ids;
+use scan::ScanIndex;
 
 mod blocks;
 mod emphasis;
@@ -15,6 +16,7 @@ mod inline;
 mod links;
 mod lists;
 mod preprocess;
+mod scan;
 mod tables;
 mod tags;
 
@@ -27,7 +29,8 @@ impl Reader for MediawikiReader {
         let stripped = strip_comments(&expand_tabs(input));
         let (source, behavior_switches) = extract_behavior_switches(&stripped);
         let chars: Vec<char> = source.chars().collect();
-        let mut parser = Parser::new(options);
+        let index = ScanIndex::new(&chars);
+        let mut parser = Parser::new(options, &index);
         let mut blocks = parser.parse_blocks(&chars);
         // Categories are pulled from the inline flow into one trailing paragraph, in document order.
         if !parser.categories.is_empty() {
@@ -54,20 +57,14 @@ impl Reader for MediawikiReader {
 
 /// Carries the state that spans a whole document: the enabled extensions, the running counter for
 /// unlabeled external links, and the heading identifiers already issued (for de-duplication).
-struct Parser {
+struct Parser<'a> {
     extensions: Extensions,
     link_counter: usize,
     ids: heading_ids::IdRegistry,
     /// Category links pulled out of the inline flow, to be emitted as one trailing paragraph.
     categories: Vec<Inline>,
-    /// Current block-nesting depth, capped to keep adversarially deep input from exhausting the stack.
-    depth: usize,
+    index: &'a ScanIndex,
 }
-
-/// Block-nesting depth past which parsing stops descending: deeply stacked blockquotes, list levels,
-/// notes, and table cells degrade to flat content rather than recursing without bound. The cap sits
-/// far below the point where either parsing or serialization would overflow the stack.
-const MAX_BLOCK_DEPTH: usize = 64;
 
 /// A lexical unit of inline text: a finished inline node, a run of apostrophes whose emphasis role is
 /// resolved once the surrounding run structure is known, a block-level HTML tag that interrupts the
@@ -92,15 +89,23 @@ enum HtmlTagRole {
     Break,
 }
 
-impl Parser {
-    fn new(options: &ReaderOptions) -> Self {
+impl<'a> Parser<'a> {
+    fn new(options: &ReaderOptions, index: &'a ScanIndex) -> Self {
         Self {
             extensions: options.extensions,
             link_counter: 0,
             ids: heading_ids::IdRegistry::default(),
             categories: Vec::new(),
-            depth: 0,
+            index,
         }
+    }
+
+    fn bounds(&self, chars: &[char]) -> ScanBounds<'a> {
+        self.index.bounds(chars)
+    }
+
+    fn line_end(&self, chars: &[char], position: usize) -> usize {
+        self.index.line_end(chars, position)
     }
 
     /// Whether straight double quotes should fold into typographic quote runs.
@@ -115,12 +120,13 @@ impl Parser {
 /// bound fails without touching the rest of the input. Precomputing them once per slice turns a run
 /// of unterminated tags from a rescan-to-end at every `<` into O(1)-per-tag failures.
 #[derive(Clone, Copy)]
-struct ScanBounds {
+struct ScanBounds<'a> {
+    index: Option<(&'a ScanIndex, usize, usize)>,
     last_gt: Option<usize>,
     last_close: Option<usize>,
 }
 
-impl ScanBounds {
+impl ScanBounds<'_> {
     fn of(chars: &[char]) -> Self {
         let mut last_gt = None;
         let mut last_close = None;
@@ -135,6 +141,7 @@ impl ScanBounds {
             i += 1;
         }
         Self {
+            index: None,
             last_gt,
             last_close,
         }

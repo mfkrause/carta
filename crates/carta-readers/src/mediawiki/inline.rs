@@ -18,7 +18,7 @@ use super::{
     raw_html, template_opens,
 };
 
-impl Parser {
+impl Parser<'_> {
     pub(super) fn parse_inlines(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
         let toks = self.lex(&chars, false, false);
@@ -51,7 +51,7 @@ impl Parser {
         let mut word = String::new();
         let mut i = 0;
         let n = chars.len();
-        let bounds = ScanBounds::of(chars);
+        let bounds = self.bounds(chars);
         while i < n {
             let Some(c) = at(chars, i) else { break };
             if c == '\'' {
@@ -184,7 +184,7 @@ impl Parser {
         &mut self,
         chars: &[char],
         i: usize,
-        bounds: ScanBounds,
+        bounds: ScanBounds<'_>,
     ) -> Option<(Vec<Inline>, usize)> {
         if at(chars, i) != Some('<') {
             return None;
@@ -209,9 +209,8 @@ impl Parser {
                 }
                 match close_tag_bounded(chars, after_open, "ref", bounds) {
                     Some((inner_end, after)) => {
-                        let inner = collect_range(chars, after_open, inner_end);
-                        let inner_chars: Vec<char> = inner.chars().collect();
-                        Some((vec![Inline::Note(self.note_blocks(&inner_chars))], after))
+                        let inner = chars.get(after_open..inner_end).unwrap_or(&[]);
+                        Some((vec![Inline::Note(self.note_blocks(inner))], after))
                     }
                     None => Some((vec![raw_html(raw_open)], after_open)),
                 }
@@ -342,7 +341,7 @@ impl Parser {
         raw_open: &str,
         self_closing: bool,
         ctor: fn(Vec<Inline>) -> Inline,
-        bounds: ScanBounds,
+        bounds: ScanBounds<'_>,
     ) -> (Vec<Inline>, usize) {
         if self_closing {
             return (vec![raw_html(raw_open.to_string())], after_open);
@@ -365,7 +364,7 @@ impl Parser {
         raw_open: &str,
         self_closing: bool,
         class: &str,
-        bounds: ScanBounds,
+        bounds: ScanBounds<'_>,
     ) -> (Vec<Inline>, usize) {
         if self_closing {
             return (vec![raw_html(raw_open.to_string())], after_open);
@@ -477,7 +476,7 @@ fn verbatim_code(
     raw_open: &str,
     self_closing: bool,
     classes: &[&str],
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> (Vec<Inline>, usize) {
     if self_closing {
         return (vec![raw_html(raw_open.to_string())], after_open);

@@ -3,7 +3,11 @@
 use super::{HtmlTagRole, ScanBounds, Tok, at, collect_range, find_char};
 
 /// If a verbatim tag opens at `i`, the index just past its closing tag (or end of input).
-pub(super) fn verbatim_region_end(chars: &[char], i: usize, bounds: ScanBounds) -> Option<usize> {
+pub(super) fn verbatim_region_end(
+    chars: &[char],
+    i: usize,
+    bounds: ScanBounds<'_>,
+) -> Option<usize> {
     let (name, _raw, self_closing, after_open) = open_tag_bounded(chars, i, bounds)?;
     if !matches!(
         name.as_str(),
@@ -25,12 +29,17 @@ pub(super) fn verbatim_region_end(chars: &[char], i: usize, bounds: ScanBounds) 
 pub(super) fn open_tag_bounded(
     chars: &[char],
     start: usize,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> Option<(String, String, bool, usize)> {
     if !bounds.open_possible(start) {
         return None;
     }
-    open_tag(chars, start)
+    let end = if let Some((index, offset, limit)) = bounds.index {
+        Some(index.tag_end(start + 1 + offset, limit)? - offset)
+    } else {
+        None
+    };
+    open_tag(chars, start, end)
 }
 
 /// `close_tag` guarded by `bounds`: yields `None` immediately when no `</` remains at or after
@@ -40,10 +49,15 @@ pub(super) fn close_tag_bounded(
     chars: &[char],
     start: usize,
     name: &str,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> Option<(usize, usize)> {
     if !bounds.close_possible(start) {
         return None;
+    }
+    if let Some((index, offset, end)) = bounds.index {
+        return index
+            .close(start + offset, end, name)
+            .map(|(position, after)| (position - offset, after - offset));
     }
     close_tag(chars, start, name)
 }
@@ -51,7 +65,11 @@ pub(super) fn close_tag_bounded(
 /// Reads an opening tag at `chars[start]`, returning its lowercased name, the raw `<…>` text,
 /// whether it is self-closing, and the index just past the `>`. Attribute values in quotes may
 /// contain `>`.
-fn open_tag(chars: &[char], start: usize) -> Option<(String, String, bool, usize)> {
+fn open_tag(
+    chars: &[char],
+    start: usize,
+    end: Option<usize>,
+) -> Option<(String, String, bool, usize)> {
     let mut cursor = start + 1;
     let mut name = String::new();
     while let Some(ch) = at(chars, cursor) {
@@ -64,6 +82,9 @@ fn open_tag(chars: &[char], start: usize) -> Option<(String, String, bool, usize
     }
     if name.is_empty() {
         return None;
+    }
+    if let Some(end) = end {
+        cursor = end;
     }
     let mut quote: Option<char> = None;
     let len = chars.len();
@@ -127,7 +148,7 @@ pub(super) fn enclosed(
     chars: &[char],
     start: usize,
     name: &str,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> (String, usize) {
     match close_tag_bounded(chars, start, name, bounds) {
         Some((inner_end, after)) => (collect_range(chars, start, inner_end), after),
@@ -161,7 +182,12 @@ pub(super) fn starts_block_tag(chars: &[char], pos: usize) -> bool {
 /// The count of `<ref>` tags opened but not yet closed within `chars[start..end]`. A self-closing
 /// `<ref … />` opens nothing; verbatim regions are stepped over so a `<ref>` inside `<nowiki>` does
 /// not count. Used to keep a paragraph open until a `<ref>` note's body is complete.
-pub(super) fn open_ref_depth(chars: &[char], start: usize, end: usize, bounds: ScanBounds) -> i32 {
+pub(super) fn open_ref_depth(
+    chars: &[char],
+    start: usize,
+    end: usize,
+    bounds: ScanBounds<'_>,
+) -> i32 {
     let mut depth = 0i32;
     let mut i = start;
     while i < end {
@@ -197,7 +223,7 @@ pub(super) fn open_ref_block_bodied(
     chars: &[char],
     start: usize,
     end: usize,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> bool {
     let mut stack: Vec<bool> = Vec::new();
     let mut i = start;
@@ -281,7 +307,7 @@ pub(super) fn html_tag_role(name: &str) -> Option<HtmlTagRole> {
 pub(super) fn close_tag_parse(
     chars: &[char],
     i: usize,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> Option<(String, String, usize)> {
     if at(chars, i) != Some('<') || at(chars, i + 1) != Some('/') || !bounds.open_possible(i) {
         return None;
@@ -311,7 +337,7 @@ pub(super) fn close_tag_parse(
 pub(super) fn html_li_content_bounds(
     chars: &[char],
     start: usize,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> (usize, usize) {
     let n = chars.len();
     let mut list_depth = 0i32;
@@ -337,6 +363,15 @@ pub(super) fn html_li_content_bounds(
             } else if tag_name_matches(chars, j + 1, "ul") || tag_name_matches(chars, j + 1, "ol") {
                 if let Some((_, _, self_closing, after)) = open_tag_bounded(chars, j, bounds) {
                     if !self_closing {
+                        if let Some((index, offset, end)) = bounds.index {
+                            match index.close(after + offset, end, "") {
+                                Some((_, after)) => {
+                                    j = after - offset;
+                                    continue;
+                                }
+                                None => return (n, n),
+                            }
+                        }
                         list_depth += 1;
                     }
                     j = after;
@@ -357,7 +392,7 @@ pub(super) fn html_li_content_bounds(
 pub(super) fn block_tag_token(
     chars: &[char],
     i: usize,
-    bounds: ScanBounds,
+    bounds: ScanBounds<'_>,
 ) -> Option<(Tok, usize)> {
     let (name, raw, after) = if at(chars, i + 1) == Some('/') {
         close_tag_parse(chars, i, bounds)?

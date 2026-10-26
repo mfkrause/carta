@@ -4,7 +4,7 @@ use carta_ast::{Block, Inline, ListAttributes, ListNumberDelim, ListNumberStyle}
 
 use super::blocks::is_list_marker;
 use super::links::{bare_url, plain_or_figure};
-use super::{MAX_BLOCK_DEPTH, Parser, at, collect_range, line_end, skip_construct};
+use super::{Parser, at, collect_range, skip_construct};
 
 /// One line of list markup: its leading marker run and the trimmed text that follows.
 struct ListItem {
@@ -20,13 +20,13 @@ enum ListKind {
     Definition,
 }
 
-impl Parser {
+impl Parser<'_> {
     pub(super) fn parse_list(&mut self, chars: &[char], pos: usize) -> (Vec<Block>, usize) {
         let mut items: Vec<ListItem> = Vec::new();
         let mut cursor = pos;
         let n = chars.len();
         while at(chars, cursor).is_some_and(is_list_marker) {
-            let le = line_end(chars, cursor);
+            let le = self.line_end(chars, cursor);
             let mut scan = cursor;
             let mut markers: Vec<char> = Vec::new();
             while scan < le && at(chars, scan).is_some_and(is_list_marker) {
@@ -47,17 +47,10 @@ impl Parser {
     }
 
     fn build_lists(&mut self, items: &[ListItem], level: usize) -> Vec<Block> {
-        if level >= MAX_BLOCK_DEPTH {
-            // Past the nesting cap, item text becomes flat plain blocks so deep marker runs cannot exhaust the stack.
-            let mut out: Vec<Block> = Vec::new();
-            for item in items {
-                let inlines = self.parse_inlines(&item.content);
-                if !inlines.is_empty() {
-                    out.push(Block::Plain(inlines));
-                }
-            }
-            return out;
-        }
+        carta_core::with_stack(|| self.build_lists_nested(items, level))
+    }
+
+    fn build_lists_nested(&mut self, items: &[ListItem], level: usize) -> Vec<Block> {
         let mut out: Vec<Block> = Vec::new();
         let mut i = 0;
         while i < items.len() {
