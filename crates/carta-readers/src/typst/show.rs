@@ -121,7 +121,7 @@ impl Parser {
         }
         let name = self.read_path();
         if name == "regex" {
-            let args = self.call_arguments()?;
+            let args = self.selector_arguments()?;
             let Value::Str(source) = positional(&args)? else {
                 return None;
             };
@@ -132,22 +132,26 @@ impl Parser {
             return Some(Selector::Element(name, Vec::new()));
         };
         let fields = self
-            .call_arguments()?
+            .selector_arguments()?
             .into_iter()
             .filter_map(|arg| Some((arg.name?, arg.value)))
             .collect();
         Some(Selector::Element(element.to_string(), fields))
     }
 
-    /// Read the parenthesized arguments at the cursor.
-    fn call_arguments(&mut self) -> Option<Vec<Arg>> {
+    /// Evaluate selector arguments only when a colon follows the closing parenthesis.
+    fn selector_arguments(&mut self) -> Option<Vec<Arg>> {
         if self.peek() != Some('(') {
             return None;
         }
+        let start = self.pos.saturating_add(1);
         let close = self.balanced('(', ')')?;
-        let args = self.arguments(self.pos.saturating_add(1), close);
         self.pos = close.saturating_add(1);
-        Some(args)
+        self.skip_spaces();
+        if self.peek() != Some(':') {
+            return None;
+        }
+        Some(self.arguments(start, close))
     }
 
     /// Read the transform after a show rule's colon.
@@ -477,4 +481,30 @@ fn next_boundary(text: &str, from: usize) -> usize {
         next = next.saturating_add(1);
     }
     next
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selectors_require_a_colon_before_evaluating_arguments() {
+        for source in [
+            r#"regex("[0-9]" * 6666))"#,
+            r#"heading.where(level: "x" * 6666) body"#,
+        ] {
+            let mut parser = Parser::new(source.chars().collect(), None);
+            let copies = parser.copies;
+            assert!(parser.selector().is_none());
+            assert_eq!(parser.copies, copies);
+        }
+    }
+
+    #[test]
+    fn selectors_allow_spaces_before_the_colon() {
+        for source in [r#"regex("x+")   :"#, "heading.where(level: 1)\t:"] {
+            let mut parser = Parser::new(source.chars().collect(), None);
+            assert!(parser.selector().is_some());
+        }
+    }
 }
