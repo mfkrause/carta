@@ -21,6 +21,9 @@ use carta_core::{Error, Extension, Reader, ReaderOptions, Result};
 mod data;
 mod emoji;
 mod integer;
+mod math_text;
+
+use math_text::MathText;
 mod sequence;
 mod show;
 mod values;
@@ -32,9 +35,6 @@ use sequence::Sequence;
 mod tests;
 
 use integer::Integer;
-
-/// The deepest math group that recursive parsing follows.
-const MAX_DEPTH: usize = 64;
 
 /// Bound on the values one loop walks over, so a runaway range cannot exhaust memory. It sits far
 /// above any count a document plausibly writes out.
@@ -6664,17 +6664,23 @@ fn is_east_asian_wide(c: char) -> bool {
         | 0x30000..=0x3FFFD)
 }
 
+macro_rules! math_text {
+    ($($part:expr),+ $(,)?) => {
+        MathText::concat(vec![$($part.into()),+])
+    };
+}
+
 /// A rendered fragment of a math expression, tagged with how it joins its neighbours.
 #[derive(Debug, Clone)]
 enum Piece {
     /// Set adjacent to its neighbours.
-    Atom(String),
+    Atom(MathText),
     /// A parenthesized group: keeps its parentheses inline, sheds them as a script or fraction part.
-    Group(String),
+    Group(MathText),
     /// A relation or binary operator, set off by a space on each side.
-    Op(String),
+    Op(MathText),
     /// Punctuation, set adjacent like an atom but never used as a script base.
-    Sep(String),
+    Sep(MathText),
     /// An explicit line break.
     Break,
     /// An alignment point, which turns the expression into an array.
@@ -6683,17 +6689,17 @@ enum Piece {
 
 impl Piece {
     /// The fragment as written in running math.
-    fn text(&self) -> String {
+    fn text(&self) -> MathText {
         match self {
             Piece::Atom(text) | Piece::Op(text) | Piece::Sep(text) => text.clone(),
-            Piece::Group(inner) => format!("({inner})"),
-            Piece::Break => "\\\\".to_string(),
-            Piece::Align => "&".to_string(),
+            Piece::Group(inner) => math_text!["(", inner, ")"],
+            Piece::Break => "\\\\".into(),
+            Piece::Align => "&".into(),
         }
     }
 
     /// The fragment as the argument of a script, fraction, or accent.
-    fn operand(&self) -> String {
+    fn operand(&self) -> MathText {
         match self {
             Piece::Group(inner) => inner.clone(),
             other => other.text(),
@@ -6707,14 +6713,13 @@ fn math_to_tex(source: &str) -> String {
     let mut math = Math {
         source: &chars,
         pos: 0,
-        depth: 0,
     };
     let pieces = math.pieces(&[]);
-    render_math(&pieces)
+    render_math(&pieces).render()
 }
 
 /// Join rendered fragments, spacing operators and giving an aligned body its own environment.
-fn render_math(pieces: &[Piece]) -> String {
+fn render_math(pieces: &[Piece]) -> MathText {
     if !pieces
         .iter()
         .any(|piece| matches!(piece, Piece::Align | Piece::Break))
@@ -6735,16 +6740,16 @@ fn render_math(pieces: &[Piece]) -> String {
     }
     let body = join_pieces(pieces);
     if columns.is_multiple_of(2) {
-        return format!("\\begin{{aligned}}\n{body}\n\\end{{aligned}}");
+        return math_text!["\\begin{aligned}\n", body, "\n\\end{aligned}"];
     }
     let spec: String = (0..columns)
         .map(|index| if index % 2 == 0 { 'r' } else { 'l' })
         .collect();
-    format!("\\begin{{array}}{{{spec}}}\n{body}\n\\end{{array}}")
+    math_text!["\\begin{array}{", spec, "}\n", body, "\n\\end{array}"]
 }
 
 /// Render one branch of a case distinction, where the first alignment point is its own column.
-fn render_cases_row(pieces: &[Piece]) -> String {
+fn render_cases_row(pieces: &[Piece]) -> MathText {
     let Some(index) = pieces
         .iter()
         .position(|piece| matches!(piece, Piece::Align))
@@ -6753,7 +6758,7 @@ fn render_cases_row(pieces: &[Piece]) -> String {
     };
     let head = render_math(pieces.get(..index).unwrap_or_default());
     let tail = render_math(pieces.get(index.saturating_add(1)..).unwrap_or_default());
-    format!("{head} & {tail}")
+    math_text![head, " & ", tail]
 }
 
 /// The TeX for a character that a backslash escaped in the source.
@@ -6780,50 +6785,44 @@ fn ends_control_sequence(text: &str) -> bool {
     chars.as_str().ends_with('\\')
 }
 
-fn join_pieces(pieces: &[Piece]) -> String {
-    let mut out = String::new();
+fn join_pieces(pieces: &[Piece]) -> MathText {
+    let mut out = MathText::default();
     for piece in pieces {
-        if !out.ends_with(' ')
-            && ends_control_sequence(&out)
-            && piece
-                .text()
-                .chars()
-                .next()
-                .is_some_and(char::is_alphanumeric)
+        let text = piece.text();
+        if out.last() != Some(' ')
+            && out.ends_control()
+            && text.first().is_some_and(char::is_alphanumeric)
         {
-            out.push(' ');
+            out = math_text![out, " "];
         }
         match piece {
-            Piece::Op(text) => {
-                if !out.is_empty() && !out.ends_with(' ') {
-                    out.push(' ');
+            Piece::Op(_) => {
+                if !out.is_empty() && out.last() != Some(' ') {
+                    out = math_text![out, " "];
                 }
-                out.push_str(text);
-                out.push(' ');
+                out = math_text![out, text, " "];
             }
-            Piece::Align => {
-                if !out.is_empty() && !out.ends_with(' ') {
-                    out.push(' ');
+            Piece::Align | Piece::Break => {
+                if !out.is_empty() && out.last() != Some(' ') {
+                    out = math_text![out, " "];
                 }
-                out.push_str("& ");
+                let separator = if matches!(piece, Piece::Align) {
+                    "& "
+                } else {
+                    "\\\\\n"
+                };
+                out = math_text![out, separator];
             }
-            Piece::Break => {
-                if !out.is_empty() && !out.ends_with(' ') {
-                    out.push(' ');
-                }
-                out.push_str("\\\\\n");
-            }
-            other => out.push_str(&other.text()),
+            _ => out = math_text![out, text],
         }
     }
-    out.trim_end().to_string()
+    out.trim_end()
 }
 
 /// The math-mode parser: a cursor over the body between the `$` delimiters.
 struct Math<'a> {
     source: &'a [char],
     pos: usize,
-    depth: usize,
 }
 
 impl Math<'_> {
@@ -6884,10 +6883,11 @@ impl Math<'_> {
 
     /// Read fragments until one of the stop characters is reached at this nesting level.
     fn pieces(&mut self, stop: &[char]) -> Vec<Piece> {
+        carta_core::with_stack(|| self.pieces_nested(stop))
+    }
+
+    fn pieces_nested(&mut self, stop: &[char]) -> Vec<Piece> {
         let mut out: Vec<Piece> = Vec::new();
-        if self.depth >= MAX_DEPTH {
-            return out;
-        }
         loop {
             self.skip_space();
             let Some(c) = self.peek() else { break };
@@ -6896,24 +6896,26 @@ impl Math<'_> {
             }
             match c {
                 '^' | '_' => {
-                    let base = out.pop().unwrap_or(Piece::Atom(String::new()));
+                    let base = out.pop().unwrap_or(Piece::Atom(MathText::default()));
                     let attached = self.scripts(&base);
                     out.push(Piece::Atom(attached));
                 }
                 '/' => {
                     self.bump();
-                    let numerator = out.pop().unwrap_or(Piece::Atom(String::new()));
+                    let numerator = out.pop().unwrap_or(Piece::Atom(MathText::default()));
                     self.skip_space();
                     let mut denominator = self.unit();
                     self.skip_space();
                     if matches!(self.peek(), Some('^' | '_')) {
                         denominator = Piece::Atom(self.scripts(&denominator));
                     }
-                    out.push(Piece::Atom(format!(
-                        "\\frac{{{}}}{{{}}}",
+                    out.push(Piece::Atom(math_text![
+                        "\\frac{",
                         numerator.operand(),
-                        denominator.operand()
-                    )));
+                        "}{",
+                        denominator.operand(),
+                        "}"
+                    ]));
                 }
                 '&' => {
                     self.bump();
@@ -6929,10 +6931,10 @@ impl Math<'_> {
     ///
     /// A slot may be filled once per base; a repeat of either marker starts a fresh attachment
     /// whose base is everything read so far, braced.
-    fn scripts(&mut self, base: &Piece) -> String {
+    fn scripts(&mut self, base: &Piece) -> MathText {
         let mut out = base.text();
         if takes_limits(&out) {
-            out.push_str("\\limits");
+            out = math_text![out, "\\limits"];
         }
         let mut attached = false;
         loop {
@@ -6941,13 +6943,13 @@ impl Math<'_> {
                 break;
             }
             if attached {
-                out = format!("{{{out}}}");
+                out = math_text!["{", out, "}"];
             }
             if let Some(sub) = subscript {
-                let _ = write!(out, "_{{{sub}}}");
+                out = math_text![out, "_{", sub, "}"];
             }
             if let Some(sup) = superscript {
-                let _ = write!(out, "^{{{sup}}}");
+                out = math_text![out, "^{", sup, "}"];
             }
             attached = true;
         }
@@ -6955,7 +6957,7 @@ impl Math<'_> {
     }
 
     /// Read at most one subscript and one superscript, stopping at a marker whose slot is taken.
-    fn script_slots(&mut self) -> (Option<String>, Option<String>) {
+    fn script_slots(&mut self) -> (Option<MathText>, Option<MathText>) {
         let mut subscript = None;
         let mut superscript = None;
         loop {
@@ -6978,7 +6980,7 @@ impl Math<'_> {
     fn unit(&mut self) -> Piece {
         self.skip_space();
         let Some(c) = self.peek() else {
-            return Piece::Atom(String::new());
+            return Piece::Atom(MathText::default());
         };
         if let Some(piece) = self.shorthand() {
             return piece;
@@ -6996,7 +6998,7 @@ impl Math<'_> {
                 let after = self.peek().is_some_and(char::is_whitespace);
                 let lead = if before { " " } else { "" };
                 let trail = if after { " " } else { "" };
-                Piece::Atom(format!("\\text{{{lead}{body}{trail}}}"))
+                Piece::Atom(math_text!["\\text{", lead, body, trail, "}"])
             }
             '\\' => {
                 self.bump();
@@ -7011,14 +7013,14 @@ impl Math<'_> {
                         if atom.starts_with('\\') && self.peek().is_some_and(char::is_whitespace) {
                             atom.push(' ');
                         }
-                        Piece::Atom(atom)
+                        Piece::Atom(atom.into())
                     }
-                    None => Piece::Atom(String::new()),
+                    None => Piece::Atom(MathText::default()),
                 }
             }
             '#' => {
                 self.skip_code();
-                Piece::Atom(String::new())
+                Piece::Atom(MathText::default())
             }
             '0'..='9' | '.' => {
                 let start = self.pos;
@@ -7028,7 +7030,7 @@ impl Math<'_> {
                 if self.pos == start {
                     self.bump();
                 }
-                Piece::Atom(self.text(start, self.pos))
+                Piece::Atom(self.text(start, self.pos).into())
             }
             c if c.is_alphabetic() => self.name(),
             '|' => {
@@ -7042,22 +7044,22 @@ impl Math<'_> {
                         .is_some_and(char::is_whitespace);
                 self.bump();
                 Piece::Atom(if spaced {
-                    "~|~".to_string()
+                    "~|~".to_string().into()
                 } else {
-                    "|".to_string()
+                    "|".to_string().into()
                 })
             }
             '+' | '=' | '<' | '>' => {
                 self.bump();
-                Piece::Op(c.to_string())
+                Piece::Op(c.to_string().into())
             }
             '-' => {
                 self.bump();
-                Piece::Op("-".to_string())
+                Piece::Op("-".to_string().into())
             }
             ',' | ';' | '!' | ':' | '\'' | ')' | ']' | '}' => {
                 self.bump();
-                Piece::Sep(c.to_string())
+                Piece::Sep(c.to_string().into())
             }
             '%' => {
                 self.bump();
@@ -7066,13 +7068,13 @@ impl Math<'_> {
                 } else {
                     ""
                 };
-                Piece::Atom(format!("\\%{gap}"))
+                Piece::Atom(math_text!["\\%", gap])
             }
             other => {
                 self.bump();
                 match symbol_for_glyph(other) {
-                    Some(tex) => Piece::Op(tex.to_string()),
-                    None => Piece::Atom(other.to_string()),
+                    Some(tex) => Piece::Op(tex.to_string().into()),
+                    None => Piece::Atom(other.to_string().into()),
                 }
             }
         }
@@ -7092,9 +7094,9 @@ impl Math<'_> {
             if self.matches(token) {
                 self.pos = self.pos.saturating_add(token.chars().count());
                 return Some(if *relation {
-                    Piece::Op((*tex).to_string())
+                    Piece::Op((*tex).to_string().into())
                 } else {
-                    Piece::Atom((*tex).to_string())
+                    Piece::Atom((*tex).to_string().into())
                 });
             }
         }
@@ -7103,29 +7105,23 @@ impl Math<'_> {
 
     fn group(&mut self, close: char) -> Piece {
         self.bump();
-        self.depth = self.depth.saturating_add(1);
         let inner = self.pieces(&[close]);
-        self.depth = self.depth.saturating_sub(1);
         self.bump();
         Piece::Group(render_math(&inner))
     }
 
     fn bracket_group(&mut self) -> Piece {
         self.bump();
-        self.depth = self.depth.saturating_add(1);
         let inner = self.pieces(&[']']);
-        self.depth = self.depth.saturating_sub(1);
         self.bump();
-        Piece::Atom(format!("[{}]", render_math(&inner)))
+        Piece::Atom(math_text!["[", render_math(&inner), "]"])
     }
 
     fn brace_group(&mut self) -> Piece {
         self.bump();
-        self.depth = self.depth.saturating_add(1);
         let inner = self.pieces(&['}']);
-        self.depth = self.depth.saturating_sub(1);
         self.bump();
-        Piece::Atom(format!("\\{{{}\\}}", render_math(&inner)))
+        Piece::Atom(math_text!["\\{", render_math(&inner), "\\}"])
     }
 
     fn quoted(&mut self) -> String {
@@ -7190,18 +7186,18 @@ impl Math<'_> {
         }
         if let Some(entry) = symbol(&name) {
             return if entry.relation {
-                Piece::Op(entry.tex.to_string())
+                Piece::Op(entry.tex.to_string().into())
             } else {
-                Piece::Atom(entry.tex.to_string())
+                Piece::Atom(entry.tex.to_string().into())
             };
         }
         if let Some(tex) = double_struck(&name) {
-            return Piece::Atom(tex);
+            return Piece::Atom(tex.into());
         }
         if MATH_OPERATORS.contains(&name.as_str()) {
-            return Piece::Atom(format!("\\{name}"));
+            return Piece::Atom(math_text!["\\", name]);
         }
-        Piece::Atom(name)
+        Piece::Atom(name.into())
     }
 
     /// Read a call's arguments: rows separated by `;`, arguments within a row separated by `,`.
@@ -7209,8 +7205,7 @@ impl Math<'_> {
         self.bump();
         let mut rows: Vec<Vec<MathArg>> = Vec::new();
         let mut row: Vec<MathArg> = Vec::new();
-        let mut named: Vec<(String, String)> = Vec::new();
-        self.depth = self.depth.saturating_add(1);
+        let mut named: Vec<(String, MathText)> = Vec::new();
         loop {
             self.skip_space();
             if matches!(self.peek(), None | Some(')')) {
@@ -7241,7 +7236,6 @@ impl Math<'_> {
                 _ => break,
             }
         }
-        self.depth = self.depth.saturating_sub(1);
         self.bump();
         if !row.is_empty() || rows.is_empty() {
             rows.push(row);
@@ -7272,7 +7266,7 @@ impl Math<'_> {
 #[derive(Debug)]
 struct MathArg {
     /// The argument rendered as TeX.
-    text: String,
+    text: MathText,
     /// Whether it was a single fragment, so a script binds to it without bracing.
     atomic: bool,
 }
@@ -7283,11 +7277,11 @@ struct MathArgs {
     /// Positional arguments, one inner vector per `;`-separated row.
     rows: Vec<Vec<MathArg>>,
     /// Named arguments, in source order.
-    named: Vec<(String, String)>,
+    named: Vec<(String, MathText)>,
 }
 
 impl MathArgs {
-    fn positional(&self, index: usize) -> String {
+    fn positional(&self, index: usize) -> MathText {
         self.rows
             .first()
             .and_then(|row| row.get(index))
@@ -7307,15 +7301,15 @@ impl MathArgs {
         self.rows.first().map_or(0, Vec::len)
     }
 
-    fn named(&self, key: &str) -> Option<&str> {
+    fn named(&self, key: &str) -> Option<&MathText> {
         self.named
             .iter()
             .find(|(name, _)| name == key)
-            .map(|(_, value)| value.as_str())
+            .map(|(_, value)| value)
     }
 
     /// The first row's arguments, one per line, for a stacked environment.
-    fn stacked(&self) -> String {
+    fn stacked(&self) -> MathText {
         self.rows
             .first()
             .map(|row| Self::join_row(row, " \\\\\n"))
@@ -7323,28 +7317,20 @@ impl MathArgs {
     }
 
     /// Every positional argument joined as a literal call, for a function with no TeX counterpart.
-    fn joined(&self) -> String {
-        self.rows
-            .iter()
-            .map(|row| Self::join_row(row, ","))
-            .collect::<Vec<_>>()
-            .join(";")
+    fn joined(&self) -> MathText {
+        MathText::join(self.rows.iter().map(|row| Self::join_row(row, ",")), ";")
     }
 
     /// The arguments laid out as the rows of a TeX matrix environment.
-    fn matrix(&self) -> String {
-        self.rows
-            .iter()
-            .map(|row| Self::join_row(row, " & "))
-            .collect::<Vec<_>>()
-            .join(" \\\\\n")
+    fn matrix(&self) -> MathText {
+        MathText::join(
+            self.rows.iter().map(|row| Self::join_row(row, " & ")),
+            " \\\\\n",
+        )
     }
 
-    fn join_row(row: &[MathArg], separator: &str) -> String {
-        row.iter()
-            .map(|arg| arg.text.as_str())
-            .collect::<Vec<_>>()
-            .join(separator)
+    fn join_row(row: &[MathArg], separator: &str) -> MathText {
+        MathText::join(row.iter().map(|argument| argument.text.clone()), separator)
     }
 }
 
@@ -7352,59 +7338,68 @@ impl MathArgs {
 fn math_call(name: &str, args: &MathArgs) -> Piece {
     let first = args.positional(0);
     match name {
-        "frac" => Piece::Atom(format!("\\frac{{{first}}}{{{}}}", args.positional(1))),
-        "binom" => Piece::Atom(format!("\\binom{{{first}}}{{{}}}", args.positional(1))),
-        "sqrt" => Piece::Atom(format!("\\sqrt{{{first}}}")),
+        "frac" => Piece::Atom(math_text!["\\frac{", first, "}{", args.positional(1), "}"]),
+        "binom" => Piece::Atom(math_text!["\\binom{", first, "}{", args.positional(1), "}"]),
+        "sqrt" => Piece::Atom(math_text!["\\sqrt{", first, "}"]),
         "root" => {
             if args.count() >= 2 {
-                Piece::Atom(format!("\\sqrt[{first}]{{{}}}", args.positional(1)))
+                Piece::Atom(math_text!["\\sqrt[", first, "]{", args.positional(1), "}"])
             } else {
-                Piece::Atom(format!("\\sqrt{{{first}}}"))
+                Piece::Atom(math_text!["\\sqrt{", first, "}"])
             }
         }
-        "abs" => Piece::Atom(format!("|{first}|")),
-        "norm" => Piece::Atom(format!("\\left\\| {first} \\right\\|")),
-        "floor" => Piece::Atom(format!("\\left\\lfloor {first} \\right\\rfloor")),
-        "ceil" => Piece::Atom(format!("\\left\\lceil {first} \\right\\rceil")),
-        "round" => Piece::Atom(format!("\\left\\lfloor {first} \\right\\rceil")),
-        "lr" => Piece::Atom(format!("\\left. {first} \\right.")),
-        "vec" => Piece::Atom(format!(
-            "\\begin{{pmatrix}}\n{}\n\\end{{pmatrix}}",
-            args.stacked()
-        )),
-        "mat" => Piece::Atom(format!(
-            "\\begin{{pmatrix}}\n{}\n\\end{{pmatrix}}",
-            args.matrix()
-        )),
-        "cases" => Piece::Atom(format!(
-            "\\begin{{cases}}\n{}\n\\end{{cases}}",
-            args.stacked()
-        )),
-        "text" => Piece::Atom(format!("\\text{{{}}}", strip_text(&first))),
-        "op" => Piece::Atom(format!("\\{}", strip_text(&first))),
+        "abs" => Piece::Atom(math_text!["|", first, "|"]),
+        "norm" => Piece::Atom(math_text!["\\left\\| ", first, " \\right\\|"]),
+        "floor" => Piece::Atom(math_text!["\\left\\lfloor ", first, " \\right\\rfloor"]),
+        "ceil" => Piece::Atom(math_text!["\\left\\lceil ", first, " \\right\\rceil"]),
+        "round" => Piece::Atom(math_text!["\\left\\lfloor ", first, " \\right\\rceil"]),
+        "lr" => Piece::Atom(math_text!["\\left. ", first, " \\right."]),
+        "vec" => Piece::Atom(math_text![
+            "\\begin{pmatrix}\n",
+            args.stacked(),
+            "\n\\end{pmatrix}"
+        ]),
+        "mat" => Piece::Atom(math_text![
+            "\\begin{pmatrix}\n",
+            args.matrix(),
+            "\n\\end{pmatrix}"
+        ]),
+        "cases" => Piece::Atom(math_text![
+            "\\begin{cases}\n",
+            args.stacked(),
+            "\n\\end{cases}"
+        ]),
+        "text" => Piece::Atom(math_text!["\\text{", first.strip_text(), "}"]),
+        "op" => Piece::Atom(math_text!["\\", first.strip_text()]),
         "underbrace" => {
             if args.count() >= 2 {
-                Piece::Atom(format!(
-                    "\\underset{{{}}}{{\\underbrace{{{first}}}}}",
-                    args.positional(1)
-                ))
+                Piece::Atom(math_text![
+                    "\\underset{",
+                    args.positional(1),
+                    "}{\\underbrace{",
+                    first,
+                    "}}"
+                ])
             } else {
-                Piece::Atom(format!("\\underbrace{{{first}}}"))
+                Piece::Atom(math_text!["\\underbrace{", first, "}"])
             }
         }
         "overbrace" => {
             if args.count() >= 2 {
-                Piece::Atom(format!(
-                    "\\overset{{{}}}{{\\overbrace{{{first}}}}}",
-                    args.positional(1)
-                ))
+                Piece::Atom(math_text![
+                    "\\overset{",
+                    args.positional(1),
+                    "}{\\overbrace{",
+                    first,
+                    "}}"
+                ])
             } else {
-                Piece::Atom(format!("\\overbrace{{{first}}}"))
+                Piece::Atom(math_text!["\\overbrace{", first, "}"])
             }
         }
         "accent" => {
             let accent = accent_command(&args.positional(1));
-            Piece::Atom(format!("{accent}{{{first}}}"))
+            Piece::Atom(math_text![accent, "{", first, "}"])
         }
         "attach" => Piece::Atom(attachments(&first, args.positional_atomic(0), args)),
         "display" | "inline" | "script" | "sscript" | "limits" | "scripts" | "cancel"
@@ -7418,84 +7413,77 @@ fn math_call(name: &str, args: &MathArgs) -> Piece {
 /// Corner slots become the base's own scripts; a centred slot joins them there too unless the
 /// corner on its side is taken, in which case it stacks over or under the whole attachment. Left
 /// corners hang off an empty box in front.
-fn attachments(base: &str, atomic: bool, args: &MathArgs) -> String {
+fn attachments(base: &MathText, atomic: bool, args: &MathArgs) -> MathText {
     let slots = ["t", "b", "tl", "tr", "bl", "br"];
     if !slots.iter().any(|key| args.named(key).is_some()) {
-        return base.to_string();
+        return base.clone();
     }
-    let mut out = base.to_string();
+    let mut out = base.clone();
     if takes_limits(base) {
-        out.push_str("\\limits");
+        out = math_text![out, "\\limits"];
     }
     if !atomic {
-        out = format!("{{{out}}}");
+        out = math_text!["{", out, "}"];
     }
     if let Some(bottom) = args.named("br").or_else(|| args.named("b")) {
-        let _ = write!(out, "_{{{bottom}}}");
+        out = math_text![out, "_{", bottom, "}"];
     }
     if let Some(top) = args.named("tr").or_else(|| args.named("t")) {
-        let _ = write!(out, "^{{{top}}}");
+        out = math_text![out, "^{", top, "}"];
     }
     if let (Some(top), Some(_)) = (args.named("t"), args.named("tr")) {
-        out = format!("\\overset{{{top}}}{{{out}}}");
+        out = math_text!["\\overset{", top, "}{", out, "}"];
     }
     if let (Some(bottom), Some(_)) = (args.named("b"), args.named("br")) {
-        out = format!("\\underset{{{bottom}}}{{{out}}}");
+        out = math_text!["\\underset{", bottom, "}{", out, "}"];
     }
-    let mut prefix = String::new();
+    let mut prefix = MathText::default();
     if args.named("tl").is_some() || args.named("bl").is_some() {
-        prefix.push_str("{}");
+        prefix = math_text![prefix, "{}"];
         if let Some(bottom) = args.named("bl") {
-            let _ = write!(prefix, "_{{{bottom}}}");
+            prefix = math_text![prefix, "_{", bottom, "}"];
         }
         if let Some(top) = args.named("tl") {
-            let _ = write!(prefix, "^{{{top}}}");
+            prefix = math_text![prefix, "^{", top, "}"];
         }
     }
-    format!("{prefix}{out}")
+    math_text![prefix, out]
 }
 
 /// Whether an operator sets its scripts above and below rather than beside it.
-fn takes_limits(base: &str) -> bool {
-    matches!(base, "\\lim" | "\\max" | "\\min" | "\\sup" | "\\inf")
+fn takes_limits(base: &MathText) -> bool {
+    ["\\lim", "\\max", "\\min", "\\sup", "\\inf"]
+        .iter()
+        .any(|text| base.equals(text))
 }
 
 /// Render a call whose name is a style command, an accent, an operator, or a plain symbol.
-fn styled_call(name: &str, first: &str, args: &MathArgs) -> Piece {
+fn styled_call(name: &str, first: &MathText, args: &MathArgs) -> Piece {
     if let Some(command) = STYLE_COMMANDS
         .iter()
         .find(|(typst, _)| *typst == name)
         .map(|(_, tex)| *tex)
     {
-        return Piece::Atom(format!("{command}{{{first}}}"));
+        return Piece::Atom(math_text![command, "{", first, "}"]);
     }
     if let Some(command) = ACCENTS.iter().find(|(typst, _)| *typst == name) {
-        return Piece::Atom(format!("{}{{{first}}}", command.1));
+        return Piece::Atom(math_text![command.1, "{", first, "}"]);
     }
     if MATH_OPERATORS.contains(&name) {
-        return Piece::Atom(format!("\\{name}({})", args.joined()));
+        return Piece::Atom(math_text!["\\", name, "(", args.joined(), ")"]);
     }
     let rendered = symbol(name).map_or_else(
         || double_struck(name).unwrap_or_else(|| name.to_string()),
         |entry| entry.tex.to_string(),
     );
-    Piece::Atom(format!("{rendered}({})", args.joined()))
-}
-
-/// Unwrap the `\text{..}` a quoted argument renders as, so it can be re-wrapped by its caller.
-fn strip_text(rendered: &str) -> String {
-    rendered
-        .strip_prefix("\\text{")
-        .and_then(|rest| rest.strip_suffix('}'))
-        .unwrap_or(rendered)
-        .to_string()
+    Piece::Atom(math_text![rendered, "(", args.joined(), ")"])
 }
 
 /// The TeX accent command an `accent(..)` modifier names.
-fn accent_command(modifier: &str) -> &'static str {
+fn accent_command(modifier: &MathText) -> &'static str {
     ACCENTS
         .iter()
-        .find(|(typst, tex)| *typst == modifier || *tex == modifier)
+        .find(|(typst, tex)| modifier.equals(typst) || modifier.equals(tex))
         .map_or("\\hat", |(_, tex)| *tex)
 }
 

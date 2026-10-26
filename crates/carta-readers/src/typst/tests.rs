@@ -883,12 +883,12 @@ fn math_translation_covers_groups_calls_and_layout() {
     assert_eq!(escaped_atom('!'), "!");
     assert!(ends_control_sequence("\\alpha"));
     assert!(!ends_control_sequence("\\alpha "));
-    assert_eq!(strip_text("\\text{word}"), "word");
-    assert_eq!(accent_command("unknown"), "\\hat");
-    assert_eq!(Piece::Group("x".to_string()).text(), "(x)");
-    assert_eq!(Piece::Group("x".to_string()).operand(), "x");
-    assert_eq!(Piece::Break.text(), "\\\\");
-    assert_eq!(Piece::Align.text(), "&");
+    assert_eq!(MathText::from("\\text{word}").strip_text().render(), "word");
+    assert_eq!(accent_command(&"unknown".into()), "\\hat");
+    assert_eq!(Piece::Group("x".into()).text().render(), "(x)");
+    assert_eq!(Piece::Group("x".into()).operand().render(), "x");
+    assert_eq!(Piece::Break.text().render(), "\\\\");
+    assert_eq!(Piece::Align.text().render(), "&");
     assert_eq!(double_struck("RR"), Some("\\mathbb{R}".to_string()));
     assert_eq!(double_struck("R"), None);
     assert_eq!(double_struck("RS"), None);
