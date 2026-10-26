@@ -1,6 +1,5 @@
 //! Inline scanning: emphasis, verbatim, sub/superscripts, links, footnotes, math, and quotes.
 
-use std::cell::Cell as ScanBudget;
 use std::collections::BTreeMap;
 use std::mem;
 
@@ -20,13 +19,57 @@ pub(super) fn parse_inlines(
     notes: &BTreeMap<String, Vec<Block>>,
 ) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
+    let mut closes: BTreeMap<(char, Option<char>), Vec<usize>> = BTreeMap::new();
+    let mut groups = BTreeMap::new();
+    let mut brackets = Vec::new();
+    let mut braces = Vec::new();
+    let mut newlines = Vec::new();
+    for (index, &character) in chars.iter().enumerate() {
+        let previous = index.checked_sub(1).and_then(|index| chars.get(index));
+        let next = chars.get(index + 1).copied();
+        if matches!(character, '<' | '>')
+            || previous.is_some_and(|character| !character.is_whitespace())
+                && (matches!(character, '*' | '/' | '+' | '_' | '=' | '~' | '\'' | '"')
+                    && post_ok(next)
+                    || character == '$' && !next.is_some_and(char::is_alphanumeric))
+        {
+            closes.entry((character, None)).or_default().push(index);
+        }
+        if matches!(
+            (character, next),
+            (']', Some(']')) | ('$', Some('$')) | ('@', Some('@')) | ('\\', Some(')' | ']'))
+        ) {
+            closes.entry((character, next)).or_default().push(index);
+        }
+        match character {
+            '[' => brackets.push(index),
+            ']' => {
+                if let Some(open) = brackets.pop() {
+                    groups.insert(open, index);
+                }
+            }
+            '{' => braces.push(index),
+            '}' => {
+                if let Some(open) = braces.pop() {
+                    groups.insert(open, index);
+                }
+            }
+            '\n' => {
+                braces.clear();
+                newlines.push(index);
+            }
+            _ => {}
+        }
+    }
     let mut scanner = Inlines {
         chars: &chars,
         ext,
         notes,
         out: Vec::new(),
         word: String::new(),
-        budget: ScanBudget::new(crate::inline_scan::scan_budget(chars.len())),
+        closes,
+        groups,
+        newlines,
     };
     scanner.run();
     scanner.finish()
@@ -38,8 +81,9 @@ struct Inlines<'a> {
     notes: &'a BTreeMap<String, Vec<Block>>,
     out: Vec<Inline>,
     word: String,
-    // Charge scan steps by span length to keep failed opener searches linear.
-    budget: ScanBudget<usize>,
+    closes: BTreeMap<(char, Option<char>), Vec<usize>>,
+    groups: BTreeMap<usize, usize>,
+    newlines: Vec<usize>,
 }
 
 impl Inlines<'_> {
@@ -63,15 +107,18 @@ impl Inlines<'_> {
         self.chars.get(i).copied()
     }
 
-    /// Charges one step against the shared forward-scan budget, returning `false` once it is spent so
-    /// the caller abandons an over-long scan and leaves the opener as literal text.
-    fn spend(&self) -> bool {
-        let remaining = self.budget.get();
-        if remaining == 0 {
-            return false;
-        }
-        self.budget.set(remaining - 1);
-        true
+    fn next_close(&self, from: usize, first: char, second: Option<char>) -> Option<usize> {
+        let positions = self.closes.get(&(first, second))?;
+        positions
+            .get(positions.partition_point(|&position| position < from))
+            .copied()
+    }
+
+    fn within_lines(&self, from: usize, to: usize, count: usize) -> bool {
+        let start = self.newlines.partition_point(|&position| position < from);
+        self.newlines
+            .get(start + count)
+            .is_none_or(|&position| position >= to)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -230,28 +277,8 @@ impl Inlines<'_> {
         if first.is_whitespace() {
             return None;
         }
-        let mut newlines = 0;
-        let mut j = i + 1;
-        while let Some(c) = self.at(j) {
-            if !self.spend() {
-                return None;
-            }
-            if c == '\n' {
-                newlines += 1;
-                if newlines > 1 {
-                    return None;
-                }
-            }
-            if c == marker
-                && j > i + 1
-                && !self.at(j - 1).is_some_and(char::is_whitespace)
-                && post_ok(self.at(j + 1))
-            {
-                return Some(j);
-            }
-            j += 1;
-        }
-        None
+        let close = self.next_close(i + 2, marker, None)?;
+        self.within_lines(i + 1, close, 1).then_some(close)
     }
 
     // Sub/superscript
@@ -266,7 +293,7 @@ impl Inlines<'_> {
         let content;
         let end;
         if self.at(i + 1) == Some('{') {
-            let close = self.match_brace(i + 1)?;
+            let close = *self.groups.get(&(i + 1))?;
             let inner = self.chars.get(i + 2..close).unwrap_or(&[]);
             content = parse_inlines(&collect_str(inner), self.ext, self.notes);
             end = close + 1;
@@ -307,26 +334,6 @@ impl Inlines<'_> {
         Some((text, last))
     }
 
-    fn match_brace(&self, open: usize) -> Option<usize> {
-        let mut depth = 0usize;
-        let mut j = open;
-        while let Some(c) = self.at(j) {
-            match c {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(j);
-                    }
-                }
-                '\n' => return None,
-                _ => {}
-            }
-            j += 1;
-        }
-        None
-    }
-
     // Backslash: line break, math, entities
 
     fn scan_backslash(&mut self, i: usize) -> usize {
@@ -342,8 +349,8 @@ impl Inlines<'_> {
                 }
                 j
             }
-            Some('(') => self.scan_tex_math(i + 2, "\\)", MathType::InlineMath, i),
-            Some('[') => self.scan_tex_math(i + 2, "\\]", MathType::DisplayMath, i),
+            Some('(') => self.scan_tex_math(i + 2, ')', MathType::InlineMath, i),
+            Some('[') => self.scan_tex_math(i + 2, ']', MathType::DisplayMath, i),
             Some(c) if c.is_ascii_alphabetic() => self.scan_entity(i),
             _ => {
                 self.word.push('\\');
@@ -355,22 +362,14 @@ impl Inlines<'_> {
     fn scan_tex_math(
         &mut self,
         start: usize,
-        close: &str,
+        close: char,
         kind: MathType,
         fallback: usize,
     ) -> usize {
-        let closing: Vec<char> = close.chars().collect();
-        let mut j = start;
-        while j < self.chars.len() {
-            if !self.spend() {
-                break;
-            }
-            if self.matches_at(j, &closing) {
-                let inner: String = self.chars.get(start..j).unwrap_or(&[]).iter().collect();
-                self.push_inline(Inline::Math(kind, inner.into()));
-                return j + closing.len();
-            }
-            j += 1;
+        if let Some(end) = self.next_close(start, '\\', Some(close)) {
+            let inner: String = self.chars.get(start..end).unwrap_or(&[]).iter().collect();
+            self.push_inline(Inline::Math(kind, inner.into()));
+            return end + 2;
         }
         self.word.push('\\');
         fallback + 1
@@ -417,7 +416,7 @@ impl Inlines<'_> {
 
     fn scan_link(&self, i: usize) -> Option<(Inline, usize)> {
         let inner_start = i + 2;
-        let close = self.find_double_close(inner_start)?;
+        let close = self.next_close(inner_start, ']', Some(']'))?;
         let inner: String = self
             .chars
             .get(inner_start..close)
@@ -448,23 +447,8 @@ impl Inlines<'_> {
         }
     }
 
-    /// Finds a `]]` starting at or after `from`.
-    fn find_double_close(&self, from: usize) -> Option<usize> {
-        let mut j = from;
-        while j + 1 < self.chars.len() {
-            if !self.spend() {
-                return None;
-            }
-            if self.at(j) == Some(']') && self.at(j + 1) == Some(']') {
-                return Some(j);
-            }
-            j += 1;
-        }
-        None
-    }
-
     fn scan_footnote(&self, i: usize) -> Option<(Inline, usize)> {
-        let close = self.match_bracket(i)?;
+        let close = *self.groups.get(&i)?;
         let inner: String = self.chars.get(i + 1..close).unwrap_or(&[]).iter().collect();
         let body = inner.strip_prefix("fn:")?;
         let end = close + 1;
@@ -482,7 +466,7 @@ impl Inlines<'_> {
     }
 
     fn scan_citation(&self, i: usize) -> Option<(Inline, usize)> {
-        let close = self.match_bracket(i)?;
+        let close = *self.groups.get(&i)?;
         let inner: String = self.chars.get(i + 1..close).unwrap_or(&[]).iter().collect();
         let raw: String = self.chars.get(i..close + 1).unwrap_or(&[]).iter().collect();
         let rest = inner.strip_prefix("cite")?;
@@ -497,36 +481,18 @@ impl Inlines<'_> {
         Some((Inline::Cite(citations, plain_words(&raw)), close + 1))
     }
 
-    fn match_bracket(&self, open: usize) -> Option<usize> {
-        let mut depth = 0usize;
-        let mut j = open;
-        while let Some(c) = self.at(j) {
-            if !self.spend() {
-                return None;
-            }
-            match c {
-                '[' => depth += 1,
-                ']' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(j);
-                    }
-                }
-                _ => {}
-            }
-            j += 1;
-        }
-        None
-    }
-
     // Angle brackets: targets and autolinks
 
     fn scan_angle(&self, i: usize) -> Option<(Inline, usize)> {
         if self.at(i + 1) == Some('<') {
             let name_start = i + 2;
-            let mut j = name_start;
-            while matches!(self.at(j), Some(c) if c != '<' && c != '>' && c != '\n') {
-                j += 1;
+            let j = self.next_close(name_start, '>', None)?;
+            if !self.within_lines(name_start, j, 0)
+                || self
+                    .next_close(name_start, '<', None)
+                    .is_some_and(|open| open < j)
+            {
+                return None;
             }
             if j > name_start && self.at(j) == Some('>') && self.at(j + 1) == Some('>') {
                 let name: String = self
@@ -548,11 +514,8 @@ impl Inlines<'_> {
             }
             return None;
         }
-        let mut j = i + 1;
-        while matches!(self.at(j), Some(c) if c != '>' && c != '\n') {
-            j += 1;
-        }
-        if self.at(j) != Some('>') {
+        let j = self.next_close(i + 1, '>', None)?;
+        if !self.within_lines(i + 1, j, 0) {
             return None;
         }
         let content: String = self.chars.get(i + 1..j).unwrap_or(&[]).iter().collect();
@@ -570,18 +533,9 @@ impl Inlines<'_> {
     fn scan_math_dollar(&self, i: usize, prev: Option<char>) -> Option<(Inline, usize)> {
         if self.at(i + 1) == Some('$') {
             let start = i + 2;
-            let mut j = start;
-            while j + 1 < self.chars.len() {
-                if !self.spend() {
-                    return None;
-                }
-                if self.at(j) == Some('$') && self.at(j + 1) == Some('$') {
-                    let inner: String = self.chars.get(start..j).unwrap_or(&[]).iter().collect();
-                    return Some((Inline::Math(MathType::DisplayMath, inner.into()), j + 2));
-                }
-                j += 1;
-            }
-            return None;
+            let end = self.next_close(start, '$', Some('$'))?;
+            let inner: String = self.chars.get(start..end).unwrap_or(&[]).iter().collect();
+            return Some((Inline::Math(MathType::DisplayMath, inner.into()), end + 2));
         }
         // Inline `$…$` with word-boundary and border constraints.
         if prev.is_some_and(|c| c.is_alphanumeric() || c == '$') {
@@ -591,21 +545,12 @@ impl Inlines<'_> {
         if first.is_whitespace() || first == '$' {
             return None;
         }
-        let mut j = i + 1;
-        while let Some(c) = self.at(j) {
-            if c == '\n' {
-                return None;
-            }
-            if c == '$'
-                && !self.at(j - 1).is_some_and(char::is_whitespace)
-                && !self.at(j + 1).is_some_and(char::is_alphanumeric)
-            {
-                let inner: String = self.chars.get(i + 1..j).unwrap_or(&[]).iter().collect();
-                return Some((Inline::Math(MathType::InlineMath, inner.into()), j + 1));
-            }
-            j += 1;
+        let end = self.next_close(i + 1, '$', None)?;
+        if !self.within_lines(i + 1, end, 0) {
+            return None;
         }
-        None
+        let inner: String = self.chars.get(i + 1..end).unwrap_or(&[]).iter().collect();
+        Some((Inline::Math(MathType::InlineMath, inner.into()), end + 1))
     }
 
     // Inline export
@@ -624,23 +569,17 @@ impl Inlines<'_> {
         }
         let fmt: String = self.chars.get(fmt_start..j).unwrap_or(&[]).iter().collect();
         let content_start = j + 1;
-        let mut k = content_start;
-        while k + 1 < self.chars.len() {
-            if !self.spend() {
-                return None;
-            }
-            if self.at(k) == Some('@') && self.at(k + 1) == Some('@') {
-                let content: String = self
-                    .chars
-                    .get(content_start..k)
-                    .unwrap_or(&[])
-                    .iter()
-                    .collect();
-                return Some((Inline::RawInline(Format(fmt.into()), content.into()), k + 2));
-            }
-            k += 1;
-        }
-        None
+        let end = self.next_close(content_start, '@', Some('@'))?;
+        let content: String = self
+            .chars
+            .get(content_start..end)
+            .unwrap_or(&[])
+            .iter()
+            .collect();
+        Some((
+            Inline::RawInline(Format(fmt.into()), content.into()),
+            end + 2,
+        ))
     }
 
     // Smart quotes
@@ -655,20 +594,12 @@ impl Inlines<'_> {
         if !matches!(self.at(i + 1), Some(c) if !c.is_whitespace()) {
             return (None, i + 1);
         }
-        let mut j = i + 1;
-        while let Some(c) = self.at(j) {
-            if c == close
-                && !self.at(j - 1).is_some_and(char::is_whitespace)
-                && post_ok(self.at(j + 1))
-            {
-                let inner = self.chars.get(i + 1..j).unwrap_or(&[]);
-                let content = parse_inlines(&collect_str(inner), self.ext, self.notes);
-                return (Some(Inline::Quoted(kind, content)), j + 1);
-            }
-            if c == '\n' {
-                break;
-            }
-            j += 1;
+        if let Some(end) = self.next_close(i + 1, close, None)
+            && self.within_lines(i + 1, end, 0)
+        {
+            let inner = self.chars.get(i + 1..end).unwrap_or(&[]);
+            let content = parse_inlines(&collect_str(inner), self.ext, self.notes);
+            return (Some(Inline::Quoted(kind, content)), end + 1);
         }
         (None, i + 1)
     }

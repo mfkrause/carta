@@ -28,8 +28,7 @@ mod heading_ids;
     feature = "commonmark",
     feature = "html",
     feature = "jira",
-    feature = "mediawiki",
-    feature = "org"
+    feature = "mediawiki"
 ))]
 mod inline_scan;
 #[cfg(any(

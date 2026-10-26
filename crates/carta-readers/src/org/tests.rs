@@ -30,14 +30,12 @@ fn paragraph_with_emphasis() {
 }
 
 #[test]
-fn emphasis_after_realistic_leading_text_still_parses() {
-    // The forward-scan budget never fires on valid input: long prose with a stray slash still parses.
-    let lead = "The quick brown fox jumps over the lazy dog and/or cat. ".repeat(40);
-    let input = format!("{lead}then *bold* and /italic/ close it out.");
+fn emphasis_after_unmatched_openers_still_parses() {
+    let lead = "/a ".repeat(1000);
+    let input = format!("{lead}then *bold*.");
     match &blocks(&input)[0] {
         Block::Para(inlines) => {
             assert!(inlines.contains(&Inline::Strong(vec![Inline::Str("bold".into())])));
-            assert!(inlines.contains(&Inline::Emph(vec![Inline::Str("italic".into())])));
         }
         other => panic!("expected paragraph, got {other:?}"),
     }
