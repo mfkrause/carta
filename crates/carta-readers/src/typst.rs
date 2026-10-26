@@ -38,14 +38,11 @@ const MAX_DEPTH: usize = 64;
 /// above any count a document plausibly writes out.
 const MAX_ITERATIONS: usize = 1 << 20;
 
-/// Document nodes a parse may copy or repeat, per character of source. Reading a binding or
-/// repeating a sequence duplicates content, so this keeps materialized output proportional to the
-/// source length.
-const COPIES_PER_CHAR: usize = 64;
+/// Materialization and lookup work allowed per source character.
+const WORK_PER_CHARACTER: usize = 64;
 
-/// The materialization allowance every parse starts with, so that reuse within a short source, and
-/// the long loops a few lines can spell out, never run into the ceiling.
-const BASE_COPIES: usize = 1 << 20;
+/// Allow short programs to reuse values before source length increases the allowance.
+const BASE_WORK: usize = 1 << 20;
 
 /// Compile a regular expression within the engine's compiled-size limit.
 fn compile_regex(source: &str) -> Option<Pattern> {
@@ -64,15 +61,15 @@ pub struct TypstReader;
 impl Reader for TypstReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         match on_deep_stack(|| parse_document(input, options)) {
-            DeepStack::Completed(document) => Ok(document),
+            DeepStack::Completed(document) => document,
             DeepStack::Panicked => Err(Error::Container("worker thread failed".into())),
-            DeepStack::NotSpawned => Ok(parse_document(input, options)),
+            DeepStack::NotSpawned => parse_document(input, options),
         }
     }
 }
 
 /// Parses a whole source text into the document model.
-fn parse_document(input: &str, options: &ReaderOptions) -> Document {
+fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
     let mut parser = Parser::new(normalize(input), options.source_dir.clone());
     let mut characters = input.char_indices().peekable();
     let mut position = 0;
@@ -91,6 +88,9 @@ fn parse_document(input: &str, options: &ReaderOptions) -> Document {
         parser.directories.insert(position, Some(directory.clone()));
     }
     let mut blocks = parser.blocks(0);
+    if parser.work.get().is_none() {
+        return Err(Error::OutputTooLarge);
+    }
     walk_inlines(&mut blocks, &mut merge_text_runs);
     walk_inlines(&mut blocks, &mut collapse_separators);
     resolve_references(&mut blocks, std::mem::take(&mut parser.attached));
@@ -98,11 +98,11 @@ fn parse_document(input: &str, options: &ReaderOptions) -> Document {
     if options.extensions.contains(Extension::EastAsianLineBreaks) {
         strip_wide_line_breaks(&mut blocks);
     }
-    Document {
+    Ok(Document {
         meta: std::mem::take(&mut parser.meta),
         blocks,
         ..Document::default()
-    }
+    })
 }
 
 /// Fold CRLF and CR line endings to LF and drop a leading byte-order mark.
@@ -354,13 +354,12 @@ impl Value {
 /// One node still to be counted while a value's weight is summed.
 enum Weighed<'a> {
     Value(&'a Value),
-    Block(&'a Block),
-    Inline(&'a Inline),
+    Blocks(&'a [Block]),
+    Inlines(&'a [Inline]),
     Text(usize),
 }
 
-/// How much document a value holds: one unit per node plus the length of the text it carries, so a
-/// value dominated by a single long string is weighed by that string rather than by its one node.
+/// Resources copied by a value, excluding shared sequence content.
 fn value_weight(value: &Value) -> usize {
     let mut total = 0usize;
     let mut pending = vec![Weighed::Value(value)];
@@ -369,8 +368,12 @@ fn value_weight(value: &Value) -> usize {
         match node {
             Weighed::Text(length) => total = total.saturating_add(length),
             Weighed::Value(value) => push_value(value, &mut pending),
-            Weighed::Block(block) => push_block(block, &mut pending),
-            Weighed::Inline(inline) => push_inline(inline, &mut pending),
+            Weighed::Blocks(blocks) => {
+                total = total.saturating_add(carta_core::budget::blocks_weight(blocks));
+            }
+            Weighed::Inlines(inlines) => {
+                total = total.saturating_add(carta_core::budget::inlines_weight(inlines));
+            }
         }
     }
     total
@@ -378,8 +381,8 @@ fn value_weight(value: &Value) -> usize {
 
 fn push_value<'a>(value: &'a Value, pending: &mut Vec<Weighed<'a>>) {
     match value {
-        Value::Content(blocks) => pending.extend(blocks.iter().map(Weighed::Block)),
-        Value::Inlines(inlines) => pending.extend(inlines.iter().map(Weighed::Inline)),
+        Value::Content(blocks) => pending.push(Weighed::Blocks(blocks)),
+        Value::Inlines(inlines) => pending.push(Weighed::Inlines(inlines)),
         Value::Array(items) => pending.extend(items.iter().map(Weighed::Value)),
         Value::Dict(entries) => pending.extend(
             entries
@@ -387,111 +390,30 @@ fn push_value<'a>(value: &'a Value, pending: &mut Vec<Weighed<'a>>) {
                 .flat_map(|(key, item)| [Weighed::Text(key.len()), Weighed::Value(item)]),
         ),
         Value::Group(_, args) | Value::Function(_, args) => {
-            pending.extend(args.iter().map(|arg| Weighed::Value(&arg.value)));
+            for argument in args {
+                if let Some(name) = &argument.name {
+                    pending.push(Weighed::Text(name.len()));
+                }
+                pending.push(Weighed::Value(&argument.value));
+            }
+            if let Value::Function(callee, _) = value {
+                match callee {
+                    Callee::Named(name) => pending.push(Weighed::Text(name.len())),
+                    Callee::Closure(function) => pending.extend(
+                        function
+                            .parameters
+                            .iter()
+                            .map(|parameter| Weighed::Text(parameter.name.len())),
+                    ),
+                }
+            }
         }
         Value::Str(text) | Value::Ident(text) | Value::Label(text) | Value::Regex(text) => {
             pending.push(Weighed::Text(text.len()));
         }
-        Value::Nothing
-        | Value::Bool(_)
-        | Value::Int(_)
-        | Value::Number(..)
-        | Value::Sequence(_) => {}
-    }
-}
-
-fn push_block<'a>(block: &'a Block, pending: &mut Vec<Weighed<'a>>) {
-    match block {
-        Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
-            pending.extend(inlines.iter().map(Weighed::Inline));
-        }
-        Block::LineBlock(lines) => pending.extend(lines.iter().flatten().map(Weighed::Inline)),
-        Block::CodeBlock(_, text) => pending.push(Weighed::Text(text.len())),
-        Block::RawBlock(format, text) => {
-            pending.push(Weighed::Text(format.0.len().saturating_add(text.len())));
-        }
-        Block::BlockQuote(inner) | Block::Div(_, inner) => {
-            pending.extend(inner.iter().map(Weighed::Block));
-        }
-        Block::OrderedList(_, items) | Block::BulletList(items) => {
-            pending.extend(items.iter().flatten().map(Weighed::Block));
-        }
-        Block::DefinitionList(entries) => {
-            for (term, definitions) in entries {
-                pending.extend(term.iter().map(Weighed::Inline));
-                pending.extend(definitions.iter().flatten().map(Weighed::Block));
-            }
-        }
-        Block::Figure(_, caption, inner) => {
-            push_caption(caption, pending);
-            pending.extend(inner.iter().map(Weighed::Block));
-        }
-        Block::Table(table) => push_table(table, pending),
-        Block::HorizontalRule => {}
-    }
-}
-
-fn push_table<'a>(table: &'a Table, pending: &mut Vec<Weighed<'a>>) {
-    push_caption(&table.caption, pending);
-    let sections = table
-        .head
-        .rows
-        .iter()
-        .chain(
-            table
-                .bodies
-                .iter()
-                .flat_map(|body| body.head.iter().chain(body.body.iter())),
-        )
-        .chain(table.foot.rows.iter());
-    for row in sections {
-        pending.extend(
-            row.cells
-                .iter()
-                .flat_map(|cell| cell.content.iter())
-                .map(Weighed::Block),
-        );
-    }
-}
-
-fn push_caption<'a>(caption: &'a Caption, pending: &mut Vec<Weighed<'a>>) {
-    pending.extend(caption.short.iter().flatten().map(Weighed::Inline));
-    pending.extend(caption.long.iter().map(Weighed::Block));
-}
-
-fn push_inline<'a>(inline: &'a Inline, pending: &mut Vec<Weighed<'a>>) {
-    match inline {
-        Inline::Emph(inner)
-        | Inline::Underline(inner)
-        | Inline::Strong(inner)
-        | Inline::Strikeout(inner)
-        | Inline::Superscript(inner)
-        | Inline::Subscript(inner)
-        | Inline::SmallCaps(inner)
-        | Inline::Quoted(_, inner)
-        | Inline::Span(_, inner) => pending.extend(inner.iter().map(Weighed::Inline)),
-        Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => {
-            pending.push(Weighed::Text(text.len()));
-        }
-        Inline::RawInline(format, text) => {
-            pending.push(Weighed::Text(format.0.len().saturating_add(text.len())));
-        }
-        Inline::Cite(citations, inner) => {
-            for citation in citations {
-                pending.push(Weighed::Text(citation.id.len()));
-                pending.extend(citation.prefix.iter().map(Weighed::Inline));
-                pending.extend(citation.suffix.iter().map(Weighed::Inline));
-            }
-            pending.extend(inner.iter().map(Weighed::Inline));
-        }
-        Inline::Link(_, inner, target) | Inline::Image(_, inner, target) => {
-            pending.push(Weighed::Text(
-                target.url.len().saturating_add(target.title.len()),
-            ));
-            pending.extend(inner.iter().map(Weighed::Inline));
-        }
-        Inline::Note(blocks) => pending.extend(blocks.iter().map(Weighed::Block)),
-        Inline::Space | Inline::SoftBreak | Inline::LineBreak => {}
+        Value::Int(integer) => pending.push(Weighed::Text(integer.storage_bytes())),
+        Value::Number(_, unit) => pending.push(Weighed::Text(unit.len())),
+        Value::Nothing | Value::Bool(_) | Value::Sequence(_) => {}
     }
 }
 
@@ -994,9 +916,8 @@ struct Parser {
     /// The pending exit a `return`, `break`, or `continue` requested, which the loop or call it
     /// leaves clears again.
     flow: Option<Flow>,
-    /// How much copied or repeated content may still materialize. Without a ceiling, a few
-    /// operators or bindings can fill memory.
-    copies: Rc<cell::Cell<usize>>,
+    /// Remaining materialization and lookup work; `None` records exhaustion.
+    work: Rc<cell::Cell<Option<usize>>>,
 }
 
 /// A file pulled into the character arena by `#include` or `#import`.
@@ -1022,7 +943,7 @@ enum ImportList {
 impl Parser {
     fn new(source: Vec<char>, base: Option<PathBuf>) -> Self {
         let limit = source.len();
-        let copies = BASE_COPIES.saturating_add(limit.saturating_mul(COPIES_PER_CHAR));
+        let work = BASE_WORK.saturating_add(limit.saturating_mul(WORK_PER_CHARACTER));
         Self {
             source,
             pos: 0,
@@ -1045,7 +966,7 @@ impl Parser {
             line_bound: false,
             interrupt: None,
             flow: None,
-            copies: Rc::new(cell::Cell::new(copies)),
+            work: Rc::new(cell::Cell::new(Some(work))),
         }
     }
 
@@ -2281,7 +2202,7 @@ impl Parser {
                         if let Some(target) = target {
                             self.env.insert(
                                 target.to_string(),
-                                Sequence::repeated(value, 1, &self.copies),
+                                Sequence::repeated(value, 1, &self.work),
                             );
                         }
                         result
@@ -2714,11 +2635,15 @@ impl Parser {
     /// source spelling them out can account for.
     fn bound_copy(&mut self, name: &str) -> Option<Value> {
         let bound = self.env.get(name)?;
-        let Some(left) = self.copies.get().checked_sub(value_weight(bound)) else {
-            self.copies.set(0);
+        let Some(left) = self
+            .work
+            .get()
+            .and_then(|left| left.checked_sub(value_weight(bound)))
+        else {
+            self.work.set(None);
             return Some(Value::Nothing);
         };
-        self.copies.set(left);
+        self.work.set(Some(left));
         Some(bound.clone())
     }
 
@@ -2841,7 +2766,7 @@ impl Parser {
                 if !name.is_empty() {
                     self.declared.push(name.clone());
                     self.env
-                        .insert(name, Sequence::repeated(value, 1, &self.copies));
+                        .insert(name, Sequence::repeated(value, 1, &self.work));
                 }
             }
         }
@@ -3427,7 +3352,7 @@ impl Parser {
             self.bump();
             self.skip_spaces();
             let right = self.expression();
-            value = combine(value, right, operator, &self.copies);
+            value = combine(value, right, operator, &self.work);
         }
         value
     }
@@ -3799,12 +3724,12 @@ impl Parser {
         let value = match operator {
             Some(op) => {
                 let left = self.bound_copy(&name).unwrap_or(Value::Nothing);
-                combine(left, right, op, &self.copies)
+                combine(left, right, op, &self.work)
             }
             None => right,
         };
         self.env
-            .insert(name, Sequence::repeated(value, 1, &self.copies));
+            .insert(name, Sequence::repeated(value, 1, &self.work));
         Some(Value::Nothing)
     }
 
@@ -3926,13 +3851,13 @@ impl Parser {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.product();
-                    value = combine(value, right, '+', &self.copies);
+                    value = combine(value, right, '+', &self.work);
                 }
                 Some('-') if value.as_number().is_some() => {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.product();
-                    value = combine(value, right, '-', &self.copies);
+                    value = combine(value, right, '-', &self.work);
                 }
                 _ => {
                     self.pos = saved;
@@ -3953,7 +3878,7 @@ impl Parser {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.negation();
-                    value = combine(value, right, op, &self.copies);
+                    value = combine(value, right, op, &self.work);
                 }
                 _ => {
                     self.pos = saved;
@@ -4156,7 +4081,7 @@ fn numeric_order(left: &Value, right: &Value) -> Option<Ordering> {
 }
 
 /// Combine two operands of a code-mode arithmetic or concatenation operator.
-fn combine(left: Value, right: Value, op: char, copies: &Rc<cell::Cell<usize>>) -> Value {
+fn combine(left: Value, right: Value, op: char, work: &Rc<cell::Cell<Option<usize>>>) -> Value {
     if let (Value::Int(a), Value::Int(b)) = (&left, &right) {
         let exact = match op {
             '-' => Some(a.subtract(b)),
@@ -4191,10 +4116,24 @@ fn combine(left: Value, right: Value, op: char, copies: &Rc<cell::Cell<usize>>) 
     if op == '*'
         && let Some(count) = right.as_number()
     {
-        return repeat_value(left, count, copies);
+        let count = if let Value::Int(integer) = &right {
+            if integer.is_negative() {
+                0
+            } else if let Some(count) = integer.to_usize() {
+                count
+            } else {
+                work.set(None);
+                return Value::Nothing;
+            }
+        } else {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let count = count.max(0.0) as usize;
+            count
+        };
+        return Sequence::repeated(left, count, work);
     }
     if op == '+' && sequence::compatible(&left, &right) {
-        return Sequence::concatenate(left, right, copies);
+        return Sequence::concatenate(left, right, work);
     }
     let left = left.materialize();
     let right = right.materialize();
@@ -4244,13 +4183,6 @@ fn repeatable(value: &Value) -> bool {
             | Value::Inlines(_)
             | Value::Sequence(_)
     )
-}
-
-/// Repeat a sequence the given number of times.
-fn repeat_value(value: Value, count: f64, copies: &Rc<cell::Cell<usize>>) -> Value {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let count = count.max(0.0) as usize;
-    Sequence::repeated(value, count, copies)
 }
 
 /// Flush the pending text buffer into the inline sequence.
@@ -5037,19 +4969,36 @@ fn slice_bounds(args: &[Arg], length: usize) -> (usize, usize) {
         .filter(|arg| arg.name.is_none())
         .map(|arg| &arg.value)
         .collect();
-    let index = |value: Option<&&Value>, fallback: usize| match value.and_then(|v| v.as_number()) {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Some(number) if number >= 0.0 => (number as usize).min(length),
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        Some(number) => length.saturating_sub(-number as usize),
-        None => fallback,
+    let index = |value: Option<&&Value>, fallback: usize| {
+        if let Some(Value::Int(integer)) = value.copied() {
+            return match integer.to_i64() {
+                Some(number) if number >= 0 => {
+                    usize::try_from(number).unwrap_or(usize::MAX).min(length)
+                }
+                Some(number) => length
+                    .saturating_sub(usize::try_from(number.unsigned_abs()).unwrap_or(usize::MAX)),
+                None if integer.is_negative() => 0,
+                None => length,
+            };
+        }
+        match value.and_then(|value| value.as_number()) {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            Some(number) if number >= 0.0 => (number as usize).min(length),
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            Some(number) => length.saturating_sub(-number as usize),
+            None => fallback,
+        }
     };
     let start = index(positional.first(), 0);
     let end = named(args, "count").map_or_else(
         || index(positional.get(1), length),
         |count| {
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let count = count.as_number().unwrap_or_default().max(0.0) as usize;
+            let count = match count {
+                Value::Int(integer) if integer.is_negative() => 0,
+                Value::Int(integer) => integer.to_usize().unwrap_or(usize::MAX),
+                value => value.as_number().unwrap_or_default().max(0.0) as usize,
+            };
             start.saturating_add(count).min(length)
         },
     );

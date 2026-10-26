@@ -474,9 +474,9 @@ mod tests {
             r#"heading.where(level: "x" * 6666) body"#,
         ] {
             let mut parser = Parser::new(source.chars().collect(), None);
-            let copies = parser.copies.get();
+            let work = parser.work.get();
             assert!(parser.selector().is_none());
-            assert_eq!(parser.copies.get(), copies);
+            assert_eq!(parser.work.get(), work);
         }
     }
 

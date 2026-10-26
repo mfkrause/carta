@@ -378,18 +378,17 @@ fn a_bibliography_takes_the_title_it_names() {
 }
 
 #[test]
-fn bindings_that_splice_one_another_stop_expanding() {
+fn bindings_that_exceed_materialization_return_an_error() {
     let levels = 40;
     let mut source = String::from("#let a0 = [x]\n");
     for level in 1..=levels {
         let _ = writeln!(source, "#let a{level} = [#a{} #a{}]", level - 1, level - 1);
     }
     let _ = writeln!(source, "#a{levels}");
-    let words = parse(&source)
-        .iter()
-        .filter(|block| matches!(block, Block::Para(_)))
-        .count();
-    assert!(words <= 1);
+    assert!(matches!(
+        TypstReader.read(&source, &ReaderOptions::default()),
+        Err(Error::OutputTooLarge)
+    ));
 }
 
 #[test]
@@ -416,6 +415,10 @@ fn repeated_sequences_can_be_measured_and_sliced_without_copying() {
     assert_eq!(
         inlines("#(\"ab\" * 1000000000).slice(-3)"),
         vec![text("bab")]
+    );
+    assert_eq!(
+        inlines("#(\"ab\" * 9223372036854775807).slice(-9223372036854775807, count: 2)"),
+        vec![text("ba")]
     );
 }
 

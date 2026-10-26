@@ -183,6 +183,11 @@ impl Integer {
         }
     }
 
+    /// Bytes stored in the magnitude's limbs.
+    pub(crate) fn storage_bytes(&self) -> usize {
+        std::mem::size_of_val(self.limbs.as_slice())
+    }
+
     /// The value as an index, or `None` when it is negative or too wide.
     pub(crate) fn to_usize(&self) -> Option<usize> {
         self.to_i64().and_then(|value| usize::try_from(value).ok())

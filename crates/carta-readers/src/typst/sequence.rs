@@ -25,7 +25,7 @@ pub(super) struct Sequence {
     kind: Kind,
     length: usize,
     block: bool,
-    copies: Rc<cell::Cell<usize>>,
+    work: Rc<cell::Cell<Option<usize>>>,
 }
 
 impl Drop for Sequence {
@@ -57,7 +57,11 @@ pub(super) fn compatible(left: &Value, right: &Value) -> bool {
 }
 
 impl Sequence {
-    pub(super) fn repeated(value: Value, count: usize, copies: &Rc<cell::Cell<usize>>) -> Value {
+    pub(super) fn repeated(
+        value: Value,
+        count: usize,
+        work: &Rc<cell::Cell<Option<usize>>>,
+    ) -> Value {
         if count == 1 && matches!(value, Value::Sequence(_)) {
             return value;
         }
@@ -69,6 +73,7 @@ impl Sequence {
             && sequence.length % part.period == 0
         {
             let Some(length) = sequence.length.checked_mul(count) else {
+                work.set(None);
                 return Value::Nothing;
             };
             let mut part = part.clone();
@@ -78,7 +83,7 @@ impl Sequence {
                 kind,
                 length,
                 block: sequence.block,
-                copies: Rc::clone(copies),
+                work: Rc::clone(work),
             }));
         }
         let block = value.is_block();
@@ -93,6 +98,7 @@ impl Sequence {
             _ => 1,
         };
         let Some(length) = period.checked_mul(count) else {
+            work.set(None);
             return Value::Nothing;
         };
         let parts = if length == 0 {
@@ -111,19 +117,24 @@ impl Sequence {
             kind,
             length,
             block,
-            copies: Rc::clone(copies),
+            work: Rc::clone(work),
         }))
     }
 
-    pub(super) fn concatenate(left: Value, right: Value, copies: &Rc<cell::Cell<usize>>) -> Value {
-        let Value::Sequence(left) = Self::repeated(left, 1, copies) else {
+    pub(super) fn concatenate(
+        left: Value,
+        right: Value,
+        work: &Rc<cell::Cell<Option<usize>>>,
+    ) -> Value {
+        let Value::Sequence(left) = Self::repeated(left, 1, work) else {
             return Value::Nothing;
         };
-        let Value::Sequence(right) = Self::repeated(right, 1, copies) else {
+        let Value::Sequence(right) = Self::repeated(right, 1, work) else {
             return Value::Nothing;
         };
         let offset = left.length;
         let Some(length) = offset.checked_add(right.length) else {
+            work.set(None);
             return Value::Nothing;
         };
         let kind = left.kind;
@@ -139,7 +150,7 @@ impl Sequence {
             kind,
             length,
             block,
-            copies: Rc::clone(copies),
+            work: Rc::clone(work),
         }))
     }
 
@@ -163,6 +174,9 @@ impl Sequence {
     fn locate(&self, mut index: usize) -> Option<(&Value, usize, Option<&[char]>)> {
         let mut sequence = self;
         loop {
+            if !self.spend(1) {
+                return None;
+            }
             let position = sequence.parts.partition_point(|part| part.end <= index);
             let part = sequence.parts.get(position)?;
             let previous = position
@@ -180,10 +194,11 @@ impl Sequence {
     }
 
     fn spend(&self, amount: usize) -> bool {
-        let Some(left) = self.copies.get().checked_sub(amount) else {
+        let Some(left) = self.work.get().and_then(|left| left.checked_sub(amount)) else {
+            self.work.set(None);
             return false;
         };
-        self.copies.set(left);
+        self.work.set(Some(left));
         true
     }
 
@@ -266,7 +281,7 @@ impl Sequence {
         }
     }
 
-    pub(super) fn method(&self, name: &str, args: &[Arg]) -> Option<Value> {
+    pub(super) fn method(self: &Rc<Self>, name: &str, args: &[Arg]) -> Option<Value> {
         if !matches!(self.kind, Kind::Text | Kind::Array) {
             return None;
         }
@@ -274,33 +289,31 @@ impl Sequence {
             "len" => Value::Int(Integer::from(self.length)),
             "slice" => {
                 let (start, end) = slice_bounds(args, self.length);
-                let mut parts = Vec::new();
-                let first = self.parts.partition_point(|part| part.end <= start);
-                let mut previous = first
-                    .checked_sub(1)
-                    .and_then(|index| self.parts.get(index))
-                    .map_or(0, |part| part.end);
-                for part in self.parts.get(first..).unwrap_or_default() {
-                    if previous >= end {
-                        break;
-                    }
-                    let from = previous.max(start);
-                    let to = part.end.min(end);
-                    if from < to {
-                        let mut selected = part.clone();
-                        selected.start =
-                            selected.start.saturating_add(from - previous) % selected.period;
-                        selected.end = to - start;
-                        parts.push(selected);
-                    }
-                    previous = part.end;
+                if start == 0 && end == self.length {
+                    return Some(Value::Sequence(Rc::clone(self)));
                 }
+                let parts = if start == end {
+                    Vec::new()
+                } else if let [part] = self.parts.as_slice() {
+                    let mut part = part.clone();
+                    part.start = part.start.saturating_add(start) % part.period;
+                    part.end = end - start;
+                    vec![part]
+                } else {
+                    vec![Part {
+                        value: Rc::new(Value::Sequence(Rc::clone(self))),
+                        characters: None,
+                        period: self.length,
+                        start,
+                        end: end - start,
+                    }]
+                };
                 Value::Sequence(Rc::new(Self {
                     parts,
                     kind: self.kind,
                     length: end - start,
                     block: self.block,
-                    copies: Rc::clone(&self.copies),
+                    work: Rc::clone(&self.work),
                 }))
             }
             "at" | "first" | "last" if self.kind == Kind::Array => {

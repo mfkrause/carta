@@ -6,7 +6,7 @@
 
 use std::cell::Cell;
 
-use carta_ast::{Attr, Block, Caption, Document, Inline, MetaValue, Table, Text};
+use carta_ast::{Attr, Block, Caption, Document, Inline, MetaValue, Table};
 
 use crate::{Error, Result};
 
@@ -96,7 +96,6 @@ fn limit_for(document: &Document) -> usize {
 /// carries, so a document dominated by one long code block is weighed by that text rather than by
 /// its single node.
 fn weight(document: &Document) -> usize {
-    let mut total = 0usize;
     let mut pending: Vec<Node<'_>> = Vec::new();
     pending.extend(document.blocks.iter().map(Node::Block));
     pending.extend(
@@ -106,6 +105,21 @@ fn weight(document: &Document) -> usize {
             .flat_map(|(key, value)| [Node::Text(key.len()), Node::Meta(value)]),
     );
 
+    nodes_weight(pending)
+}
+
+/// The resource weight of a block sequence.
+pub fn blocks_weight(blocks: &[Block]) -> usize {
+    nodes_weight(blocks.iter().map(Node::Block).collect())
+}
+
+/// The resource weight of an inline sequence.
+pub fn inlines_weight(inlines: &[Inline]) -> usize {
+    nodes_weight(inlines.iter().map(Node::Inline).collect())
+}
+
+fn nodes_weight(mut pending: Vec<Node<'_>>) -> usize {
+    let mut total = 0usize;
     while let Some(node) = pending.pop() {
         total = total.saturating_add(1);
         match node {
@@ -227,6 +241,12 @@ fn push_meta<'a>(meta: &'a MetaValue, pending: &mut Vec<Node<'a>>) {
 fn push_table<'a>(table: &'a Table, pending: &mut Vec<Node<'a>>) {
     push_attr(&table.attr, pending);
     push_caption(&table.caption, pending);
+    push_attr(&table.head.attr, pending);
+    push_attr(&table.foot.attr, pending);
+    pending.push(Node::Text(table.col_specs.len()));
+    for body in &table.bodies {
+        push_attr(&body.attr, pending);
+    }
     let rows = table
         .head
         .rows
@@ -239,6 +259,7 @@ fn push_table<'a>(table: &'a Table, pending: &mut Vec<Node<'a>>) {
         )
         .chain(table.foot.rows.iter());
     for row in rows {
+        push_attr(&row.attr, pending);
         for cell in &row.cells {
             push_attr(&cell.attr, pending);
             pending.extend(cell.content.iter().map(Node::Block));
@@ -257,11 +278,16 @@ fn push_attr<'a>(attr: &'a Attr, pending: &mut Vec<Node<'a>>) {
     let text = attr
         .id
         .len()
-        .saturating_add(attr.classes.iter().map(Text::len).sum())
+        .saturating_add(
+            attr.classes
+                .iter()
+                .map(|class| class.len().saturating_add(1))
+                .sum(),
+        )
         .saturating_add(
             attr.attributes
                 .iter()
-                .map(|(key, value)| key.len().saturating_add(value.len()))
+                .map(|(key, value)| key.len().saturating_add(value.len()).saturating_add(1))
                 .sum(),
         );
     pending.push(Node::Text(text));
