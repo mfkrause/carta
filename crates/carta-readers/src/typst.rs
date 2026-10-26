@@ -308,26 +308,48 @@ impl Value {
 
     /// The value as plain text, for arguments that name a file, a URL, or a setting.
     fn as_text(&self) -> String {
-        carta_core::with_stack(|| self.as_text_nested())
+        let mut text = String::new();
+        self.write_text(&mut text, false);
+        text
     }
 
-    fn as_text_nested(&self) -> String {
+    fn write_text(&self, text: &mut String, representation: bool) {
+        carta_core::with_stack(|| {
+            self.write_text_nested(text, representation);
+        });
+    }
+
+    fn write_text_nested(&self, text: &mut String, representation: bool) {
         match self {
-            Value::Sequence(sequence) => sequence.materialize().as_text(),
-            Value::Str(text) | Value::Ident(text) | Value::Label(text) => text.clone(),
-            Value::Int(n) => n.to_string(),
-            Value::Number(n, unit) => format_number(*n, unit),
-            Value::Bool(b) => (if *b { "true" } else { "false" }).to_string(),
-            Value::Content(blocks) => carta_ast::to_plain_text(&blocks_to_inlines(blocks.clone())),
-            Value::Inlines(inlines) => carta_ast::to_plain_text(inlines),
-            Value::Array(items) => items
-                .iter()
-                .map(Value::as_text)
-                .collect::<Vec<_>>()
-                .join(", "),
-            Value::Dict(pairs) => dict_repr(pairs),
-            Value::Regex(pattern) => format!("/{pattern}/"),
-            Value::Nothing | Value::Group(..) | Value::Function(..) => String::new(),
+            Value::Sequence(sequence) => sequence.materialize().write_text(text, representation),
+            Value::Str(value) => {
+                if representation {
+                    text.push('"');
+                }
+                text.push_str(value);
+                if representation {
+                    text.push('"');
+                }
+            }
+            Value::Ident(value) | Value::Label(value) => text.push_str(value),
+            Value::Int(value) => {
+                let _ = write!(text, "{value}");
+            }
+            Value::Number(value, unit) => text.push_str(&format_number(*value, unit)),
+            Value::Bool(value) => text.push_str(if *value { "true" } else { "false" }),
+            Value::Content(blocks) => text.push_str(&carta_ast::to_plain_text(&blocks_to_inlines(
+                blocks.clone(),
+            ))),
+            Value::Inlines(inlines) => text.push_str(&carta_ast::to_plain_text(inlines)),
+            Value::Array(items) => write_array(items, text, representation),
+            Value::Dict(pairs) => write_dict(pairs, text),
+            Value::Regex(pattern) => {
+                text.push('/');
+                text.push_str(pattern);
+                text.push('/');
+            }
+            Value::Nothing if representation => text.push_str("none"),
+            Value::Nothing | Value::Group(..) | Value::Function(..) => {}
         }
     }
 
@@ -4914,32 +4936,50 @@ fn wrap_body(attr: Attr, select: fn(&mut [Arg]) -> Value, args: &mut [Arg]) -> V
 
 /// An array written out the way source code spells it, for an array that reached content position.
 fn array_repr(items: &[Value]) -> String {
-    let inner: Vec<String> = items.iter().map(value_repr).collect();
-    format!("({})", inner.join(", "))
+    let mut text = String::new();
+    write_array(items, &mut text, true);
+    text
 }
 
 fn value_repr(value: &Value) -> String {
-    carta_core::with_stack(|| value_repr_nested(value))
-}
-
-fn value_repr_nested(value: &Value) -> String {
-    match value {
-        Value::Sequence(sequence) => value_repr(&sequence.materialize()),
-        Value::Str(text) => format!("\"{text}\""),
-        Value::Array(items) => array_repr(items),
-        Value::Dict(pairs) => dict_repr(pairs),
-        Value::Nothing => "none".to_string(),
-        other => other.as_text(),
-    }
+    let mut text = String::new();
+    value.write_text(&mut text, true);
+    text
 }
 
 /// Render a dictionary the way code mode writes one, its values in repr form.
 fn dict_repr(pairs: &[(String, Value)]) -> String {
-    let inner: Vec<String> = pairs
-        .iter()
-        .map(|(key, value)| format!("{key}: {}", value_repr(value)))
-        .collect();
-    format!("({})", inner.join(", "))
+    let mut text = String::new();
+    write_dict(pairs, &mut text);
+    text
+}
+
+fn write_array(items: &[Value], text: &mut String, representation: bool) {
+    if representation {
+        text.push('(');
+    }
+    for (index, value) in items.iter().enumerate() {
+        if index > 0 {
+            text.push_str(", ");
+        }
+        value.write_text(text, representation);
+    }
+    if representation {
+        text.push(')');
+    }
+}
+
+fn write_dict(pairs: &[(String, Value)], text: &mut String) {
+    text.push('(');
+    for (index, (key, value)) in pairs.iter().enumerate() {
+        if index > 0 {
+            text.push_str(", ");
+        }
+        text.push_str(key);
+        text.push_str(": ");
+        value.write_text(text, true);
+    }
+    text.push(')');
 }
 
 /// The name code mode gives a value's type.
