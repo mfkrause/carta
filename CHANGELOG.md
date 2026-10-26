@@ -5,6 +5,21 @@ All notable changes to carta are documented in this file.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.12](https://github.com/mfkrause/carta/compare/v0.0.11...v0.0.12) - 2026-10-26
+
+### Added
+
+- *(pdf-writer)* implement PDF writer through external Typst
+
+### Fixed
+
+- *(templates)* supply commands needed for standalone compilation
+- resolve push-time lint errors
+- *(typst)* validate show selectors before evaluating arguments
+- *(man)* bound nesting of bodiless list tags
+- *(math)* reject malformed optional arguments without retrying
+- *(math)* bound total macro expansion work
+
 ## [0.0.11](https://github.com/mfkrause/carta/compare/v0.0.10...v0.0.11) - 2026-10-03
 
 ### Added
