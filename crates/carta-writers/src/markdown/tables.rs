@@ -1,5 +1,7 @@
 //! Table rendering for the markdown engine: pipe, simple, multiline, grid, and HTML forms.
 
+use carta_core::budget;
+
 use carta_ast::{Alignment, Attr, Block, Caption, Cell, ColWidth, Inline, Row, Table};
 use carta_core::Extension;
 
@@ -43,13 +45,11 @@ impl State {
         // Bound fractional widths by the fill column even during unconstrained measurement.
         let width = width.min(self.width);
         let form = table_form(table);
-        self.table_depth += 1;
         let body = match form {
             TableForm::Simple => self.simple_table(table),
             TableForm::Multiline => self.multiline_table(table, width),
             TableForm::Grid => self.grid_table(table, width),
         };
-        self.table_depth = self.table_depth.saturating_sub(1);
         match self.table_caption(table, form, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{body}\n\n{caption}"),
@@ -333,24 +333,32 @@ impl State {
         let body_layout = grid::place_columns(&body, columns);
         let foot_layout = grid::place_columns(&foot, columns);
 
-        let mut natural = vec![0usize; columns];
-        let mut minword = vec![0usize; columns];
-        if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
-            // Cap recursive measurement; deeper tables split the fill width evenly.
-            let share = (width / columns.max(1)).max(1);
-            natural.fill(share);
-            minword.fill(1);
+        let key = (
+            std::ptr::from_ref(table) as usize,
+            self.footnotes.len(),
+            self.in_anchor,
+            self.small_caps,
+        );
+        let [natural, minword] = if let Some(measured) = self.table_measurements.get(&key) {
+            measured.clone()
         } else {
+            let mut natural = vec![0usize; columns];
+            let mut minword = vec![0usize; columns];
             let snapshot = self.footnotes.len();
-            for (rows, layout) in [
-                (&head, &head_layout),
-                (&body, &body_layout),
-                (&foot, &foot_layout),
-            ] {
-                self.measure_grid(rows, layout, &mut natural, &mut minword);
-            }
+            budget::refunded(|| {
+                for (rows, layout) in [
+                    (&head, &head_layout),
+                    (&body, &body_layout),
+                    (&foot, &foot_layout),
+                ] {
+                    self.measure_grid(rows, layout, &mut natural, &mut minword);
+                }
+            });
             self.footnotes.truncate(snapshot);
-        }
+            let measured = [natural, minword];
+            self.table_measurements.insert(key, measured.clone());
+            measured
+        };
 
         let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
             .into_iter()

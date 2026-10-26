@@ -1,5 +1,7 @@
 //! Render the document model as reStructuredText.
 
+use std::collections::BTreeMap;
+
 use carta_ast::{Block, Document, Inline, MetaValue, single_block_inlines};
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
@@ -92,6 +94,8 @@ fn title_line(value: Option<&MetaValue>) -> Option<String> {
     (!line.is_empty()).then_some(line)
 }
 
+type DeferredState = (usize, usize, usize, usize);
+
 /// Collects the deferred constructs accumulated during rendering: footnote definitions and image
 /// substitution definitions, both emitted as their own sections after the document body. The counter
 /// names images that carry no alt text.
@@ -112,8 +116,7 @@ struct State {
     /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
     /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
     smart: bool,
-    /// How many tables the current render is nested inside, counting the one being rendered.
-    table_depth: usize,
+    table_measurements: BTreeMap<(usize, DeferredState), [Vec<usize>; 3]>,
 }
 
 impl Default for State {
@@ -127,7 +130,7 @@ impl Default for State {
             width: FILL_COLUMN,
             in_cell: false,
             smart: false,
-            table_depth: 0,
+            table_measurements: BTreeMap::new(),
         }
     }
 }

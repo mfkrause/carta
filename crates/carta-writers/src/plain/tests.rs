@@ -23,7 +23,6 @@ fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
 
 #[test]
 fn deeply_nested_tables_render_without_compounding_measurement() {
-    // without the nesting cap, column sizing multiplies renders per level: exponential in depth
     use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
 
     fn nested_table(content: Vec<Block>) -> Block {
@@ -55,7 +54,6 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
         }))
     }
 
-    // deep enough that compounding measurement would take minutes; capped stays under a second
     let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
     for _ in 0..9 {
         block = nested_table(vec![block]);

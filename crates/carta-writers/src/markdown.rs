@@ -1,5 +1,7 @@
 //! Render Markdown dialects with their selected extensions.
 
+use std::collections::BTreeMap;
+
 use carta_ast::{
     Attr, Block, Caption, Document, Format, Inline, ListAttributes, ListNumberDelim,
     ListNumberStyle,
@@ -327,8 +329,7 @@ struct State {
     /// downgrade to a `<span>` (HTML forbids an anchor inside an anchor).
     in_anchor: bool,
     small_caps: bool,
-    /// How many tables the current render is nested inside, counting the one being rendered.
-    table_depth: usize,
+    table_measurements: BTreeMap<(usize, usize, bool, bool), [Vec<usize>; 2]>,
     /// Whether rendering is somewhere inside a list item, a definition, or a table cell, where a
     /// [`Block::Plain`] runs on into the block after it instead of standing apart as a paragraph
     /// does.
@@ -344,7 +345,7 @@ impl State {
             footnotes: Vec::new(),
             in_anchor: false,
             small_caps: false,
-            table_depth: 0,
+            table_measurements: BTreeMap::new(),
             in_item: false,
         }
     }

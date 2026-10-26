@@ -5,9 +5,8 @@ use carta_core::budget;
 
 use crate::common::{block_inlines, body_rows, display_width, indent_block};
 use crate::grid;
-use crate::grid::MAX_MEASURED_TABLE_NESTING;
 
-use super::State;
+use super::{DeferredState, State};
 
 impl State {
     /// Render a table with an optional indented `.. table::` caption.
@@ -19,13 +18,11 @@ impl State {
             return String::new();
         }
         let columns = table.col_specs.len();
-        self.table_depth += 1;
         let body = if columns == 0 {
             String::new()
         } else {
             self.table_body(table, columns)
         };
-        self.table_depth = self.table_depth.saturating_sub(1);
         if budget::exhausted() {
             return String::new();
         }
@@ -146,17 +143,15 @@ impl State {
         let body_layout = grid::place_columns(&body, columns);
         let foot_layout = grid::place_columns(&foot, columns);
 
-        let mut natural = vec![0usize; columns];
-        let mut minword = vec![0usize; columns];
-        let mut simple = vec![0usize; columns];
-        let permits_simple = self.table_depth <= MAX_MEASURED_TABLE_NESTING
-            && Self::permits_simple_table(table, columns);
-        if self.table_depth > MAX_MEASURED_TABLE_NESTING {
-            // Cap recursive measurement; deeper tables split the fill width evenly.
-            let share = (self.width / columns.max(1)).max(1);
-            natural.fill(share);
-            minword.fill(1);
+        let permits_simple = Self::permits_simple_table(table, columns);
+        // Deferred note numbers affect the measured cell widths.
+        let key = (std::ptr::from_ref(table) as usize, self.snapshot());
+        let [natural, minword, simple] = if let Some(measured) = self.table_measurements.get(&key) {
+            measured.clone()
         } else {
+            let mut natural = vec![0usize; columns];
+            let mut minword = vec![0usize; columns];
+            let mut simple = vec![0usize; columns];
             let snapshot = self.snapshot();
             budget::refunded(|| {
                 for (rows, layout) in [
@@ -168,7 +163,10 @@ impl State {
                 }
             });
             self.restore(snapshot);
-        }
+            let measured = [natural, minword, simple];
+            self.table_measurements.insert(key, measured.clone());
+            measured
+        };
 
         if permits_simple && simple.iter().sum::<usize>() + columns.saturating_sub(1) <= self.width
         {
@@ -302,7 +300,7 @@ impl State {
         }
     }
 
-    fn snapshot(&self) -> (usize, usize, usize, usize) {
+    fn snapshot(&self) -> DeferredState {
         (
             self.footnotes.len(),
             self.substitutions.len(),
@@ -311,7 +309,7 @@ impl State {
         )
     }
 
-    fn restore(&mut self, snapshot: (usize, usize, usize, usize)) {
+    fn restore(&mut self, snapshot: DeferredState) {
         self.footnotes.truncate(snapshot.0);
         self.substitutions.truncate(snapshot.1);
         self.fallback_count = snapshot.2;

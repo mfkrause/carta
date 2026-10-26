@@ -1,5 +1,7 @@
 //! Render the document model as plain text.
 
+use std::collections::BTreeMap;
+
 use carta_ast::{
     Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType,
     QuoteType, Row, Table, Text,
@@ -51,8 +53,7 @@ struct State {
     /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
     /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
     smart: bool,
-    /// How many tables the current render is nested inside, counting the one being rendered.
-    table_depth: usize,
+    table_measurements: BTreeMap<(usize, usize), [Vec<usize>; 2]>,
 }
 
 impl Default for State {
@@ -62,7 +63,7 @@ impl Default for State {
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
             smart: false,
-            table_depth: 0,
+            table_measurements: BTreeMap::new(),
         }
     }
 }
@@ -270,13 +271,11 @@ impl State {
         // Bound fractional widths by the fill column even during unconstrained measurement.
         let width = width.min(self.width);
         let form = table_form(table);
-        self.table_depth += 1;
         let body = match form {
             TableForm::Simple => self.simple_table(table),
             TableForm::Multiline => self.multiline_table(table, width),
             TableForm::Grid => self.grid_table(table, width),
         };
-        self.table_depth = self.table_depth.saturating_sub(1);
         if budget::exhausted() {
             return String::new();
         }
@@ -432,24 +431,28 @@ impl State {
         let body_layout = grid::place_columns(&body, columns);
         let foot_layout = grid::place_columns(&foot, columns);
 
-        let mut natural = vec![0usize; columns];
-        let mut minword = vec![0usize; columns];
-        if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
-            // Cap recursive sizing; deeper tables split the fill width evenly.
-            let share = (width / columns.max(1)).max(1);
-            natural.fill(share);
-            minword.fill(1);
+        // Deferred note numbers affect the measured cell widths.
+        let key = (std::ptr::from_ref(table) as usize, self.footnotes.len());
+        let [natural, minword] = if let Some(measured) = self.table_measurements.get(&key) {
+            measured.clone()
         } else {
+            let mut natural = vec![0usize; columns];
+            let mut minword = vec![0usize; columns];
             let snapshot = self.footnotes.len();
-            for (rows, layout) in [
-                (&head, &head_layout),
-                (&body, &body_layout),
-                (&foot, &foot_layout),
-            ] {
-                self.measure_grid(rows, layout, &mut natural, &mut minword);
-            }
+            budget::refunded(|| {
+                for (rows, layout) in [
+                    (&head, &head_layout),
+                    (&body, &body_layout),
+                    (&foot, &foot_layout),
+                ] {
+                    self.measure_grid(rows, layout, &mut natural, &mut minword);
+                }
+            });
             self.footnotes.truncate(snapshot);
-        }
+            let measured = [natural, minword];
+            self.table_measurements.insert(key, measured.clone());
+            measured
+        };
 
         let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
             .into_iter()

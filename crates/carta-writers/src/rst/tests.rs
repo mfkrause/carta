@@ -179,7 +179,6 @@ fn table_measurement_keeps_note_numbers_and_image_names() {
 
 #[test]
 fn deeply_nested_tables_render_without_compounding_measurement() {
-    // without the nesting cap, measurement renders would compound exponentially in depth
     use carta_ast::{Alignment, Cell, ColSpec, TableBody};
 
     fn nested_table(content: Vec<Block>) -> Block {
@@ -211,7 +210,6 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
         }))
     }
 
-    // deep enough that compounding measurement would take minutes; capped stays under a second
     let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
     for _ in 0..16 {
         block = nested_table(vec![block]);

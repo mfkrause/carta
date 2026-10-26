@@ -2,7 +2,6 @@ use super::yaml::{yaml_inline_scalar, yaml_needs_quoting};
 
 #[test]
 fn deeply_nested_tables_render_without_compounding_measurement() {
-    // Without the nesting cap, column measurement compounds exponentially in table depth.
     use super::MarkdownWriter;
     use carta_ast::{
         Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Table, TableBody,
@@ -38,7 +37,6 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
         }))
     }
 
-    // Deep enough that compounding measurement would take minutes; capped stays under a second.
     let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
     for _ in 0..9 {
         block = nested_table(vec![block]);
