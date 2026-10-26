@@ -4,8 +4,8 @@ use carta_ast::{Attr, Format, Inline, Target};
 
 use super::Ctx;
 use super::blocks::parse_blocks_str;
-use super::helpers::{find_subsequence, is_blank, matches_at};
-use super::inline::scan_slice;
+use super::helpers::{is_blank, matches_at};
+use super::inline::{ScanCache, scan_slice};
 
 /// Split text into `Str` words separated by single whitespace tokens, with no markup interpretation.
 fn tokenize_text(text: &str) -> Vec<Inline> {
@@ -37,8 +37,12 @@ fn tokenize_text(text: &str) -> Vec<Inline> {
 /// Parse a `[[target|label]]` link, returning the link node and its end index. A bracket pair whose
 /// target side (the text before the first `|`) is entirely empty is not a link; the opener stays
 /// literal.
-pub(super) fn parse_link(chars: &[char], start: usize) -> Option<(Inline, usize)> {
-    let close = find_subsequence(chars, start + 2, "]]")?;
+pub(super) fn parse_link(
+    chars: &[char],
+    start: usize,
+    cache: &ScanCache,
+) -> Option<(Inline, usize)> {
+    let close = cache.find(start + 2, "]]")?;
     let inner: String = chars.get(start + 2..close).unwrap_or(&[]).iter().collect();
     let (raw_target, label) = match inner.split_once('|') {
         Some((t, l)) => (t, Some(l.to_string())),
@@ -80,8 +84,12 @@ fn classify_link_target(target: &str) -> (String, String) {
 
 /// Parse a `{{image?query|caption}}` media reference into an image, or, when the query opts out of
 /// embedding, a link.
-pub(super) fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
-    let close = find_subsequence(chars, start + 2, "}}")?;
+pub(super) fn parse_media(
+    chars: &[char],
+    start: usize,
+    cache: &ScanCache,
+) -> Option<(Inline, usize)> {
+    let close = cache.find(start + 2, "}}")?;
     let inner: String = chars.get(start + 2..close).unwrap_or(&[]).iter().collect();
     let end = close + 2;
 
@@ -274,8 +282,9 @@ pub(super) fn parse_footnote(
     begin: usize,
     ctx: Ctx,
     depth: usize,
+    cache: &ScanCache,
 ) -> Option<(Inline, usize)> {
-    let close = find_subsequence(chars, begin + 2, "))")?;
+    let close = cache.find(begin + 2, "))")?;
     let inner: String = chars.get(begin + 2..close).unwrap_or(&[]).iter().collect();
     if inner.trim().is_empty() {
         return None;
@@ -289,23 +298,17 @@ pub(super) fn parse_footnote(
 /// Parse a `%%…%%` no-formatting span: its content is taken verbatim as text. Like the emphasis
 /// markers, the opener needs a non-whitespace character after it and the closer one before it, so a
 /// `%%` adjacent to a space stays literal.
-pub(super) fn parse_nowiki_pct(chars: &[char], begin: usize) -> Option<(Vec<Inline>, usize)> {
+pub(super) fn parse_nowiki_pct(
+    chars: &[char],
+    begin: usize,
+    cache: &ScanCache,
+) -> Option<(Vec<Inline>, usize)> {
     if chars.get(begin + 2).is_none_or(|c| c.is_whitespace()) {
         return None;
     }
-    let mut j = begin + 2;
-    while j < chars.len() {
-        if chars.get(j) == Some(&'%')
-            && chars.get(j + 1) == Some(&'%')
-            && j > begin + 2
-            && chars.get(j - 1).is_some_and(|c| !c.is_whitespace())
-        {
-            let inner: String = chars.get(begin + 2..j).unwrap_or(&[]).iter().collect();
-            return Some((tokenize_text(&inner), j + 2));
-        }
-        j += 1;
-    }
-    None
+    let close = cache.find(begin + 3, "%%")?;
+    let inner: String = chars.get(begin + 2..close)?.iter().collect();
+    Some((tokenize_text(&inner), close + 2))
 }
 
 /// Parse an angle-bracket inline construct: the markup spans, a verbatim span, raw HTML/PHP, or an
@@ -315,9 +318,10 @@ pub(super) fn parse_angle(
     begin: usize,
     ctx: Ctx,
     depth: usize,
+    cache: &ScanCache,
 ) -> Option<(Vec<Inline>, usize)> {
     // A span tag with a blank interior is not markup; the opener stays literal text.
-    if let Some((inner, end)) = tag_region(chars, begin, "<sub>", "</sub>")
+    if let Some((inner, end)) = tag_region(chars, begin, "<sub>", "</sub>", cache)
         && !is_blank(&inner)
     {
         return Some((
@@ -325,7 +329,7 @@ pub(super) fn parse_angle(
             end,
         ));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<sup>", "</sup>")
+    if let Some((inner, end)) = tag_region(chars, begin, "<sup>", "</sup>", cache)
         && !is_blank(&inner)
     {
         return Some((
@@ -333,7 +337,7 @@ pub(super) fn parse_angle(
             end,
         ));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<del>", "</del>")
+    if let Some((inner, end)) = tag_region(chars, begin, "<del>", "</del>", cache)
         && !is_blank(&inner)
     {
         return Some((
@@ -341,18 +345,18 @@ pub(super) fn parse_angle(
             end,
         ));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<nowiki>", "</nowiki>") {
+    if let Some((inner, end)) = tag_region(chars, begin, "<nowiki>", "</nowiki>", cache) {
         let text: String = inner.iter().collect();
         return Some((tokenize_text(&text), end));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<html>", "</html>") {
+    if let Some((inner, end)) = tag_region(chars, begin, "<html>", "</html>", cache) {
         let text: String = inner.iter().collect();
         return Some((
             vec![Inline::RawInline(Format("html".into()), text.into())],
             end,
         ));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<php>", "</php>") {
+    if let Some((inner, end)) = tag_region(chars, begin, "<php>", "</php>", cache) {
         let text: String = inner.iter().collect();
         return Some((
             vec![Inline::RawInline(
@@ -366,12 +370,18 @@ pub(super) fn parse_angle(
 }
 
 /// The interior characters and end index of an `open…close` tag region starting at `start`.
-fn tag_region(chars: &[char], start: usize, open: &str, close: &str) -> Option<(Vec<char>, usize)> {
+fn tag_region(
+    chars: &[char],
+    start: usize,
+    open: &str,
+    close: &str,
+    cache: &ScanCache,
+) -> Option<(Vec<char>, usize)> {
     if !matches_at(chars, start, open) {
         return None;
     }
     let content_start = start + open.chars().count();
-    let close_at = find_subsequence(chars, content_start, close)?;
+    let close_at = cache.find(content_start, close)?;
     let inner = chars.get(content_start..close_at).unwrap_or(&[]).to_vec();
     Some((inner, close_at + close.chars().count()))
 }

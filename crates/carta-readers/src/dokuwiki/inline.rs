@@ -1,5 +1,7 @@
 //! Inline scanning: emphasis, quotes, monospace, math, autolinks, and construct dispatch.
 
+use std::collections::BTreeMap;
+
 use carta_ast::{Inline, MathType, QuoteType, Target, to_plain_text};
 
 use crate::entities;
@@ -9,25 +11,98 @@ use crate::smart_fold::{
     left_flanking,
 };
 
-use super::helpers::{boundary_before, find_subsequence, matches_at, run_length};
+use super::helpers::{boundary_before, matches_at, run_length};
 use super::links::{
     parse_angle, parse_footnote, parse_link, parse_macro, parse_media, parse_nowiki_pct,
 };
 use super::{Closer, Ctx, MAX_DEPTH};
 
-/// The number of speculative delimiter openings an inline scan will attempt before it treats the
-/// rest of its input as literal text. Each opener whose closer must be searched for costs one unit,
-/// so this bounds the backtracking work an adversarial delimiter-dense run can provoke while staying
-/// far above what any genuine document consumes.
-fn inline_budget(len: usize) -> usize {
-    len.saturating_mul(8).saturating_add(64).min(200_000)
+type ScanKey = (usize, Closer, bool, bool, usize, bool);
+
+pub(super) struct ScanCache {
+    ends: BTreeMap<ScanKey, (usize, bool, bool)>,
+    probing: bool,
+    closes: BTreeMap<&'static str, Vec<usize>>,
+}
+
+impl ScanCache {
+    fn new(chars: &[char]) -> Self {
+        let mut closes = BTreeMap::<_, Vec<_>>::new();
+        for position in 0..chars.len() {
+            for (marker, closer) in [
+                ("strong", Closer::Delim('*')),
+                ("emphasis", Closer::Delim('/')),
+                ("underline", Closer::Delim('_')),
+                ("monospace", Closer::Mono),
+                ("single", Closer::Quote('\'')),
+                ("double", Closer::Quote('"')),
+            ] {
+                if at_closer(chars, position, 0, closer) {
+                    closes.entry(marker).or_default().push(position);
+                }
+            }
+            for marker in [
+                "]]",
+                "}}",
+                "))",
+                "''",
+                "$$",
+                "%%",
+                "</sub>",
+                "</sup>",
+                "</del>",
+                "</nowiki>",
+                "</html>",
+                "</php>",
+            ] {
+                if matches_at(chars, position, marker)
+                    && (marker != "%%"
+                        || position > 0
+                            && !chars.get(position - 1).is_none_or(|ch| ch.is_whitespace()))
+                {
+                    closes.entry(marker).or_default().push(position);
+                }
+            }
+        }
+        Self {
+            ends: BTreeMap::new(),
+            probing: false,
+            closes,
+        }
+    }
+
+    fn has_closer(&self, from: usize, closer: Closer) -> bool {
+        let (marker, empty) = match closer {
+            Closer::Delim('*') => ("strong", 1),
+            Closer::Delim('/') => ("emphasis", 1),
+            Closer::Delim(_) => ("underline", 1),
+            Closer::Mono => ("monospace", 1),
+            Closer::Quote('\'') => ("single", 0),
+            Closer::Quote(_) => ("double", 0),
+        };
+        self.find(from + empty, marker).is_some()
+    }
+
+    fn record(&mut self, visited: Vec<(ScanKey, usize)>, end: usize, closed: bool, length: usize) {
+        for (key, prefix) in visited {
+            self.ends
+                .insert(key, (end, closed, closed && length > prefix));
+        }
+    }
+
+    pub(super) fn find(&self, from: usize, marker: &str) -> Option<usize> {
+        let positions = self.closes.get(marker)?;
+        positions
+            .get(positions.partition_point(|&position| position < from))
+            .copied()
+    }
 }
 
 /// Parse a block's inline content: scan it, then drop leading and trailing whitespace.
 pub(super) fn inline_content(text: &str, ctx: Ctx, depth: usize) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut pos = 0;
-    let mut budget = inline_budget(chars.len());
+    let mut cache = ScanCache::new(&chars);
     let (mut inlines, _) = scan(
         &chars,
         &mut pos,
@@ -35,7 +110,7 @@ pub(super) fn inline_content(text: &str, ctx: Ctx, depth: usize) -> Vec<Inline> 
         ctx,
         QuoteCtx::default(),
         depth,
-        &mut budget,
+        &mut cache,
     );
     trim_inline_ends(&mut inlines);
     inlines
@@ -44,7 +119,7 @@ pub(super) fn inline_content(text: &str, ctx: Ctx, depth: usize) -> Vec<Inline> 
 /// Scan a slice of characters as inline content with no surrounding-quote context.
 pub(super) fn scan_slice(chars: &[char], ctx: Ctx, depth: usize) -> Vec<Inline> {
     let mut pos = 0;
-    let mut budget = inline_budget(chars.len());
+    let mut cache = ScanCache::new(chars);
     let (inlines, _) = scan(
         chars,
         &mut pos,
@@ -52,7 +127,7 @@ pub(super) fn scan_slice(chars: &[char], ctx: Ctx, depth: usize) -> Vec<Inline> 
         ctx,
         QuoteCtx::default(),
         depth,
-        &mut budget,
+        &mut cache,
     );
     inlines
 }
@@ -74,18 +149,64 @@ fn scan(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
-    budget: &mut usize,
+    cache: &mut ScanCache,
 ) -> (Vec<Inline>, bool) {
+    if let Some(closer) = end
+        && !cache.has_closer(*pos, closer)
+    {
+        *pos = chars.len();
+        return (Vec::new(), false);
+    }
+    if end.is_some() && !cache.probing {
+        let begin = *pos;
+        cache.probing = true;
+        let (_, closed) = scan(chars, pos, end, ctx, qctx, depth, cache);
+        cache.probing = false;
+        if !closed {
+            return (Vec::new(), false);
+        }
+        *pos = begin;
+    }
     let start = *pos;
+    let mut visited = Vec::new();
     let mut out: Vec<Inline> = Vec::new();
     let mut pending = String::new();
     while let Some(&c) = chars.get(*pos) {
+        if cache.probing {
+            flush(&mut pending, &mut out);
+        }
         if let Some(closer) = end
             && at_closer(chars, *pos, start, closer)
         {
             flush(&mut pending, &mut out);
             *pos += closer_width(closer);
+            cache.record(visited, *pos, true, out.len());
+            if cache.probing {
+                return (
+                    if out.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![Inline::Str("x".into())]
+                    },
+                    true,
+                );
+            }
             return (coalesce(out), true);
+        }
+        if cache.probing
+            && let Some(closer) = end
+        {
+            let empty = *pos == start && !matches!(closer, Closer::Quote(_));
+            let key = (*pos, closer, qctx.in_single, qctx.in_double, depth, empty);
+            if let Some(&(next, closed, content)) = cache.ends.get(&key) {
+                *pos = next;
+                if content {
+                    out.push(Inline::Str("x".into()));
+                }
+                cache.record(visited, next, closed, out.len());
+                return (out, closed);
+            }
+            visited.push((key, out.len()));
         }
         if c.is_ascii_alphabetic()
             && boundary_before(chars, *pos)
@@ -126,7 +247,7 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
-                    budget,
+                    cache,
                     &mut pending,
                     &mut out,
                     Inline::Strong,
@@ -140,7 +261,7 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
-                    budget,
+                    cache,
                     &mut pending,
                     &mut out,
                     Inline::Emph,
@@ -154,14 +275,14 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
-                    budget,
+                    cache,
                     &mut pending,
                     &mut out,
                     Inline::Underline,
                 );
             }
             '\'' if chars.get(*pos + 1) == Some(&'\'') => {
-                handle_mono_or_quote(chars, pos, ctx, qctx, depth, budget, &mut pending, &mut out);
+                handle_mono_or_quote(chars, pos, ctx, qctx, depth, cache, &mut pending, &mut out);
             }
             '\'' | '"' if ctx.smart => {
                 handle_quote(
@@ -171,13 +292,13 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
-                    budget,
+                    cache,
                     &mut pending,
                     &mut out,
                 );
             }
             '$' if ctx.math => {
-                handle_math(chars, pos, &mut pending, &mut out);
+                handle_math(chars, pos, cache, &mut pending, &mut out);
             }
             '-' if ctx.smart => {
                 let run = run_length(chars, *pos, '-');
@@ -190,22 +311,22 @@ fn scan(
                 *pos += run;
             }
             '[' if chars.get(*pos + 1) == Some(&'[') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, cache, &mut pending, &mut out);
             }
             '{' if chars.get(*pos + 1) == Some(&'{') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, cache, &mut pending, &mut out);
             }
             '(' if chars.get(*pos + 1) == Some(&'(') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, cache, &mut pending, &mut out);
             }
             '%' if chars.get(*pos + 1) == Some(&'%') => {
-                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, cache, &mut pending, &mut out);
             }
             '<' if depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, cache, &mut pending, &mut out);
             }
             '~' if chars.get(*pos + 1) == Some(&'~') => {
-                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, cache, &mut pending, &mut out);
             }
             other => {
                 pending.push(other);
@@ -213,8 +334,13 @@ fn scan(
             }
         }
     }
-    flush(&mut pending, &mut out);
-    (coalesce(out), end.is_none())
+    if end.is_some() {
+        cache.record(visited, *pos, false, 0);
+        (Vec::new(), false)
+    } else {
+        flush(&mut pending, &mut out);
+        (coalesce(out), true)
+    }
 }
 
 /// Whether the scan's closing delimiter sits at `pos`. The two-character closers must follow at least
@@ -257,18 +383,18 @@ fn handle_mono_or_quote(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
-    budget: &mut usize,
+    cache: &mut ScanCache,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
     if depth < MAX_DEPTH
-        && let Some((node, end)) = parse_mono(chars, *pos, ctx, depth, budget)
+        && let Some((node, end)) = parse_mono(chars, *pos, ctx, depth, cache)
     {
         flush(pending, out);
         out.push(node);
         *pos = end;
     } else if ctx.smart {
-        handle_quote(chars, pos, '\'', ctx, qctx, depth, budget, pending, out);
+        handle_quote(chars, pos, '\'', ctx, qctx, depth, cache, pending, out);
     } else {
         pending.push('\'');
         *pos += 1;
@@ -329,13 +455,14 @@ fn scan_construct(
     c: char,
     ctx: Ctx,
     depth: usize,
+    cache: &ScanCache,
 ) -> Option<(Vec<Inline>, usize)> {
     match c {
-        '[' => parse_link(chars, pos).map(|(node, end)| (vec![node], end)),
-        '{' => parse_media(chars, pos).map(|(node, end)| (vec![node], end)),
-        '(' => parse_footnote(chars, pos, ctx, depth).map(|(node, end)| (vec![node], end)),
-        '%' => parse_nowiki_pct(chars, pos),
-        '<' => parse_angle(chars, pos, ctx, depth),
+        '[' => parse_link(chars, pos, cache).map(|(node, end)| (vec![node], end)),
+        '{' => parse_media(chars, pos, cache).map(|(node, end)| (vec![node], end)),
+        '(' => parse_footnote(chars, pos, ctx, depth, cache).map(|(node, end)| (vec![node], end)),
+        '%' => parse_nowiki_pct(chars, pos, cache),
+        '<' => parse_angle(chars, pos, ctx, depth, cache),
         '~' => parse_macro(chars, pos).map(|end| (Vec::new(), end)),
         _ => None,
     }
@@ -351,15 +478,11 @@ fn handle_construct(
     c: char,
     ctx: Ctx,
     depth: usize,
-    budget: &mut usize,
+    cache: &mut ScanCache,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
-    // Charge re-parsed spans to keep failed emphasis searches linear.
-    if *budget > 0
-        && let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth)
-    {
-        *budget = budget.saturating_sub((end - *pos).max(1));
+    if let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth, cache) {
         flush(pending, out);
         out.append(&mut nodes);
         *pos = end;
@@ -381,15 +504,13 @@ fn handle_delim(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
-    budget: &mut usize,
+    cache: &mut ScanCache,
     pending: &mut String,
     out: &mut Vec<Inline>,
     wrap: fn(Vec<Inline>) -> Inline,
 ) {
     let begin = *pos;
-    // The opener must lean against following non-whitespace; the closer search stays in budget.
-    if !is_ws_opt(chars.get(begin + 2).copied()) && *budget > 0 {
-        *budget -= 1;
+    if !is_ws_opt(chars.get(begin + 2).copied()) {
         let mut scan_pos = begin + 2;
         let (inner, closed) = scan(
             chars,
@@ -398,7 +519,7 @@ fn handle_delim(
             ctx,
             qctx,
             depth + 1,
-            budget,
+            cache,
         );
         if closed {
             flush(pending, out);
@@ -406,8 +527,6 @@ fn handle_delim(
             *pos = scan_pos;
             return;
         }
-        // Charge failed closer scans so repeated openers cannot cause quadratic work.
-        *budget = budget.saturating_sub(scan_pos - begin);
     }
     pending.push(delim);
     pending.push(delim);
@@ -425,13 +544,12 @@ fn handle_quote(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
-    budget: &mut usize,
+    cache: &mut ScanCache,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
     let begin = *pos;
-    if can_open_quote(chars, begin, quote, qctx) && depth < MAX_DEPTH && *budget > 0 {
-        *budget -= 1;
+    if can_open_quote(chars, begin, quote, qctx) && depth < MAX_DEPTH {
         *pos = begin + 1;
         let mut inner_qctx = qctx;
         if quote == '\'' {
@@ -446,15 +564,13 @@ fn handle_quote(
             ctx,
             inner_qctx,
             depth + 1,
-            budget,
+            cache,
         );
         if closed && (quote == '"' || !inner.is_empty()) {
             flush(pending, out);
             out.push(Inline::Quoted(quote_type(quote), inner));
             return;
         }
-        // As in `handle_delim`: charge the failed scan's span so a quote-dense run stays linear.
-        *budget = budget.saturating_sub(pos.saturating_sub(begin));
         *pos = begin + 1;
     } else {
         *pos = begin + 1;
@@ -495,16 +611,12 @@ fn parse_mono(
     begin: usize,
     ctx: Ctx,
     depth: usize,
-    budget: &mut usize,
+    cache: &mut ScanCache,
 ) -> Option<(Inline, usize)> {
     if is_ws_opt(chars.get(begin + 2).copied()) {
         return None;
     }
     if ctx.smart {
-        if *budget == 0 {
-            return None;
-        }
-        *budget -= 1;
         let mut pos = begin + 2;
         let (inner, closed) = scan(
             chars,
@@ -513,7 +625,7 @@ fn parse_mono(
             ctx,
             QuoteCtx::default(),
             depth + 1,
-            budget,
+            cache,
         );
         if !closed {
             return None;
@@ -523,7 +635,7 @@ fn parse_mono(
             pos,
         ));
     }
-    let close = find_subsequence(chars, begin + 2, "''")?;
+    let close = cache.find(begin + 2, "''")?;
     if close <= begin + 2 || is_ws_opt(chars.get(close - 1).copied()) {
         return None;
     }
@@ -577,10 +689,16 @@ fn push_mono_text(inlines: &[Inline], out: &mut String) {
 /// Handle a `$` opener under dollar-math: a `$$…$$` display span when the next character is also `$`,
 /// otherwise a `$…$` inline span. A failed attempt emits a single literal `$` and resumes scanning at
 /// the following character, so an unmatched dollar is taken as text.
-fn handle_math(chars: &[char], pos: &mut usize, pending: &mut String, out: &mut Vec<Inline>) {
+fn handle_math(
+    chars: &[char],
+    pos: &mut usize,
+    cache: &ScanCache,
+    pending: &mut String,
+    out: &mut Vec<Inline>,
+) {
     let begin = *pos;
     let parsed = if chars.get(begin + 1) == Some(&'$') {
-        parse_display_math(chars, begin)
+        parse_display_math(chars, begin, cache)
     } else {
         parse_inline_math(chars, begin)
     };
@@ -596,8 +714,8 @@ fn handle_math(chars: &[char], pos: &mut usize, pending: &mut String, out: &mut 
 
 /// A `$$…$$` display-math span: its interior is taken verbatim. `None` when the span has no closer or
 /// encloses nothing.
-fn parse_display_math(chars: &[char], begin: usize) -> Option<(Inline, usize)> {
-    let close = find_subsequence(chars, begin + 2, "$$")?;
+fn parse_display_math(chars: &[char], begin: usize, cache: &ScanCache) -> Option<(Inline, usize)> {
+    let close = cache.find(begin + 2, "$$")?;
     if close <= begin + 2 {
         return None;
     }

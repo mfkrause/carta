@@ -10,7 +10,6 @@ fn reads_ok(input: &str) -> bool {
 
 #[test]
 fn adversarial_footnotes_under_open_emphasis_do_not_stall() {
-    // Overlapping notes and unclosed delimiters must stay within the scan budget.
     let input = format!("(({}))", "//((x)) ".repeat(400));
     assert!(reads_ok(&input));
 }

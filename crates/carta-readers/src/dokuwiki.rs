@@ -25,7 +25,7 @@ struct Ctx {
 }
 
 /// What ends an inline scan started by an enclosing construct.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Closer {
     /// A curly-quote run, closed by the matching straight quote character.
     Quote(char),
