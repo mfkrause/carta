@@ -23,6 +23,7 @@ expression: output
   \endgroup
 }
 \usepackage{longtable,booktabs,array}
+\usepackage{calc}
 % Captionless tables leave the table counter unchanged.
 \newcounter{none}
 \providecommand{\tightlist}{%

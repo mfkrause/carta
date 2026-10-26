@@ -1,8 +1,8 @@
-//! Table rendering to a `longtable` environment.
+//! Table rendering to `longtable` and nested `tabular` environments.
 
 use std::fmt::Write as _;
 
-use carta_ast::{Alignment, Attr, Block, Caption, Cell, ColWidth, Inline, Row, Table};
+use carta_ast::{Alignment, Block, Cell, ColWidth, Inline, Row, Table};
 use carta_core::{WrapMode, budget};
 
 use crate::common::{Piece, display_width, fill};
@@ -10,8 +10,16 @@ use crate::grid;
 
 use super::{Dialect, Hl, inline_pieces, render_blocks, to_label};
 
-/// Render a table as a `longtable` environment. A captionless table is wrapped so its float
-/// counter is not advanced. Captioned tables outside cells repeat their heads at page breaks.
+const NESTED_CAPTION: &str = concat!(
+    "\\expandafter\\def\\csname @captype\\endcsname{table}",
+    "\\ifx\\cartaRepeatTableHead\\empty",
+    "\\expandafter\\let\\expandafter\\addcontentsline\\csname @gobblethree\\endcsname",
+    "\\expandafter\\let\\expandafter\\label\\csname @gobble\\endcsname\\fi",
+    "\\refstepcounter{table}\\csname @dblarg\\endcsname{\\csname @caption\\endcsname{table}}",
+);
+
+/// Render a table as `longtable`, or `tabular` inside a cell. Captionless tables leave the table
+/// counter unchanged. Captioned tables outside cells repeat their heads at page breaks.
 /// Spans become `\multicolumn`/`\multirow`; columns are letter classes unless explicit or
 /// block-level cells call for sized `p{…}` columns with minipage cells.
 ///
@@ -40,30 +48,48 @@ pub(super) fn render_table(
     let head_lines = render_section(&head_rows, &plan, true, width, dialect, wrap, smart, hl);
     let body_lines = render_section(&body_rows, &plan, false, width, dialect, wrap, smart, hl);
     let foot_lines = render_section(&foot_rows, &plan, false, width, dialect, wrap, smart, hl);
-    let caption = table_caption(&table.caption, &table.attr, width, dialect, wrap, smart, hl);
+    let caption = table_caption(table, width, dialect, wrap, smart, hl, nested);
     if budget::exhausted() {
         return String::new();
     }
 
-    let mut parts = vec![format!("\\begin{{longtable}}[]{{{}}}", plan.colspec())];
-    if let Some(caption) = &caption {
-        parts.push(caption.clone());
-        if nested {
-            parts.push(head_block(&head_lines, "\\endhead"));
+    let environment = if nested { "tabular" } else { "longtable" };
+    let options = if nested { "" } else { "[]" };
+    let mut parts = vec![format!(
+        "\\begin{{{environment}}}{options}{{{}}}",
+        plan.colspec()
+    )];
+    let nested_captions = !nested
+        && head_lines
+            .iter()
+            .any(|line| line.contains("\\cartaRepeatTableHead"));
+    if nested {
+        parts.push(head_block(&head_lines, None));
+    } else if caption.is_some() || nested_captions {
+        if let Some(caption) = &caption {
+            parts.push(caption.clone());
+        }
+        if nested_captions {
+            parts.push("\\noalign{\\xdef\\cartaTableHeadStart{\\arabic{table}}}".to_owned());
+        }
+        parts.push(head_block(&head_lines, Some("\\endfirsthead")));
+        // Without head rows the repeated head draws nothing, so a rule of its own would double up.
+        if head_lines.is_empty() {
+            parts.push("\\endhead".to_owned());
+        } else if nested_captions {
+            // Repeated heads reuse caption numbers without adding labels or list entries.
+            parts.push("\\noalign{\\xdef\\cartaTableHeadEnd{\\arabic{table}}\\setcounter{table}{\\cartaTableHeadStart}\\global\\let\\cartaRepeatTableHead\\empty}".to_owned());
+            parts.push(head_block(&head_lines, None));
+            parts.push("\\noalign{\\setcounter{table}{\\cartaTableHeadEnd}\\global\\let\\cartaRepeatTableHead\\relax}".to_owned());
+            parts.push("\\endhead".to_owned());
         } else {
-            parts.push(head_block(&head_lines, "\\endfirsthead"));
-            // Without head rows the repeated head draws nothing, so a rule of its own would double up.
-            if head_lines.is_empty() {
-                parts.push("\\endhead".to_owned());
-            } else {
-                parts.push(head_block(&head_lines, "\\endhead"));
-            }
+            parts.push(head_block(&head_lines, Some("\\endhead")));
         }
     } else {
-        parts.push(head_block(&head_lines, "\\endhead"));
+        parts.push(head_block(&head_lines, Some("\\endhead")));
     }
     match dialect {
-        Dialect::Article => {
+        Dialect::Article if !nested => {
             if !foot_lines.is_empty() {
                 parts.push("\\midrule\\noalign{}".to_owned());
                 parts.extend(foot_lines);
@@ -72,7 +98,7 @@ pub(super) fn render_table(
             parts.push("\\endlastfoot".to_owned());
             parts.extend(body_lines);
         }
-        Dialect::Slide { .. } => {
+        Dialect::Article | Dialect::Slide { .. } => {
             parts.extend(body_lines);
             if !foot_lines.is_empty() {
                 parts.push("\\midrule\\noalign{}".to_owned());
@@ -81,10 +107,16 @@ pub(super) fn render_table(
             parts.push("\\bottomrule\\noalign{}".to_owned());
         }
     }
-    parts.push("\\end{longtable}".to_owned());
+    parts.push(format!("\\end{{{environment}}}"));
     let body = parts.join("\n");
 
-    let rendered = if caption.is_some() {
+    let rendered = if nested {
+        if let Some(caption) = caption {
+            format!("\\begin{{minipage}}[t]{{\\linewidth}}\n{caption}\n{body}\n\\end{{minipage}}")
+        } else {
+            body
+        }
+    } else if caption.is_some() {
         body
     } else {
         format!("{{\\def\\LTcaptype{{none}} % do not increment counter\n{body}\n}}")
@@ -93,15 +125,16 @@ pub(super) fn render_table(
     rendered
 }
 
-/// The head segment of a `longtable`: a top rule, the head rows, a closing rule when the head is
-/// non-empty, and the terminating macro (`\endhead` or `\endfirsthead`).
-fn head_block(head_lines: &[String], terminator: &str) -> String {
+/// Render the table head, with a page header terminator for `longtable`.
+fn head_block(head_lines: &[String], terminator: Option<&str>) -> String {
     let mut parts = vec!["\\toprule\\noalign{}".to_owned()];
     parts.extend(head_lines.iter().cloned());
     if !head_lines.is_empty() {
         parts.push("\\midrule\\noalign{}".to_owned());
     }
-    parts.push(terminator.to_owned());
+    if let Some(terminator) = terminator {
+        parts.push(terminator.to_owned());
+    }
     parts.join("\n")
 }
 
@@ -160,7 +193,7 @@ impl ColumnPlan {
         }
     }
 
-    /// The column descriptor between the `{…}` of `\begin{longtable}`.
+    /// The table's column descriptor.
     fn colspec(&self) -> String {
         if self.sized {
             let pad = 2 * self.columns.saturating_sub(1);
@@ -211,7 +244,7 @@ struct TableContext<'a> {
     hl: Hl<'a>,
 }
 
-/// Render a section's rows to `longtable` lines, resolving spans against the section's own grid.
+/// Render a section's rows, resolving spans against the section's own grid.
 #[allow(clippy::too_many_arguments)]
 fn render_section<'a>(
     rows: &[&Row],
@@ -618,19 +651,17 @@ fn multirow_prefix(align: &Alignment) -> &'static str {
     }
 }
 
-/// Render a table caption to a `\caption[short]{long}…\tabularnewline` line, reflowed at `width`.
-/// Returns `None` for an empty caption. The closing brace, optional label, and `\tabularnewline`
-/// stay glued to the final word so they reflow as one unit.
-#[allow(clippy::too_many_arguments)]
+/// Render a table caption, or return `None` for an empty caption.
 fn table_caption(
-    caption: &Caption,
-    attr: &Attr,
+    table: &Table,
     width: usize,
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
+    nested: bool,
 ) -> Option<String> {
+    let caption = &table.caption;
     if caption.long.is_empty() {
         return None;
     }
@@ -644,7 +675,9 @@ fn table_caption(
             )
         })
         .unwrap_or_default();
-    let mut pieces = vec![Piece::text(format!("\\caption{short}{{"))];
+    // The enclosing longtable replaces \caption, so nested captions call the class handler.
+    let command = if nested { NESTED_CAPTION } else { "\\caption" };
+    let mut pieces = vec![Piece::text(format!("{command}{short}{{"))];
     let mut first = true;
     for block in &caption.long {
         if let Block::Plain(inlines) | Block::Para(inlines) = block {
@@ -657,10 +690,12 @@ fn table_caption(
         }
     }
     let mut close = String::from("}");
-    if !attr.id.is_empty() {
-        let _ = write!(close, "\\label{{{}}}", to_label(&attr.id));
+    if !table.attr.id.is_empty() {
+        let _ = write!(close, "\\label{{{}}}", to_label(&table.attr.id));
     }
-    close.push_str("\\tabularnewline");
+    if !nested {
+        close.push_str("\\tabularnewline");
+    }
     pieces.push(Piece::text(close));
     Some(fill(&pieces, width, wrap))
 }

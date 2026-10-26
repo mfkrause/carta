@@ -390,7 +390,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Headings are not section-numbered.
 
 ### `latex` ✅
-- A table nested in a cell can produce LaTeX that does not compile.
+- A table nested in a cell cannot split across pages.
 - In a line block, a line whose content is entirely code spans is set without the trailing `\strut`
   that keeps its full height, and a space ending a line is dropped.
 
