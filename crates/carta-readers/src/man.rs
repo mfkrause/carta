@@ -344,8 +344,12 @@ impl Parser {
 
     /// Parses a sequence of blocks until the context's terminator (or end of input). A terminator
     /// line is left unconsumed for the caller, except a `.RE` that closes the inset it belongs to.
-    #[allow(clippy::too_many_lines, clippy::match_same_arms)]
     fn parse_blocks(&mut self, ctx: Ctx) -> Vec<Block> {
+        carta_core::with_stack(|| self.parse_blocks_nested(ctx))
+    }
+
+    #[allow(clippy::too_many_lines, clippy::match_same_arms)]
+    fn parse_blocks_nested(&mut self, ctx: Ctx) -> Vec<Block> {
         let mut blocks = Vec::new();
         let mut fill = Vec::new();
         // Whether a text line opened the paragraph: whitespace-only paragraphs still emit `Para []`.
@@ -398,7 +402,7 @@ impl Parser {
                     if ctx.in_item {
                         return blocks;
                     }
-                    let list = self.parse_list(0);
+                    let list = self.parse_list();
                     blocks.extend(list);
                 }
                 "TQ" => {

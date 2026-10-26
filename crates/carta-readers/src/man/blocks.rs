@@ -12,8 +12,6 @@ use super::requests::{control_parts, is_comment, split_args};
 use super::tables::build_tbl;
 use super::{Ctx, Parser, append_text};
 
-const MAX_LIST_DEPTH: usize = 64;
-
 impl Parser {
     /// Heading inline content: the macro's arguments joined by spaces, or, when the macro carries
     /// none, the following input line.
@@ -123,9 +121,10 @@ impl Parser {
 
     /// Parses a run of consecutive `.TP`/`.IP` items into list blocks. Items of the same kind merge
     /// into one list; an unmarked `.IP` becomes a standalone inset.
-    pub(super) fn parse_list(&mut self, depth: usize) -> Vec<Block> {
+    pub(super) fn parse_list(&mut self) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending: Option<Pending> = None;
+        let mut parents = Vec::new();
         while let Some(line) = self.peek().map(str::to_owned) {
             let Some((name, rest)) = control_parts(&line) else {
                 break;
@@ -146,19 +145,9 @@ impl Parser {
                     }
                     let body = self.parse_blocks(Ctx::ITEM);
                     if body.is_empty() {
-                        // A bodiless tag takes the rest of the list as its body; else it is a paragraph.
-                        // Expansion can create more empty tags than the call stack can hold.
-                        let rest = if depth < MAX_LIST_DEPTH {
-                            self.parse_list(depth + 1)
-                        } else {
-                            Vec::new()
-                        };
-                        if rest.is_empty() {
-                            flush_pending(&mut pending, &mut out);
-                            out.push(Block::Para(term));
-                        } else {
-                            push_definition(&mut pending, &mut out, term, rest);
-                        }
+                        parents.push((out, pending, term));
+                        out = Vec::new();
+                        pending = None;
                     } else {
                         push_definition(&mut pending, &mut out, term, body);
                     }
@@ -199,6 +188,16 @@ impl Parser {
             }
         }
         flush_pending(&mut pending, &mut out);
+        while let Some((mut outer, mut pending, term)) = parents.pop() {
+            if out.is_empty() {
+                flush_pending(&mut pending, &mut outer);
+                outer.push(Block::Para(term));
+            } else {
+                push_definition(&mut pending, &mut outer, term, out);
+            }
+            flush_pending(&mut pending, &mut outer);
+            out = outer;
+        }
         out
     }
 
