@@ -1,5 +1,6 @@
 //! Inline parsing of Jira wiki markup: text-effect spans, monospace, colour, citations, symbols, and breaks.
 
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 
 use carta_ast::{Attr, Inline, Target, ToCompactString};
@@ -74,38 +75,39 @@ enum Tok {
     Atom(Inline),
 }
 
-/// Inline-nesting depth past which parsing stops descending. Monospace, colour, link-label and
-/// citation spans each re-enter inline parsing on their inner text; a hard cap keeps adversarially
-/// deep nesting off the call stack. It is far beyond any nesting real text uses.
-const MAX_INLINE_DEPTH: usize = 32;
+#[derive(Clone, Copy)]
+pub(super) struct Context<'a> {
+    pub(super) delimiters: &'a Delimiters,
+    pub(super) autolink: bool,
+    pub(super) monospace: bool,
+}
 
 /// Parses the character range `lo..hi` into inline nodes: it scans the text into tokens, pairs the
 /// flanking delimiters into spans, and folds the result into a flat list of inlines. Flanking
 /// decisions consult the real neighbouring characters via absolute indices, so a range bounded to a
 /// single line will not let markup escape that line.
 pub(super) fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
-    inlines_with(chars, lo, hi, true, 0)
+    let delimiters = Delimiters::new(chars, lo, hi);
+    inlines_with(
+        chars,
+        lo,
+        hi,
+        Context {
+            delimiters: &delimiters,
+            autolink: true,
+            monospace: false,
+        },
+    )
 }
 
-/// Parses inlines with control over bare-URL autolinking. A link label cannot contain another link,
-/// so the text of one is parsed with `autolink` cleared. `depth` tracks how many nested spans deep
-/// this call is; past the cap the remaining span is emitted as literal text without descending.
+/// Parses a range with shared delimiters and the enclosing inline context.
 pub(super) fn inlines_with(
     chars: &[char],
     lo: usize,
     hi: usize,
-    autolink: bool,
-    depth: usize,
+    context: Context<'_>,
 ) -> Vec<Inline> {
-    if depth > MAX_INLINE_DEPTH {
-        let text = slice_to_string(chars, lo, hi);
-        return if text.is_empty() {
-            Vec::new()
-        } else {
-            vec![Inline::Str(text.into())]
-        };
-    }
-    finalize(resolve(scan_tokens(chars, lo, hi, autolink, depth)))
+    carta_core::with_stack(|| finalize(resolve(scan_tokens(chars, lo, hi, context))))
 }
 
 fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
@@ -155,34 +157,7 @@ impl Delimiters {
             }
             position += 1;
         }
-        let mut next = vec![None; hi.saturating_sub(lo) + 3];
-        for position in (lo..hi).rev() {
-            let offset = position - lo;
-            let mut close = next.get(offset + 1).copied().flatten();
-            if chars.get(position) == Some(&'}')
-                && chars.get(position + 1) == Some(&'}')
-                && non_space(chars, position.saturating_sub(1))
-                && boundary(chars, position + 2)
-            {
-                close = Some(position);
-            }
-            if chars.get(position) == Some(&'{')
-                && chars.get(position + 1) == Some(&'{')
-                && can_open_monospace(chars, position)
-            {
-                let mut matched = next.get(offset + 2).copied().flatten();
-                if matched == Some(position + 2) {
-                    matched = next.get(offset + 3).copied().flatten();
-                }
-                if let Some(end) = matched {
-                    index.monospace.insert(position, end);
-                    close = next.get(end + 2 - lo).copied().flatten();
-                }
-            }
-            if let Some(slot) = next.get_mut(offset) {
-                *slot = close;
-            }
-        }
+        index.monospace = monospace_index(chars, lo, hi);
         index
     }
 
@@ -215,16 +190,48 @@ impl Delimiters {
     }
 }
 
+fn monospace_index(chars: &[char], lo: usize, hi: usize) -> BTreeMap<usize, usize> {
+    let mut index = BTreeMap::new();
+    let mut next = vec![None; hi.saturating_sub(lo) + 3];
+    for position in (lo..hi).rev() {
+        let offset = position - lo;
+        let mut close = next.get(offset + 1).copied().flatten();
+        if chars.get(position) == Some(&'}')
+            && chars.get(position + 1) == Some(&'}')
+            && non_space(chars, position.saturating_sub(1))
+            && boundary(chars, position + 2)
+        {
+            close = Some(position);
+        }
+        if chars.get(position) == Some(&'{')
+            && chars.get(position + 1) == Some(&'{')
+            && can_open_monospace(chars, position)
+        {
+            let mut matched = next.get(offset + 2).copied().flatten();
+            if matched == Some(position + 2) {
+                matched = next.get(offset + 3).copied().flatten();
+            }
+            if let Some(end) = matched {
+                index.insert(position, end);
+                close = next.get(end + 2 - lo).copied().flatten();
+            }
+        }
+        if let Some(slot) = next.get_mut(offset) {
+            *slot = close;
+        }
+    }
+    index
+}
+
 /// Scans `lo..hi` left to right into tokens: literal runs accumulate into [`Tok::Text`], a flanking
 /// delimiter becomes a [`Tok::Delim`], and a self-contained construct (link, image, brace span,
 /// citation, autolink, symbol) becomes a [`Tok::Atom`].
 #[allow(clippy::too_many_lines)]
-fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usize) -> Vec<Tok> {
+fn scan_tokens(chars: &[char], lo: usize, hi: usize, context: Context<'_>) -> Vec<Tok> {
     let mut toks: Vec<Tok> = Vec::new();
     let mut pending = String::new();
     let mut i = lo;
-    let delimiters = Delimiters::new(chars, lo, hi);
-
+    let monospace = OnceCell::new();
     while i < hi {
         let Some(&c) = chars.get(i) else {
             break;
@@ -238,7 +245,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
 
         let prev_alnum = i > 0 && chars.get(i - 1).is_some_and(|c| c.is_alphanumeric());
 
-        if autolink
+        if context.autolink
             && !prev_alnum
             && let Some(end) = match_bare_url(chars, i, hi)
         {
@@ -270,9 +277,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
                 }
             }
             '?' => {
-                if let Some((next, inner)) =
-                    parse_citation(chars, i, hi, autolink, depth, &delimiters)
-                {
+                if let Some((next, inner)) = parse_citation(chars, i, hi, context) {
                     pending.push('\u{2014}');
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(Inline::Space));
@@ -309,8 +314,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
                 }
             }
             '[' | '!' | '{' => {
-                if let Some((node, next)) =
-                    scan_construct(c, chars, i, hi, autolink, depth, &delimiters)
+                if let Some((node, next)) = scan_construct(c, chars, i, lo, hi, context, &monospace)
                 {
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(node));
@@ -408,15 +412,15 @@ fn scan_construct(
     c: char,
     chars: &[char],
     i: usize,
+    lo: usize,
     hi: usize,
-    autolink: bool,
-    depth: usize,
-    delimiters: &Delimiters,
+    context: Context<'_>,
+    monospace: &OnceCell<BTreeMap<usize, usize>>,
 ) -> Option<(Inline, usize)> {
     match c {
-        '[' => parse_link(chars, i, hi, depth, delimiters),
-        '!' => parse_image(chars, i, hi, delimiters),
-        _ => parse_brace_inline(chars, i, hi, autolink, depth, delimiters),
+        '[' => parse_link(chars, i, hi, context),
+        '!' => parse_image(chars, i, hi, context.delimiters),
+        _ => parse_brace_inline(chars, i, lo, hi, context, monospace),
     }
 }
 
@@ -664,9 +668,7 @@ fn parse_citation(
     chars: &[char],
     i: usize,
     hi: usize,
-    autolink: bool,
-    depth: usize,
-    delimiters: &Delimiters,
+    context: Context<'_>,
 ) -> Option<(usize, Vec<Inline>)> {
     if chars.get(i + 1) != Some(&'?') {
         return None;
@@ -675,11 +677,8 @@ fn parse_citation(
     if !left_boundary || !non_space(chars, i + 2) {
         return None;
     }
-    let close = delimiters.next('?', i + 3, hi)?;
-    Some((
-        close + 2,
-        inlines_with(chars, i + 2, close, autolink, depth + 1),
-    ))
+    let close = context.delimiters.next('?', i + 3, hi)?;
+    Some((close + 2, inlines_with(chars, i + 2, close, context)))
 }
 
 /// A monospaced span opens at `i` (which holds the first `{` of `{{`) when its left neighbour is a
@@ -692,25 +691,50 @@ fn can_open_monospace(chars: &[char], i: usize) -> bool {
 fn parse_brace_inline(
     chars: &[char],
     i: usize,
+    lo: usize,
     hi: usize,
-    autolink: bool,
-    depth: usize,
-    delimiters: &Delimiters,
+    context: Context<'_>,
+    monospace: &OnceCell<BTreeMap<usize, usize>>,
 ) -> Option<(Inline, usize)> {
     if chars.get(i + 1) == Some(&'{') {
         // Monospaced `{{ … }}`: a nested pair is skipped rather than ending the span early.
         if !can_open_monospace(chars, i) {
             return None;
         }
-        let close = delimiters.monospace.get(&i).copied()?;
-        let inner = inlines_with(chars, i + 2, close, autolink, depth + 1);
-        let text = carta_ast::to_plain_text(&inner);
-        return Some((Inline::Code(Box::default(), text.into()), close + 2));
+        // A closer outside this range can change how nested openers pair.
+        let close = context
+            .delimiters
+            .monospace
+            .get(&i)
+            .copied()
+            .filter(|&close| close < hi)
+            .or_else(|| {
+                monospace
+                    .get_or_init(|| monospace_index(chars, lo, hi))
+                    .get(&i)
+                    .copied()
+            })?;
+        let inner = inlines_with(
+            chars,
+            i + 2,
+            close,
+            Context {
+                monospace: true,
+                ..context
+            },
+        );
+        let node = if context.monospace {
+            // Flatten once at the outermost monospace span.
+            Inline::Span(Box::default(), inner)
+        } else {
+            Inline::Code(Box::default(), carta_ast::to_plain_text(&inner).into())
+        };
+        return Some((node, close + 2));
     }
 
     if matches_at(chars, i, "{color:") {
         let value_start = i + "{color:".len();
-        let value_end = delimiters.next('}', value_start, hi)?;
+        let value_end = context.delimiters.next('}', value_start, hi)?;
         if value_end - value_start > 7
             && !chars
                 .get(value_start..value_end)?
@@ -720,8 +744,8 @@ fn parse_brace_inline(
             return None;
         }
         let value = color_value(&slice_to_string(chars, value_start, value_end))?;
-        let close = delimiters.color_close(value_end + 1, hi)?;
-        let inner = inlines_with(chars, value_end + 1, close, autolink, depth + 1);
+        let close = context.delimiters.color_close(value_end + 1, hi)?;
+        let inner = inlines_with(chars, value_end + 1, close, context);
         let attr = Attr {
             id: carta_ast::Text::default(),
             classes: Vec::new(),
@@ -732,7 +756,7 @@ fn parse_brace_inline(
 
     if matches_at(chars, i, "{anchor:") {
         let name_start = i + "{anchor:".len();
-        let name_end = delimiters.next('}', name_start, hi)?;
+        let name_end = context.delimiters.next('}', name_start, hi)?;
         let name: String = chars
             .get(name_start..name_end)
             .unwrap_or_default()

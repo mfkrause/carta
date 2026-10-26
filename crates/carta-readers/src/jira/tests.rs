@@ -82,6 +82,19 @@ fn monospace_stringifies_inner_markup() {
 }
 
 #[test]
+fn monospace_pairing_stops_at_the_citation_boundary() {
+    assert_eq!(
+        para("??{{{{}}??}}"),
+        vec![
+            str_node("\u{2014}"),
+            Inline::Space,
+            Inline::Emph(vec![Inline::Code(Box::default(), "{{".into())]),
+            str_node("}}"),
+        ]
+    );
+}
+
+#[test]
 fn color_span() {
     assert_eq!(
         para("{color:red}x{color}"),

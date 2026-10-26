@@ -2,7 +2,7 @@
 
 use carta_ast::{Attr, Inline, Target};
 
-use super::inline::{Delimiters, inlines_with, non_space};
+use super::inline::{Context, Delimiters, inlines_with, non_space};
 use super::shared::{is_space, matches_at, slice_to_string};
 
 /// URL prefixes accepted as a bracketed link target. Schemes other than `mailto:` require `://`.
@@ -18,9 +18,9 @@ pub(super) fn parse_link(
     chars: &[char],
     i: usize,
     hi: usize,
-    depth: usize,
-    delimiters: &Delimiters,
+    context: Context<'_>,
 ) -> Option<(Inline, usize)> {
+    let delimiters = context.delimiters;
     let close = delimiters.next(']', i + 1, hi)?;
     let pipes = delimiters.positions('|', i + 1, close);
     // A third link segment must name a smart-link style; a fourth invalidates the link.
@@ -48,7 +48,15 @@ pub(super) fn parse_link(
     let (url, class, default_label) = classify_link_target(&target, has_pipe)?;
 
     let label = match label_range {
-        Some((ls, le)) if le > ls => inlines_with(chars, ls, le, false, depth + 1),
+        Some((ls, le)) if le > ls => inlines_with(
+            chars,
+            ls,
+            le,
+            Context {
+                autolink: false,
+                ..context
+            },
+        ),
         _ => vec![Inline::Str(default_label.into())],
     };
     let mut classes: Vec<String> = class.into_iter().map(str::to_string).collect();
