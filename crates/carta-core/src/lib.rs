@@ -27,6 +27,7 @@ pub use stack::{DEEP_STACK, DeepStack, on_deep_stack};
 
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// JSON input or output could not be (de)serialized.
     #[cfg(feature = "serde")]
