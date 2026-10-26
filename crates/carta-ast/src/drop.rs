@@ -201,6 +201,20 @@ mod tests {
                     )]));
                 }
                 assert_eq!(value, value.clone());
+                #[cfg(feature = "serde")]
+                {
+                    let document = crate::Document {
+                        meta: BTreeMap::from([("tree".into(), value)]),
+                        ..crate::Document::default()
+                    };
+                    let json = crate::to_json(&document).expect("encode tree");
+                    assert_eq!(
+                        json,
+                        serde_json::to_string(&document).expect("serialize tree")
+                    );
+                    let decoded = crate::from_json(json.as_bytes()).expect("decode tree");
+                    assert_eq!(document, decoded);
+                }
             })
             .expect("spawn caller")
             .join()

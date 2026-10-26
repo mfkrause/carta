@@ -66,6 +66,10 @@ fn write_meta_map(out: &mut String, map: &BTreeMap<Text, MetaValue>) {
 }
 
 fn write_meta(out: &mut String, meta: &MetaValue) {
+    stacker::maybe_grow(64 * 1024, 1024 * 1024, || write_meta_value(out, meta));
+}
+
+fn write_meta_value(out: &mut String, meta: &MetaValue) {
     match meta {
         MetaValue::MetaMap(map) => {
             open_tag(out, "MetaMap");
@@ -105,6 +109,10 @@ fn write_block_list(out: &mut String, blocks: &[Block]) {
 }
 
 fn write_block(out: &mut String, block: &Block) {
+    stacker::maybe_grow(64 * 1024, 1024 * 1024, || write_block_value(out, block));
+}
+
+fn write_block_value(out: &mut String, block: &Block) {
     match block {
         Block::Plain(inlines) => {
             open_tag(out, "Plain");
@@ -208,6 +216,10 @@ fn write_inline_list(out: &mut String, inlines: &[Inline]) {
 }
 
 fn write_inline(out: &mut String, inline: &Inline) {
+    stacker::maybe_grow(64 * 1024, 1024 * 1024, || write_inline_value(out, inline));
+}
+
+fn write_inline_value(out: &mut String, inline: &Inline) {
     match inline {
         Inline::Str(text) => {
             open_tag(out, "Str");

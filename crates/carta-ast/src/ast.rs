@@ -90,6 +90,23 @@ macro_rules! node_enum {
             }
         }
 
+        #[cfg(feature = "serde")]
+        impl serde::Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                #[derive(serde::Serialize)]
+                #[serde(tag = "t", content = "c")]
+                #[allow(clippy::enum_variant_names)]
+                enum Fields<'a> {
+                    $($variant $(($(&'a $payload),*))?),*
+                }
+                stacker::maybe_grow(64 * 1024, 1024 * 1024, || match self {
+                    $(Self::$variant $(($($field),*))? => {
+                        serde::Serialize::serialize(&Fields::$variant $(($($field),*))?, serializer)
+                    }),*
+                })
+            }
+        }
+
         /// JSON `t` tags of every variant of the enum above, in declaration order.
         $vis const $tags: &[&str] = &[$(stringify!($variant)),*];
     };
@@ -162,7 +179,7 @@ pub struct Format(pub Text);
 node_enum! {
     /// A block-level node of the document body.
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Block {
         /// Inline content standing alone without paragraph semantics (a tight list item, a
@@ -202,7 +219,7 @@ node_enum! {
 node_enum! {
     /// An inline node: a piece of text or an intra-paragraph construct.
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Inline {
         /// A run of text.
@@ -253,7 +270,7 @@ node_enum! {
 node_enum! {
     /// A metadata value. Documents carry a `String`-keyed map of these.
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum MetaValue {
         /// A nested map of metadata values.
