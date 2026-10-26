@@ -11,13 +11,10 @@ use crate::grid;
 use super::{Dialect, Hl, inline_pieces, render_blocks, to_label};
 
 /// Render a table as a `longtable` environment. A captionless table is wrapped so its float
-/// counter is not advanced; a captioned one carries the caption and repeats its head for page
-/// breaks. Spans become `\multicolumn`/`\multirow`; columns are letter classes unless explicit or
+/// counter is not advanced. Captioned tables outside cells repeat their heads at page breaks.
+/// Spans become `\multicolumn`/`\multirow`; columns are letter classes unless explicit or
 /// block-level cells call for sized `p{…}` columns with minipage cells.
 ///
-/// A captioned table prints its head twice, so tables nested through head cells double the output
-/// at each level; the rendering is charged against the write's output ceiling and abandoned once
-/// that ceiling is passed, both before the rows are rendered and once they are in hand.
 pub(super) fn render_table(
     table: &Table,
     width: usize,
@@ -29,6 +26,8 @@ pub(super) fn render_table(
     if budget::exhausted() {
         return String::new();
     }
+    let nested = hl.in_table;
+    let hl = hl.table_content();
     let plan = ColumnPlan::new(table);
     let head_rows: Vec<&Row> = table.head.rows.iter().collect();
     let body_rows: Vec<&Row> = table
@@ -49,12 +48,16 @@ pub(super) fn render_table(
     let mut parts = vec![format!("\\begin{{longtable}}[]{{{}}}", plan.colspec())];
     if let Some(caption) = &caption {
         parts.push(caption.clone());
-        parts.push(head_block(&head_lines, "\\endfirsthead"));
-        // Without head rows the repeated head draws nothing, so a rule of its own would double up.
-        if head_lines.is_empty() {
-            parts.push("\\endhead".to_owned());
-        } else {
+        if nested {
             parts.push(head_block(&head_lines, "\\endhead"));
+        } else {
+            parts.push(head_block(&head_lines, "\\endfirsthead"));
+            // Without head rows the repeated head draws nothing, so a rule of its own would double up.
+            if head_lines.is_empty() {
+                parts.push("\\endhead".to_owned());
+            } else {
+                parts.push(head_block(&head_lines, "\\endhead"));
+            }
         }
     } else {
         parts.push(head_block(&head_lines, "\\endhead"));

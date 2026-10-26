@@ -399,9 +399,8 @@ fn footnote_with_code_block_closes_on_own_line() {
     assert!(out.contains("\n}"));
 }
 
-// Repeated table heads double nested output per level; enforce the size limit.
 #[test]
-fn a_table_nested_through_captioned_heads_is_refused_past_the_output_ceiling() {
+fn nested_captioned_tables_do_not_copy_page_headers() {
     use carta_ast::{Alignment, Caption, Cell, ColSpec, ColWidth, Row, Table, TableHead};
 
     fn captioned_table(content: Vec<Block>) -> Block {
@@ -439,10 +438,11 @@ fn a_table_nested_through_captioned_heads_is_refused_past_the_output_ceiling() {
         blocks: vec![block],
         ..Document::default()
     };
-    assert!(matches!(
-        LatexWriter.write(&document, &WriterOptions::default()),
-        Err(carta_core::Error::OutputTooLarge)
-    ));
+    let rendered = LatexWriter
+        .write(&document, &WriterOptions::default())
+        .unwrap();
+    assert_eq!(rendered.matches("innermost").count(), 2);
+    assert!(rendered.len() < 100_000);
 }
 
 #[cfg(feature = "highlight")]

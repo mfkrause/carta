@@ -15,17 +15,24 @@ use carta_highlight::{Highlighter, Token as HighlightToken, TokenKind};
 use super::escaping::{EscapeMode, escape};
 use super::phantom_label;
 
-/// The code-block presentation threaded through a render, or a zero-size placeholder when the feature
-/// is compiled out, so every rendering function keeps one signature. `highlighter` colorizes a block;
-/// `idiomatic` instead selects the `lstlisting` environment for the uncolorized fallback.
-#[cfg(feature = "highlight")]
+/// Rendering context for code presentation and nested table cells.
 #[derive(Clone, Copy)]
 pub(crate) struct Hl<'a> {
+    #[cfg(feature = "highlight")]
     highlighter: Option<&'a Highlighter>,
+    #[cfg(feature = "highlight")]
     idiomatic: bool,
+    #[cfg(not(feature = "highlight"))]
+    _lifetime: core::marker::PhantomData<&'a ()>,
+    pub(super) in_table: bool,
 }
-#[cfg(not(feature = "highlight"))]
-pub(crate) type Hl<'a> = core::marker::PhantomData<&'a ()>;
+
+impl Hl<'_> {
+    pub(super) fn table_content(mut self) -> Self {
+        self.in_table = true;
+        self
+    }
+}
 
 /// The code-block presentation a render draws from the writer options.
 #[cfg(feature = "highlight")]
@@ -33,11 +40,15 @@ pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
     Hl {
         highlighter: options.highlight.highlighter.as_deref(),
         idiomatic: options.highlight.idiomatic,
+        in_table: false,
     }
 }
 #[cfg(not(feature = "highlight"))]
 pub(crate) fn code_highlighting(_options: &WriterOptions) -> Hl<'_> {
-    core::marker::PhantomData
+    Hl {
+        _lifetime: core::marker::PhantomData,
+        in_table: false,
+    }
 }
 
 pub(super) fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
