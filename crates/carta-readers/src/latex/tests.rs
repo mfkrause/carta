@@ -197,7 +197,6 @@ fn many_sequential_invocations_all_expand() {
     assert_eq!(plain_text(&source).matches("Hello").count(), 300);
 }
 
-// A self-recursive macro is stopped by the nesting-depth guard and returns without panicking.
 #[test]
 fn self_recursive_macro_terminates() {
     let _ = parse("\\newcommand{\\x}{\\x}\n\n\\x\n");

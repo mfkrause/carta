@@ -1,6 +1,7 @@
 //! Read LaTeX documents, metadata, and macro definitions.
 
-use std::collections::BTreeMap;
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use carta_ast::{Block, Document, MetaValue};
@@ -40,8 +41,13 @@ impl Reader for LatexReader {
             base_level,
             in_figure: false,
             in_float: false,
-            expand_depth: 0,
-            total_expansions: 0,
+            expansions: Rc::new(Expansions {
+                active: RefCell::new(BTreeSet::new()),
+                calls: Cell::new(100_000usize.saturating_add(input.len().saturating_mul(64))),
+                characters: Cell::new(
+                    (1usize << 20).saturating_add(input.len().saturating_mul(64)),
+                ),
+            }),
             nest_depth: 0,
             last_ws_had_newline: false,
         };
@@ -124,7 +130,7 @@ enum Stop<'a> {
 /// A user-defined macro: its argument count and replacement text, with `#1`…`#9` marking parameters.
 /// When `optional_default` is set, the first parameter is optional and takes this value unless the
 /// call supplies a `[…]` argument.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Macro {
     args: usize,
     optional_default: Option<String>,
@@ -137,6 +143,35 @@ struct Macro {
 struct Frame {
     chars: Vec<char>,
     pos: usize,
+    expansion: Option<Rc<Expansion>>,
+}
+
+type MacroCall = (String, Rc<Macro>, Vec<String>);
+
+struct Expansions {
+    active: RefCell<BTreeSet<MacroCall>>,
+    calls: Cell<usize>,
+    characters: Cell<usize>,
+}
+
+struct Expansion {
+    call: MacroCall,
+    state: Rc<Expansions>,
+    parent: Option<Rc<Expansion>>,
+}
+
+impl Drop for Expansion {
+    fn drop(&mut self) {
+        self.state.active.borrow_mut().remove(&self.call);
+        // Release finished call chains without recursive drops.
+        let mut parent = self.parent.take();
+        while let Some(expansion) = parent {
+            match Rc::try_unwrap(expansion) {
+                Ok(mut expansion) => parent = expansion.parent.take(),
+                Err(_) => break,
+            }
+        }
+    }
 }
 
 /// The character cursor and parse state.
@@ -150,7 +185,7 @@ struct Parser {
     meta: BTreeMap<String, MetaValue>,
     /// User macro definitions, shared with sub-parsers by reference; a sub-parser that defines its own
     /// macro copies the table on write, so definitions never leak across scopes.
-    macros: Rc<BTreeMap<String, Macro>>,
+    macros: Rc<BTreeMap<String, Rc<Macro>>>,
     ids: IdRegistry,
     /// The level offset for sectioning commands (see [`base_section_level`]).
     base_level: i32,
@@ -159,12 +194,7 @@ struct Parser {
     /// Whether the current context is a float body, where `\caption` ends a paragraph so it can be
     /// hoisted out as the float's caption.
     in_float: bool,
-    /// Current macro-expansion nesting depth (the number of live expansion frames), bounded to stop
-    /// runaway recursive expansions.
-    expand_depth: u32,
-    /// Total macro expansions performed by this parser, bounded to stop a branching macro from doing
-    /// exponential work while staying under the nesting cap.
-    total_expansions: u32,
+    expansions: Rc<Expansions>,
     /// Current block/inline nesting depth, shared by both parsing funnels and inherited by
     /// sub-parsers, bounded so adversarially nested input cannot exhaust the stack.
     nest_depth: u32,
@@ -188,33 +218,24 @@ enum InlineStop {
     QuoteDouble,
 }
 
-/// Bounds macro-expansion nesting depth (how deeply expansions may recurse into one another).
-const MAX_EXPAND_DEPTH: u32 = 200;
-
-/// Bounds the total number of expansions one parser may perform (its overall work budget).
-const MAX_TOTAL_EXPANSIONS: u32 = 100_000;
-
 const MAX_NEST_DEPTH: u32 = 256;
 
 impl Parser {
-    /// Replaces the frame stack with a single bottom frame over `source`, resetting the cursor and
-    /// the expansion nesting depth. Macro definitions and the total-expansion budget carry over.
+    /// Replaces the input frames while preserving macro definitions and expansion state.
     fn set_source(&mut self, source: &str) {
         self.frames = vec![Frame {
             chars: source.chars().collect(),
             pos: 0,
+            expansion: None,
         }];
-        self.expand_depth = 0;
     }
 
-    /// Pops expansion frames that have been read to exhaustion, decrementing the nesting depth for
-    /// each. The bottom frame (the source) is never popped, so at least one frame always remains.
+    /// Pops finished expansion frames, retaining the source frame.
     fn drop_exhausted_frames(&mut self) {
         while self.frames.len() > 1 {
             match self.frames.last() {
                 Some(frame) if frame.pos >= frame.chars.len() => {
                     self.frames.pop();
-                    self.expand_depth = self.expand_depth.saturating_sub(1);
                 }
                 _ => break,
             }

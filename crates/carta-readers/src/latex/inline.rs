@@ -636,13 +636,14 @@ impl Parser {
     }
 
     /// A sub-parser over `source` that inherits the shared context (extensions, smart mode, macro
-    /// table, section base level, expansion and nesting depth) but starts with fresh cursor and output state
+    /// table, section base level, expansion state and nesting depth) but starts with fresh cursor and output state
     /// (metadata and heading ids). It never inherits float context.
     pub(super) fn child(&self, source: &str, in_figure: bool) -> Parser {
         Parser {
             frames: vec![Frame {
                 chars: source.chars().collect(),
                 pos: 0,
+                expansion: self.frames.last().and_then(|frame| frame.expansion.clone()),
             }],
             ext: self.ext,
             smart: self.smart,
@@ -652,8 +653,7 @@ impl Parser {
             base_level: self.base_level,
             in_figure,
             in_float: false,
-            expand_depth: self.expand_depth,
-            total_expansions: 0,
+            expansions: Rc::clone(&self.expansions),
             nest_depth: self.nest_depth,
             last_ws_had_newline: false,
         }

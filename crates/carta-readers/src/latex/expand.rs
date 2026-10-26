@@ -10,7 +10,7 @@ use super::support::{
     substitute_macro, symbol_text,
 };
 use super::tables::parse_cell_inlines;
-use super::{Frame, InlineStop, MAX_EXPAND_DEPTH, MAX_TOTAL_EXPANSIONS, Macro, Parser};
+use super::{Expansion, Frame, InlineStop, Macro, Parser};
 
 impl Parser {
     // Accents & arguments
@@ -219,16 +219,17 @@ impl Parser {
             let args = self
                 .read_optional_raw()
                 .and_then(|s| s.trim().parse::<usize>().ok())
+                .filter(|&count| count <= 9)
                 .unwrap_or(0);
             let optional_default = self.read_optional_raw();
             let body = self.read_group_raw().unwrap_or_default();
             Rc::make_mut(&mut self.macros).insert(
                 macro_name,
-                Macro {
+                Rc::new(Macro {
                     args,
                     optional_default,
                     body,
-                },
+                }),
             );
         }
         if self.ext.contains(Extension::LatexMacros) {
@@ -279,23 +280,22 @@ impl Parser {
         let body = self.read_group_raw().unwrap_or_default();
         Rc::make_mut(&mut self.macros).insert(
             macro_name,
-            Macro {
+            Rc::new(Macro {
                 args,
                 optional_default: None,
                 body,
-            },
+            }),
         );
     }
 
     /// If the cursor is at a user macro invocation, pushes its expansion as a new input frame for the
     /// cursor to read next. Returns whether an expansion occurred.
     pub(super) fn try_expand_macro(&mut self) -> bool {
-        if !self.ext.contains(Extension::LatexMacros)
-            || self.expand_depth >= MAX_EXPAND_DEPTH
-            || self.total_expansions >= MAX_TOTAL_EXPANSIONS
-        {
+        if !self.ext.contains(Extension::LatexMacros) || self.expansions.calls.get() == 0 {
             return false;
         }
+        self.drop_exhausted_frames();
+        let parent = self.frames.last().and_then(|frame| frame.expansion.clone());
         let Some(name) = self.peek_control_word() else {
             return false;
         };
@@ -321,16 +321,29 @@ impl Parser {
                 None => args.push(String::new()),
             }
         }
-        // Consume arguments before pushing a frame so its parameters use this invocation's values.
-        let expanded = substitute_macro(&mac.body, &args);
+        let call = (name, Rc::clone(mac), args);
+        if self.expansions.active.borrow().contains(&call) {
+            return true;
+        }
+        let expanded = substitute_macro(&mac.body, &call.2);
+        let Some(left) = self.expansions.characters.get().checked_sub(expanded.len()) else {
+            self.expansions.calls.set(0);
+            return true;
+        };
+        self.expansions.characters.set(left);
+        self.expansions.calls.set(self.expansions.calls.get() - 1);
         if !expanded.is_empty() {
+            self.expansions.active.borrow_mut().insert(call.clone());
             self.frames.push(Frame {
                 chars: expanded.chars().collect(),
                 pos: 0,
+                expansion: Some(Rc::new(Expansion {
+                    call,
+                    state: Rc::clone(&self.expansions),
+                    parent,
+                })),
             });
-            self.expand_depth += 1;
         }
-        self.total_expansions += 1;
         true
     }
 
