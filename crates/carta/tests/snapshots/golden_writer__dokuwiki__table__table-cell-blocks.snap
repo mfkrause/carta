@@ -2,5 +2,5 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-^name ^notes          ^
+^name ^notes                             ^
 |alpha|first paragraph\\ \\ * one\\ * two|

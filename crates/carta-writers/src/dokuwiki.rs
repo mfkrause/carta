@@ -25,6 +25,10 @@ const LIST_INDENT: usize = 2;
 /// document is fully assembled. A private-use codepoint that never occurs in rendered markup.
 const CONTENT_BREAK: char = '\u{e000}';
 
+// Nested table rows must stay distinct from ordinary forced breaks when measuring padding.
+const TABLE_BREAK: &str = "\u{e001}";
+const TABLE_ROW_END: &str = "\u{e001}\n";
+
 /// Renders a document to `DokuWiki` markup.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DokuwikiWriter;
@@ -33,7 +37,10 @@ impl Writer for DokuwikiWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let body = render_blocks(&document.blocks, "\n\n", options.wrap);
         // Any content break that survived to the top level stands on its own physical line.
-        Ok(body.replace(CONTENT_BREAK, "\n"))
+        Ok(body
+            .replace(CONTENT_BREAK, "\n")
+            .replace(TABLE_ROW_END, "\n")
+            .replace(TABLE_BREAK, "\\\\ "))
     }
 }
 
@@ -513,11 +520,11 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
         .replace(CONTENT_BREAK, "\\\\ ");
     if !caption.is_empty() {
         out.push_str(&caption);
-        out.push('\n');
+        out.push_str(TABLE_ROW_END);
     }
     for (index, row) in rows.iter().enumerate() {
         if index > 0 {
-            out.push('\n');
+            out.push_str(TABLE_ROW_END);
         }
         out.push_str(&render_row(row, &widths, &aligns));
     }
@@ -617,6 +624,7 @@ fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
         .filter(|rendered| !rendered.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n")
+        .replace(TABLE_ROW_END, TABLE_BREAK)
         .replace(['\n', CONTENT_BREAK], "\\\\ ")
 }
 
@@ -636,7 +644,7 @@ fn cell_block(block: &Block, wrap: WrapMode) -> String {
     }
 }
 
-/// The width of each column, measured between forced line breaks.
+/// The width of each column, measured between nested table rows.
 fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
     let mut widths = vec![0usize; columns];
     for row in rows {
@@ -645,7 +653,7 @@ fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
                 && let Some(width) = widths.get_mut(column)
             {
                 *width = (*width).max(
-                    text.split("\\\\ ")
+                    text.split(TABLE_BREAK)
                         .map(|line| line.chars().count())
                         .max()
                         .unwrap_or(0),
