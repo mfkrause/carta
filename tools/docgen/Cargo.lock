@@ -49,7 +49,7 @@ checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "carta"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "carta-ast"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "compact_str",
  "itoa",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "carta-core"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "carta-ast",
  "carta-highlight",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "carta-highlight"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "fancy-regex",
  "miniz_oxide",
@@ -101,13 +101,14 @@ dependencies = [
 
 [[package]]
 name = "carta-readers"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "carta-ast",
  "carta-core",
  "caseless",
  "memchr",
- "regex",
+ "regex-automata",
+ "regex-syntax",
  "serde_json",
  "unicode-general-category",
  "unicode-normalization",
@@ -115,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "carta-writers"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -339,18 +340,6 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
-
-[[package]]
-name = "regex"
-version = "1.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1292b7759ae1cb9ec195452d1390a074f0cd8541ab7a5a8c31cd6db45d4a6ba"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-automata",
- "regex-syntax",
-]
 
 [[package]]
 name = "regex-automata"

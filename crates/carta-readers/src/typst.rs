@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use regex::Regex;
+use regex_automata::{Input, MatchKind, meta::Regex, util::prefilter::Prefilter};
 
 use carta_ast::{
     Alignment, Attr, Block, BlockParts, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth,
@@ -48,10 +48,15 @@ const BASE_WORK: usize = 1 << 20;
 
 /// Compile a regular expression within the engine's compiled-size limit.
 fn compile_regex(source: &str) -> Option<Pattern> {
-    if !source.is_empty() && regex::escape(source) == source {
+    if !source.is_empty() && regex_syntax::escape(source) == source {
         return Some(Pattern::Text(source.to_string()));
     }
-    Regex::new(source)
+    let expression = regex_syntax::Parser::new().parse(source).ok()?;
+    let prefix = Prefilter::from_hir_prefix(MatchKind::LeftmostFirst, &expression);
+    // Prefix-only acceleration avoids rebuilding prefilters for every concatenated expression.
+    Regex::builder()
+        .configure(Regex::config().auto_prefilter(false).prefilter(prefix))
+        .build_from_hir(&expression)
         .ok()
         .map(|regex| Pattern::Expression(Box::new(regex)))
 }
@@ -5203,7 +5208,7 @@ impl Pattern {
                 (start, start.saturating_add(needle.len()))
             }
             Pattern::Expression(regex) => {
-                let found = regex.find_at(text, from)?;
+                let found = regex.find(Input::new(text).span(from..text.len()))?;
                 return Some((found.start(), found.end()));
             }
         };
@@ -5236,14 +5241,18 @@ impl Pattern {
         let Pattern::Expression(regex) = self else {
             return Vec::new();
         };
-        let Some(found) = regex.captures_at(text, start) else {
+        let mut found = regex.create_captures();
+        regex.captures(Input::new(text).span(start..text.len()), &mut found);
+        if !found.is_match() {
             return Vec::new();
-        };
-        found
-            .iter()
-            .skip(1)
-            .map(|group| match group {
-                Some(group) => Value::Str(group.as_str().to_string()),
+        }
+        (1..found.group_len())
+            .map(|index| match found.get_group(index) {
+                Some(group) => Value::Str(
+                    text.get(group.start..group.end)
+                        .unwrap_or_default()
+                        .to_string(),
+                ),
                 None => Value::Nothing,
             })
             .collect()
