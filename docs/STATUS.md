@@ -381,9 +381,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `html` (+ `html5`) ✅
 ### `html4` ✅
-
 ### `revealjs` ✅
-- No slide-relative table of contents.
 
 ### `latex` ✅
 - A table nested in a cell cannot split across pages.
@@ -612,7 +610,7 @@ Notes list gaps and limitations only.
 | Feature | Status | Notes |
 | --- | :---: | --- |
 | Standalone output + templates (`-s`, `--template`) | ✅ | Each writer's scaffold (CSS, preamble) is authored independently and is not byte-identical across tools. |
-| Table of contents (`--toc`) | ✅ | `revealjs` does not yet emit a slide-relative contents structure. |
+| Table of contents (`--toc`) | ✅ | — |
 | Text wrapping (`--wrap`, `--columns`) | ✅ | A few constructs still account for width incorrectly when reflowed at narrow columns: line blocks, footnote bodies, the AsciiDoc list-marker indent, and roff line-continuation. |
 | Tab expansion (`--tab-stop`) | 🚧 | Only the `docbook` reader takes the column width from the option; the `rst`, `dokuwiki`, and `mediawiki` readers expand tabs on a fixed four-column grid. |
 | Section numbering (`--number-sections`) | ✅ | Inert in the Markdown family and `plain` (no heading-number syntax); `revealjs` is not yet numbered. |

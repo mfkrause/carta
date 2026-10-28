@@ -371,9 +371,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-revealjs",
-        "gaps": [
-          "No slide-relative table of contents."
-        ]
+        "gaps": []
       }
     },
     {

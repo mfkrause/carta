@@ -44,6 +44,16 @@ $if(date)$
 $endif$
 </section>
 $endif$
+$if(toc)$
+<section id="TOC">
+<nav role="doc-toc">
+$if(toc-title)$
+<h2 id="toc-title">$toc-title$</h2>
+$endif$
+$toc$
+</nav>
+</section>
+$endif$
 $body$
 </div>
 </div>

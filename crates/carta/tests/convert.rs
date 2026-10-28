@@ -108,6 +108,44 @@ fn revealjs_numbers_slide_titles_and_body_headings() {
 
 #[cfg(all(
     feature = "read-commonmark",
+    feature = "write-revealjs",
+    feature = "standalone"
+))]
+#[test]
+fn revealjs_contents_slide_has_navigation_anchors() {
+    for numbered in [false, true] {
+        let mut options = WriterOptions::default();
+        options.standalone = true;
+        options.toc = true;
+        options.number_sections = numbered;
+        let output = convert_text(
+            "markdown",
+            "revealjs",
+            "# First [label]{#heading-span} {#first}\n\nbody\n\n## Nested\n\n[owned](#first){#toc-owned}\n",
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        assert!(output.contains("<section id=\"TOC\">\n<nav role=\"doc-toc\">\n<ul>"));
+        assert!(output.contains(r##"href="#/first" id="/toc-first""##));
+        assert!(output.contains(r##"href="#/nested" id="/toc-nested""##));
+        assert!(output.contains(r##"href="#/first" id="toc-owned""##));
+        assert!(output.contains(r#"id="/heading-span""#));
+        assert!(output.contains(r#"id="heading-span""#));
+        let count = if numbered { 2 } else { 0 };
+        assert_eq!(
+            output.matches(r#"class="toc-section-number""#).count(),
+            count
+        );
+        assert_eq!(
+            output.matches(r#"class="header-section-number""#).count(),
+            count
+        );
+    }
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
     feature = "write-html",
     feature = "standalone"
 ))]

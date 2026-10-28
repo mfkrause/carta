@@ -194,7 +194,6 @@ read = "not-applicable"
 write = "usable"
 write-feature = "write-revealjs"
 write-gaps = [
-  "No slide-relative table of contents.",
 ]
 
 [[format]]
@@ -1001,7 +1000,6 @@ notes = "Each writer's scaffold (CSS, preamble) is authored independently and is
 [[feature]]
 name = "Table of contents (`--toc`)"
 status = "usable"
-notes = "`revealjs` does not yet emit a slide-relative contents structure."
 
 [[feature]]
 name = "Text wrapping (`--wrap`, `--columns`)"

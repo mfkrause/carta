@@ -63,6 +63,24 @@ impl Writer for RevealjsWriter {
     fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
         render_slide_metadata(blocks.to_vec(), options)
     }
+
+    fn render_toc(&self, block: &Block, options: &WriterOptions) -> Result<String> {
+        let mut document = Document {
+            blocks: vec![block.clone()],
+            ..Document::default()
+        };
+        carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+            if let Inline::Code(attr, ..)
+            | Inline::Span(attr, ..)
+            | Inline::Link(attr, ..)
+            | Inline::Image(attr, ..) = inline
+                && !attr.id.is_empty()
+            {
+                attr.id = format!("/{}", attr.id).into();
+            }
+        });
+        render_slide_metadata(document.blocks, options)
+    }
 }
 
 /// The sectioning-marker level of a slide, or `None` for a frame.

@@ -466,8 +466,7 @@ fn insert_output_vars(
                     TocSource::Prebuilt(block) => block,
                 };
                 if let Some(block) = toc {
-                    let rendered =
-                        writer.render_meta_blocks(&[block], &at_slot(options, template, "toc"))?;
+                    let rendered = writer.render_toc(&block, &at_slot(options, template, "toc"))?;
                     context.insert("toc".to_owned(), Value::Str(rendered));
                 }
             }

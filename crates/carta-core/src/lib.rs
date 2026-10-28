@@ -536,6 +536,14 @@ pub trait Writer {
             .to_string())
     }
 
+    /// Renders a generated list-style table of contents.
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the contents.
+    fn render_toc(&self, block: &Block, options: &WriterOptions) -> Result<String> {
+        self.render_meta_blocks(std::slice::from_ref(block), options)
+    }
+
     /// This format's own standalone template, or `None` when standalone output is identical to the
     /// fragment (no wrapping document exists for the format).
     fn default_template(&self) -> Option<&'static str> {
