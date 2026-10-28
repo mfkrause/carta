@@ -582,7 +582,6 @@
           "A code block ending in a newline gains an extra trailing break.",
           "A list item starting with a nested block has incorrect spacing.",
           "A bullet list inside an ordered-list item gains a blank line.",
-          "Internal links use URL strings rather than Typst label targets.",
           "Figure identifiers are dropped, leaving references without targets.",
           "`data:` images are used as filenames rather than decoded."
         ]

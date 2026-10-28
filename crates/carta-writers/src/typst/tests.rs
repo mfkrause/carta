@@ -79,6 +79,29 @@ fn heading_with_label() {
 }
 
 #[test]
+fn internal_links_use_label_targets() {
+    for (url, expected) in [
+        ("#section-one", "#link(<section-one>)[go]"),
+        ("#has space", "#link(label(\"has space\"))[go]"),
+        ("#a<b>", "#link(label(\"a<b>\"))[go]"),
+        ("#a\"b", "#link(label(\"a\\\"b\"))[go]"),
+        ("#", "#link()[go]"),
+    ] {
+        assert_eq!(
+            render(vec![para(vec![Inline::Link(
+                Box::default(),
+                vec![str_inline("go")],
+                Box::new(Target {
+                    url: url.into(),
+                    title: "".into(),
+                }),
+            )])]),
+            expected
+        );
+    }
+}
+
+#[test]
 fn heading_unnumbered_uses_function() {
     assert_eq!(
         render(vec![Block::Header(

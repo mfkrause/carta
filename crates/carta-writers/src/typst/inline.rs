@@ -360,13 +360,24 @@ fn cite(citations: &[carta_ast::Citation]) -> String {
 
 fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: bool) -> String {
     let plain = to_plain_text(items);
-    let url = escape_string(&target.url);
+    let destination = match target.url.strip_prefix('#') {
+        Some("") => String::new(),
+        Some(id)
+            if id
+                .chars()
+                .all(|ch| ch.is_alphanumeric() || "_-.:".contains(ch)) =>
+        {
+            format!("<{id}>")
+        }
+        Some(id) => format!("label(\"{}\")", escape_string(id)),
+        None => format!("\"{}\"", escape_string(&target.url)),
+    };
     if plain == target.url {
-        format!("#link(\"{url}\")")
+        format!("#link({destination})")
     } else {
         // Unbounded width: the link is one unit for wrapping, yet `Preserve` keeps inner breaks.
         let label = fill(&fragments(items, width, wrap, smart), usize::MAX, wrap);
-        format!("#link(\"{url}\")[{label}]")
+        format!("#link({destination})[{label}]")
     }
 }
 
