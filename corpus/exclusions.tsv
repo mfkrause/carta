@@ -47,9 +47,6 @@ man	math/braces
 man	math/matrix-array
 man	math/over-under-set
 
-# DOCX adds a trailing break when a code block ends in a newline.
-docx	common/code-block-trailing-newline
-
 # A table nested inside a block quote is not yet reflowed at parity by these writers, which drop the
 # quote's blank continuation line or misprefix the table rows with the quote marker.
 plain	table/table-in-blockquote

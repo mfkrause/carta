@@ -477,7 +477,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   scripts).
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
-- A code block ending in a newline gains an extra trailing break.
 
 ### `epub` (+ `epub2`, `epub3`) ✅
 - EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`

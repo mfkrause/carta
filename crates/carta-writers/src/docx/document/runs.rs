@@ -35,6 +35,7 @@ pub(super) fn code_paragraph(
         style: Some(Cow::Borrowed("VerbatimChar")),
         ..RunProps::default()
     };
+    let code = code.strip_suffix('\n').unwrap_or(code);
     let mut first = true;
     for line in code.split('\n') {
         if !first {
@@ -59,9 +60,8 @@ fn highlighted_code_runs(attr: &Attr, code: &str, hl: &DocxHl) -> Option<Vec<Ele
         .classes
         .iter()
         .find(|class| highlighter.registry().is_known(class.as_str()))?;
-    let source = code.strip_suffix('\n').unwrap_or(code);
     let lines = highlighter
-        .highlight(language.as_str(), source)
+        .highlight(language.as_str(), code)
         .unwrap_or_default();
     let mut runs = Vec::new();
     for (index, line) in lines.iter().enumerate() {
@@ -556,5 +556,30 @@ mod tests {
             para,
             "<w:p><w:pPr><w:pStyle w:val=\"SourceCode\" /></w:pPr></w:p>"
         );
+    }
+
+    #[test]
+    fn code_blocks_preserve_trailing_breaks() {
+        for (code, breaks) in [("x", 0), ("x\n", 0), ("x\n\n", 1), ("\n", 0), ("\n\n", 1)] {
+            let para = code_paragraph(&Attr::default(), code, None, &DocxHl::default()).render();
+            assert_eq!(para.matches("<w:br />").count(), breaks, "{code:?}");
+            assert!(!para.contains("<w:t xml:space=\"preserve\"></w:t>"));
+        }
+    }
+
+    #[cfg(feature = "highlight")]
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn highlighted_code_blocks_preserve_trailing_breaks() {
+        let highlighter = Some(std::sync::Arc::new(carta_highlight::Highlighter::new()));
+        let attr = Attr {
+            classes: vec!["rust".into()],
+            ..Attr::default()
+        };
+        for (code, breaks) in [("", 0), ("\n", 0), ("\n\n", 1), ("1\n", 0), ("1\n\n", 1)] {
+            let runs = highlighted_code_runs(&attr, code, &highlighter).unwrap();
+            let output: String = runs.iter().map(Element::render).collect();
+            assert_eq!(output.matches("<w:br />").count(), breaks, "{code:?}");
+        }
     }
 }
