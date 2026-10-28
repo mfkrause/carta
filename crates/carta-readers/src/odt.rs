@@ -657,7 +657,9 @@ impl<'a> Converter<'a> {
             "reference-mark-start" => self.push_reference_mark(element, out),
             "bookmark-ref" | "reference-ref" => self.convert_cross_reference(element, out),
             "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
-            | "reference-mark" | "reference-mark-end" | "soft-page-break" => {}
+            | "reference-mark" | "reference-mark-end" | "soft-page-break" | "date"
+            | "page-number" | "page-count" | "author-name" | "title" | "chapter" | "file-name"
+            | "sequence-ref" | "note-ref" => {}
             "note" => out.push(self.convert_note(element)),
             "frame" => self.convert_frame(element, out),
             _ => {

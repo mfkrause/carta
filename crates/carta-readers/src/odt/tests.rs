@@ -36,6 +36,30 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn cached_fields_do_not_add_display_text() {
+    for field in [
+        "date",
+        "page-number",
+        "page-count",
+        "author-name",
+        "title",
+        "chapter",
+        "file-name",
+        "sequence-ref",
+        "note-ref",
+    ] {
+        let body = content(&format!(
+            "<text:p>Before<text:{field}><text:span>cached</text:span></text:{field}>After</text:p>"
+        ));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        assert_eq!(
+            read(&odt).expect("read cached field").blocks,
+            vec![Block::Para(vec![Inline::Str("BeforeAfter".into())])]
+        );
+    }
+}
+
+#[test]
 fn images_without_targets_are_dropped() {
     for target in ["", "xlink:href=\"\""] {
         let body = content(&format!(

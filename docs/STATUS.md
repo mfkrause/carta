@@ -253,9 +253,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-- A field element with cached display text (`text:date`, `text:page-number`, `text:page-count`,
-  `text:author-name`, `text:title`, `text:chapter`, `text:file-name`, `text:sequence-ref`,
-  `text:note-ref`) keeps its cached text as `Str` runs rather than being dropped.
 - A `text:number` cached list-numbering label inside a list-item paragraph leaks into the item text
   rather than being dropped.
 - A `text:meta` in-content metadata wrapper leaks its displayed prose rather than dropping it.
