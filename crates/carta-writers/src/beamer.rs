@@ -6,7 +6,8 @@ use carta_ast::{Attr, Block, Document, Inline};
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::latex::{
-    Dialect, Hl, anchor, code_highlighting, render_fragment, render_heading, render_titled_open,
+    Dialect, Hl, anchor, code_highlighting, render_blocks, render_fragment, render_heading,
+    render_titled_open,
 };
 use crate::slides::{FrameTitle, Heading, Slide, group_headings, segment, slide_level};
 
@@ -49,12 +50,32 @@ impl Writer for BeamerWriter {
     }
 
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
-        crate::latex::LatexWriter.render_meta_inlines(inlines, options)
+        render_metadata(vec![Block::Plain(inlines.to_vec())], options)
     }
 
     fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
-        crate::latex::LatexWriter.render_meta_blocks(blocks, options)
+        render_metadata(blocks.to_vec(), options)
     }
+}
+
+fn render_metadata(blocks: Vec<Block>, options: &WriterOptions) -> Result<String> {
+    let document = Document {
+        blocks,
+        ..Document::default()
+    };
+    carta_core::budget::scope(&document, || {
+        Ok(render_blocks(
+            &document.blocks,
+            options.columns.unwrap_or(crate::common::FILL_COLUMN),
+            0,
+            Dialect::SLIDE,
+            options.wrap,
+            options.extensions.contains(Extension::Smart),
+            code_highlighting(options),
+        )
+        .trim_end_matches('\n')
+        .to_owned())
+    })
 }
 
 /// The frame classes recognized as presentation options, in the order they are emitted within a
@@ -300,7 +321,7 @@ fn table_contains_code(table: &carta_ast::Table) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use carta_ast::Attr;
+    use carta_ast::{Attr, Target};
 
     fn render(blocks: Vec<Block>) -> String {
         BeamerWriter
@@ -316,6 +337,49 @@ mod tests {
 
     fn para(text: &str) -> Block {
         Block::Para(vec![Inline::Str(text.to_owned().into())])
+    }
+
+    #[test]
+    fn internal_links_use_slide_commands_in_body_titles_and_metadata() {
+        let link = Inline::Link(
+            Box::default(),
+            vec![Inline::Str("go".into())],
+            Box::new(Target {
+                url: "#target".into(),
+                title: "".into(),
+            }),
+        );
+        let heading = |level, id: &str| {
+            Block::Header(
+                level,
+                Box::new(Attr {
+                    id: id.into(),
+                    ..Attr::default()
+                }),
+                vec![link.clone()],
+            )
+        };
+        assert_eq!(
+            render(vec![
+                heading(1, "section"),
+                heading(2, "target"),
+                Block::Para(vec![link.clone()])
+            ]),
+            "\\section{\\texorpdfstring{\\hyperlink{target}{go}}{go}}\\label{section}\n\n\\begin{frame}{\\hyperlink{target}{go}}\n\\protect\\phantomsection\\label{target}\n\\hyperlink{target}{go}\n\\end{frame}"
+        );
+        let options = WriterOptions::default();
+        assert_eq!(
+            BeamerWriter
+                .render_meta_inlines(std::slice::from_ref(&link), &options)
+                .unwrap(),
+            "\\hyperlink{target}{go}"
+        );
+        assert_eq!(
+            BeamerWriter
+                .render_meta_blocks(&[Block::Para(vec![link])], &options)
+                .unwrap(),
+            "\\hyperlink{target}{go}"
+        );
     }
 
     fn header(level: i64, id: &str, title: &str) -> Block {

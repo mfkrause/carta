@@ -253,12 +253,14 @@ fn push_link(
             phantom_label(&attr.id)
         }));
     }
-    // Fragments use `\hyperref`; only external links need boxes inside `soul` commands.
+    // Internal references do not need the external-link boxes used inside soul commands.
     if let Some(reference) = target.url.strip_prefix('#') {
-        out.push(Piece::text(format!(
-            "\\hyperref[{}]{{",
-            cross_reference_label(reference)
-        )));
+        let label = cross_reference_label(reference);
+        out.push(Piece::text(if dialect.is_slide() {
+            format!("\\hyperlink{{{label}}}{{")
+        } else {
+            format!("\\hyperref[{label}]{{")
+        }));
         for inline in inlines {
             push_inline(
                 inline, out, width, dialect, wrap, smart, in_header, in_soul, hl,

@@ -278,8 +278,7 @@
           "Task-list checkboxes are not rendered.",
           "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing.",
-          "`data:` images are used as graphics filenames rather than decoded.",
-          "Internal links use generic URLs rather than Beamer hyperlinks."
+          "`data:` images are used as graphics filenames rather than decoded."
         ]
       }
     },

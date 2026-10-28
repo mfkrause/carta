@@ -83,11 +83,8 @@ impl Writer for LatexWriter {
     }
 }
 
-/// The LaTeX variant a block sequence is rendered for. The slide variant changes three constructs:
-/// a footnote is anchored for incremental overlays, an ordered list states its label as an
-/// `enumerate` template, and a long table places its closing rule after the body rather than in a
-/// repeating footer. Its `incremental` flag, set inside a presentation's incremental region, gives
-/// every list an `[<+->]` overlay so its items reveal one at a time.
+/// Slides use presentation links, footnotes, lists, and tables.
+/// `incremental` adds `[<+->]` overlays to lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Dialect {
     Article,
@@ -126,8 +123,7 @@ pub(crate) fn render_fragment(
         .to_owned()
 }
 
-/// Render a header as a sectioning command, the form used for headers above a presentation's slide
-/// level. Identical to a top-level header in the article dialect.
+/// Render a section heading above a presentation's slide level.
 pub(crate) fn render_heading(
     level: i64,
     attr: &Attr,
@@ -141,7 +137,7 @@ pub(crate) fn render_heading(
         attr,
         inlines,
         FILL_COLUMN,
-        Dialect::Article,
+        Dialect::SLIDE,
         wrap,
         smart,
         hl,
@@ -178,7 +174,7 @@ pub(crate) fn anchor(id: &str) -> String {
 }
 
 /// Render a block sequence with a blank line between blocks, dropping those that produce no output.
-fn render_blocks(
+pub(crate) fn render_blocks(
     blocks: &[Block],
     width: usize,
     enum_depth: usize,

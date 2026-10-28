@@ -394,7 +394,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
 - `data:` images are used as graphics filenames rather than decoded.
-- Internal links use generic URLs rather than Beamer hyperlinks.
 
 ### `html` (+ `html5`) ✅
 - Empty table header rows are retained.
