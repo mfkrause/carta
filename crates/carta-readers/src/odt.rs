@@ -196,12 +196,36 @@ impl<'a> Converter<'a> {
         let content = xml::parse(content, MAX_XML_DEPTH)
             .ok_or_else(|| Error::Container("content.xml is not well-formed XML".into()))?;
         self.index_styles(&content);
-        Ok(
-            match content.child("body").and_then(|body| body.child("text")) {
-                Some(text) => self.convert_body_blocks(text),
-                None => Vec::new(),
-            },
-        )
+        let blocks = match content.child("body").and_then(|body| body.child("text")) {
+            Some(text) => self.convert_body_blocks(text),
+            None => Vec::new(),
+        };
+        let mut remaining = blocks.into_iter();
+        let mut output = Vec::new();
+        while let Some(mut block) = remaining.next() {
+            let Block::Table(table) = &mut block else {
+                output.push(block);
+                output.extend(remaining);
+                break;
+            };
+            let mut following = remaining.next();
+            match following.as_mut() {
+                Some(Block::Div(attr, caption))
+                    if attr.id.is_empty()
+                        && matches!(attr.classes.as_slice(), [class] if class == "caption") =>
+                {
+                    table.caption.long = std::mem::take(caption);
+                    output.push(block);
+                }
+                _ => {
+                    output.push(block);
+                    output.extend(following);
+                    output.extend(remaining);
+                    break;
+                }
+            }
+        }
+        Ok(output)
     }
 
     fn index_styles(&mut self, root: &Element) {

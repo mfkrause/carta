@@ -325,9 +325,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Image width and height remain raw length strings.
 - Underline is represented as `Emph` (no `Underline` node); small caps and text-transform are not
   represented.
-- Tables degrade: column widths and cell alignment are always default, output is a single body with
-  an empty foot and caption, and merged (covered) cells are skipped rather than represented as
-  spans.
 - List numbering outside the recognized set (`i`/`I`/`a`/`A`; suffix `)`/`.`; prefix-and-suffix
   `()`) falls back to decimal with the default delimiter, and a number level with no `num-format` is
   treated as a bullet.

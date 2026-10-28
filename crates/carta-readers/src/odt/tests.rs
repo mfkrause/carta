@@ -89,6 +89,49 @@ fn table_caption_style_keeps_its_class() {
 }
 
 #[test]
+fn table_captions_attach_only_to_leading_pairs() {
+    let table = "<table:table><table:table-row><table:table-cell>\
+        <text:p>Cell</text:p></table:table-cell></table:table-row></table:table>";
+    let first = "<text:p text:style-name=\"Table\">First</text:p>";
+    let second = "<text:p text:style-name=\"Table\">Second</text:p>";
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Table\" style:family=\"paragraph\"/>\
+        </office:styles></office:document-styles>";
+    for (body, expected, count) in [
+        (format!("{table}{first}"), vec!["First"], 1),
+        (
+            format!("{table}{first}{table}{second}"),
+            vec!["First", "Second"],
+            2,
+        ),
+        (format!("<text:p>Intro</text:p>{table}{first}"), vec![""], 3),
+        (format!("{table}{table}{first}"), vec!["", ""], 3),
+    ] {
+        let body = content(&body);
+        let odt = package(&[
+            ("content.xml", body.as_bytes()),
+            ("styles.xml", styles.as_bytes()),
+        ]);
+        let document = read(&odt).expect("read table captions");
+        let captions: Vec<_> = document
+            .blocks
+            .iter()
+            .filter_map(|block| {
+                if let Block::Table(table) = block {
+                    Some(carta_ast::to_plain_text(carta_ast::single_block_inlines(
+                        &table.caption.long,
+                    )))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(captions, expected);
+        assert_eq!(document.blocks.len(), count);
+    }
+}
+
+#[test]
 fn figure_caption_labels_do_not_change_image_alt_text() {
     for (original, expected) in [
         ("Figure 1: Caption", "Caption"),
