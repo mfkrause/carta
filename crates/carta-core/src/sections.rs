@@ -173,10 +173,11 @@ pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool, anchors: bool) 
         &mut counters,
         &mut entries,
     );
-    if entries.is_empty() {
+    let items = nest(&entries);
+    if items.is_empty() {
         None
     } else {
-        Some(Block::BulletList(nest(&entries)))
+        Some(Block::BulletList(items))
     }
 }
 
@@ -185,6 +186,9 @@ pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool, anchors: bool) 
 struct Entry {
     level: i64,
     content: Vec<Inline>,
+    unlisted: bool,
+    /// Headings after the containing division cannot become children.
+    max_children: usize,
 }
 
 fn collect_entries(
@@ -212,16 +216,30 @@ fn collect_entries_nested(
         match block {
             Block::Header(level, attr, inlines) => {
                 // every heading advances the counters, even those deeper than `depth` the list omits
-                let number = counters.advance(*level, &attr.classes);
+                let computed = counters.advance(*level, &attr.classes);
+                let number = attr
+                    .attributes
+                    .iter()
+                    .find(|(key, _)| key == "number")
+                    .map(|(_, value)| value.as_str())
+                    .or(computed.as_deref().filter(|_| numbered));
                 if (1..=depth).contains(&usize::try_from(*level).unwrap_or(0)) {
                     entries.push(Entry {
                         level: *level,
-                        content: toc_entry(attr, inlines, numbered, number.as_deref(), anchors),
+                        content: toc_entry(attr, inlines, numbered, number, anchors),
+                        unlisted: number.is_none()
+                            && attr.classes.iter().any(|class| class == "unlisted"),
+                        max_children: usize::MAX,
                     });
                 }
             }
             Block::Div(_, inner) => {
+                let start = entries.len();
                 collect_entries(inner, depth, numbered, anchors, counters, entries);
+                let count = entries.len() - start;
+                for (index, entry) in entries.iter_mut().skip(start).enumerate() {
+                    entry.max_children = entry.max_children.min(count - index - 1);
+                }
             }
             _ => {}
         }
@@ -240,12 +258,18 @@ fn nest_nested(entries: &[Entry]) -> Vec<Vec<Block>> {
     while let Some((first, tail)) = rest.split_first() {
         let child_count = tail
             .iter()
+            .take(first.max_children)
             .take_while(|entry| entry.level > first.level)
             .count();
         let (children, after) = tail.split_at(child_count);
+        if first.unlisted {
+            rest = after;
+            continue;
+        }
         let mut blocks = vec![Block::Plain(first.content.clone())];
+        let children = nest(children);
         if !children.is_empty() {
-            blocks.push(Block::BulletList(nest(children)));
+            blocks.push(Block::BulletList(children));
         }
         items.push(blocks);
         rest = after;
@@ -521,6 +545,52 @@ mod tests {
                 true
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn toc_omits_unlisted_sections_without_hiding_later_divisions() {
+        let urls = |blocks: &[Block], numbered| {
+            let mut toc: Vec<_> = build_toc(blocks, 6, numbered, true).into_iter().collect();
+            let mut urls = Vec::new();
+            walk::for_each_link_target(&mut toc, &mut |target| urls.push(target.url.to_string()));
+            urls
+        };
+        let blocks = vec![
+            header(1, &["unlisted"], "Hidden"),
+            header(2, &[], "Child"),
+            header(1, &[], "Visible"),
+        ];
+        assert_eq!(urls(&blocks, false), ["#visible"]);
+        assert_eq!(urls(&blocks, true), ["#hidden", "#child", "#visible"]);
+        let blocks = vec![
+            Block::Div(Box::default(), blocks.into_iter().take(2).collect()),
+            header(2, &[], "Outside"),
+            header(1, &[], "Visible"),
+        ];
+        assert_eq!(urls(&blocks, false), ["#outside", "#visible"]);
+        let mut explicit = header(1, &["unnumbered", "unlisted"], "Explicit");
+        if let Block::Header(_, attr, _) = &mut explicit {
+            attr.attributes.push(("number".into(), "9".into()));
+        }
+        assert_eq!(urls(&[explicit], true), ["#explicit"]);
+        assert!(
+            build_toc(
+                &[header(1, &["unnumbered", "unlisted"], "Hidden")],
+                6,
+                true,
+                true
+            )
+            .is_none()
+        );
+        assert_eq!(
+            build_toc(
+                &[header(1, &[], "Parent"), header(2, &["unlisted"], "Hidden")],
+                6,
+                false,
+                true
+            ),
+            build_toc(&[header(1, &[], "Parent")], 6, false, true)
         );
     }
 
