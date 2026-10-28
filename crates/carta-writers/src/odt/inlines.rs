@@ -329,6 +329,7 @@ impl Builder<'_> {
     pub(super) fn push_verbatim(&mut self, text: &str) {
         let mut chars = text.chars().peekable();
         let mut at_start = true;
+        let mut after_tab = false;
         while let Some(ch) = chars.next() {
             match ch {
                 ' ' => {
@@ -337,10 +338,12 @@ impl Builder<'_> {
                         chars.next();
                         run += 1;
                     }
-                    if at_start || run > 1 {
-                        let _ = write!(self.body, "<text:s text:c=\"{run}\" />");
-                    } else {
+                    if !at_start && !after_tab {
                         self.body.push(' ');
+                        run -= 1;
+                    }
+                    if run > 0 {
+                        let _ = write!(self.body, "<text:s text:c=\"{run}\" />");
                     }
                 }
                 '\t' => self.body.push_str("<text:tab />"),
@@ -350,6 +353,7 @@ impl Builder<'_> {
                 other if is_xml_char(other) => self.body.push(other),
                 _ => {}
             }
+            after_tab = ch == '\t' && !at_start;
             at_start = false;
         }
     }

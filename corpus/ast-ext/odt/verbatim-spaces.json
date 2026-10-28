@@ -1,0 +1,9 @@
+{
+  "pandoc-api-version": [1, 23, 1, 2],
+  "meta": {},
+  "blocks": [
+    {"t": "CodeBlock", "c": [["", [], []], "  leading\nmiddle  gap\ntrailing  \n\t  tabs\nA\t  tabs"]},
+    {"t": "Para", "c": [{"t": "Code", "c": [["", [], []], "  leading  middle  "]}]},
+    {"t": "Para", "c": [{"t": "Str", "c": "left  right  "}]}
+  ]
+}

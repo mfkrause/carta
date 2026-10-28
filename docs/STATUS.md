@@ -454,9 +454,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   plain.
 - A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted
   plain.
-- An internal or trailing run of two or more verbatim spaces in `Code`/`CodeBlock` is emitted as a
-  single `text:s` covering the whole run rather than one literal space plus a `text:s` for the
-  remainder.
 - A double-quote in XML text content is emitted literally rather than as `&quot;`.
 - A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.
 - A `data:` image with an empty or absent media type gets a `.plain` extension rather than none.
