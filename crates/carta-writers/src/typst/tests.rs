@@ -102,6 +102,33 @@ fn internal_links_use_label_targets() {
 }
 
 #[test]
+fn figures_keep_label_targets() {
+    for (id, label) in [
+        ("photo", "<photo>"),
+        ("has space", "#label(\"has space\")"),
+        (" a  b ", "#label(\" a  b \")"),
+        ("a<b>", "#label(\"a<b>\")"),
+        ("a\"b", "#label(\"a\\\"b\")"),
+    ] {
+        let figure = Block::Figure(
+            Box::new(Attr {
+                id: id.into(),
+                ..Attr::default()
+            }),
+            Box::new(Caption {
+                short: None,
+                long: vec![Block::Plain(vec![str_inline("caption")])],
+            }),
+            vec![Block::Plain(vec![str_inline("body")])],
+        );
+        assert_eq!(
+            render(vec![figure]),
+            format!("#figure([body],\n  caption: [\n    caption\n  ]\n)\n{label}")
+        );
+    }
+}
+
+#[test]
 fn heading_unnumbered_uses_function() {
     assert_eq!(
         render(vec![Block::Header(

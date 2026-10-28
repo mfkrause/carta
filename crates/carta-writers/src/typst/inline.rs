@@ -10,7 +10,7 @@ use crate::common::display_width;
 use super::escape::{
     escape_string, escape_text, image_call, inline_code, math, quote_marks, raw_inline_passthrough,
 };
-use super::{Fragment, blocks, label};
+use super::{Fragment, blocks, label, label_target};
 
 /// Render inline content laid out per the document's wrap mode (paragraph context).
 pub(super) fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
@@ -361,15 +361,7 @@ fn cite(citations: &[carta_ast::Citation]) -> String {
 fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: bool) -> String {
     let plain = to_plain_text(items);
     let destination = match target.url.strip_prefix('#') {
-        Some("") => String::new(),
-        Some(id)
-            if id
-                .chars()
-                .all(|ch| ch.is_alphanumeric() || "_-.:".contains(ch)) =>
-        {
-            format!("<{id}>")
-        }
-        Some(id) => format!("label(\"{}\")", escape_string(id)),
+        Some(id) => label_target(id),
         None => format!("\"{}\"", escape_string(&target.url)),
     };
     if plain == target.url {

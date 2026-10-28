@@ -104,7 +104,7 @@ fn block(value: &Block, width: usize, wrap: WrapMode, smart: bool) -> String {
         Block::HorizontalRule => "#horizontalrule".to_owned(),
         Block::LineBlock(lines) => line_block(lines, width, wrap, smart),
         Block::Table(table) => render_table(table, width, wrap, smart),
-        Block::Figure(_, caption, items) => figure(caption, items, width, wrap, smart),
+        Block::Figure(attr, caption, items) => figure(attr, caption, items, width, wrap, smart),
         Block::Div(attr, items) => div(attr, items, width, wrap, smart),
     }
 }
@@ -132,18 +132,29 @@ fn header(
     }
 }
 
-/// A trailing label for a node carrying an id. Typst's `<name>` short form holds an identifier-like
-/// id; an id containing whitespace is emitted through `#label("..")`, with interior whitespace
-/// collapsed to single spaces.
+/// A trailing label for a node carrying an identifier.
 pub(super) fn label(id: &str) -> Option<String> {
     if id.is_empty() {
         return None;
     }
-    if id.contains(char::is_whitespace) {
-        let normalized: String = id.split_whitespace().collect::<Vec<_>>().join(" ");
-        Some(format!("#label(\"{}\")", escape_string(&normalized)))
+    let target = label_target(id);
+    if target.starts_with('<') {
+        Some(target)
     } else {
-        Some(format!("<{id}>"))
+        Some(format!("#{target}"))
+    }
+}
+
+fn label_target(id: &str) -> String {
+    if id.is_empty() {
+        String::new()
+    } else if id
+        .chars()
+        .all(|ch| ch.is_alphanumeric() || "_-.:".contains(ch))
+    {
+        format!("<{id}>")
+    } else {
+        format!("label(\"{}\")", escape_string(id))
     }
 }
 
@@ -322,15 +333,26 @@ fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode, smart: bool) 
     }
 }
 
-fn figure(caption: &Caption, items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
+fn figure(
+    attr: &Attr,
+    caption: &Caption,
+    items: &[Block],
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
     let inner = match figure_image(items) {
         Some(image) => image,
         None => format!("[{}]", blocks(items, width, wrap, smart)),
     };
-    format!(
+    let figure = format!(
         "#figure({inner},\n  caption: [\n    {}\n  ]\n)",
         blocks(&caption.long, width, wrap, smart).trim_end_matches('\n')
-    )
+    );
+    match label(&attr.id) {
+        Some(label) => format!("{figure}\n{label}"),
+        None => figure,
+    }
 }
 
 /// When a figure's body is a single image, the bare `image(..)` call carried directly as the
