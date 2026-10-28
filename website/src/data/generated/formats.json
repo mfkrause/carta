@@ -660,7 +660,6 @@
         "ships": true,
         "feature": "write-org",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing."
         ]
       }

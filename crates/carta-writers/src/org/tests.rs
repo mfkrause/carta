@@ -14,6 +14,31 @@ fn s(text: &str) -> Inline {
     Inline::Str(text.to_owned().into())
 }
 
+#[test]
+fn list_markers_stand_above_initial_blocks() {
+    for (block, expected) in [
+        (
+            Block::CodeBlock(Box::default(), "x".into()),
+            "- \n  #+begin_example\n  x\n  #+end_example",
+        ),
+        (
+            Block::BlockQuote(vec![Block::Para(vec![s("quoted")])]),
+            "- \n\n  #+begin_quote\n  quoted\n  #+end_quote",
+        ),
+    ] {
+        let document = Document {
+            blocks: vec![Block::BulletList(vec![vec![block]])],
+            ..Document::default()
+        };
+        assert_eq!(
+            OrgWriter
+                .write(&document, &WriterOptions::default())
+                .unwrap(),
+            expected
+        );
+    }
+}
+
 fn link(label: Vec<Inline>, url: &str) -> Inline {
     Inline::Link(
         Box::default(),

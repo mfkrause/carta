@@ -170,8 +170,7 @@ impl State {
         let mut units = Vec::new();
         for item in items {
             let item = self.checkbox_item(item);
-            let body = self.blocks(&item, width.saturating_sub(2), true);
-            units.push(indent_block(&body, "- ", "  "));
+            units.push(self.list_item(&item, width.saturating_sub(2), "- ", "  "));
         }
         join_items(units, item_separator(loose))
     }
@@ -230,10 +229,26 @@ impl State {
             };
             let first = format!("{marker} {cookie}");
             let rest = " ".repeat(field);
-            let body = self.blocks(item, width.saturating_sub(field), true);
-            units.push(indent_block(&body, &first, &rest));
+            units.push(self.list_item(item, width.saturating_sub(field), &first, &rest));
         }
         join_items(units, item_separator(loose))
+    }
+
+    fn list_item(&mut self, item: &[Block], width: usize, first: &str, rest: &str) -> String {
+        let body = self.blocks(item, width, true);
+        if let Some(block) = item.first()
+            && !body.is_empty()
+            && !matches!(block, Block::Plain(_) | Block::Para(_))
+        {
+            let breaks = if leading_blank(block) && !matches!(block, Block::Table(_)) {
+                "\n\n"
+            } else {
+                "\n"
+            };
+            indent_block(&body, &format!("{first}{breaks}{rest}"), rest)
+        } else {
+            indent_block(&body, first, rest)
+        }
     }
 
     fn definition_list(
