@@ -194,6 +194,9 @@ impl Builder<'_> {
     }
 
     fn code_block(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
         let trimmed = text.strip_suffix('\n').unwrap_or(text);
         for line in trimmed.split('\n') {
             self.body
