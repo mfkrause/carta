@@ -271,8 +271,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   numbered paragraph being dropped.
 - An unrecognized `style:num-format` on a numbered list level yields a decimal `OrderedList` rather
   than falling back to a `BulletList`.
-- An `OrderedList` `text:start-value` that overflows `i32` falls back to start 1 rather than the
-  parsed value.
 - Block content (a list, table, or heading) inside a footnote/endnote body is kept rather than
   reduced to paragraph flow.
 - A `text:h` heading inside a table cell is kept as a `Header` rather than dropped.

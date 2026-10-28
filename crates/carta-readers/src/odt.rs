@@ -114,7 +114,7 @@ struct ParaStyle {
 #[derive(Debug, Clone)]
 enum LevelStyle {
     Bullet,
-    Number(ListNumberStyle, ListNumberDelim, i32),
+    Number(ListNumberStyle, ListNumberDelim, i64),
 }
 
 /// A list style's marker shapes indexed by nesting level.
@@ -300,7 +300,7 @@ impl<'a> Converter<'a> {
                             );
                             let start = level
                                 .attr("start-value")
-                                .and_then(|value| value.parse::<i32>().ok())
+                                .and_then(|value| value.parse::<i64>().ok())
                                 .unwrap_or(1);
                             levels.insert(index, LevelStyle::Number(number, delim, start));
                         }
@@ -487,7 +487,7 @@ impl<'a> Converter<'a> {
             Some(LevelStyle::Bullet) => Block::BulletList(items),
             Some(LevelStyle::Number(style, delim, start)) => Block::OrderedList(
                 ListAttributes {
-                    start: i64::from(start),
+                    start,
                     style,
                     delim,
                 },

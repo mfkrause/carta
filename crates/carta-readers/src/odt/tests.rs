@@ -50,6 +50,28 @@ fn heading_levels_keep_large_signed_values() {
 }
 
 #[test]
+fn list_starts_keep_large_signed_values() {
+    let body = content(
+        "<text:list text:style-name=\"L\"><text:list-item><text:p>Item</text:p></text:list-item></text:list>",
+    );
+    for start in [i64::MIN, -2_147_483_649, 2_147_483_648, i64::MAX] {
+        let styles = format!(
+            "<office:document-styles><office:styles><text:list-style style:name=\"L\">\
+             <text:list-level-style-number text:level=\"1\" style:num-format=\"1\" text:start-value=\"{start}\"/>\
+             </text:list-style></office:styles></office:document-styles>"
+        );
+        let odt = package(&[
+            ("content.xml", body.as_bytes()),
+            ("styles.xml", styles.as_bytes()),
+        ]);
+        let document = read(&odt).expect("read list start");
+        assert!(
+            matches!(document.blocks.as_slice(), [Block::OrderedList(attr, _)] if attr.start == start)
+        );
+    }
+}
+
+#[test]
 fn sections_keep_their_containers_inside_lists_and_body() {
     let body = content(
         "<text:section text:name=\"Named\"><text:section/><text:p>Text</text:p></text:section>\
