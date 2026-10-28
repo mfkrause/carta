@@ -522,9 +522,7 @@ impl State {
         item
     }
 
-    /// Render inlines to a breakable stream of fill pieces. Markup spans become a single unbreakable
-    /// run so they are never reflowed; small caps and generic spans are transparent; a quotation glues
-    /// its glyphs to its content's outer pieces so the interior can still wrap.
+    /// Keep span and quote delimiters with their outer words while the interior wraps.
     fn pieces(&mut self, inlines: &[Inline]) -> Vec<Piece> {
         let mut out = Vec::new();
         for inline in inlines {
@@ -542,20 +540,12 @@ impl State {
                 out.push(Piece::text("\\\\"));
                 out.push(Piece::Hard);
             }
-            Inline::Emph(content) => out.push(Piece::text(format!("/{}/", self.flat(content)))),
-            Inline::Strong(content) => out.push(Piece::text(format!("*{}*", self.flat(content)))),
-            Inline::Underline(content) => {
-                out.push(Piece::text(format!("_{}_", self.flat(content))));
-            }
-            Inline::Strikeout(content) => {
-                out.push(Piece::text(format!("+{}+", self.flat(content))));
-            }
-            Inline::Superscript(content) => {
-                out.push(Piece::text(format!("^{{{}}}", self.flat(content))));
-            }
-            Inline::Subscript(content) => {
-                out.push(Piece::text(format!("_{{{}}}", self.flat(content))));
-            }
+            Inline::Emph(content) => self.wrap_inlines(content, "/", "/", out),
+            Inline::Strong(content) => self.wrap_inlines(content, "*", "*", out),
+            Inline::Underline(content) => self.wrap_inlines(content, "_", "_", out),
+            Inline::Strikeout(content) => self.wrap_inlines(content, "+", "+", out),
+            Inline::Superscript(content) => self.wrap_inlines(content, "^{", "}", out),
+            Inline::Subscript(content) => self.wrap_inlines(content, "_{", "}", out),
             Inline::SmallCaps(content) | Inline::Span(_, content) => {
                 for inner in content {
                     self.piece(inner, out);
@@ -596,9 +586,16 @@ impl State {
         }
     }
 
+    fn wrap_inlines(&mut self, content: &[Inline], open: &str, close: &str, out: &mut Vec<Piece>) {
+        out.push(Piece::text(open));
+        for inline in content {
+            self.piece(inline, out);
+        }
+        out.push(Piece::text(close));
+    }
+
     /// Render inlines to a flat, single-block string: the fill pieces joined with spaces for breaks.
-    /// Used where inline content may not reflow: headings, list terms, captions, table cells, and the
-    /// interior of a markup span.
+    /// Used where inline content may not reflow: headings, list terms, captions, and table cells.
     fn flat(&mut self, inlines: &[Inline]) -> String {
         let pieces = self.pieces(inlines);
         let mut out = String::new();

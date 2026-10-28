@@ -123,3 +123,38 @@ fn oversized_cell_spans_stay_bounded() {
         output.len()
     );
 }
+
+fn words(text: &str) -> Vec<Inline> {
+    let mut inlines = Vec::new();
+    for word in text.split_whitespace() {
+        if !inlines.is_empty() {
+            inlines.push(Inline::Space);
+        }
+        inlines.push(s(word));
+    }
+    inlines
+}
+
+#[test]
+fn styled_inlines_wrap_between_words() {
+    let text = "alpha beta gamma delta";
+    for (inline, expected) in [
+        (Inline::Emph(words(text)), "/alpha beta\ngamma delta/"),
+        (Inline::Strong(words(text)), "*alpha beta\ngamma delta*"),
+        (Inline::Underline(words(text)), "_alpha beta\ngamma delta_"),
+        (Inline::Strikeout(words(text)), "+alpha beta\ngamma delta+"),
+        (
+            Inline::Superscript(words(text)),
+            "^{alpha beta\ngamma delta}",
+        ),
+        (Inline::Subscript(words(text)), "_{alpha beta\ngamma delta}"),
+    ] {
+        let document = Document {
+            blocks: vec![Block::Para(vec![inline])],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(12);
+        assert_eq!(OrgWriter.write(&document, &options).unwrap(), expected);
+    }
+}
