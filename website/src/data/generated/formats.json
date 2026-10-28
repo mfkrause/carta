@@ -1251,7 +1251,6 @@
           "A paragraph following a dropped non-opendocument `RawBlock`, or a flowing paragraph after a `Figure`, is styled `First_20_paragraph` rather than `Text_20_body` (renders identically).",
           "The first flowing paragraph inside a table cell is not treated as section-opening, so after a `DisplayMath` split its leading text gets `Text_20_body` rather than `First_20_paragraph`.",
           "When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell, definition), the split formula paragraph uses the flowing body style rather than the container style.",
-          "An empty `Note []` emits a stray empty footnote paragraph rather than a self-closed note body.",
           "A footnote nested inside another footnote is numbered sequentially rather than reusing the outer counter.",
           "Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 → `Heading_20_1`) while keeping the outline level.",
           "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",

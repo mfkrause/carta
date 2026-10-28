@@ -230,9 +230,12 @@ impl Builder<'_> {
         let checkpoint = self.body.len();
         self.render_blocks(blocks, Some("Footnote"));
         if self.body.len() == checkpoint {
-            self.paragraph("Footnote", &[]);
+            self.body.truncate(checkpoint - "<text:note-body>".len());
+            self.body.push_str("<text:note-body />");
+        } else {
+            self.body.push_str("</text:note-body>");
         }
-        self.body.push_str("</text:note-body></text:note>");
+        self.body.push_str("</text:note>");
     }
 
     /// Renders inline or display math as an embedded formula object: a drawing frame that references
