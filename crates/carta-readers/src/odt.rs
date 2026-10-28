@@ -142,6 +142,7 @@ impl ListStyle {
 enum ParaRole {
     Code,
     Quote,
+    Caption,
     Normal,
 }
 
@@ -287,8 +288,7 @@ impl<'a> Converter<'a> {
             .insert(name.to_owned(), ListStyle { levels });
     }
 
-    /// Resolves a paragraph style's block role by folding its parent chain: preformatted anywhere in
-    /// the chain wins, then a positive left margin from the nearest ancestor that declares one.
+    /// Resolves preformatted text first, then captions and the nearest declared indentation.
     fn para_role(&self, style_name: Option<&str>) -> ParaRole {
         let mut preformatted = false;
         let mut margin = None;
@@ -309,6 +309,8 @@ impl<'a> Converter<'a> {
         }
         if preformatted {
             ParaRole::Code
+        } else if style_name == Some("Table") && self.para_styles.contains_key("Table") {
+            ParaRole::Caption
         } else if margin.is_some_and(|value| value > BLOCK_QUOTE_MARGIN_INCHES) {
             ParaRole::Quote
         } else {
@@ -369,10 +371,21 @@ impl<'a> Converter<'a> {
                             flush_code(&mut out, &mut code);
                             quote.push(Block::Para(inlines));
                         }
-                        ParaRole::Normal => {
+                        ParaRole::Normal | ParaRole::Caption => {
                             flush_code(&mut out, &mut code);
                             flush_quote(&mut out, &mut quote);
-                            out.push(Block::Para(inlines));
+                            let paragraph = Block::Para(inlines);
+                            out.push(if role == ParaRole::Caption {
+                                Block::Div(
+                                    Box::new(Attr {
+                                        classes: vec!["caption".into()],
+                                        ..Attr::default()
+                                    }),
+                                    vec![paragraph],
+                                )
+                            } else {
+                                paragraph
+                            });
                         }
                     }
                 }

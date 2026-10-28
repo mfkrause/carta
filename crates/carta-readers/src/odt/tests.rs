@@ -1,5 +1,5 @@
 use super::{MAX_REPEATED_SPACES, OdtReader, parse_length};
-use carta_ast::{Block, Inline};
+use carta_ast::{Attr, Block, Inline};
 use carta_core::container::zip::ZipArchive;
 use carta_core::{BytesReader, ReaderOptions};
 
@@ -32,6 +32,59 @@ fn a_well_formed_package_reads_its_body() {
     assert_eq!(
         document.blocks,
         vec![Block::Para(vec![Inline::Str("Hi".into())])]
+    );
+}
+
+#[test]
+fn table_caption_style_keeps_its_class() {
+    let body = content(
+        "<text:p text:style-name=\"Table\">Caption</text:p>\
+         <text:p text:style-name=\"Alias\">Alias</text:p>\
+         <text:p text:style-name=\"_54_able\">Encoded</text:p>",
+    );
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Table\" style:family=\"paragraph\"/>\
+        <style:style style:name=\"Alias\" style:family=\"paragraph\" style:parent-style-name=\"Table\"/>\
+        <style:style style:name=\"_54_able\" style:family=\"paragraph\"/>\
+        </office:styles></office:document-styles>";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("styles.xml", styles.as_bytes()),
+    ]);
+    let document = read(&odt).expect("read caption");
+    let caption = Block::Para(vec![Inline::Str("Caption".into())]);
+    assert_eq!(
+        document.blocks,
+        vec![
+            Block::Div(
+                Box::new(Attr {
+                    classes: vec!["caption".into()],
+                    ..Attr::default()
+                }),
+                vec![caption.clone()]
+            ),
+            Block::Para(vec![Inline::Str("Alias".into())]),
+            Block::Para(vec![Inline::Str("Encoded".into())]),
+        ]
+    );
+    let caption_body = content("<text:p text:style-name=\"Table\">Caption</text:p>");
+    let unstyled = package(&[("content.xml", caption_body.as_bytes())]);
+    assert_eq!(
+        read(&unstyled).expect("read unstyled caption").blocks,
+        vec![caption]
+    );
+    let preformatted_styles = styles.replace(
+        "<style:style style:name=\"Table\" style:family=\"paragraph\"/>",
+        "<style:style style:name=\"Table\" style:family=\"paragraph\" style:parent-style-name=\"Preformatted_20_Text\"/>\
+         <style:style style:name=\"Preformatted_20_Text\" style:family=\"paragraph\"/>",
+    );
+    let preformatted = package(&[
+        ("content.xml", caption_body.as_bytes()),
+        ("styles.xml", preformatted_styles.as_bytes()),
+    ]);
+    assert_eq!(
+        read(&preformatted).expect("read code caption").blocks,
+        vec![Block::CodeBlock(Box::default(), "Caption".into())]
     );
 }
 
