@@ -97,7 +97,7 @@ pub fn decode(input: &str) -> Option<Vec<u8>> {
 
 /// Decode embedded payloads with missing padding or characters outside the alphabet.
 #[must_use]
-pub fn decode_lenient(input: &str) -> Vec<u8> {
+pub(super) fn decode_lenient(input: &str) -> Vec<u8> {
     if let Some(bytes) = decode(input) {
         return bytes;
     }

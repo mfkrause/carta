@@ -6,8 +6,7 @@ mod base64;
 mod sha1;
 
 pub use base64::{
-    decode as base64_decode, decode_lenient as base64_decode_lenient, encode as base64_encode,
-    encode_mime as base64_encode_mime,
+    decode as base64_decode, encode as base64_encode, encode_mime as base64_encode_mime,
 };
 pub use sha1::hex as sha1_hex;
 
@@ -24,8 +23,7 @@ pub fn percent_decode(url: &str) -> Option<String> {
 }
 
 /// Decode `%XX` escapes without requiring the result to be UTF-8.
-#[must_use]
-pub fn percent_decode_bytes(url: &str) -> Option<Vec<u8>> {
+fn percent_decode_bytes(url: &str) -> Option<Vec<u8>> {
     let bytes = url.as_bytes();
     let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -118,20 +116,23 @@ impl MediaBag {
     }
 }
 
-/// Decodes a `data:` URI into its raw bytes and MIME type, for a resource embedded directly in a
-/// reference. Only a base64 payload is decoded; a reference that is not a `data:` URI, carries no
-/// base64 marker, or holds malformed base64 yields `None`. A payload whose header names no type
-/// reports `text/plain`.
+/// Decode a base64 or percent-encoded data URI into its bytes and MIME type.
+/// Invalid percent escapes yield `None`; an absent MIME type defaults to `text/plain`.
 #[must_use]
 pub fn decode_data_uri(url: &str) -> Option<(Vec<u8>, String)> {
     let rest = url.strip_prefix("data:")?;
-    let (header, payload) = rest.split_once(',')?;
-    let header = header.strip_suffix(";base64")?;
+    let (header, payload) = rest.split_once(',').unwrap_or((rest, ""));
+    let payload = percent_decode_bytes(payload)?;
+    let payload = String::from_utf8_lossy(&payload);
+    let bytes = if header.ends_with(";base64") {
+        base64::decode_lenient(&payload)
+    } else {
+        payload.into_owned().into_bytes()
+    };
     let mime = match header.split(';').next() {
         Some(kind) if !kind.is_empty() => kind,
         _ => "text/plain",
     };
-    let bytes = base64_decode(payload)?;
     Some((bytes, mime.to_owned()))
 }
 
@@ -494,5 +495,24 @@ mod tests {
             assert_eq!(super::percent_decode(source), None);
         }
         assert_eq!(super::percent_decode_bytes("%FF%00"), Some(vec![255, 0]));
+    }
+
+    #[test]
+    fn data_uris_accept_percent_encoding_and_incomplete_base64() {
+        for (url, bytes, mime) in [
+            ("data:image/png;base64,YQ", vec![97], "image/png"),
+            ("data:image/png;base64,YQ%3D%3D", vec![97], "image/png"),
+            ("data:;base64,!!!", Vec::new(), "text/plain"),
+            (
+                "data:image/svg+xml,%3Csvg/%3E",
+                b"<svg/>".to_vec(),
+                "image/svg+xml",
+            ),
+            ("data:image/png,%FF%00", vec![239, 191, 189, 0], "image/png"),
+        ] {
+            assert_eq!(super::decode_data_uri(url), Some((bytes, mime.into())));
+        }
+        assert_eq!(super::decode_data_uri("data:image/png,%GG"), None);
+        assert_eq!(super::decode_data_uri("image.png"), None);
     }
 }

@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use carta_ast::{Attr, Format, Inline, MathType, QuoteType, Target, to_plain_text};
-use carta_core::media::{base64_decode_lenient, percent_decode_bytes};
+use carta_core::media::decode_data_uri;
 
 use crate::common::{attribute_value, clean_prefix_len};
 
@@ -24,18 +24,7 @@ pub(super) fn image_call(attr: &Attr, alt: &[Inline], target: &Target) -> String
 }
 
 fn image_source(url: &str) -> String {
-    let decoded = url.strip_prefix("data:").and_then(|data| {
-        let (header, payload) = data.split_once(',').unwrap_or((data, ""));
-        let payload = percent_decode_bytes(payload)?;
-        let payload = String::from_utf8_lossy(&payload);
-        let bytes = if header.ends_with(";base64") {
-            base64_decode_lenient(&payload)
-        } else {
-            payload.as_bytes().to_vec()
-        };
-        Some((header.split(';').next().unwrap_or_default(), bytes))
-    });
-    let Some((mime, bytes)) = decoded else {
+    let Some((bytes, mime)) = decode_data_uri(url) else {
         return format!("\"{}\"", escape_string(url));
     };
     if mime == "image/svg+xml" {
