@@ -466,8 +466,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
   picture run does not carry.
 - Repeated images are embedded separately rather than shared.
-- An empty fenced code block emits a stray empty verbatim run inside its paragraph rather than
-  leaving the paragraph with no run.
 - A paragraph that ends in an inline equation (whether the equation renders to Office Math or, when
   it cannot be parsed, falls back to its raw dollar-delimited text) omits the trailing
   zero-width-space run that anchors such a paragraph.

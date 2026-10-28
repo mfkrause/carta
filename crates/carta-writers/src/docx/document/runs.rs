@@ -41,7 +41,9 @@ pub(super) fn code_paragraph(
             para.push(break_run(&RunProps::default()));
         }
         first = false;
-        para.push(text_run(&props, line));
+        if !line.is_empty() {
+            para.push(text_run(&props, line));
+        }
     }
     para
 }
@@ -540,5 +542,19 @@ fn quotation_marks(kind: &QuoteType) -> (&'static str, &'static str) {
     match kind {
         QuoteType::SingleQuote => ("\u{2018}", "\u{2019}"),
         QuoteType::DoubleQuote => ("\u{201c}", "\u{201d}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_code_block_has_no_verbatim_run() {
+        let para = code_paragraph(&Attr::default(), "", None, &DocxHl::default()).render();
+        assert_eq!(
+            para,
+            "<w:p><w:pPr><w:pStyle w:val=\"SourceCode\" /></w:pPr></w:p>"
+        );
     }
 }
