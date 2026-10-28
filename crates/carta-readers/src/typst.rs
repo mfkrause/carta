@@ -94,6 +94,13 @@ fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
     if parser.work.get().is_none() {
         return Err(Error::OutputTooLarge);
     }
+    if let Some(name) = parser.invalid_emoji.take() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("unknown emoji name: {name}"),
+        )
+        .into());
+    }
     walk_inlines(&mut blocks, &mut merge_text_runs);
     walk_inlines(&mut blocks, &mut collapse_separators);
     resolve_references(&mut blocks, std::mem::take(&mut parser.attached));
@@ -956,6 +963,7 @@ struct Parser {
     flow: Option<Flow>,
     /// Remaining materialization and lookup work; `None` records exhaustion.
     work: Rc<cell::Cell<Option<usize>>>,
+    invalid_emoji: Option<String>,
 }
 
 /// A file pulled into the character arena by `#include` or `#import`.
@@ -1006,6 +1014,7 @@ impl Parser {
             interrupt: None,
             flow: None,
             work: Rc::new(cell::Cell::new(Some(work))),
+            invalid_emoji: None,
         }
     }
 
@@ -2654,8 +2663,13 @@ impl Parser {
             {
                 return Value::Inlines(vec![Inline::Str(entry.glyph.into())]);
             }
-            if let Some(glyph) = name.strip_prefix("emoji.").and_then(emoji::glyph) {
-                return Value::Inlines(vec![Inline::Str(glyph.into())]);
+            if let Some(name) = name.strip_prefix("emoji.") {
+                return if let Some(glyph) = emoji::glyph(name) {
+                    Value::Inlines(vec![Inline::Str(glyph.into())])
+                } else {
+                    self.invalid_emoji.get_or_insert_with(|| name.to_string());
+                    Value::Nothing
+                };
             }
             if let Some(value) = self
                 .globs
@@ -2716,6 +2730,12 @@ impl Parser {
     fn named_call(&mut self, name: &str, args: Vec<Arg>) -> Value {
         if let Some(value) = self.user_call(name, &args) {
             return value;
+        }
+        if let Some(name) = name.strip_prefix("emoji.")
+            && emoji::glyph(name).is_none()
+        {
+            self.invalid_emoji.get_or_insert_with(|| name.to_string());
+            return Value::Nothing;
         }
         if name == "bibliography" {
             self.record_bibliography(&args);

@@ -313,6 +313,36 @@ fn an_emoji_name_reads_as_its_glyph() {
 }
 
 #[test]
+fn unknown_emoji_names_report_invalid_input() {
+    for input in [
+        "#emoji.not_a_name",
+        "Before #emoji.not_a_name After",
+        "#{emoji.not_a_name}",
+        "#emoji.not_a_name()",
+        "#let used() = emoji.not_a_name\n#used()",
+    ] {
+        let error = TypstReader
+            .read(input, &ReaderOptions::default())
+            .expect_err("unknown emoji must fail");
+        assert!(
+            matches!(&error, Error::Io(error) if error.kind() == std::io::ErrorKind::InvalidData)
+        );
+        assert!(error.to_string().contains("not_a_name"));
+    }
+}
+
+#[test]
+fn skipped_and_shadowed_emoji_names_remain_valid() {
+    for input in [
+        "#if false { emoji.not_a_name }\nOK",
+        "#let unused() = emoji.not_a_name\nOK",
+        "#let emoji = (not_a_name: [OK]); #emoji.not_a_name",
+    ] {
+        assert_eq!(inlines(input), vec![text("OK")]);
+    }
+}
+
+#[test]
 fn an_unrecognised_numbering_pattern_numbers_the_items_plainly() {
     assert_eq!(
         parse("#set enum(numbering: \"Q1.\")\n+ x\n"),
