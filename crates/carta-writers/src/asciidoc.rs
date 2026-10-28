@@ -9,7 +9,7 @@ use carta_ast::{
 use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, display_width, fill, fill_offset,
+    self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, display_width, fill, fill_offset, head_rows,
     label_matches_url,
 };
 
@@ -338,7 +338,7 @@ impl State {
 
     fn table(&mut self, table: &Table, width: usize) -> String {
         let columns = table.col_specs.len();
-        let header_rows: Vec<&Row> = table.head.rows.iter().collect();
+        let header_rows: Vec<&Row> = head_rows(table).iter().collect();
         let mut out = String::new();
         if let Some(caption) = render_caption(&table.caption, self, width) {
             let _ = writeln!(out, ".{caption}");

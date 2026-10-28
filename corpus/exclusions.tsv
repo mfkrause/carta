@@ -71,16 +71,6 @@ org	common/list-bullet-in-definition
 # Table captions wrapped in Div blocks.
 typst	table/table-caption-div
 
-# A table whose header row is entirely empty is still emitted with that header by these writers (an
-# empty header row, a `thead` of blank cells, or a `header` option), where suppressing a contentless
-# header is a not-yet-implemented refinement; the empty-header case is skipped.
-asciidoc	table/table-empty-header
-dokuwiki	table/table-empty-header
-jira	table/table-empty-header
-man	table/table-empty-header
-org	table/table-empty-header
-rst	table/table-empty-header
-
 # Data-image references do not use the target's native resource handling.
 beamer	image-dimensions/image-embedded-jpeg
 beamer	image-dimensions/image-embedded-png

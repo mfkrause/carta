@@ -3,7 +3,7 @@
 use carta_ast::{Block, Caption, ColWidth, Inline, Row, Table};
 use carta_core::budget;
 
-use crate::common::{body_rows, caption_runs, display_width, indent_block};
+use crate::common::{body_rows, caption_runs, display_width, head_rows, indent_block};
 use crate::grid;
 
 use super::{DeferredState, State};
@@ -65,14 +65,12 @@ impl State {
     /// row holding one is followed by a `-` underline. Not indented.
     fn simple_table(&mut self, table: &Table, widths: &[usize]) -> String {
         let columns = widths.len();
-        let head: Vec<&Row> = table.head.rows.iter().collect();
+        let head: Vec<&Row> = head_rows(table).iter().collect();
         let data: Vec<&Row> = body_rows(table)
             .into_iter()
             .chain(table.foot.rows.iter())
             .collect();
-        let has_header = head
-            .iter()
-            .any(|row| row.cells.iter().any(|cell| !cell.content.is_empty()));
+        let has_header = !head.is_empty();
         let rule = equals_rule(widths);
 
         let mut lines: Vec<String> = vec![rule.clone()];

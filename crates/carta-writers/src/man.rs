@@ -10,7 +10,7 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, GridSlot, RowSpanGrid, clean_prefix_len, display_width, is_known_scheme,
-    label_matches_url, ordered_marker,
+    label_matches_url, ordered_marker, simple_table_rows,
 };
 
 /// Renders a document to roff man source (no trailing newline).
@@ -289,19 +289,11 @@ impl State {
 
         let mut grid = RowSpanGrid::new(table.col_specs.len());
 
-        for (index, row) in table.head.rows.iter().enumerate() {
+        for (row, header) in simple_table_rows(table) {
             out.push_str(&self.table_row(row, &mut grid));
-            if index == 0 {
+            if header {
                 out.push_str("_\n");
             }
-        }
-        for body in &table.bodies {
-            for row in body.head.iter().chain(body.body.iter()) {
-                out.push_str(&self.table_row(row, &mut grid));
-            }
-        }
-        for row in &table.foot.rows {
-            out.push_str(&self.table_row(row, &mut grid));
         }
         out.push_str(".TE");
         out

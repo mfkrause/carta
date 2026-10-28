@@ -12,7 +12,7 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     self, GridSlot, RawTrim, RowSpanGrid, attribute_value, label_matches_url, quote_marks,
-    split_length_unit,
+    simple_table_rows, split_length_unit,
 };
 
 /// Columns each level of list nesting adds, and the base indent of a top-level list line.
@@ -498,16 +498,8 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
     let cell_wrap = wrap;
     let mut grid = RowSpanGrid::new(columns);
     let mut rows: Vec<RenderedRow> = Vec::new();
-    for row in &table.head.rows {
-        rows.push(place_row(&mut grid, row, columns, true, cell_wrap));
-    }
-    for body in &table.bodies {
-        for row in body.head.iter().chain(body.body.iter()) {
-            rows.push(place_row(&mut grid, row, columns, false, cell_wrap));
-        }
-    }
-    for row in &table.foot.rows {
-        rows.push(place_row(&mut grid, row, columns, false, cell_wrap));
+    for (row, header) in simple_table_rows(table) {
+        rows.push(place_row(&mut grid, row, columns, header, cell_wrap));
     }
 
     if budget::exhausted() {

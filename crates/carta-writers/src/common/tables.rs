@@ -185,6 +185,51 @@ pub(crate) fn caption_runs(blocks: &[Block]) -> Vec<&[Inline]> {
     runs
 }
 
+/// Head rows, omitted when every cell has no blocks.
+#[cfg_attr(not(any(feature = "asciidoc", feature = "rst")), allow(dead_code))]
+pub(crate) fn head_rows(table: &carta_ast::Table) -> &[carta_ast::Row] {
+    if table
+        .head
+        .rows
+        .iter()
+        .all(|row| row.cells.iter().all(|cell| cell.content.is_empty()))
+    {
+        &[]
+    } else {
+        &table.head.rows
+    }
+}
+
+/// Rows for formats with one header row; later head rows become body rows.
+#[cfg_attr(
+    not(any(
+        feature = "dokuwiki",
+        feature = "jira",
+        feature = "man",
+        feature = "org"
+    )),
+    allow(dead_code)
+)]
+pub(crate) fn simple_table_rows(
+    table: &carta_ast::Table,
+) -> impl Iterator<Item = (&carta_ast::Row, bool)> {
+    table
+        .head
+        .rows
+        .iter()
+        .enumerate()
+        .filter(|(index, row)| *index != 0 || row.cells.iter().any(|cell| !cell.content.is_empty()))
+        .map(|(index, row)| (row, index == 0))
+        .chain(
+            table
+                .bodies
+                .iter()
+                .flat_map(|body| body.head.iter().chain(body.body.iter()))
+                .chain(table.foot.rows.iter())
+                .map(|row| (row, false)),
+        )
+}
+
 /// Every row of every body, intermediate head rows included, in document order.
 #[cfg_attr(
     not(any(
@@ -207,6 +252,39 @@ pub(crate) fn body_rows(table: &carta_ast::Table) -> Vec<&carta_ast::Row> {
 mod tests {
     use super::*;
     use carta_ast::Cell;
+
+    #[test]
+    #[allow(clippy::indexing_slicing)]
+    fn header_presence_depends_on_blocks_in_cells() {
+        let mut table = carta_ast::Table::default();
+        table.head.rows.push(carta_ast::Row {
+            cells: vec![cell(1, 1)],
+            ..carta_ast::Row::default()
+        });
+        assert!(head_rows(&table).is_empty());
+        table.head.rows[0].cells[0].attr.id = "cell".into();
+        assert!(head_rows(&table).is_empty());
+        table.head.rows.push(carta_ast::Row {
+            cells: vec![cell(1, 1)],
+            ..carta_ast::Row::default()
+        });
+        assert_eq!(
+            simple_table_rows(&table)
+                .map(|(_, header)| header)
+                .collect::<Vec<_>>(),
+            [false]
+        );
+        table.head.rows[0].cells[0]
+            .content
+            .push(Block::Plain(vec![]));
+        assert_eq!(head_rows(&table).len(), 2);
+        assert_eq!(
+            simple_table_rows(&table)
+                .map(|(_, header)| header)
+                .collect::<Vec<_>>(),
+            [true, false]
+        );
+    }
 
     #[test]
     fn caption_containers_preserve_paragraph_order_and_formatting() {

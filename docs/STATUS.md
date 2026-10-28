@@ -404,26 +404,21 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).
 - Lists in table cells are flattened or misplaced.
-- Empty table header rows are retained.
 
 ### `org` ✅
 - A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
-- Empty table header rows are retained.
 
 ### `rst` ✅
-- Empty table header rows are retained.
 
 ### `dokuwiki` ✅
 - Lists in table cells are flattened or misplaced.
 - Tables inside block quotes have incorrect continuation lines.
-- Empty table header rows are retained.
 - Hard line breaks in table cells are doubled and widen the column.
 
 ### `jira` ✅
 - Lists in table cells are flattened or misplaced.
 - Bullet lists inside definition-list items have incorrect spacing.
-- Empty table header rows are retained.
 
 ### `mediawiki` ✅
 - Bullet lists inside definition-list items have incorrect spacing.
@@ -432,7 +427,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Code-block language attributes are ignored.
 - Lists in table cells are flattened or misplaced.
 - A list item starting with a nested block has incorrect spacing.
-- Empty table header rows are retained.
 - Long runs of adjacent inline equations wrap at different columns.
 
 ### `docx` ✅

@@ -565,8 +565,7 @@
         "feature": "write-asciidoc",
         "gaps": [
           "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
-          "Lists in table cells are flattened or misplaced.",
-          "Empty table header rows are retained."
+          "Lists in table cells are flattened or misplaced."
         ]
       }
     },
@@ -662,8 +661,7 @@
         "feature": "write-org",
         "gaps": [
           "A list item starting with a nested block has incorrect spacing.",
-          "Bullet lists inside definition-list items have incorrect spacing.",
-          "Empty table header rows are retained."
+          "Bullet lists inside definition-list items have incorrect spacing."
         ]
       }
     },
@@ -705,9 +703,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-rst",
-        "gaps": [
-          "Empty table header rows are retained."
-        ]
+        "gaps": []
       }
     },
     {
@@ -785,7 +781,6 @@
         "gaps": [
           "Lists in table cells are flattened or misplaced.",
           "Tables inside block quotes have incorrect continuation lines.",
-          "Empty table header rows are retained.",
           "Hard line breaks in table cells are doubled and widen the column."
         ]
       }
@@ -809,8 +804,7 @@
         "feature": "write-jira",
         "gaps": [
           "Lists in table cells are flattened or misplaced.",
-          "Bullet lists inside definition-list items have incorrect spacing.",
-          "Empty table header rows are retained."
+          "Bullet lists inside definition-list items have incorrect spacing."
         ]
       }
     },
@@ -953,7 +947,6 @@
           "Code-block language attributes are ignored.",
           "Lists in table cells are flattened or misplaced.",
           "A list item starting with a nested block has incorrect spacing.",
-          "Empty table header rows are retained.",
           "Long runs of adjacent inline equations wrap at different columns."
         ]
       }

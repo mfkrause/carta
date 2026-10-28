@@ -11,7 +11,7 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 use crate::common::{
     FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_hang,
     indent_block, item_separator, label_matches_url, offset_as_i64, per_character_width,
-    quote_marks,
+    quote_marks, simple_table_rows,
 };
 
 /// Number of dashes emitted for a horizontal rule.
@@ -276,12 +276,12 @@ impl State {
             return caption;
         }
 
-        let mut rows: Vec<&Row> = table.head.rows.iter().collect();
-        let head_count = rows.len();
-        for body in &table.bodies {
-            rows.extend(body.head.iter().chain(body.body.iter()));
+        let mut rows = Vec::new();
+        let mut head_count = 0;
+        for (row, header) in simple_table_rows(table) {
+            rows.push(row);
+            head_count += usize::from(header);
         }
-        rows.extend(table.foot.rows.iter());
 
         let grid = self.lay_grid(&rows, columns);
         let widths = column_widths(&grid, columns);

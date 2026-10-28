@@ -301,7 +301,6 @@ write-feature = "write-asciidoc"
 write-gaps = [
   "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
   "Lists in table cells are flattened or misplaced.",
-  "Empty table header rows are retained.",
 ]
 
 [[format]]
@@ -347,7 +346,6 @@ read-gaps = [
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
   "Bullet lists inside definition-list items have incorrect spacing.",
-  "Empty table header rows are retained.",
 ]
 
 [[format]]
@@ -372,7 +370,6 @@ read-gaps = [
   "Doctest blocks (`>>>`) read as ordinary paragraphs.",
 ]
 write-gaps = [
-  "Empty table header rows are retained.",
 ]
 
 [[format]]
@@ -411,7 +408,6 @@ read-gaps = [
 write-gaps = [
   "Lists in table cells are flattened or misplaced.",
   "Tables inside block quotes have incorrect continuation lines.",
-  "Empty table header rows are retained.",
   "Hard line breaks in table cells are doubled and widen the column.",
 ]
 
@@ -429,7 +425,6 @@ read-gaps = [
 write-gaps = [
   "Lists in table cells are flattened or misplaced.",
   "Bullet lists inside definition-list items have incorrect spacing.",
-  "Empty table header rows are retained.",
 ]
 
 [[format]]
@@ -503,7 +498,6 @@ write-gaps = [
   "Code-block language attributes are ignored.",
   "Lists in table cells are flattened or misplaced.",
   "A list item starting with a nested block has incorrect spacing.",
-  "Empty table header rows are retained.",
   "Long runs of adjacent inline equations wrap at different columns.",
 ]
 

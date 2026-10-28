@@ -7,7 +7,7 @@ use carta_ast::{
 };
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
-use crate::common::{self, GridSlot, RawTrim, RowSpanGrid};
+use crate::common::{self, GridSlot, RawTrim, RowSpanGrid, simple_table_rows};
 
 /// Renders a document to Jira wiki markup (no trailing newline).
 #[derive(Debug, Default, Clone, Copy)]
@@ -182,16 +182,8 @@ impl State {
     fn table(&mut self, table: &Table) -> String {
         let mut rows: Vec<String> = Vec::new();
         let mut grid = RowSpanGrid::new(table.col_specs.len());
-        for row in &table.head.rows {
-            rows.push(self.table_row(row, true, &mut grid));
-        }
-        for body in &table.bodies {
-            for row in body.head.iter().chain(body.body.iter()) {
-                rows.push(self.table_row(row, false, &mut grid));
-            }
-        }
-        for row in &table.foot.rows {
-            rows.push(self.table_row(row, false, &mut grid));
+        for (row, header) in simple_table_rows(table) {
+            rows.push(self.table_row(row, header, &mut grid));
         }
         rows.join("\n")
     }
