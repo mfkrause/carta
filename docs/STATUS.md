@@ -367,29 +367,23 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `commonmark_x` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `gfm` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown` ✅
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
 - Tables inside block quotes have incorrect continuation lines.
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown_github` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown_mmd` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown_phpextra` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown_strict` ✅
 - A list item starting with a nested block has incorrect spacing.
@@ -399,7 +393,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Task-list checkboxes are not rendered.
 - A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 - `data:` images are used as graphics filenames rather than decoded.
 - Internal links use generic URLs rather than Beamer hyperlinks.
 
@@ -422,7 +415,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Task-list checkboxes are not rendered.
 - A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 - `data:` images are used as graphics filenames rather than decoded.
 
 ### `pdf` 🚧
@@ -431,28 +423,21 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `typst` ✅
 - Lists in table cells are flattened or misplaced.
-- A code block ending in a newline gains an extra trailing break.
 - A list item starting with a nested block has incorrect spacing.
 - A bullet list inside an ordered-list item gains a blank line.
-- Internal links use URL strings rather than Typst label targets.
-- Figure identifiers are dropped, leaving references without targets.
-- `data:` images are used as filenames rather than decoded.
 
 ### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).
 - Lists in table cells are flattened or misplaced.
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 - Empty table header rows are retained.
 
 ### `org` ✅
 - A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 - Empty table header rows are retained.
 
 ### `rst` ✅
-- Table caption content wrapped in a `Div` is dropped.
 - Empty table header rows are retained.
 
 ### `dokuwiki` ✅
@@ -474,7 +459,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Code-block language attributes are ignored.
 - Lists in table cells are flattened or misplaced.
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 - Empty table header rows are retained.
 - Long runs of adjacent inline equations wrap at different columns.
 
@@ -492,7 +476,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A paragraph that ends in an inline equation (whether the equation renders to Office Math or, when
   it cannot be parsed, falls back to its raw dollar-delimited text) omits the trailing
   zero-width-space run that anchors such a paragraph.
-- Under `native_numbering`, an empty figure or table caption loses its numbered label.
 - `\phantom` renders as its raw dollar-delimited text rather than an invisible phantom spacing box.
 - `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
   group-character parenthesis set over or under the base.
@@ -509,19 +492,16 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   only under EPUB 3's XHTML5 content model.
 - A resource that cannot be fetched offline (a remote image, an absent local image, or a link to a
   nonexistent target) yields a dangling reference.
-- `data:` images remain inline URLs rather than packaged image files.
 - Empty table header rows are retained.
 
 ### `ipynb` ✅
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 ### `odt` ✅
 - Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment
   collapse to one style rather than one per column per section.
-- Lists, code blocks, and headings in table or figure captions are dropped.
 - A cell with a row span greater than 1 emits `table:number-rows-spanned` even when a single row
   remains, extending the span past the table body.
 - With an empty header row the unreferenced heading-parented alignment style is not emitted (only
@@ -546,8 +526,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   term a tight style and a spurious empty definition paragraph.
 - Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper
   levels are not progressively indented.
-- A paragraph whose inlines are all whitespace or all non-opendocument raw is dropped entirely
-  rather than kept as an empty paragraph.
 - With `empty_paragraphs` on, an empty `Plain []` emits an extra empty paragraph rather than being
   suppressed.
 - A paragraph following a dropped non-opendocument `RawBlock`, or a flowing paragraph after a
@@ -557,19 +535,10 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell,
   definition), the split formula paragraph uses the flowing body style rather than the container
   style.
-- An empty `CodeBlock` emits a stray empty preformatted paragraph rather than nothing.
-- A `LineBlock` whose only content is empty lines emits a spurious empty paragraph rather than
-  nothing.
-- An empty `Note []` emits a stray empty footnote paragraph rather than a self-closed note body.
-- A footnote nested inside another footnote is numbered sequentially rather than reusing the outer
-  counter.
-- A `Figure` with no caption uses the `FigureWithCaption` style rather than the caption-less
-  `Figure` style.
 - Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 →
   `Heading_20_1`) while keeping the outline level.
 - `native_numbering` is not implemented, so figure and table captions emit no `text:sequence`
   numbering field.
-- A `Link` with an empty target gets a `../` prefix rather than an empty `xlink:href`.
 - `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather
   than rewriting the internal link to a reference field.
 - The `--toc` `text:table-of-content` carries a spurious `text:name="Table of Contents1"` attribute.
@@ -577,8 +546,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   plain.
 - A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted
   plain.
-- A `RawInline`/`RawBlock` with the non-canonical format token `odt` is passed through (only
-  `opendocument` should pass).
 - An internal or trailing run of two or more verbatim spaces in `Code`/`CodeBlock` is emitted as a
   single `text:s` covering the whole run rather than one literal space plus a `text:s` for the
   remainder.
@@ -589,7 +556,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A pathological (negative or non-finite) image width or height is emitted verbatim rather than
   falling back to the intrinsic size.
 - A `data:` image with an empty or absent media type gets a `.plain` extension rather than none.
-- An image with malformed base64 data falls back to its alt text.
 - A title-block author given as a YAML map is dropped rather than stringified into an author
   paragraph.
 - A title-block metadata field authored as a YAML sequence joins its items with a space rather than
@@ -650,7 +616,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `plain` ✅
 - Tables inside block quotes have incorrect continuation lines.
 - A list item starting with a nested block has incorrect spacing.
-- Table caption content wrapped in a `Div` is dropped.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,
