@@ -10,8 +10,9 @@ use carta_ast::{
 use carta_core::container::xml::escape_attribute;
 
 use super::helpers::{
-    collect_caption_runs, column_letter, custom_style, inlines_are_empty, is_block_math,
-    is_opendocument, is_tight, leads_with_plain, table_column_count, trim_flanking_spacing,
+    caption_inlines, collect_caption_runs, column_letter, custom_style, inlines_are_empty,
+    is_block_math, is_opendocument, is_tight, leads_with_plain, table_column_count,
+    trim_flanking_spacing,
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
@@ -292,9 +293,15 @@ impl Builder<'_> {
     }
 
     fn figure(&mut self, caption: &Caption, content: &[Block]) {
-        self.render_blocks(content, Some("FigureWithCaption"));
-        if !caption.long.is_empty() {
-            self.caption_block("FigureCaption", &caption.long);
+        let caption = caption_inlines(&caption.long);
+        let style = if caption.is_empty() {
+            "Figure"
+        } else {
+            "FigureWithCaption"
+        };
+        self.render_blocks(content, Some(style));
+        if !caption.is_empty() {
+            self.paragraph("FigureCaption", &caption);
         }
     }
 

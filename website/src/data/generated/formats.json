@@ -1255,7 +1255,6 @@
           "A `LineBlock` whose only content is empty lines emits a spurious empty paragraph rather than nothing.",
           "An empty `Note []` emits a stray empty footnote paragraph rather than a self-closed note body.",
           "A footnote nested inside another footnote is numbered sequentially rather than reusing the outer counter.",
-          "A `Figure` with no caption uses the `FigureWithCaption` style rather than the caption-less `Figure` style.",
           "Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 → `Heading_20_1`) while keeping the outline level.",
           "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",
           "A `Link` with an empty target gets a `../` prefix rather than an empty `xlink:href`.",

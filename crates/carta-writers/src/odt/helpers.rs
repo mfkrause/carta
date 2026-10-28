@@ -84,7 +84,7 @@ pub(super) fn collect_caption_runs<'a>(blocks: &'a [Block], runs: &mut Vec<Cow<'
     });
 }
 
-fn caption_inlines(blocks: &[Block]) -> Vec<Inline> {
+pub(super) fn caption_inlines(blocks: &[Block]) -> Vec<Inline> {
     let mut runs = Vec::new();
     collect_caption_runs(blocks, &mut runs);
     let mut inlines = Vec::new();
