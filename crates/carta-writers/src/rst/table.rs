@@ -3,7 +3,7 @@
 use carta_ast::{Block, Caption, ColWidth, Inline, Row, Table};
 use carta_core::budget;
 
-use crate::common::{block_inlines, body_rows, display_width, indent_block};
+use crate::common::{body_rows, caption_runs, display_width, indent_block};
 use crate::grid;
 
 use super::{DeferredState, State};
@@ -287,10 +287,9 @@ impl State {
     /// The `.. table::` directive carrying the caption, or `None` when the caption is empty. Each
     /// caption block contributes one line; the table's own attributes are not emitted.
     fn table_caption(&mut self, caption: &Caption, _width: usize) -> Option<String> {
-        let parts: Vec<String> = caption
-            .long
+        let parts: Vec<String> = caption_runs(&caption.long)
             .iter()
-            .map(|block| self.flat(block_inlines(block)))
+            .map(|inlines| self.flat(inlines))
             .filter(|line| !line.is_empty())
             .collect();
         if parts.is_empty() {

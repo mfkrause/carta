@@ -625,16 +625,17 @@ fn render_caption(caption: &Caption, state: &mut State, width: usize) -> Option<
         return None;
     }
     let mut lines = Vec::new();
-    for (index, block) in caption.long.iter().enumerate() {
-        if let Block::Plain(inlines) | Block::Para(inlines) = block {
-            let initial = usize::from(index == 0);
-            lines.push(fill_offset(
-                &state.pieces(inlines),
-                width,
-                initial,
-                state.wrap,
-            ));
-        }
+    for (index, inlines) in crate::common::caption_runs(&caption.long)
+        .iter()
+        .enumerate()
+    {
+        let initial = usize::from(index == 0);
+        lines.push(fill_offset(
+            &state.pieces(inlines),
+            width,
+            initial,
+            state.wrap,
+        ));
     }
     let body = lines.join(" +\n");
     (!body.is_empty()).then_some(body)

@@ -79,8 +79,7 @@
         "ships": true,
         "feature": "write-markdown",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -118,8 +117,7 @@
         "ships": true,
         "feature": "write-gfm",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -145,8 +143,7 @@
         "gaps": [
           "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
           "Tables inside block quotes have incorrect continuation lines.",
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -169,8 +166,7 @@
         "ships": true,
         "feature": "write-markdown",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -195,8 +191,7 @@
         "ships": true,
         "feature": "write-markdown",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -219,8 +214,7 @@
         "ships": true,
         "feature": "write-markdown",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -284,7 +278,6 @@
           "Task-list checkboxes are not rendered.",
           "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped.",
           "`data:` images are used as graphics filenames rather than decoded.",
           "Internal links use generic URLs rather than Beamer hyperlinks."
         ]
@@ -514,7 +507,6 @@
           "Task-list checkboxes are not rendered.",
           "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped.",
           "`data:` images are used as graphics filenames rather than decoded."
         ]
       }
@@ -604,7 +596,6 @@
           "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
           "Lists in table cells are flattened or misplaced.",
           "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped.",
           "Empty table header rows are retained."
         ]
       }
@@ -702,7 +693,6 @@
         "gaps": [
           "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped.",
           "Empty table header rows are retained."
         ]
       }
@@ -746,7 +736,6 @@
         "ships": true,
         "feature": "write-rst",
         "gaps": [
-          "Table caption content wrapped in a `Div` is dropped.",
           "Empty table header rows are retained."
         ]
       }
@@ -995,7 +984,6 @@
           "Code-block language attributes are ignored.",
           "Lists in table cells are flattened or misplaced.",
           "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped.",
           "Empty table header rows are retained.",
           "Long runs of adjacent inline equations wrap at different columns."
         ]
@@ -1176,8 +1164,7 @@
         "gaps": [
           "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",
           "Standalone (`-s`), TOC, and section numbering are no-ops.",
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -1713,8 +1700,7 @@
         "feature": "write-plain",
         "gaps": [
           "Tables inside block quotes have incorrect continuation lines.",
-          "A list item starting with a nested block has incorrect spacing.",
-          "Table caption content wrapped in a `Div` is dropped."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },

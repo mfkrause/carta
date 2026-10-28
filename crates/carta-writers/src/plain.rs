@@ -10,7 +10,7 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
-    block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
+    body_rows, caption_runs, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
     fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri,
     item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i64,
     ordered_marker, pad_marker, pieces_nonempty, quote_marks, table_form,
@@ -597,11 +597,11 @@ impl State {
             2
         };
         let mut pieces: Vec<Piece> = Vec::new();
-        for block in &table.caption.long {
+        for inlines in caption_runs(&table.caption.long) {
             if !pieces.is_empty() {
                 pieces.push(Piece::Hard);
             }
-            self.extend_pieces(block_inlines(block), &mut pieces);
+            self.extend_pieces(inlines, &mut pieces);
         }
         if !pieces_nonempty(&pieces) {
             return None;

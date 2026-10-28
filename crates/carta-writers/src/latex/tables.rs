@@ -679,15 +679,13 @@ fn table_caption(
     let command = if nested { NESTED_CAPTION } else { "\\caption" };
     let mut pieces = vec![Piece::text(format!("{command}{short}{{"))];
     let mut first = true;
-    for block in &caption.long {
-        if let Block::Plain(inlines) | Block::Para(inlines) = block {
-            if !first {
-                pieces.push(Piece::text("\\\\"));
-                pieces.push(Piece::Hard);
-            }
-            first = false;
-            pieces.extend(inline_pieces(inlines, width, dialect, wrap, smart, hl));
+    for inlines in crate::common::caption_runs(&caption.long) {
+        if !first {
+            pieces.push(Piece::text("\\\\"));
+            pieces.push(Piece::Hard);
         }
+        first = false;
+        pieces.extend(inline_pieces(inlines, width, dialect, wrap, smart, hl));
     }
     let mut close = String::from("}");
     if !table.attr.id.is_empty() {

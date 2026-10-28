@@ -156,21 +156,33 @@ impl RowSpanGrid {
     }
 }
 
-/// The inline content of a block, or an empty slice for a block that carries none directly.
+/// Paragraph runs in a caption, with containers removed and document order preserved.
 #[cfg_attr(
     not(any(
+        feature = "asciidoc",
         feature = "gfm",
+        feature = "latex",
+        feature = "man",
         feature = "markdown",
+        feature = "org",
         feature = "plain",
         feature = "rst"
     )),
     allow(dead_code)
 )]
-pub(crate) fn block_inlines(block: &Block) -> &[Inline] {
-    match block {
-        Block::Plain(inlines) | Block::Para(inlines) => inlines,
-        _ => &[],
+pub(crate) fn caption_runs(blocks: &[Block]) -> Vec<&[Inline]> {
+    let mut pending: Vec<_> = blocks.iter().rev().collect();
+    let mut runs = Vec::new();
+    while let Some(block) = pending.pop() {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => runs.push(inlines.as_slice()),
+            Block::Div(_, children) | Block::BlockQuote(children) => {
+                pending.extend(children.iter().rev());
+            }
+            _ => {}
+        }
     }
+    runs
 }
 
 /// Every row of every body, intermediate head rows included, in document order.
@@ -195,6 +207,33 @@ pub(crate) fn body_rows(table: &carta_ast::Table) -> Vec<&carta_ast::Row> {
 mod tests {
     use super::*;
     use carta_ast::Cell;
+
+    #[test]
+    fn caption_containers_preserve_paragraph_order_and_formatting() {
+        let blocks = vec![
+            Block::Div(
+                Box::default(),
+                vec![
+                    Block::Para(vec![Inline::Str("first".into())]),
+                    Block::BlockQuote(vec![Block::Div(
+                        Box::default(),
+                        vec![Block::Plain(vec![Inline::Strong(vec![Inline::Str(
+                            "second".into(),
+                        )])])],
+                    )]),
+                ],
+            ),
+            Block::Plain(vec![Inline::Str("third".into())]),
+        ];
+        assert_eq!(
+            caption_runs(&blocks),
+            vec![
+                &[Inline::Str("first".into())][..],
+                &[Inline::Strong(vec![Inline::Str("second".into())])][..],
+                &[Inline::Str("third".into())][..],
+            ]
+        );
+    }
 
     fn cell(row_span: i64, col_span: i64) -> Cell {
         Cell {

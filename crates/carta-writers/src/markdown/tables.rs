@@ -6,7 +6,7 @@ use carta_ast::{Alignment, Attr, Block, Caption, Cell, ColWidth, Inline, Row, Ta
 use carta_core::Extension;
 
 use crate::common::{
-    MEASURE_WIDTH, Piece, TableForm, block_inlines, body_rows, boundary_space_count, cell_inlines,
+    MEASURE_WIDTH, Piece, TableForm, body_rows, boundary_space_count, caption_runs, cell_inlines,
     dash_rule, display_width, extend_multiline_body, fill, fill_offset, filled_cells, indent_block,
     indent_lines, is_simple_cell, lay_row, measure_pieces, pad_align_continued, pieces_nonempty,
     table_form, trimmed_cell_inlines,
@@ -125,12 +125,12 @@ impl State {
     /// suffix. `None` when the caption is empty.
     fn github_caption(&mut self, caption: &Caption, attr: &Attr, width: usize) -> Option<String> {
         let mut pieces: Vec<Piece> = Vec::new();
-        for block in &caption.long {
+        for inlines in caption_runs(&caption.long) {
             if !pieces.is_empty() {
                 pieces.push(Piece::text(self.config.hard_break()));
                 pieces.push(Piece::Hard);
             }
-            self.extend_pieces(block_inlines(block), &mut pieces);
+            self.extend_pieces(inlines, &mut pieces);
         }
         if !pieces_nonempty(&pieces) {
             return None;
@@ -472,12 +472,12 @@ impl State {
             2
         };
         let mut pieces: Vec<Piece> = Vec::new();
-        for block in &table.caption.long {
+        for inlines in caption_runs(&table.caption.long) {
             if !pieces.is_empty() {
                 pieces.push(Piece::text(self.config.hard_break()));
                 pieces.push(Piece::Hard);
             }
-            self.extend_pieces(block_inlines(block), &mut pieces);
+            self.extend_pieces(inlines, &mut pieces);
         }
         if !pieces_nonempty(&pieces) {
             return None;

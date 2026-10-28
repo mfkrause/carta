@@ -94,23 +94,7 @@ org	common/list-bullet-in-definition
 # writer, so this mixed-nesting case is skipped.
 typst	common/list-bullet-in-ordered
 
-# A table caption carried on a wrapping div, rather than in the table's own caption slot, is not yet
-# lifted back out by these writers, so the caption text is dropped; the case is skipped until that
-# extraction lands.
-asciidoc	table/table-caption-div
-beamer	table/table-caption-div
-commonmark_x	table/table-caption-div
-gfm	table/table-caption-div
-ipynb	table/table-caption-div
-latex	table/table-caption-div
-man	table/table-caption-div
-markdown	table/table-caption-div
-markdown_github	table/table-caption-div
-markdown_mmd	table/table-caption-div
-markdown_phpextra	table/table-caption-div
-org	table/table-caption-div
-plain	table/table-caption-div
-rst	table/table-caption-div
+# Table captions wrapped in Div blocks.
 typst	table/table-caption-div
 
 # A table whose header row is entirely empty is still emitted with that header by these writers (an

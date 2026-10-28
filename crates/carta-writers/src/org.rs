@@ -404,13 +404,11 @@ impl State {
 
     fn caption_line(&mut self, caption: &Caption) -> String {
         let mut inlines: Vec<Inline> = Vec::new();
-        for block in &caption.long {
-            if let Block::Plain(content) | Block::Para(content) = block {
-                if !inlines.is_empty() {
-                    inlines.push(Inline::LineBreak);
-                }
-                inlines.extend(content.iter().cloned());
+        for content in crate::common::caption_runs(&caption.long) {
+            if !inlines.is_empty() {
+                inlines.push(Inline::LineBreak);
             }
+            inlines.extend(content.iter().cloned());
         }
         self.flat(&inlines)
     }

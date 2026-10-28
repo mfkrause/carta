@@ -334,10 +334,8 @@ impl State {
     /// separated by the same zero-distance break used for a forced line break.
     fn caption(&mut self, blocks: &[Block]) -> String {
         let mut parts = Vec::new();
-        for block in blocks {
-            if let Block::Plain(items) | Block::Para(items) = block {
-                parts.push(self.fill_flowed(items));
-            }
+        for items in crate::common::caption_runs(blocks) {
+            parts.push(self.fill_flowed(items));
         }
         parts.join("\n.PD 0\n.P\n.PD\n")
     }
@@ -935,12 +933,10 @@ fn raw_passthrough(format: &Format, text: &str) -> String {
 
 /// The block-level caption flattened to inline content for a one-line rendering.
 fn caption_inlines(blocks: &[Block]) -> Vec<Inline> {
-    blocks
-        .iter()
-        .flat_map(|block| match block {
-            Block::Plain(items) | Block::Para(items) => items.clone(),
-            _ => Vec::new(),
-        })
+    crate::common::caption_runs(blocks)
+        .into_iter()
+        .flatten()
+        .cloned()
         .collect()
 }
 

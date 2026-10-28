@@ -27,7 +27,6 @@ read-feature = "read-commonmark"
 write-feature = "write-markdown"
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -47,7 +46,6 @@ read-feature = "read-commonmark"
 write-feature = "write-gfm"
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -67,7 +65,6 @@ write-gaps = [
   "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
   "Tables inside block quotes have incorrect continuation lines.",
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -84,7 +81,6 @@ read-gaps = [
 ]
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -103,7 +99,6 @@ read-gaps = [
 ]
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -120,7 +115,6 @@ read-gaps = [
 ]
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -157,7 +151,6 @@ write-gaps = [
   "Task-list checkboxes are not rendered.",
   "A list item starting with a nested block has incorrect spacing.",
   "Bullet lists inside definition-list items have incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
   "`data:` images are used as graphics filenames rather than decoded.",
   "Internal links use generic URLs rather than Beamer hyperlinks.",
 ]
@@ -276,7 +269,6 @@ write-gaps = [
   "Task-list checkboxes are not rendered.",
   "A list item starting with a nested block has incorrect spacing.",
   "Bullet lists inside definition-list items have incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
   "`data:` images are used as graphics filenames rather than decoded.",
 ]
 
@@ -330,7 +322,6 @@ write-gaps = [
   "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
   "Lists in table cells are flattened or misplaced.",
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
   "Empty table header rows are retained.",
 ]
 
@@ -377,7 +368,6 @@ read-gaps = [
 write-gaps = [
   "A list item starting with a nested block has incorrect spacing.",
   "Bullet lists inside definition-list items have incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
   "Empty table header rows are retained.",
 ]
 
@@ -403,7 +393,6 @@ read-gaps = [
   "Doctest blocks (`>>>`) read as ordinary paragraphs.",
 ]
 write-gaps = [
-  "Table caption content wrapped in a `Div` is dropped.",
   "Empty table header rows are retained.",
 ]
 
@@ -536,7 +525,6 @@ write-gaps = [
   "Code-block language attributes are ignored.",
   "Lists in table cells are flattened or misplaced.",
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
   "Empty table header rows are retained.",
   "Long runs of adjacent inline equations wrap at different columns.",
 ]
@@ -639,7 +627,6 @@ write-gaps = [
   "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",
   "Standalone (`-s`), TOC, and section numbering are no-ops.",
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
@@ -946,7 +933,6 @@ write-feature = "write-plain"
 write-gaps = [
   "Tables inside block quotes have incorrect continuation lines.",
   "A list item starting with a nested block has incorrect spacing.",
-  "Table caption content wrapped in a `Div` is dropped.",
 ]
 
 [[format]]
