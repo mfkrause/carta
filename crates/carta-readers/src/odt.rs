@@ -448,7 +448,7 @@ impl<'a> Converter<'a> {
     fn convert_heading(&mut self, element: &Element) -> Block {
         let level = element
             .attr("outline-level")
-            .and_then(|value| value.parse::<i32>().ok())
+            .and_then(|value| value.parse::<i64>().ok())
             .unwrap_or(1);
         self.heading_anchor = Some(slug(&element.text()));
         let inlines = self.convert_inlines(&element.children);
@@ -457,7 +457,7 @@ impl<'a> Converter<'a> {
             .ids
             .assign_with_separator(slug(&inlines_to_plain(&inlines)), '-');
         Block::Header(
-            i64::from(level),
+            level,
             Box::new(Attr {
                 id: id.into(),
                 classes: Vec::new(),

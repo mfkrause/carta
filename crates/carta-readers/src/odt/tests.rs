@@ -36,6 +36,20 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn heading_levels_keep_large_signed_values() {
+    for level in [i64::MIN, -2_147_483_649, 2_147_483_648, i64::MAX] {
+        let body = content(&format!(
+            "<text:h text:outline-level=\"{level}\">Heading</text:h>"
+        ));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        let document = read(&odt).expect("read heading level");
+        assert!(
+            matches!(document.blocks.as_slice(), [Block::Header(actual, _, _)] if *actual == level)
+        );
+    }
+}
+
+#[test]
 fn sections_keep_their_containers_inside_lists_and_body() {
     let body = content(
         "<text:section text:name=\"Named\"><text:section/><text:p>Text</text:p></text:section>\
