@@ -659,7 +659,7 @@ impl<'a> Converter<'a> {
             "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
             | "reference-mark" | "reference-mark-end" | "soft-page-break" | "date"
             | "page-number" | "page-count" | "author-name" | "title" | "chapter" | "file-name"
-            | "sequence-ref" | "note-ref" => {}
+            | "sequence-ref" | "note-ref" | "number" => {}
             "note" => out.push(self.convert_note(element)),
             "frame" => self.convert_frame(element, out),
             _ => {

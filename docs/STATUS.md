@@ -253,8 +253,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-- A `text:number` cached list-numbering label inside a list-item paragraph leaks into the item text
-  rather than being dropped.
 - A `text:meta` in-content metadata wrapper leaks its displayed prose rather than dropping it.
 - A block element misnested in inline context (`text:list`, a nested `text:p`, a nested `text:a`)
   leaks its text into the surrounding prose rather than being dropped.

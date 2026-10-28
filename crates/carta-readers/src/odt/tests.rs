@@ -60,6 +60,23 @@ fn cached_fields_do_not_add_display_text() {
 }
 
 #[test]
+fn cached_list_numbers_do_not_add_item_text() {
+    let body = content(
+        "<text:list><text:list-item><text:p><text:number>1.</text:number>Text</text:p>\
+         </text:list-item></text:list>",
+    );
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    let document = read(&odt).expect("read cached list number");
+    let Some(Block::OrderedList(_, items)) = document.blocks.first() else {
+        panic!("expected an ordered list");
+    };
+    assert_eq!(
+        items,
+        &vec![vec![Block::Plain(vec![Inline::Str("Text".into())])]]
+    );
+}
+
+#[test]
 fn images_without_targets_are_dropped() {
     for target in ["", "xlink:href=\"\""] {
         let body = content(&format!(
