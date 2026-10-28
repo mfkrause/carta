@@ -47,6 +47,7 @@ fn cached_fields_do_not_add_display_text() {
         "file-name",
         "sequence-ref",
         "note-ref",
+        "meta",
     ] {
         let body = content(&format!(
             "<text:p>Before<text:{field}><text:span>cached</text:span></text:{field}>After</text:p>"
