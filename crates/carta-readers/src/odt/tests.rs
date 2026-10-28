@@ -78,6 +78,19 @@ fn cached_list_numbers_do_not_add_item_text() {
 }
 
 #[test]
+fn ruby_wrappers_do_not_add_base_or_annotation_text() {
+    let body = content(
+        "<text:p>Before<text:ruby><text:ruby-base>Base</text:ruby-base>\
+         <text:ruby-text>Annotation</text:ruby-text></text:ruby>After</text:p>",
+    );
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    assert_eq!(
+        read(&odt).expect("read ruby text").blocks,
+        vec![Block::Para(vec![Inline::Str("BeforeAfter".into())])]
+    );
+}
+
+#[test]
 fn images_without_targets_are_dropped() {
     for target in ["", "xlink:href=\"\""] {
         let body = content(&format!(

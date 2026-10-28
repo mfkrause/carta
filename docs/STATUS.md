@@ -257,7 +257,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   leaks its text into the surrounding prose rather than being dropped.
 - A `text:bibliography-mark` inline citation flattens to its display text rather than becoming a
   `Cite`.
-- `text:ruby` glues the ruby base and ruby text into one run rather than dropping the annotation.
 - `text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts
   at 1 rather than continuing.
 - A `text:numbered-paragraph`'s inner paragraph is lifted into the body rather than the whole
