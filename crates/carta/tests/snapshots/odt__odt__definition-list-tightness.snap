@@ -23,6 +23,14 @@ expression: output
 <text:p text:style-name="Definition_20_Definition">definition2</text:p>
 <text:p text:style-name="Definition_20_Term_20_Tight">term3</text:p>
 <text:p text:style-name="Definition_20_Definition_20_Tight">definition3</text:p>
+<text:p text:style-name="Definition_20_Term">no definitions</text:p>
+<text:p text:style-name="Definition_20_Term">empty body</text:p>
+<text:p text:style-name="Definition_20_Term">empty paragraph</text:p>
+<text:p text:style-name="Definition_20_Definition">
+</text:p>
+<text:p text:style-name="Definition_20_Term_20_Tight">empty plain</text:p>
+<text:p text:style-name="Definition_20_Definition_20_Tight">
+</text:p>
 </office:text>
 </office:body>
 </office:document-content>

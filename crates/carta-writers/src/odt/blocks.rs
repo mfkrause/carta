@@ -282,11 +282,7 @@ impl Builder<'_> {
             };
             self.paragraph(term_style, term);
             for def in defs {
-                let checkpoint = self.body.len();
                 self.render_blocks(def, Some(def_style));
-                if self.body.len() == checkpoint {
-                    self.paragraph(def_style, &[]);
-                }
             }
         }
     }
