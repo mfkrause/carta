@@ -472,8 +472,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   distinct numbering-style name.
 - With two or more non-default numbered lists the automatic list-style definitions are emitted in
   forward creation order rather than reverse (the references are equivalent).
-- The ordered-list start value is placed on the first `text:list-item` rather than on the
-  `text:list`.
 - `DefinitionList` tightness is decided from the first item and applied to the whole list rather
   than per item.
 - A `DefinitionList` item with an empty definition body is wrongly detected as tight, giving the
