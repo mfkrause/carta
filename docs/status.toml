@@ -195,7 +195,6 @@ write = "usable"
 write-feature = "write-revealjs"
 write-gaps = [
   "No slide-relative table of contents.",
-  "Headings are not section-numbered.",
 ]
 
 [[format]]

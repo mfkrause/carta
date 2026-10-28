@@ -372,8 +372,7 @@
         "ships": true,
         "feature": "write-revealjs",
         "gaps": [
-          "No slide-relative table of contents.",
-          "Headings are not section-numbered."
+          "No slide-relative table of contents."
         ]
       }
     },

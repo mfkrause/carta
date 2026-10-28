@@ -384,7 +384,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `revealjs` ✅
 - No slide-relative table of contents.
-- Headings are not section-numbered.
 
 ### `latex` ✅
 - A table nested in a cell cannot split across pages.

@@ -52,6 +52,10 @@ impl Writer for RevealjsWriter {
         MetaVarStyle::Web
     }
 
+    fn numbers_sections_in_body(&self) -> bool {
+        true
+    }
+
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
         render_slide_metadata(vec![Block::Plain(inlines.to_vec())], options)
     }

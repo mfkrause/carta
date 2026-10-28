@@ -81,6 +81,31 @@ fn number_sections_without_standalone_numbers_the_body_in_place() {
     );
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-revealjs"))]
+#[test]
+fn revealjs_numbers_slide_titles_and_body_headings() {
+    let mut options = WriterOptions::default();
+    options.number_sections = true;
+    let output = convert_text(
+        "markdown",
+        "revealjs",
+        "# First\n\nbody\n\n## Nested\n\nmore\n\n# Next {.unnumbered}\n",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert_eq!(
+        output,
+        "<section id=\"first\" class=\"slide level1\" data-number=\"1\">\n\
+         <h1 data-number=\"1\"><span class=\"header-section-number\">1</span>\n\
+         First</h1>\n<p>body</p>\n\
+         <h2 data-number=\"1.1\" id=\"nested\"><span\n\
+         class=\"header-section-number\">1.1</span> Nested</h2>\n<p>more</p>\n</section>\n\
+         <section id=\"next\" class=\"slide level1 unnumbered\">\n\
+         <h1 class=\"unnumbered\">Next</h1>\n</section>"
+    );
+}
+
 #[cfg(all(
     feature = "read-commonmark",
     feature = "write-html",
