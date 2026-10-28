@@ -605,9 +605,30 @@ impl<'a> Converter<'a> {
     fn convert_inlines(&mut self, children: &[Node]) -> Vec<Inline> {
         let mut out = Vec::new();
         for node in children {
+            let boundary = out.len();
             match node {
                 Node::Text(text) => push_text(&mut out, text),
                 Node::Element(element) => self.convert_inline_element(element, &mut out),
+            }
+            // Join node boundaries only; text:s can contain several explicit spaces.
+            let (before, after) = out.split_at_mut(boundary);
+            let merged = match (before.last_mut(), after.first()) {
+                (
+                    Some(Inline::Space | Inline::SoftBreak | Inline::LineBreak),
+                    Some(Inline::Space),
+                )
+                | (Some(Inline::LineBreak), Some(Inline::SoftBreak)) => true,
+                (
+                    Some(previous @ (Inline::Space | Inline::SoftBreak)),
+                    Some(current @ (Inline::SoftBreak | Inline::LineBreak)),
+                ) => {
+                    *previous = current.clone();
+                    true
+                }
+                _ => false,
+            };
+            if merged {
+                out.remove(boundary);
             }
         }
         coalesce_text(&mut out);

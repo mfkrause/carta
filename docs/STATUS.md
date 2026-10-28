@@ -276,8 +276,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A `table:table` nested directly in a `text:list-item` is lifted into the item rather than dropped.
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
   is taken as the sum of colspans and rows go ragged.
-- A void inline element (`text:soft-page-break`, `text:bookmark-end`, an image-less `draw:frame`)
-  flanked by whitespace leaves both flanking spaces uncollapsed.
 - A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.
 - A `text:s` with a malformed `text:c` count falls back to one space rather than none.
 - An image wrapped in a hyperlink (`draw:frame` inside `text:a`) keeps the `Image` inside the `Link`

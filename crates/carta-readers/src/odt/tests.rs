@@ -52,6 +52,30 @@ fn images_without_targets_are_dropped() {
 }
 
 #[test]
+fn inline_boundaries_merge_breaks_but_keep_explicit_spaces() {
+    for (markup, whitespace) in [
+        (" <text:soft-page-break/> ", vec![Inline::Space]),
+        (" <text:bookmark-end/>\n", vec![Inline::SoftBreak]),
+        (" <draw:frame/><text:line-break/>", vec![Inline::LineBreak]),
+        (" <text:s text:c=\"3\"/> ", vec![Inline::Space; 3]),
+        (
+            "<text:line-break/><draw:frame/><text:line-break/>",
+            vec![Inline::LineBreak; 2],
+        ),
+    ] {
+        let body = content(&format!("<text:p>Before{markup}After</text:p>"));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        let mut inlines = vec![Inline::Str("Before".into())];
+        inlines.extend(whitespace);
+        inlines.push(Inline::Str("After".into()));
+        assert_eq!(
+            read(&odt).expect("read inline whitespace").blocks,
+            vec![Block::Para(inlines)]
+        );
+    }
+}
+
+#[test]
 fn heading_levels_keep_large_signed_values() {
     for level in [i64::MIN, -2_147_483_649, 2_147_483_648, i64::MAX] {
         let body = content(&format!(
