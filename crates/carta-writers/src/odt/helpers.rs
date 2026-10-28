@@ -129,8 +129,7 @@ pub(super) fn column_letter(mut index: usize) -> String {
 
 /// Whether a raw format targets this writer.
 pub(super) fn is_opendocument(format: &Format) -> bool {
-    let name = format.0.as_str();
-    name.eq_ignore_ascii_case("opendocument") || name.eq_ignore_ascii_case("odt")
+    format.0.eq_ignore_ascii_case("opendocument")
 }
 
 /// Return the insertion offset for a relative target's package-root `../` step.
@@ -249,9 +248,11 @@ mod tests {
     }
 
     #[test]
-    fn is_opendocument_matches_writer_targets() {
+    fn raw_format_requires_opendocument() {
         assert!(is_opendocument(&Format("opendocument".into())));
-        assert!(is_opendocument(&Format("ODT".into())));
+        assert!(is_opendocument(&Format("OPENDOCUMENT".into())));
+        assert!(!is_opendocument(&Format("odt".into())));
+        assert!(!is_opendocument(&Format("ODT".into())));
         assert!(!is_opendocument(&Format("html".into())));
     }
 

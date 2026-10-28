@@ -1,0 +1,106 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "opendocument:"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "opendocument",
+            "<text:span>opendocument inline</text:span>"
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "OPENDOCUMENT:"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "OPENDOCUMENT",
+            "<text:span>OPENDOCUMENT inline</text:span>"
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "odt:"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "odt",
+            "<text:span>odt inline</text:span>"
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "ODT:"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "ODT",
+            "<text:span>ODT inline</text:span>"
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "html:"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "html",
+            "<text:span>html inline</text:span>"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "RawBlock",
+      "c": [
+        "opendocument",
+        "<text:p>opendocument block</text:p>"
+      ]
+    },
+    {
+      "t": "RawBlock",
+      "c": [
+        "OPENDOCUMENT",
+        "<text:p>OPENDOCUMENT block</text:p>"
+      ]
+    },
+    {
+      "t": "RawBlock",
+      "c": [
+        "odt",
+        "<text:p>odt block</text:p>"
+      ]
+    },
+    {
+      "t": "RawBlock",
+      "c": [
+        "ODT",
+        "<text:p>ODT block</text:p>"
+      ]
+    },
+    {
+      "t": "RawBlock",
+      "c": [
+        "html",
+        "<text:p>html block</text:p>"
+      ]
+    }
+  ]
+}

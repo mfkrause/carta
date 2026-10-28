@@ -1257,7 +1257,6 @@
           "The `--toc` `text:table-of-content` carries a spurious `text:name=\"Table of Contents1\"` attribute.",
           "A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted plain.",
           "A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted plain.",
-          "A `RawInline`/`RawBlock` with the non-canonical format token `odt` is passed through (only `opendocument` should pass).",
           "An internal or trailing run of two or more verbatim spaces in `Code`/`CodeBlock` is emitted as a single `text:s` covering the whole run rather than one literal space plus a `text:s` for the remainder.",
           "A double-quote in XML text content is emitted literally rather than as `&quot;`.",
           "A `pHYs` density chunk is ignored, so a non-72-dpi PNG renders at the wrong physical size (only JPEG JFIF density is read).",
