@@ -75,15 +75,14 @@ const MANIFEST_RDF: &str = concat!(
 );
 
 /// The two graphic styles a formula frame references: `fr1` anchors an inline formula in the text
-/// line, `fr2` centers a display formula in its own paragraph. Emitted once when the document holds
-/// any formula.
+/// line, `fr2` centers a display formula in its own paragraph.
 const FORMULA_STYLES: &str = concat!(
-    "<style:style style:name=\"fr1\" style:family=\"graphic\" style:parent-style-name=\"Formula\">",
-    "<style:graphic-properties style:vertical-pos=\"middle\" style:vertical-rel=\"text\" />",
-    "</style:style>",
     "<style:style style:name=\"fr2\" style:family=\"graphic\" style:parent-style-name=\"Formula\">",
     "<style:graphic-properties style:vertical-pos=\"middle\" style:vertical-rel=\"text\" ",
     "style:horizontal-pos=\"center\" style:horizontal-rel=\"paragraph-content\" style:wrap=\"none\" />",
+    "</style:style>",
+    "<style:style style:name=\"fr1\" style:family=\"graphic\" style:parent-style-name=\"Formula\">",
+    "<style:graphic-properties style:vertical-pos=\"middle\" style:vertical-rel=\"text\" />",
     "</style:style>",
 );
 
@@ -311,9 +310,7 @@ impl<'a> Builder<'a> {
         }
         out.push_str(&self.table_styles);
         out.push_str(&self.list_styles);
-        if !self.formulas.is_empty() {
-            out.push_str(FORMULA_STYLES);
-        }
+        out.push_str(FORMULA_STYLES);
         out.push_str("</office:automatic-styles>");
 
         out.push_str("<office:body><office:text>");

@@ -528,8 +528,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   and relation operators.
 - An uppercase Greek letter emits a bare `mi` with no `mathvariant="normal"`, rendering slanted
   rather than upright.
-- The `fr1`/`fr2` formula graphic styles are emitted only when a formula is present rather than
-  always.
 - `\dfrac` and `\tfrac` embed as a plain fraction without the display-style wrapper that would set
   their size apart.
 - The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.

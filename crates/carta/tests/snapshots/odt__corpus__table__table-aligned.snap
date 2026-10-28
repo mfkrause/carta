@@ -33,6 +33,12 @@ expression: output
 <style:style style:name="Table1.B" style:family="table-column" />
 <style:style style:name="Table1.C" style:family="table-column" />
 <style:style style:name="Table1.D" style:family="table-column" />
+<style:style style:name="fr2" style:family="graphic" style:parent-style-name="Formula">
+<style:graphic-properties style:vertical-pos="middle" style:vertical-rel="text" style:horizontal-pos="center" style:horizontal-rel="paragraph-content" style:wrap="none" />
+</style:style>
+<style:style style:name="fr1" style:family="graphic" style:parent-style-name="Formula">
+<style:graphic-properties style:vertical-pos="middle" style:vertical-rel="text" />
+</style:style>
 </office:automatic-styles>
 <office:body>
 <office:text>
