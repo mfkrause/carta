@@ -509,8 +509,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   term a tight style and a spurious empty definition paragraph.
 - Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper
   levels are not progressively indented.
-- With `empty_paragraphs` on, an empty `Plain []` emits an extra empty paragraph rather than being
-  suppressed.
 - A paragraph following a dropped non-opendocument `RawBlock`, or a flowing paragraph after a
   `Figure`, is styled `First_20_paragraph` rather than `Text_20_body` (renders identically).
 - The first flowing paragraph inside a table cell is not treated as section-opening, so after a

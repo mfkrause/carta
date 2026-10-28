@@ -31,6 +31,7 @@ impl Builder<'_> {
 
     fn render_block(&mut self, block: &Block, fixed: Option<&str>) {
         match block {
+            Block::Plain(inlines) if inlines.is_empty() && fixed.is_none() => {}
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, fixed),
             Block::LineBlock(lines) => self.line_block_like(lines, fixed),
             Block::Div(attr, inner) => self.div(attr, inner, fixed),

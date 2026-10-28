@@ -686,7 +686,6 @@ write-gaps = [
   "`DefinitionList` tightness is decided from the first item and applied to the whole list rather than per item.",
   "A `DefinitionList` item with an empty definition body is wrongly detected as tight, giving the term a tight style and a spurious empty definition paragraph.",
   "Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper levels are not progressively indented.",
-  "With `empty_paragraphs` on, an empty `Plain []` emits an extra empty paragraph rather than being suppressed.",
   "A paragraph following a dropped non-opendocument `RawBlock`, or a flowing paragraph after a `Figure`, is styled `First_20_paragraph` rather than `Text_20_body` (renders identically).",
   "The first flowing paragraph inside a table cell is not treated as section-opening, so after a `DisplayMath` split its leading text gets `Text_20_body` rather than `First_20_paragraph`.",
   "When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell, definition), the split formula paragraph uses the flowing body style rather than the container style.",
