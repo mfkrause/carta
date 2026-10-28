@@ -18,7 +18,8 @@ mod support;
 use support::{
     apply_wrappers, coalesce_text, compact, convert_figures, decode_style_name, empty_span,
     flush_code, flush_quote, formula_part_path, inlines_to_plain, intern_anchor, is_drawing_shape,
-    map_delim, map_number_style, parse_length, push_text, read_text_props, row_width, square_rows,
+    map_delim, map_number_style, parse_length, parse_space_count, push_text, read_text_props,
+    row_width, square_rows,
 };
 
 /// The most columns a table grid is allowed to span. Far wider than any authored table, this bounds
@@ -642,7 +643,7 @@ impl<'a> Converter<'a> {
             "s" => {
                 let count = element
                     .attr("c")
-                    .and_then(|value| value.parse::<usize>().ok())
+                    .and_then(parse_space_count)
                     .unwrap_or(1)
                     .min(MAX_REPEATED_SPACES);
                 for _ in 0..count {

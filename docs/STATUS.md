@@ -277,7 +277,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
   is taken as the sum of colspans and rows go ragged.
 - A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.
-- A `text:s` with a malformed `text:c` count falls back to one space rather than none.
 - An image wrapped in a hyperlink (`draw:frame` inside `text:a`) keeps the `Image` inside the `Link`
   rather than dropping it.
 - A package-relative hyperlink target with a leading `../` is kept verbatim rather than stripped by

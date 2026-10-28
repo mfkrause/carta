@@ -52,6 +52,28 @@ fn images_without_targets_are_dropped() {
 }
 
 #[test]
+fn space_counts_follow_integer_reading_rules() {
+    for (value, count) in [
+        ("-1", 0),
+        ("+2", 1),
+        (" 2 ", 2),
+        ("0x2", 2),
+        ("(2)", 2),
+        ("0b10", 0),
+        ("2.5", 1),
+        ("invalid", 1),
+    ] {
+        let body = content(&format!("<text:p>A<text:s text:c=\"{value}\"/>B</text:p>"));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        let document = read(&odt).expect("read space count");
+        assert_eq!(
+            carta_ast::to_plain_text(carta_ast::single_block_inlines(&document.blocks)),
+            format!("A{}B", " ".repeat(count))
+        );
+    }
+}
+
+#[test]
 fn inline_boundaries_merge_breaks_but_keep_explicit_spaces() {
     for (markup, whitespace) in [
         (" <text:soft-page-break/> ", vec![Inline::Space]),

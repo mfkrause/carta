@@ -103,6 +103,52 @@ pub(super) fn push_text(out: &mut Vec<Inline>, text: &str) {
     }
 }
 
+/// Parses an integer prefix with an optional sign, parentheses, and radix prefix.
+pub(super) fn parse_space_count(mut value: &str) -> Option<usize> {
+    value = value.trim_start();
+    let mut parentheses = 0;
+    while let Some(inner) = value.strip_prefix('(') {
+        value = inner.trim_start();
+        parentheses += 1;
+    }
+    let negative = value.starts_with('-');
+    if negative {
+        value = value.strip_prefix('-')?.trim_start();
+    }
+    let mut radix = 10;
+    for (prefix, base) in [("0x", 16), ("0X", 16), ("0o", 8), ("0O", 8)] {
+        if let Some(digits) = value.strip_prefix(prefix)
+            && digits.starts_with(|ch: char| ch.is_digit(base))
+        {
+            value = digits;
+            radix = base;
+            break;
+        }
+    }
+    let end = value
+        .find(|ch: char| !ch.is_digit(radix))
+        .unwrap_or(value.len());
+    let (digits, mut remaining) = value.split_at(end);
+    if radix == 10 {
+        let fraction = remaining
+            .strip_prefix('.')
+            .is_some_and(|tail| tail.starts_with(|ch: char| ch.is_ascii_digit()));
+        let exponent = remaining.strip_prefix(['e', 'E']).is_some_and(|tail| {
+            tail.strip_prefix(['+', '-'])
+                .unwrap_or(tail)
+                .starts_with(|ch: char| ch.is_ascii_digit())
+        });
+        if fraction || exponent {
+            return None;
+        }
+    }
+    for _ in 0..parentheses {
+        remaining = remaining.trim_start().strip_prefix(')')?;
+    }
+    let count = usize::from_str_radix(digits, radix).ok()?;
+    Some(if negative { 0 } else { count })
+}
+
 /// Fuses runs of adjacent text into one, so a marker that carries no content of its own (a bookmark
 /// end, a reference-mark point, an unstyled span) leaves no seam between the words around it.
 pub(super) fn coalesce_text(inlines: &mut Vec<Inline>) {
