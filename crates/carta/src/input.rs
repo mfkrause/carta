@@ -41,7 +41,7 @@ fn filename_formats(path: &Path) -> Option<(&'static str, &'static str)> {
         "html" | "htm" | "xhtml" => ("html", "html"),
         "tex" | "latex" | "ltx" => ("latex", "latex"),
         "rst" => ("rst", "rst"),
-        "adoc" | "asciidoc" => ("rst", "asciidoc"),
+        "adoc" | "asciidoc" => ("asciidoc", "asciidoc"),
         "org" => ("org", "org"),
         "json" => ("json", "json"),
         "native" => ("native", "native"),

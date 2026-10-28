@@ -650,6 +650,6 @@ Notes list gaps and limitations only.
 | Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no webtex or default plain-HTML renderer yet. |
 | Writer extension toggles | ✅ | `rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart`. |
 | Embed resources / extract media | ✅ | — |
-| Filename format inference | ✅ | `.adoc` and `.asciidoc` inputs select `rst` rather than reporting the unsupported AsciiDoc reader. |
+| Filename format inference | ✅ | — |
 | Multiple inputs / defaults files (`--defaults`) | 🚧 | Multiple binary inputs, `--file-scope`, and defaults files are not supported. |
 | CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ✅ | — |

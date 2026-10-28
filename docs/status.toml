@@ -1076,7 +1076,6 @@ status = "usable"
 [[feature]]
 name = "Filename format inference"
 status = "usable"
-notes = "`.adoc` and `.asciidoc` inputs select `rst` rather than reporting the unsupported AsciiDoc reader."
 
 [[feature]]
 name = "Multiple inputs / defaults files (`--defaults`)"

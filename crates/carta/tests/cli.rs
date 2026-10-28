@@ -218,6 +218,21 @@ fn filenames_select_readers_case_insensitively() {
 }
 
 #[test]
+fn asciidoc_filenames_select_the_asciidoc_reader() {
+    let directory = input_directory("inferred-asciidoc-reader");
+    for extension in ["adoc", "asciidoc", "ADOC"] {
+        let path = directory.join(format!("input.{extension}"));
+        fs::write(&path, "= Sample\n\nA *strong* word.\n").unwrap();
+        let path = path.to_str().unwrap();
+        let explicit = run(&["-f", "asciidoc", "-t", "json", path], "");
+        let inferred = run(&["-t", "json", path], "");
+        assert_eq!(inferred.code, explicit.code, "{extension}");
+        assert_eq!(inferred.stdout, explicit.stdout, "{extension}");
+        assert_eq!(inferred.stderr, explicit.stderr, "{extension}");
+    }
+}
+
+#[test]
 fn filenames_select_writers_case_insensitively() {
     let directory = input_directory("inferred-writers");
     for (extension, expected) in [
