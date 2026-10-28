@@ -499,8 +499,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   single `text:s` covering the whole run rather than one literal space plus a `text:s` for the
   remainder.
 - A double-quote in XML text content is emitted literally rather than as `&quot;`.
-- A `pHYs` density chunk is ignored, so a non-72-dpi PNG renders at the wrong physical size (only
-  JPEG JFIF density is read).
 - A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.
 - A pathological (negative or non-finite) image width or height is emitted verbatim rather than
   falling back to the intrinsic size.

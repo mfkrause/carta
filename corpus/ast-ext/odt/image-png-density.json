@@ -1,0 +1,141 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [],
+            [
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAJUlEQVR4nO3BMQEAAADCoPVPbQo/oAAAAAAAAAAAAAAAAAAA4GE6ygABaiExsAAAAABJRU5ErkJggg==",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [],
+            [
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAACXBIWXMAAC4jAAAXEgGVQubbAAAAJUlEQVR4nO3BMQEAAADCoPVPbQo/oAAAAAAAAAAAAAAAAAAA4GE6ygABaiExsAAAAABJRU5ErkJggg==",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              [
+                [
+                  "width",
+                  "2in"
+                ]
+              ]
+            ],
+            [],
+            [
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAACXBIWXMAAC4jAAAXEgGVQubbAAAAJUlEQVR4nO3BMQEAAADCoPVPbQo/oAAAAAAAAAAAAAAAAAAA4GE6ygABaiExsAAAAABJRU5ErkJggg==",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              [
+                [
+                  "height",
+                  "2in"
+                ]
+              ]
+            ],
+            [],
+            [
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAACXBIWXMAAC4jAAAXEgGVQubbAAAAJUlEQVR4nO3BMQEAAADCoPVPbQo/oAAAAAAAAAAAAAAAAAAA4GE6ygABaiExsAAAAABJRU5ErkJggg==",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [],
+            [
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAACXBIWXMAAA7EAAAOxADiLD6NAAAAJUlEQVR4nO3BMQEAAADCoPVPbQo/oAAAAAAAAAAAAAAAAAAA4GE6ygABaiExsAAAAABJRU5ErkJggg==",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [],
+            [
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAACXBIWXMAAAAAAAAAAAHqZRakAAAAJUlEQVR4nO3BMQEAAADCoPVPbQo/oAAAAAAAAAAAAAAAAAAA4GE6ygABaiExsAAAAABJRU5ErkJggg==",
+              ""
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

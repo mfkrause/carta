@@ -3,7 +3,7 @@
 use carta_ast::Attr;
 
 use crate::image_size::{
-    gif_dimensions, jpeg_dimensions, png_dimensions, read_be_u16, webp_dimensions,
+    gif_dimensions, image_dpi, jpeg_dimensions, png_dimensions, read_be_u16, webp_dimensions,
 };
 
 use super::helpers::attr_value;
@@ -13,7 +13,8 @@ use super::helpers::attr_value;
 /// a square default so a frame still gets a sensible size rather than a degenerate zero one.
 pub(super) fn image_metrics(bytes: &[u8]) -> ((u32, u32), (f64, f64)) {
     if let Some(dimensions) = png_dimensions(bytes) {
-        return (dimensions, (72.0, 72.0));
+        let (horizontal, vertical) = image_dpi(bytes);
+        return (dimensions, (f64::from(horizontal), f64::from(vertical)));
     }
     if let Some(dimensions) = gif_dimensions(bytes) {
         return (dimensions, (72.0, 72.0));
@@ -165,8 +166,11 @@ pub(super) fn image_size(attr: &Attr, width: u32, height: u32, density: (f64, f6
     let (dpi_x, dpi_y) = density;
     let requested_width = attr_value(attr, "width").and_then(parse_dimension);
     let requested_height = attr_value(attr, "height").and_then(parse_dimension);
-    let natural_width = format!("{}pt", show_number(f64::from(width) * 72.0 / dpi_x));
-    let natural_height = format!("{}pt", show_number(f64::from(height) * 72.0 / dpi_y));
+    let width_points = f64::from(width) * 72.0 / dpi_x;
+    let height_points = f64::from(height) * 72.0 / dpi_y;
+    let ratio = width_points / height_points;
+    let natural_width = format!("{}pt", show_number(width_points));
+    let natural_height = format!("{}pt", show_number(height_points));
 
     if let Some(Dimension::Percent(percent)) = &requested_width {
         return format!(
@@ -188,7 +192,7 @@ pub(super) fn image_size(attr: &Attr, width: u32, height: u32, density: (f64, f6
         (Some(w), Some(h)) => (inches(&show_inches(w)), inches(&show_inches(h))),
         (Some(w), None) => {
             let h = if width > 0 {
-                inches(&show_number(w * (f64::from(height) / f64::from(width))))
+                inches(&show_number(w / ratio))
             } else {
                 natural_height
             };
@@ -196,7 +200,7 @@ pub(super) fn image_size(attr: &Attr, width: u32, height: u32, density: (f64, f6
         }
         (None, Some(h)) => {
             let w = if height > 0 {
-                inches(&show_number(h * (f64::from(width) / f64::from(height))))
+                inches(&show_number(h * ratio))
             } else {
                 natural_width
             };
