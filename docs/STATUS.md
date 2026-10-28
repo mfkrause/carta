@@ -280,8 +280,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   flanked by whitespace leaves both flanking spaces uncollapsed.
 - A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.
 - A `text:s` with a malformed `text:c` count falls back to one space rather than none.
-- A `draw:image` with `office:binary-data` and no `xlink:href` emits an `Image` with an empty URL
-  rather than being dropped.
 - An image wrapped in a hyperlink (`draw:frame` inside `text:a`) keeps the `Image` inside the `Link`
   rather than dropping it.
 - A package-relative hyperlink target with a leading `../` is kept verbatim rather than stripped by

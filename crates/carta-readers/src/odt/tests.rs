@@ -36,6 +36,22 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn images_without_targets_are_dropped() {
+    for target in ["", "xlink:href=\"\""] {
+        let body = content(&format!(
+            "<text:p>Before<draw:frame><draw:image {target}>\
+             <office:binary-data>iVBORw0KGgo=</office:binary-data>\
+             </draw:image></draw:frame>After</text:p>"
+        ));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        assert_eq!(
+            read(&odt).expect("read image without a target").blocks,
+            vec![Block::Para(vec![Inline::Str("BeforeAfter".into())])]
+        );
+    }
+}
+
+#[test]
 fn heading_levels_keep_large_signed_values() {
     for level in [i64::MIN, -2_147_483_649, 2_147_483_648, i64::MAX] {
         let body = content(&format!(

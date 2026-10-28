@@ -780,7 +780,10 @@ impl<'a> Converter<'a> {
         title: &str,
     ) -> Option<Inline> {
         let image = frame.child("image")?;
-        let href = image.attr("href").unwrap_or_default().to_owned();
+        let href = image
+            .attr("href")
+            .filter(|href| !href.is_empty())?
+            .to_owned();
         self.register_media(&href);
         let mut attributes = Vec::new();
         if let Some(width) = frame.attr("width") {
