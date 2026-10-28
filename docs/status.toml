@@ -210,7 +210,6 @@ write-gaps = [
   "No slide-relative table of contents.",
   "Headings are not section-numbered.",
   "Empty table header rows are retained.",
-  "Internal links omit the slide fragment prefix `#/`.",
 ]
 
 [[format]]

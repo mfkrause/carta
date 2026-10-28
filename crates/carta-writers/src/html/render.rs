@@ -757,7 +757,12 @@ impl State {
         out.push_str("<a");
         out.push(BREAK);
         out.push_str("href=\"");
-        escape_attr_into(out, &target.url);
+        if let Some(fragment) = target.url.strip_prefix('#') {
+            out.push_str(fragment_prefix(self.flavor));
+            escape_attr_into(out, fragment);
+        } else {
+            escape_attr_into(out, &target.url);
+        }
         out.push('"');
         render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
         out.push_str(&title_attr(&target.title));

@@ -85,7 +85,7 @@ enum Flavor {
     #[default]
     Html5,
     Html4,
-    /// The dialect of an html5 slide deck: identical to [`Flavor::Html5`] except that footnote
+    /// The dialect of an html5 slide deck: identical to [`Flavor::Html5`] except that internal
     /// links carry the deck's in-page navigation prefix on their fragment targets.
     // Constructed only by the slide writer; absent when its feature is sliced out of the build.
     #[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
@@ -114,7 +114,7 @@ impl Flavor {
     }
 }
 
-/// The fragment-target prefix on a footnote link. The slide dialect routes links through the deck's
+/// The fragment-target prefix on an internal link. The slide dialect routes links through the deck's
 /// in-page navigation, so its fragments are reached as `#/<id>` rather than `#<id>`.
 fn fragment_prefix(flavor: Flavor) -> &'static str {
     match flavor {
@@ -217,6 +217,24 @@ pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode, width: usize) -> Stri
     let mut filled = restore(reflow(assembled, wrap, width));
     filled.truncate(filled.trim_end_matches('\n').len());
     filled
+}
+
+#[cfg(feature = "revealjs")]
+pub(crate) fn render_slide_metadata(blocks: Vec<Block>, options: &WriterOptions) -> Result<String> {
+    let document = Document {
+        blocks,
+        ..Document::default()
+    };
+    carta_core::budget::scope(&document, || {
+        Ok(render_with_flavor(
+            &document.blocks,
+            Flavor::Slides,
+            options.wrap,
+            fill_width(options),
+            math_output(options),
+            highlighting(options),
+        ))
+    })
 }
 
 /// Render a block sequence to an html5 fragment, including the footnote section for any notes the

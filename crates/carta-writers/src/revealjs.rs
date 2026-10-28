@@ -5,7 +5,7 @@ use std::fmt::Write;
 use carta_ast::{Block, Document, Inline};
 use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
-use crate::html::{SlideRenderer, fill_slides, fill_width, highlighting};
+use crate::html::{SlideRenderer, fill_slides, fill_width, highlighting, render_slide_metadata};
 use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
 
 /// Renders a document to a nested-`<section>` slide deck.
@@ -53,11 +53,11 @@ impl Writer for RevealjsWriter {
     }
 
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
-        crate::html::HtmlWriter.render_meta_inlines(inlines, options)
+        render_slide_metadata(vec![Block::Plain(inlines.to_vec())], options)
     }
 
     fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
-        crate::html::HtmlWriter.render_meta_blocks(blocks, options)
+        render_slide_metadata(blocks.to_vec(), options)
     }
 }
 
@@ -348,5 +348,47 @@ mod tests {
         assert!(out.contains("href=\"#/fn1\""));
         assert!(out.contains("<section id=\"footnotes\""));
         assert!(out.contains("href=\"#/fnref1\""));
+    }
+
+    #[test]
+    fn internal_links_use_slide_fragments_in_body_titles_and_metadata() {
+        use carta_ast::Target;
+
+        let options = WriterOptions::default();
+        for (url, expected) in [
+            ("#section-one", "#/section-one"),
+            ("#", "#/"),
+            ("#/section-one", "#//section-one"),
+            ("#a&b", "#/a&amp;b"),
+            ("page#section-one", "page#section-one"),
+            ("https://example.org/#one", "https://example.org/#one"),
+        ] {
+            let link = Inline::Link(
+                Box::default(),
+                vec![Inline::Str("go".into())],
+                Box::new(Target {
+                    url: url.into(),
+                    title: "".into(),
+                }),
+            );
+            let anchor = format!("<a href=\"{expected}\">go</a>");
+            let out = render(vec![
+                Block::Header(1, Box::default(), vec![link.clone()]),
+                Block::Para(vec![link.clone()]),
+            ]);
+            assert_eq!(out.matches(&anchor).count(), 2, "{url}");
+            assert_eq!(
+                RevealjsWriter
+                    .render_meta_inlines(std::slice::from_ref(&link), &options)
+                    .unwrap(),
+                anchor
+            );
+            assert_eq!(
+                RevealjsWriter
+                    .render_meta_blocks(&[Block::Para(vec![link])], &options)
+                    .unwrap(),
+                format!("<p>{anchor}</p>")
+            );
+        }
     }
 }

@@ -405,7 +405,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - No slide-relative table of contents.
 - Headings are not section-numbered.
 - Empty table header rows are retained.
-- Internal links omit the slide fragment prefix `#/`.
 
 ### `latex` ✅
 - A table nested in a cell cannot split across pages.
