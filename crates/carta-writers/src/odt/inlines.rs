@@ -220,7 +220,6 @@ impl Builder<'_> {
 
     fn note(&mut self, blocks: &[Block]) {
         let id = self.note_id;
-        self.note_id += 1;
         let _ = write!(
             self.body,
             "<text:note text:id=\"ftn{id}\" text:note-class=\"footnote\">\
@@ -229,6 +228,8 @@ impl Builder<'_> {
         );
         let checkpoint = self.body.len();
         self.render_blocks(blocks, Some("Footnote"));
+        // Reserve the outer note's number before rendering nested notes.
+        self.note_id += 1;
         if self.body.len() == checkpoint {
             self.body.truncate(checkpoint - "<text:note-body>".len());
             self.body.push_str("<text:note-body />");
