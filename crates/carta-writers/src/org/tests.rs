@@ -158,3 +158,30 @@ fn styled_inlines_wrap_between_words() {
         assert_eq!(OrgWriter.write(&document, &options).unwrap(), expected);
     }
 }
+
+#[test]
+fn definition_terms_and_nested_bullets_share_the_first_line() {
+    for (term, expected) in [
+        (
+            "term",
+            "- term :: - alpha\n    beta gamma delta\n    epsilon zeta eta\n    theta iota",
+        ),
+        (
+            "alpha beta gamma",
+            "- alpha beta\n  gamma :: - alpha\n    beta gamma delta\n    epsilon zeta eta\n    theta iota",
+        ),
+    ] {
+        let document = Document {
+            blocks: vec![Block::DefinitionList(vec![(
+                words(term),
+                vec![vec![Block::BulletList(vec![vec![Block::Plain(words(
+                    "alpha beta gamma delta epsilon zeta eta theta iota",
+                ))]])]],
+            )])],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(20);
+        assert_eq!(OrgWriter.write(&document, &options).unwrap(), expected);
+    }
+}

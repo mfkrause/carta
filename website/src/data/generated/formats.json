@@ -659,9 +659,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-org",
-        "gaps": [
-          "Bullet lists inside definition-list items have incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {

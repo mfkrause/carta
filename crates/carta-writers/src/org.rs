@@ -9,7 +9,7 @@ use carta_ast::{
 use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
-    FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_hang,
+    FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_groups, fill_hang,
     indent_block, item_separator, label_matches_url, offset_as_i64, per_character_width,
     quote_marks, simple_table_rows,
 };
@@ -41,7 +41,7 @@ impl Writer for OrgWriter {
                 citations: options.extensions.contains(Extension::Citations),
                 notes: Vec::new(),
             };
-            let body = state.blocks(&document.blocks, width, false);
+            let body = state.blocks(&document.blocks, width, false, 0);
             Ok(append_notes(body, &state.notes))
         })
     }
@@ -76,12 +76,23 @@ impl State {
     /// heading or plain block is followed by a single newline. When `hang_first` is set the first
     /// visible block is laid out for a hanging marker (its leading space is kept and it is not
     /// protected with a zero-width space).
-    fn blocks(&mut self, blocks: &[Block], width: usize, hang_first: bool) -> String {
+    fn blocks(
+        &mut self,
+        blocks: &[Block],
+        width: usize,
+        hang_first: bool,
+        initial_column: usize,
+    ) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
         let mut first = true;
         for block in blocks {
-            let text = self.block(block, width, hang_first && first);
+            let text = self.block(
+                block,
+                width,
+                hang_first && first,
+                if first { initial_column } else { 0 },
+            );
             if text.is_empty() {
                 continue;
             }
@@ -95,18 +106,20 @@ impl State {
         out
     }
 
-    fn block(&mut self, block: &Block, width: usize, hang: bool) -> String {
+    fn block(&mut self, block: &Block, width: usize, hang: bool, initial_column: usize) -> String {
         match block {
-            Block::Plain(inlines) | Block::Para(inlines) => self.leaf(inlines, width, hang),
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                self.leaf(inlines, width, hang, initial_column)
+            }
             Block::LineBlock(lines) => self.line_block(lines),
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => raw_block(format, text),
             Block::BlockQuote(blocks) => {
-                let body = self.blocks(blocks, width, false);
+                let body = self.blocks(blocks, width, false, 0);
                 fence("#+begin_quote", &body, "#+end_quote")
             }
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
-            Block::BulletList(items) => self.bullet_list(items, width),
+            Block::BulletList(items) => self.bullet_list(items, width, ""),
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::HorizontalRule => "-".repeat(RULE_WIDTH),
@@ -120,9 +133,17 @@ impl State {
     /// a hanging marker, guard a leading `*`, `#`, or `|` with a zero-width space so it is not read as
     /// a heading, keyword, or table. Only a character from literal text needs guarding: an emphasis or
     /// other markup delimiter that opens the line (e.g. the `*` of a bold span) is unambiguous.
-    fn leaf(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
+    fn leaf(
+        &mut self,
+        inlines: &[Inline],
+        width: usize,
+        hang: bool,
+        initial_column: usize,
+    ) -> String {
         let pieces = separate_characters(self.pieces(inlines));
-        if hang {
+        if initial_column > 0 {
+            fill_groups(&pieces, &[], width, initial_column, hang, self.wrap)
+        } else if hang {
             fill_hang(&pieces, width, self.wrap)
         } else {
             let filled = fill(&pieces, width, self.wrap);
@@ -165,12 +186,20 @@ impl State {
         }
     }
 
-    fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
+    fn bullet_list(&mut self, items: &[Vec<Block>], width: usize, prefix: &str) -> String {
         let loose = !list_is_tight(items);
         let mut units = Vec::new();
-        for item in items {
+        let first = format!("{prefix}- ");
+        let initial_column = prefix.rsplit('\n').next().map_or(0, display_width);
+        for (index, item) in items.iter().enumerate() {
             let item = self.checkbox_item(item);
-            units.push(self.list_item(&item, width.saturating_sub(2), "- ", "  "));
+            units.push(self.list_item(
+                &item,
+                width.saturating_sub(2),
+                if index == 0 { &first } else { "- " },
+                "  ",
+                if index == 0 { initial_column } else { 0 },
+            ));
         }
         join_items(units, item_separator(loose))
     }
@@ -229,13 +258,25 @@ impl State {
             };
             let first = format!("{marker} {cookie}");
             let rest = " ".repeat(field);
-            units.push(self.list_item(item, width.saturating_sub(field), &first, &rest));
+            units.push(self.list_item(item, width.saturating_sub(field), &first, &rest, 0));
         }
         join_items(units, item_separator(loose))
     }
 
-    fn list_item(&mut self, item: &[Block], width: usize, first: &str, rest: &str) -> String {
-        let body = self.blocks(item, width, true);
+    fn list_item(
+        &mut self,
+        item: &[Block],
+        width: usize,
+        first: &str,
+        rest: &str,
+        initial_column: usize,
+    ) -> String {
+        let initial_column = if matches!(item.first(), Some(Block::Plain(_) | Block::Para(_))) {
+            initial_column
+        } else {
+            0
+        };
+        let body = self.blocks(item, width, true, initial_column);
         if let Some(block) = item.first()
             && !body.is_empty()
             && !matches!(block, Block::Plain(_) | Block::Para(_))
@@ -279,8 +320,25 @@ impl State {
             let term_text = self.flat(term);
             return format!("- {term_text} :: ");
         }
+        if let Some((Block::BulletList(items), rest)) = blocks.split_first() {
+            let body_width = width.saturating_sub(2);
+            let mut lead = term.to_vec();
+            // Keep the separator with the term's last word during wrapping.
+            lead.push(Inline::RawInline(Format("org".into()), " ::".into()));
+            let prefix = format!("{} ", self.leaf(&lead, body_width, true, 0));
+            let mut body = self.bullet_list(items, body_width, &prefix);
+            if body.is_empty() {
+                body = prefix;
+            }
+            let remainder = self.blocks(rest, body_width, false, 0);
+            if !remainder.is_empty() {
+                body.push_str("\n\n");
+                body.push_str(&remainder);
+            }
+            return indent_block(&body, "- ", "  ");
+        }
         fuse_term(term, &mut blocks);
-        let body = self.blocks(&blocks, width.saturating_sub(2), true);
+        let body = self.blocks(&blocks, width.saturating_sub(2), true, 0);
         indent_block(&body, "- ", "  ")
     }
 
@@ -389,7 +447,7 @@ impl State {
     /// the column reserves their room.
     fn render_cell(&mut self, cell: &Cell) -> RenderedCell {
         let lines: Vec<String> = self
-            .blocks(&cell.content, CELL_WIDTH, false)
+            .blocks(&cell.content, CELL_WIDTH, false, 0)
             .split('\n')
             .map(str::to_string)
             .collect();
@@ -405,7 +463,7 @@ impl State {
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {
-        let mut body = self.blocks(blocks, width, false);
+        let mut body = self.blocks(blocks, width, false, 0);
         if !attr.id.is_empty() {
             body = format!("<<{}>>\n{body}", attr.id);
         }
@@ -429,7 +487,7 @@ impl State {
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
-        let body = self.blocks(blocks, width, false);
+        let body = self.blocks(blocks, width, false, 0);
         if let Some(name) = drawer_name(&attr.classes) {
             let mut lines = vec![format!(":{name}:"), String::new()];
             if !body.is_empty() {
@@ -482,7 +540,7 @@ impl State {
         self.notes.push(String::new());
         let marker = format!("[fn:{}]", index + 1);
         let field = marker.chars().count() + 1;
-        let body = self.blocks(blocks, self.width.saturating_sub(field), false);
+        let body = self.blocks(blocks, self.width.saturating_sub(field), false, 0);
         let definition = if body.is_empty() {
             marker.clone()
         } else {

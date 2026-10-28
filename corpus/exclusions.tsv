@@ -65,7 +65,6 @@ beamer	common/list-bullet-in-definition
 jira	common/list-bullet-in-definition
 latex	common/list-bullet-in-definition
 mediawiki	common/list-bullet-in-definition
-org	common/list-bullet-in-definition
 
 # Table captions wrapped in Div blocks.
 typst	table/table-caption-div
