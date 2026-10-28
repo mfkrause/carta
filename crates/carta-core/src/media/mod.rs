@@ -6,7 +6,8 @@ mod base64;
 mod sha1;
 
 pub use base64::{
-    decode as base64_decode, encode as base64_encode, encode_mime as base64_encode_mime,
+    decode as base64_decode, decode_lenient as base64_decode_lenient, encode as base64_encode,
+    encode_mime as base64_encode_mime,
 };
 pub use sha1::hex as sha1_hex;
 
@@ -19,6 +20,12 @@ use std::path::{Component, Path};
 /// is truncated or malformed or the decoded bytes are not valid UTF-8.
 #[must_use]
 pub fn percent_decode(url: &str) -> Option<String> {
+    String::from_utf8(percent_decode_bytes(url)?).ok()
+}
+
+/// Decode `%XX` escapes without requiring the result to be UTF-8.
+#[must_use]
+pub fn percent_decode_bytes(url: &str) -> Option<Vec<u8>> {
     let bytes = url.as_bytes();
     let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -33,7 +40,7 @@ pub fn percent_decode(url: &str) -> Option<String> {
             index += 1;
         }
     }
-    String::from_utf8(decoded).ok()
+    Some(decoded)
 }
 
 fn hex_digit(byte: u8) -> Option<u8> {
@@ -486,5 +493,6 @@ mod tests {
         for source in ["bad%", "bad%2", "bad%zz", "%FF"] {
             assert_eq!(super::percent_decode(source), None);
         }
+        assert_eq!(super::percent_decode_bytes("%FF%00"), Some(vec![255, 0]));
     }
 }

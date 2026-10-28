@@ -1,13 +1,15 @@
 //! Character and token escaping, image, math, and passthrough helpers for the Typst writer.
 
+use std::fmt::Write as _;
+
 use carta_ast::{Attr, Format, Inline, MathType, QuoteType, Target, to_plain_text};
+use carta_core::media::{base64_decode_lenient, percent_decode_bytes};
 
 use crate::common::{attribute_value, clean_prefix_len};
 
-/// Render an `image(..)` call: the path, then any `height`/`width` from the attributes, then the alt
-/// text.
+/// Render an `image(..)` call with its source, dimensions, and alt text.
 pub(super) fn image_call(attr: &Attr, alt: &[Inline], target: &Target) -> String {
-    let mut args = vec![format!("\"{}\"", escape_string(&target.url))];
+    let mut args = vec![image_source(&target.url)];
     if let Some(height) = attribute_value(attr, "height") {
         args.push(format!("height: {}", dimension(height)));
     }
@@ -19,6 +21,38 @@ pub(super) fn image_call(attr: &Attr, alt: &[Inline], target: &Target) -> String
         args.push(format!("alt: \"{}\"", escape_string(&alt_text)));
     }
     format!("image({})", args.join(", "))
+}
+
+fn image_source(url: &str) -> String {
+    let decoded = url.strip_prefix("data:").and_then(|data| {
+        let (header, payload) = data.split_once(',').unwrap_or((data, ""));
+        let payload = percent_decode_bytes(payload)?;
+        let payload = String::from_utf8_lossy(&payload);
+        let bytes = if header.ends_with(";base64") {
+            base64_decode_lenient(&payload)
+        } else {
+            payload.as_bytes().to_vec()
+        };
+        Some((header.split(';').next().unwrap_or_default(), bytes))
+    });
+    let Some((mime, bytes)) = decoded else {
+        return format!("\"{}\"", escape_string(url));
+    };
+    if mime == "image/svg+xml" {
+        return format!(
+            "bytes(\"{}\")",
+            escape_string(&String::from_utf8_lossy(&bytes))
+        );
+    }
+    let mut source = String::from("bytes((");
+    for (index, byte) in bytes.iter().enumerate() {
+        if index > 0 {
+            source.push(',');
+        }
+        let _ = write!(source, "{byte}");
+    }
+    source.push_str("))");
+    source
 }
 
 /// A Typst length argument from an attribute value: a percentage carries a `.0` for a whole number; a

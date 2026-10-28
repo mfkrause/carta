@@ -95,6 +95,30 @@ pub fn decode(input: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Decode embedded payloads with missing padding or characters outside the alphabet.
+#[must_use]
+pub fn decode_lenient(input: &str) -> Vec<u8> {
+    if let Some(bytes) = decode(input) {
+        return bytes;
+    }
+    let mut symbols = String::new();
+    for byte in input.bytes() {
+        if byte == b'=' && symbols.len() % 4 >= 2 {
+            break;
+        }
+        if sextet(byte).is_some() {
+            symbols.push(char::from(byte));
+        }
+    }
+    if symbols.len() % 4 == 1 {
+        symbols.pop();
+    }
+    while !symbols.len().is_multiple_of(4) {
+        symbols.push('=');
+    }
+    decode(&symbols).unwrap_or_default()
+}
+
 /// The 6-bit value of one standard base64 alphabet symbol, or `None` for any other byte.
 fn sextet(byte: u8) -> Option<u8> {
     match byte {
@@ -109,7 +133,23 @@ fn sextet(byte: u8) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, encode, encode_mime};
+    use super::{decode, decode_lenient, encode, encode_mime};
+
+    #[test]
+    fn lenient_decoding_keeps_complete_bytes_before_padding() {
+        for (source, expected) in [
+            ("YQ", "a"),
+            ("Y!Q==", "a"),
+            ("Y=Q", "a"),
+            ("=YQ", "a"),
+            ("YQ==Yg==", "a"),
+            ("YWJjZ", "abc"),
+            ("Y", ""),
+            ("!!!", ""),
+        ] {
+            assert_eq!(decode_lenient(source), expected.as_bytes());
+        }
+    }
 
     #[test]
     fn decodes_and_ignores_whitespace() {

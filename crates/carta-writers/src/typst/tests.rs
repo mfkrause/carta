@@ -144,6 +144,31 @@ fn figures_keep_label_targets() {
 }
 
 #[test]
+fn embedded_image_sources_use_bytes() {
+    for (url, source) in [
+        ("data:image/png;base64,YQ==", "bytes((97))"),
+        ("data:image/png,ab%20cd", "bytes((97,98,32,99,100))"),
+        ("data:image/png,%FF%00", "bytes((239,191,189,0))"),
+        ("data:image/svg+xml,%3Csvg/%3E", "bytes(\"<svg/>\")"),
+        ("data:missing", "bytes(())"),
+        ("data:image/png,%GG", "\"data:image/png,%GG\""),
+    ] {
+        let image = Inline::Image(
+            Box::default(),
+            Vec::new(),
+            Box::new(Target {
+                url: url.into(),
+                title: "".into(),
+            }),
+        );
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            format!("#box(image({source}))")
+        );
+    }
+}
+
+#[test]
 fn heading_unnumbered_uses_function() {
     assert_eq!(
         render(vec![Block::Header(
