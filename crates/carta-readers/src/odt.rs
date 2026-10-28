@@ -821,8 +821,20 @@ impl<'a> Converter<'a> {
     /// A block-level figure built from a figure text box: the framed image becomes the figure body,
     /// and the caption that trails it becomes the figure caption.
     fn convert_figure(&mut self, textbox: &Element) -> Option<Block> {
-        let (frame, caption) = self.figure_image(textbox)?;
+        let (frame, mut caption) = self.figure_image(textbox)?;
         let image = self.image_from_frame(frame, caption.clone(), "")?;
+        if let [
+            Inline::Str(_),
+            Inline::Space,
+            Inline::Str(number),
+            Inline::Space,
+            ..,
+        ] = caption.as_slice()
+            && number.ends_with(':')
+            && number.chars().all(|ch| ch.is_ascii_digit() || ch == ':')
+        {
+            caption.drain(..4);
+        }
         Some(Block::Figure(
             Box::default(),
             Box::new(Caption {

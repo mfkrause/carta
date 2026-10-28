@@ -89,6 +89,39 @@ fn table_caption_style_keeps_its_class() {
 }
 
 #[test]
+fn figure_caption_labels_do_not_change_image_alt_text() {
+    for (original, expected) in [
+        ("Figure 1: Caption", "Caption"),
+        ("Illustration 2: Caption", "Caption"),
+        ("Label :: Caption", "Caption"),
+        ("Figure 1.2: Caption", "Figure 1.2: Caption"),
+        ("Figure ١: Caption", "Figure ١: Caption"),
+    ] {
+        let body = content(&format!(
+            "<text:p><draw:frame><draw:text-box><text:p>\
+             <draw:frame><draw:image xlink:href=\"image.png\"/></draw:frame>{original}\
+             </text:p></draw:text-box></draw:frame></text:p>"
+        ));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        let document = read(&odt).expect("read figure");
+        let Some(Block::Figure(_, caption, blocks)) = document.blocks.first() else {
+            panic!("expected a figure");
+        };
+        assert_eq!(
+            carta_ast::to_plain_text(carta_ast::single_block_inlines(&caption.long)),
+            expected
+        );
+        let Some(Block::Plain(inlines)) = blocks.first() else {
+            panic!("expected the figure body");
+        };
+        let Some(Inline::Image(_, alt, _)) = inlines.first() else {
+            panic!("expected an image");
+        };
+        assert_eq!(carta_ast::to_plain_text(alt), original);
+    }
+}
+
+#[test]
 fn a_missing_content_part_is_an_error() {
     let odt = package(&[("styles.xml", b"<office:document-styles/>")]);
     assert!(read(&odt).is_err());
