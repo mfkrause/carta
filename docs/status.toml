@@ -314,7 +314,6 @@ write = "usable"
 write-feature = "write-typst"
 write-gaps = [
   "Lists in table cells are flattened or misplaced.",
-  "A code block ending in a newline gains an extra trailing break.",
   "A list item starting with a nested block has incorrect spacing.",
   "A bullet list inside an ordered-list item gains a blank line.",
   "`data:` images are used as filenames rather than decoded.",

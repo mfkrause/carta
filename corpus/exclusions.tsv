@@ -52,7 +52,6 @@ man	math/over-under-set
 # A code block whose body already ends in a newline gains a spurious extra blank line (a stray
 # trailing break in DOCX) from these writers; the trailing-terminator handling is only at parity in
 # the other targets.
-typst	common/code-block-trailing-newline
 dokuwiki	common/code-block-trailing-newline
 docx	common/code-block-trailing-newline
 

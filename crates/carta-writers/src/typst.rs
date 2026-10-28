@@ -160,9 +160,14 @@ fn label_target(id: &str) -> String {
 
 fn code_block(attr: &Attr, text: &str) -> String {
     let fence = backtick_fence(text);
+    let trailing = if text.is_empty() || text.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
     match attr.classes.first() {
-        Some(language) => format!("{fence}{language}\n{text}\n{fence}"),
-        None => format!("{fence}\n{text}\n{fence}"),
+        Some(language) => format!("{fence}{language}\n{text}{trailing}{fence}"),
+        None => format!("{fence}\n{text}{trailing}{fence}"),
     }
 }
 

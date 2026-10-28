@@ -52,6 +52,21 @@ fn empty_document() {
 }
 
 #[test]
+fn code_blocks_preserve_trailing_newlines() {
+    for (text, expected) in [
+        ("", "```\n```"),
+        ("x", "```\nx\n```"),
+        ("x\n", "```\nx\n```"),
+        ("x\n\n", "```\nx\n\n```"),
+    ] {
+        assert_eq!(
+            render(vec![Block::CodeBlock(Box::default(), text.into())]),
+            expected
+        );
+    }
+}
+
+#[test]
 fn paragraph_with_emphasis() {
     assert_eq!(
         render(vec![para(vec![
