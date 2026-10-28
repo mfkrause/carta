@@ -513,7 +513,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   concatenating them.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
-- An empty `<office:scripts/>` element is always emitted rather than omitted.
 - Attribute ordering inside a combined-decoration text style groups per decoration rather than all
   `fo:*` attributes first.
 - When math fails to convert, the fallback emits the bare TeX and drops its `$` delimiters.

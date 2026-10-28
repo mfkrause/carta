@@ -292,7 +292,6 @@ impl<'a> Builder<'a> {
         out.push_str("<office:document-content");
         out.push_str(NS);
         out.push_str(" office:version=\"1.3\">");
-        out.push_str("<office:scripts />");
         out.push_str("<office:font-face-decls>");
         out.push_str(
             "<style:font-face style:name=\"Courier New\" style:font-family-generic=\"modern\" \

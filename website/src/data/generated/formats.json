@@ -1214,7 +1214,6 @@
           "A title-block author given as a YAML map is dropped rather than stringified into an author paragraph.",
           "A title-block metadata field authored as a YAML sequence joins its items with a space rather than concatenating them.",
           "Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry order, and attribute order across the manifest, metadata, and formula parts.",
-          "An empty `<office:scripts/>` element is always emitted rather than omitted.",
           "Attribute ordering inside a combined-decoration text style groups per decoration rather than all `fo:*` attributes first.",
           "When math fails to convert, the fallback emits the bare TeX and drops its `$` delimiters.",
           "Bare fence delimiters `( ) [ ] { } |` are emitted as plain `math:mo` with no `stretchy=\"false\"`, so they grow to the enclosed height.",
