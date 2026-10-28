@@ -72,6 +72,26 @@ fn list_starts_keep_large_signed_values() {
 }
 
 #[test]
+fn unknown_number_formats_make_bullet_lists() {
+    let body = content(
+        "<text:list text:style-name=\"L\"><text:list-item><text:p>Item</text:p></text:list-item></text:list>",
+    );
+    for format in ["", "x", "01", "一"] {
+        let styles = format!(
+            "<office:document-styles><office:styles><text:list-style style:name=\"L\">\
+             <text:list-level-style-number text:level=\"1\" style:num-format=\"{format}\"/>\
+             </text:list-style></office:styles></office:document-styles>"
+        );
+        let odt = package(&[
+            ("content.xml", body.as_bytes()),
+            ("styles.xml", styles.as_bytes()),
+        ]);
+        let document = read(&odt).expect("read unknown number format");
+        assert!(matches!(document.blocks.as_slice(), [Block::BulletList(_)]));
+    }
+}
+
+#[test]
 fn sections_keep_their_containers_inside_lists_and_body() {
     let body = content(
         "<text:section text:name=\"Named\"><text:section/><text:p>Text</text:p></text:section>\

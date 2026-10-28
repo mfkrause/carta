@@ -243,14 +243,15 @@ fn parse_position(position: &str) -> Vertical {
     }
 }
 
-pub(super) fn map_number_style(format: Option<&str>) -> ListNumberStyle {
-    match format {
-        Some("i") => ListNumberStyle::LowerRoman,
-        Some("I") => ListNumberStyle::UpperRoman,
-        Some("a") => ListNumberStyle::LowerAlpha,
-        Some("A") => ListNumberStyle::UpperAlpha,
-        _ => ListNumberStyle::Decimal,
-    }
+pub(super) fn map_number_style(format: Option<&str>) -> Option<ListNumberStyle> {
+    Some(match format? {
+        "1" => ListNumberStyle::Decimal,
+        "i" => ListNumberStyle::LowerRoman,
+        "I" => ListNumberStyle::UpperRoman,
+        "a" => ListNumberStyle::LowerAlpha,
+        "A" => ListNumberStyle::UpperAlpha,
+        _ => return None,
+    })
 }
 
 /// Maps a marker's surrounding punctuation to a delimiter: a closing parenthesis with a matching

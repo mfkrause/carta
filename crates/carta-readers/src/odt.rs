@@ -286,26 +286,22 @@ impl<'a> Converter<'a> {
                 "list-level-style-bullet" | "list-level-style-image" => {
                     levels.insert(index, LevelStyle::Bullet);
                 }
-                "list-level-style-number" => {
-                    // A number level with no numbering format renders unnumbered, like a bullet.
-                    match level.attr("num-format") {
-                        None | Some("") => {
-                            levels.insert(index, LevelStyle::Bullet);
-                        }
-                        Some(format) => {
-                            let number = map_number_style(Some(format));
-                            let delim = map_delim(
-                                level.attr("num-prefix").unwrap_or(""),
-                                level.attr("num-suffix").unwrap_or(""),
-                            );
-                            let start = level
-                                .attr("start-value")
-                                .and_then(|value| value.parse::<i64>().ok())
-                                .unwrap_or(1);
-                            levels.insert(index, LevelStyle::Number(number, delim, start));
-                        }
+                "list-level-style-number" => match map_number_style(level.attr("num-format")) {
+                    None => {
+                        levels.insert(index, LevelStyle::Bullet);
                     }
-                }
+                    Some(number) => {
+                        let delim = map_delim(
+                            level.attr("num-prefix").unwrap_or(""),
+                            level.attr("num-suffix").unwrap_or(""),
+                        );
+                        let start = level
+                            .attr("start-value")
+                            .and_then(|value| value.parse::<i64>().ok())
+                            .unwrap_or(1);
+                        levels.insert(index, LevelStyle::Number(number, delim, start));
+                    }
+                },
                 _ => {}
             }
         }
