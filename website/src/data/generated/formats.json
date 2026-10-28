@@ -1154,16 +1154,8 @@
           "A `mathvariant` on `math:mi` / `math:mstyle` is ignored, dropping the styled variant.",
           "A function-name script base is wrapped in redundant braces (`{\\sin}^{2}` rather than `\\sin^{2}`).",
           "MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than ignored.",
-          "Document metadata (`meta.xml`) is not captured.",
           "A cross-reference or other unrecognized inline field degrades to its display text; the dynamic target or number is not resolved.",
-          "A reference-mark point and its end emit nothing; only a reference-mark start becomes an empty `Span` carrying the mark name.",
-          "A stray block-level `text:note` (a note definition anchored in the body with no reference) is dropped.",
           "An unknown block container is made transparent (its children are lifted); soft page breaks, sequence declarations, forms, and tracked-changes markers are dropped.",
-          "A frame with no image child and no embedded formula (a text box or other embedded object) is dropped rather than represented.",
-          "Image alt text is empty; `svg:desc` is ignored.",
-          "Image titles are slugged rather than preserved.",
-          "Image width and height remain raw length strings.",
-          "Underline is represented as `Emph` (no `Underline` node); small caps and text-transform are not represented.",
           "List numbering outside the recognized set (`i`/`I`/`a`/`A`; suffix `)`/`.`; prefix-and-suffix `()`) falls back to decimal with the default delimiter, and a number level with no `num-format` is treated as a bullet.",
           "An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the like) contributes no spacing."
         ]
