@@ -12,7 +12,7 @@ mod styles;
 use crate::image_size::image_dimensions;
 use carta_ast::{Block, Document, Inline};
 use carta_core::container::zip::ZipArchive;
-use carta_core::media::{MediaItem, extension_for_mime};
+use carta_core::media::{MediaItem, decode_data_uri, extension_for_mime};
 use carta_core::{BytesWriter, EpubOptions, Result, WriterOptions};
 use metadata::BookMeta;
 use navigation::{Landmarks, collect_toc, nav_xhtml, toc_ncx};
@@ -442,21 +442,26 @@ fn collect_images(body: &mut [Block], options: &WriterOptions, media: &mut Vec<A
         if assigned.contains_key(&url) {
             return;
         }
-        let Some(item) = options.media.get(&url) else {
+        let Some(item) = options.media.get(&url).cloned().or_else(|| {
+            let (bytes, mime) = decode_data_uri(&url)?;
+            Some(MediaItem {
+                bytes,
+                mime: Some(mime),
+            })
+        }) else {
             return;
         };
         let index = media.len();
-        let extension = image_extension(&url, item);
+        let extension = image_extension(&url, &item);
         let file = format!("file{index}.{extension}");
         media.push(Asset {
             item_id: item_id_for(&file),
             href: format!("media/{file}"),
             media_type: item
                 .mime
-                .clone()
                 .unwrap_or_else(|| image_media_type(&extension).to_owned()),
             properties: None,
-            bytes: item.bytes.clone(),
+            bytes: item.bytes,
         });
         assigned.insert(url, index);
     });

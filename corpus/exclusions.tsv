@@ -117,10 +117,6 @@ rst	table/table-empty-header
 # Data-image references do not use the target's native resource handling.
 beamer	image-dimensions/image-embedded-jpeg
 beamer	image-dimensions/image-embedded-png
-epub2	image-dimensions/image-embedded-jpeg
-epub2	image-dimensions/image-embedded-png
-epub3	image-dimensions/image-embedded-jpeg
-epub3	image-dimensions/image-embedded-png
 latex	image-dimensions/image-embedded-jpeg
 latex	image-dimensions/image-embedded-png
 

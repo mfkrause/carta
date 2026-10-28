@@ -14,7 +14,7 @@ use carta::{
     EpubOptions, MediaBag, Output, ReaderOptions, WriterOptions, read_document, render_document,
 };
 use carta_core::container::zip;
-use carta_core::media::sha1_hex;
+use carta_core::media::{base64_encode, sha1_hex};
 
 /// The directory holding the EPUB Markdown fixtures.
 fn fixtures_dir() -> PathBuf {
@@ -231,6 +231,17 @@ fn epub_body_images_snapshot() {
         Output::Text(_) => panic!("an EPUB writer must produce bytes"),
     };
     insta::assert_snapshot!("body_images__epub3", describe_archive(&bytes));
+}
+
+#[test]
+fn epub_data_images_are_packaged_once() {
+    let png = format!("data:image/png;base64,{}", base64_encode(&tiny_png()));
+    let svg = "data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E";
+    let markdown = format!("![PNG]({png})\n\n![SVG]({svg})\n\n![Again]({png})\n");
+    for target in ["epub2", "epub3"] {
+        let bytes = epub_bytes(&markdown, target, &WriterOptions::default());
+        insta::assert_snapshot!(format!("data_images__{target}"), describe_archive(&bytes));
+    }
 }
 
 #[test]
