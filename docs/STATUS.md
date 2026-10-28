@@ -487,8 +487,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell,
   definition), the split formula paragraph uses the flowing body style rather than the container
   style.
-- Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 →
-  `Heading_20_1`) while keeping the outline level.
 - `native_numbering` is not implemented, so figure and table captions emit no `text:sequence`
   numbering field.
 - `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather

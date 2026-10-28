@@ -177,11 +177,9 @@ impl Builder<'_> {
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) {
-        let style_level = level.clamp(1, 6);
-        let outline = level.max(1);
         let _ = write!(
             self.body,
-            "<text:h text:style-name=\"Heading_20_{style_level}\" text:outline-level=\"{outline}\">"
+            "<text:h text:style-name=\"Heading_20_{level}\" text:outline-level=\"{level}\">"
         );
         if !attr.id.is_empty() {
             self.body.push_str("<text:bookmark-start text:name=\"");
