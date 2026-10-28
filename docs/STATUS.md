@@ -498,8 +498,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   remainder.
 - A double-quote in XML text content is emitted literally rather than as `&quot;`.
 - A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.
-- A pathological (negative or non-finite) image width or height is emitted verbatim rather than
-  falling back to the intrinsic size.
 - A `data:` image with an empty or absent media type gets a `.plain` extension rather than none.
 - A title-block author given as a YAML map is dropped rather than stringified into an author
   paragraph.

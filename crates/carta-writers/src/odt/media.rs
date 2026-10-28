@@ -2,6 +2,7 @@
 
 use carta_ast::Attr;
 
+use crate::common;
 use crate::image_size::{
     gif_dimensions, image_dpi, jpeg_dimensions, png_dimensions, read_be_u16, webp_dimensions,
 };
@@ -217,30 +218,24 @@ fn inches(value: &str) -> String {
 
 /// Parses an image dimension attribute into a percentage or an absolute length in inches. A bare
 /// number and `px` are pixels at 96 per inch; other units convert to inches by their fixed ratio.
+#[allow(clippy::cast_precision_loss)]
 fn parse_dimension(raw: &str) -> Option<Dimension> {
-    let text = raw.trim();
-    if let Some(number) = text.strip_suffix('%') {
-        return number.trim().parse::<f64>().ok().map(Dimension::Percent);
-    }
-    let units: [(&str, f64); 7] = [
-        ("in", 1.0),
-        ("cm", 0.393_700_787_4),
-        ("mm", 0.039_370_078_74),
-        ("pt", 1.0 / 72.0),
-        ("pc", 1.0 / 6.0),
-        ("em", 0.171_875),
-        ("px", 1.0 / 96.0),
-    ];
-    for (unit, factor) in units {
-        if let Some(number) = text.strip_suffix(unit)
-            && let Ok(value) = number.trim().parse::<f64>()
-        {
-            return Some(Dimension::Inches(value * factor));
+    Some(match common::parse_dimension(raw)? {
+        common::Dimension::Pixels(value) => Dimension::Inches(value as f64 / 96.0),
+        common::Dimension::Percent(value) => Dimension::Percent(value),
+        common::Dimension::Length(value, unit) => {
+            let factor = match unit {
+                "in" => 1.0,
+                "cm" => 0.393_700_787_4,
+                "mm" => 0.039_370_078_74,
+                "pt" => 1.0 / 72.0,
+                "pc" => 1.0 / 6.0,
+                "em" => 0.171_875,
+                _ => return None,
+            };
+            Dimension::Inches(value * factor)
         }
-    }
-    text.parse::<f64>()
-        .ok()
-        .map(|value| Dimension::Inches(value / 96.0))
+    })
 }
 
 /// Formats an explicitly requested length in inches: rounded to five decimals, with trailing zeros
@@ -497,6 +492,22 @@ mod tests {
             image_size(&height_only, 100, 0, (72.0, 72.0)),
             " svg:width=\"100.0pt\" svg:height=\"3in\""
         );
+    }
+
+    #[test]
+    fn image_size_rejects_invalid_dimensions() {
+        for key in ["width", "height"] {
+            for value in [
+                "-1in", "-50%", "NaN", "inf", "1e999in", "+1in", ".5in", "1.in", " 2in ",
+            ] {
+                let attr = attr_with(&[(key, value)]);
+                assert_eq!(
+                    image_size(&attr, 100, 50, (72.0, 72.0)),
+                    " svg:width=\"100.0pt\" svg:height=\"50.0pt\"",
+                    "{key}={value}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -18,6 +18,7 @@
     feature = "dokuwiki",
     feature = "jira",
     feature = "org",
+    feature = "odt",
     feature = "rtf"
 ))]
 mod common;
