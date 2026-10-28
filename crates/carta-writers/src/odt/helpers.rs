@@ -235,6 +235,7 @@ mod tests {
 
     #[test]
     fn parent_prefix_index_declines_absolute_or_document_targets() {
+        assert_eq!(parent_prefix_index(""), None);
         assert_eq!(parent_prefix_index("https://example.com/a"), None);
         assert_eq!(parent_prefix_index("#section"), None);
         assert_eq!(parent_prefix_index("?q=1"), None);

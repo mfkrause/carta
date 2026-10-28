@@ -1257,7 +1257,6 @@
           "A footnote nested inside another footnote is numbered sequentially rather than reusing the outer counter.",
           "Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 → `Heading_20_1`) while keeping the outline level.",
           "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",
-          "A `Link` with an empty target gets a `../` prefix rather than an empty `xlink:href`.",
           "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",
           "The `--toc` `text:table-of-content` carries a spurious `text:name=\"Table of Contents1\"` attribute.",
           "A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted plain.",
