@@ -285,9 +285,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   target or number is not resolved.
 - An unknown block container is made transparent (its children are lifted); soft page breaks,
   sequence declarations, forms, and tracked-changes markers are dropped.
-- List numbering outside the recognized set (`i`/`I`/`a`/`A`; suffix `)`/`.`; prefix-and-suffix
-  `()`) falls back to decimal with the default delimiter, and a number level with no `num-format` is
-  treated as a bullet.
 - An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the
   like) contributes no spacing.
 

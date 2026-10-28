@@ -308,19 +308,13 @@ pub(super) fn map_number_style(format: Option<&str>) -> Option<ListNumberStyle> 
     })
 }
 
-/// Maps a marker's surrounding punctuation to a delimiter: a closing parenthesis with a matching
-/// opener encloses the number, a lone closing parenthesis trails it, and a period trails it.
+/// Maps `.`, `)`, and paired `()` markers; other punctuation uses the default delimiter.
 pub(super) fn map_delim(prefix: &str, suffix: &str) -> ListNumberDelim {
-    if suffix == ")" {
-        if prefix == "(" {
-            ListNumberDelim::TwoParens
-        } else {
-            ListNumberDelim::OneParen
-        }
-    } else if suffix == "." {
-        ListNumberDelim::Period
-    } else {
-        ListNumberDelim::DefaultDelim
+    match (prefix, suffix) {
+        ("", ".") => ListNumberDelim::Period,
+        ("", ")") => ListNumberDelim::OneParen,
+        ("(", ")") => ListNumberDelim::TwoParens,
+        _ => ListNumberDelim::DefaultDelim,
     }
 }
 
