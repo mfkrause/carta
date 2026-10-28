@@ -37,12 +37,11 @@ pub(super) fn is_tight(items: &[Vec<Block>]) -> bool {
     leads_with_plain(items.first().map(Vec::as_slice).unwrap_or_default())
 }
 
-/// Whether a block sequence begins with a `Plain`, the marker distinguishing a tight list from a
-/// loose one. An empty sequence counts as tight.
+/// Whether a block sequence begins with `Plain`, the marker for a tight list.
 pub(super) fn leads_with_plain(blocks: &[Block]) -> bool {
     blocks
         .first()
-        .is_none_or(|block| matches!(block, Block::Plain(_)))
+        .is_some_and(|block| matches!(block, Block::Plain(_)))
 }
 
 /// Gathers caption runs while retaining inline formatting and paragraph boundaries.

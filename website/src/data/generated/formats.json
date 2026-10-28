@@ -1190,7 +1190,6 @@
           "An empty table cell is serialized self-closed rather than as an explicit open/close pair.",
           "Table structural markup is emitted compact with no whitespace between structural tags rather than indented.",
           "List structural markup is emitted compact with no inter-tag whitespace rather than indented.",
-          "Tightness is decided from the first list item, so a list whose first item is empty is wrongly detected as tight.",
           "A non-default ordered or example list reuses the generic `L1` auto-style name rather than a distinct numbering-style name.",
           "With two or more non-default numbered lists the automatic list-style definitions are emitted in forward creation order rather than reverse (the references are equivalent).",
           "`DefinitionList` tightness is decided from the first item and applied to the whole list rather than per item.",

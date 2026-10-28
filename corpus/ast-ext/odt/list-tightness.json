@@ -1,0 +1,121 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "BulletList",
+      "c": [
+        [],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "second"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "BulletList",
+      "c": [
+        [
+          {
+            "t": "Plain",
+            "c": [
+              {
+                "t": "Str",
+                "c": "first"
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "second"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "OrderedList",
+      "c": [
+        [
+          1,
+          {
+            "t": "DefaultStyle"
+          },
+          {
+            "t": "DefaultDelim"
+          }
+        ],
+        [
+          [],
+          [
+            {
+              "t": "Para",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "second"
+                }
+              ]
+            }
+          ]
+        ]
+      ]
+    },
+    {
+      "t": "OrderedList",
+      "c": [
+        [
+          1,
+          {
+            "t": "DefaultStyle"
+          },
+          {
+            "t": "DefaultDelim"
+          }
+        ],
+        [
+          [
+            {
+              "t": "Plain",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "first"
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "t": "Para",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "second"
+                }
+              ]
+            }
+          ]
+        ]
+      ]
+    }
+  ]
+}
