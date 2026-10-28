@@ -91,6 +91,32 @@ fn ruby_wrappers_do_not_add_base_or_annotation_text() {
 }
 
 #[test]
+fn numbered_paragraphs_do_not_add_blocks_or_heading_identifiers() {
+    let body = content(
+        "<text:p>Before</text:p><text:numbered-paragraph>\
+         <text:p>Hidden</text:p><text:h text:outline-level=\"1\">Title</text:h>\
+         </text:numbered-paragraph><text:p>After</text:p>\
+         <text:h text:outline-level=\"1\">Title</text:h>",
+    );
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    assert_eq!(
+        read(&odt).expect("read numbered paragraph").blocks,
+        vec![
+            Block::Para(vec![Inline::Str("Before".into())]),
+            Block::Para(vec![Inline::Str("After".into())]),
+            Block::Header(
+                1,
+                Box::new(Attr {
+                    id: "title".into(),
+                    ..Attr::default()
+                }),
+                vec![Inline::Str("Title".into())]
+            ),
+        ]
+    );
+}
+
+#[test]
 fn images_without_targets_are_dropped() {
     for target in ["", "xlink:href=\"\""] {
         let body = content(&format!(

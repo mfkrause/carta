@@ -259,8 +259,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   `Cite`.
 - `text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts
   at 1 rather than continuing.
-- A `text:numbered-paragraph`'s inner paragraph is lifted into the body rather than the whole
-  numbered paragraph being dropped.
 - Block content (a list, table, or heading) inside a footnote/endnote body is kept rather than
   reduced to paragraph flow.
 - A `text:h` heading inside a table cell is kept as a `Header` rather than dropped.
