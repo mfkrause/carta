@@ -1,0 +1,21 @@
+{
+  "pandoc-api-version": [1, 23, 1, 2],
+  "meta": {
+    "title": {"t": "MetaList", "c": [
+      {"t": "MetaString", "c": "One"},
+      {"t": "MetaString", "c": ""},
+      {"t": "MetaInlines", "c": [{"t": "Strong", "c": [{"t": "Str", "c": "Two"}]}]}
+    ]},
+    "subtitle": {"t": "MetaList", "c": [
+      {"t": "MetaString", "c": "Three"},
+      {"t": "MetaList", "c": [{"t": "MetaString", "c": "Four"}, {"t": "MetaString", "c": "Five"}]}
+    ]},
+    "author": {"t": "MetaList", "c": [
+      {"t": "MetaList", "c": [{"t": "MetaString", "c": "Ada"}, {"t": "MetaString", "c": "Lovelace"}]},
+      {"t": "MetaString", "c": ""},
+      {"t": "MetaString", "c": "Grace Hopper"}
+    ]},
+    "date": {"t": "MetaList", "c": [{"t": "MetaString", "c": "2026-"}, {"t": "MetaString", "c": "10-28"}]}
+  },
+  "blocks": []
+}

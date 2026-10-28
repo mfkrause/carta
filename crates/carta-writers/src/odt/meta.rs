@@ -188,9 +188,6 @@ fn value_inlines(value: &MetaValue) -> Vec<Inline> {
         MetaValue::MetaList(items) => {
             let mut out = Vec::new();
             for item in items {
-                if !out.is_empty() {
-                    out.push(Inline::Space);
-                }
                 out.extend(value_inlines(item));
             }
             out
@@ -222,11 +219,7 @@ pub(super) fn abstract_paragraphs(value: &MetaValue) -> Vec<Vec<Inline>> {
 /// The document's authors, one inline sequence per author.
 pub(super) fn meta_authors(meta: &BTreeMap<Text, MetaValue>) -> Vec<Vec<Inline>> {
     match meta.get("author") {
-        Some(MetaValue::MetaList(items)) => items
-            .iter()
-            .map(value_inlines)
-            .filter(|inlines| !inlines.is_empty())
-            .collect(),
+        Some(MetaValue::MetaList(items)) => items.iter().map(value_inlines).collect(),
         Some(value) => {
             let inlines = value_inlines(value);
             if inlines.is_empty() {
