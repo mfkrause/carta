@@ -1204,7 +1204,6 @@
           "Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 → `Heading_20_1`) while keeping the outline level.",
           "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",
           "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",
-          "The `--toc` `text:table-of-content` carries a spurious `text:name=\"Table of Contents1\"` attribute.",
           "A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted plain.",
           "A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted plain.",
           "An internal or trailing run of two or more verbatim spaces in `Code`/`CodeBlock` is emitted as a single `text:s` covering the whole run rather than one literal space plus a `text:s` for the remainder.",

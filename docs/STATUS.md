@@ -494,7 +494,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   numbering field.
 - `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather
   than rewriting the internal link to a reference field.
-- The `--toc` `text:table-of-content` carries a spurious `text:name="Table of Contents1"` attribute.
 - A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted
   plain.
 - A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted

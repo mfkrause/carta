@@ -654,8 +654,7 @@ impl Builder<'_> {
     /// A table-of-contents field whose entries the reader regenerates on open.
     pub(super) fn table_of_contents(&mut self) {
         let depth = self.options.toc_depth.unwrap_or(3);
-        self.body
-            .push_str("<text:table-of-content text:name=\"Table of Contents1\">");
+        self.body.push_str("<text:table-of-content>");
         let _ = write!(
             self.body,
             "<text:table-of-content-source text:outline-level=\"{depth}\">"
