@@ -153,28 +153,22 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `markdown_github` ✅
 - A task-list item followed by an ordinary bullet item splits into two lists rather than staying in
   one.
-- Shares the `markdown` reader engine, gating each construct on the dialect's own default extension
-  set, so the `markdown` reader notes apply here too.
+- Shares the `markdown` reader gaps.
 
 ### `markdown_mmd` ✅
 - An empty sub/superscript delimiter pair (`x^^y`, `a~~b`) is not read as an empty span.
 - A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.
 - An implicit header reference does not resolve against a header whose identifier was set by the
   trailing `[id]` syntax.
-- Shares the `markdown` reader engine, gating each construct on the dialect's own default extension
-  set, so the `markdown` reader notes apply here too.
+- Shares the `markdown` reader gaps.
 
 ### `markdown_phpextra` ✅
 - An inline attribute block that trails a bracketed group which is not a link (`[text]{.class}`) is
   kept as literal text; the dialect consumes and discards it.
-- Shares the `markdown` reader engine, gating each construct on the dialect's own default extension
-  set, so the `markdown` reader notes apply here too.
+- Shares the `markdown` reader gaps.
 
 ### `markdown_strict` ✅
-- The sparsest dialect: raw HTML plus the shortcut and spaced reference-link forms, and nothing
-  else.
-- Shares the `markdown` reader engine, gating each construct on the dialect's own default extension
-  set, so the `markdown` reader notes apply here too.
+- Shares the `markdown` reader gaps.
 
 ### `html` ✅
 
@@ -195,8 +189,10 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - `\includegraphics` keeps only `width` and `height`; `\textwidth`/`\linewidth`/`\textheight`
   lengths convert to percentages and absolute units pass through, but `\columnwidth`/`\paperwidth`
   and leading-dot decimal values are omitted.
-- Table support covers header detection, per-column alignment, and `\multicolumn` colspan;
-  `\multirow`, partial `\cline` rules, nested tables, and `\caption` placement may flatten or drop.
+- `\multirow` spans are not modeled.
+- Partial `\cline` rules are not modeled.
+- Nested tables may flatten.
+- A `\caption` inside `longtable` is dropped.
 - `\raisebox` in its optional depth/height form drops the box content; purely visual commands
   (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner
   content.
@@ -208,9 +204,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - An unknown `#emoji.` name contributes nothing instead of reporting invalid input.
 
 ### `org` ✅
-- Drawers: a headline's property drawer is consumed and supplies its `CUSTOM_ID` as the heading
-  identifier; the bookkeeping drawers `:PROPERTIES:` and `:LOGBOOK:` are dropped wherever they
-  appear; every other named drawer becomes a `Div` classed with the drawer name.
 - A property drawer's `:ID:` is not used as a fallback heading identifier when no `:CUSTOM_ID:` is
   present, and a file-level property drawer's keys are not promoted to document metadata.
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
@@ -234,9 +227,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary
   wikilinks rather than links to the media file or remote wiki.
 - A mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
-- An unterminated `<ref>` (no `</ref>` before end of input) is read as a raw HTML inline; pandoc
-  reads it as literal text. The unterminated-tag corpus case therefore pins only the open-tag
-  failure shapes, and the `<ref>` path is pinned by unit tests instead.
+- An unterminated `<ref>` is read as raw HTML rather than literal text.
 
 ### `man` ✅
 - A single ambiguous list-marker letter (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than
@@ -282,8 +273,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   than falling back to a `BulletList`.
 - An `OrderedList` `text:start-value` that overflows `i32` falls back to start 1 rather than the
   parsed value.
-- A caption-styled paragraph adjacent to a table is emitted as a plain `Para` rather than a `Div`
-  classed `caption`.
+- A table caption paragraph loses its `caption` class.
 - A captioned figure keeps the leading `Figure N:` / `Illustration N:` label rather than stripping
   it.
 - A `text:section`'s content is lifted in place rather than wrapped in a `Div`.
@@ -333,8 +323,9 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   sequence declarations, forms, and tracked-changes markers are dropped.
 - A frame with no image child and no embedded formula (a text box or other embedded object) is
   dropped rather than represented.
-- Images carry empty alt text; `svg:title` (slugged) becomes the title, `svg:desc` is unused, and
-  width and height pass through as raw length strings.
+- Image alt text is empty; `svg:desc` is ignored.
+- Image titles are slugged rather than preserved.
+- Image width and height remain raw length strings.
 - Underline is represented as `Emph` (no `Underline` node); small caps and text-transform are not
   represented.
 - Tables degrade: column widths and cell alignment are always default, output is a single body with
@@ -371,46 +362,121 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ## Writers
 
 ### `commonmark` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Empty table header rows are retained.
+
 ### `commonmark_x` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+
 ### `gfm` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown` ✅
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
+- Tables inside block quotes have incorrect continuation lines.
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
 
 ### `markdown_github` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+
 ### `markdown_mmd` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+
 ### `markdown_phpextra` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+
 ### `markdown_strict` ✅
+- A list item starting with a nested block has incorrect spacing.
+- Empty table header rows are retained.
+
 ### `beamer` ✅
+- Task-list checkboxes are not rendered.
+- A list item starting with a nested block has incorrect spacing.
+- Bullet lists inside definition-list items have incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+- `data:` images are used as graphics filenames rather than decoded.
+- Internal links use generic URLs rather than Beamer hyperlinks.
+
 ### `html` (+ `html5`) ✅
+- Empty table header rows are retained.
+
 ### `html4` ✅
+- Empty table header rows are retained.
 
 ### `revealjs` ✅
 - No slide-relative table of contents.
 - Headings are not section-numbered.
+- Empty table header rows are retained.
+- Internal links omit the slide fragment prefix `#/`.
 
 ### `latex` ✅
 - A table nested in a cell cannot split across pages.
 - In a line block, a line whose content is entirely code spans is set without the trailing `\strut`
   that keeps its full height, and a space ending a line is dropped.
+- Task-list checkboxes are not rendered.
+- A list item starting with a nested block has incorrect spacing.
+- Bullet lists inside definition-list items have incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+- `data:` images are used as graphics filenames rather than decoded.
 
 ### `pdf` 🚧
 - LaTeX and HTML PDF engines are not supported; the default engine is Typst instead of LaTeX.
 - The default title block leaves less space before the following content.
 
 ### `typst` ✅
+- Lists in table cells are flattened or misplaced.
+- A code block ending in a newline gains an extra trailing break.
+- A list item starting with a nested block has incorrect spacing.
+- A bullet list inside an ordered-list item gains a blank line.
+- Internal links use URL strings rather than Typst label targets.
+- Figure identifiers are dropped, leaving references without targets.
+- `data:` images are used as filenames rather than decoded.
 
 ### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).
+- Lists in table cells are flattened or misplaced.
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+- Empty table header rows are retained.
 
 ### `org` ✅
-- A `Div` marked as a drawer is written back as a `:NAME:` … `:END:` drawer.
+- A list item starting with a nested block has incorrect spacing.
+- Bullet lists inside definition-list items have incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+- Empty table header rows are retained.
 
 ### `rst` ✅
+- Table caption content wrapped in a `Div` is dropped.
+- Empty table header rows are retained.
+
 ### `dokuwiki` ✅
+- Lists in table cells are flattened or misplaced.
+- A code block ending in a newline gains an extra trailing break.
+- Tables inside block quotes have incorrect continuation lines.
+- Empty table header rows are retained.
+- Hard line breaks in table cells are doubled and widen the column.
+
 ### `jira` ✅
+- Lists in table cells are flattened or misplaced.
+- Bullet lists inside definition-list items have incorrect spacing.
+- Empty table header rows are retained.
+
 ### `mediawiki` ✅
+- Bullet lists inside definition-list items have incorrect spacing.
+
 ### `man` ✅
+- Code-block language attributes are ignored.
+- Lists in table cells are flattened or misplaced.
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
+- Empty table header rows are retained.
+- Long runs of adjacent inline equations wrap at different columns.
 
 ### `docx` ✅
 - A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
@@ -420,16 +486,13 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   with a paragraph bidi property added when it sits on a div.
 - An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
   picture run does not carry.
-- The same image file referenced several times is embedded once per reference (a separate media part
-  and relationship each) rather than deduplicated to a single shared part.
+- Repeated images are embedded separately rather than shared.
 - An empty fenced code block emits a stray empty verbatim run inside its paragraph rather than
   leaving the paragraph with no run.
 - A paragraph that ends in an inline equation (whether the equation renders to Office Math or, when
   it cannot be parsed, falls back to its raw dollar-delimited text) omits the trailing
   zero-width-space run that anchors such a paragraph.
-- Under `native_numbering`, a figure or table whose caption is present but empty (a `Plain` or
-  `Para` holding no inline content, which non-Markdown readers can produce) emits no caption at all
-  rather than the numbered caption label.
+- Under `native_numbering`, an empty figure or table caption loses its numbered label.
 - `\phantom` renders as its raw dollar-delimited text rather than an invisible phantom spacing box.
 - `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
   group-character parenthesis set over or under the base.
@@ -438,6 +501,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   scripts).
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
+- A code block ending in a newline gains an extra trailing break.
 
 ### `epub` (+ `epub2`, `epub3`) ✅
 - EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`
@@ -445,16 +509,19 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   only under EPUB 3's XHTML5 content model.
 - A resource that cannot be fetched offline (a remote image, an absent local image, or a link to a
   nonexistent target) yields a dangling reference.
+- `data:` images remain inline URLs rather than packaged image files.
+- Empty table header rows are retained.
 
 ### `ipynb` ✅
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
 
 ### `odt` ✅
 - Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment
   collapse to one style rather than one per column per section.
-- A table or figure caption whose top-level block is a list, `CodeBlock`, or `Header` is dropped;
-  only `Para`, `Plain`, `Div`, and `BlockQuote` content is emitted.
+- Lists, code blocks, and headings in table or figure captions are dropped.
 - A cell with a row span greater than 1 emits `table:number-rows-spanned` even when a single row
   remains, extending the span past the table body.
 - With an empty header row the unreferenced heading-parented alignment style is not emitted (only
@@ -521,8 +588,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.
 - A pathological (negative or non-finite) image width or height is emitted verbatim rather than
   falling back to the intrinsic size.
-- A `data:` image with an empty or absent media type is stored with a derived `.plain` extension
-  rather than none, and an undecodable-base64 or `text/plain` data URI drops the image.
+- A `data:` image with an empty or absent media type gets a `.plain` extension rather than none.
+- An image with malformed base64 data falls back to its alt text.
 - A title-block author given as a YAML map is dropped rather than stringified into an author
   paragraph.
 - A title-block metadata field authored as a YAML sequence joins its items with a space rather than
@@ -581,6 +648,9 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
 ### `plain` ✅
+- Tables inside block quotes have incorrect continuation lines.
+- A list item starting with a nested block has incorrect spacing.
+- Table caption content wrapped in a `Div` is dropped.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,
@@ -654,12 +724,12 @@ Notes list gaps and limitations only.
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | — |
 | Syntax highlighting | ✅ | Language classes resolve as written (no alias canonicalization), so a mixed-case spelling of an alias may color differently from its lowercase form. |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in the AST, not processed. |
-| Filters (JSON) | ✅ | `-F`/`--filter` pipes the document as JSON through external programs (in order), each receiving the output format name as its argument. A bare name resolves under the data directory's `filters/`, then the working directory, then `PATH`; a file without the executable bit runs through an interpreter chosen from its extension (`.py`, `.js`, `.rb`, `.php`, `.pl`, `.hs`, `.r`). |
+| Filters (JSON) | ✅ | — |
 | Filters (Lua) | ❌ | — |
-| Data directory (`--data-dir`) | ✅ | Overrides for filters (`filters/`), templates (`templates/`), and syntax definitions (`syntax/`), defaulting to `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`). A `templates/default.<ext>` overrides a format's built-in template; `--template NAME` falls back to `templates/NAME`; template partials fall back to `templates/`. |
+| Data directory (`--data-dir`) | ✅ | — |
 | Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no webtex or default plain-HTML renderer yet. |
 | Writer extension toggles | ✅ | `rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart`. |
 | Embed resources / extract media | ✅ | — |
-| Filename format inference | ✅ | — |
+| Filename format inference | ✅ | `.adoc` and `.asciidoc` inputs select `rst` rather than reporting the unsupported AsciiDoc reader. |
 | Multiple inputs / defaults files (`--defaults`) | 🚧 | Multiple binary inputs, `--file-scope`, and defaults files are not supported. |
 | CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ✅ | — |
