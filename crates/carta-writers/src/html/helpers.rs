@@ -3,13 +3,31 @@
 use std::fmt::Write as _;
 
 use carta_ast::{
-    Alignment, Attr, Block, Caption, ColSpec, ColWidth, Inline, ListNumberStyle, Target, Text,
-    to_plain_text,
+    Alignment, Attr, Block, Caption, ColSpec, ColWidth, Inline, ListNumberStyle, Table, Target,
+    Text, to_plain_text,
 };
 
-use crate::common::{is_known_attribute, normalize_image_attr};
+use crate::common::{RowSpanGrid, is_known_attribute, normalize_image_attr, offset_as_i64};
 
 use super::{AttrOrder, BREAK, Flavor, escape_attr, escape_attr_into, protect};
+
+pub(super) fn has_table_head(table: &Table) -> bool {
+    let columns = table.col_specs.len();
+    let mut grid = RowSpanGrid::new(columns);
+    table.head.rows.iter().enumerate().any(|(index, row)| {
+        grid.place(&row.cells).iter().any(|(column, cell)| {
+            *column < columns
+                && (cell.attr != Attr::default()
+                    || cell.align != Alignment::AlignDefault
+                    || !cell.content.is_empty()
+                    || cell
+                        .row_span
+                        .min(offset_as_i64(table.head.rows.len() - index))
+                        > 1
+                    || cell.col_span.min(offset_as_i64(columns - column)) > 1)
+        })
+    })
+}
 
 pub(super) fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
     let alt = to_plain_text(inlines);

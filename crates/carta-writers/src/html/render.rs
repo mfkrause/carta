@@ -17,8 +17,8 @@ use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 
 use super::helpers::{
     alignment_style, append_trailing_newline, cell_attr, cell_attr_html4, checkbox_state, colgroup,
-    header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type, ordered_list_type,
-    raw_passthrough, render_attr_into, table_width_style, title_attr,
+    has_table_head, header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type,
+    ordered_list_type, raw_passthrough, render_attr_into, table_width_style, title_attr,
 };
 #[cfg(feature = "highlight")]
 use super::helpers::{render_id_into, render_keyvals_into};
@@ -443,7 +443,7 @@ impl State {
             .map(|spec| spec.align.clone())
             .collect();
         out.push_str(&colgroup(&table.col_specs, self.flavor));
-        if !table.head.rows.is_empty() {
+        if has_table_head(table) {
             out.push_str("\n<thead");
             render_attr_into(out, &table.head.attr, AttrOrder::Standard, self.flavor);
             out.push('>');

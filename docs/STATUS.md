@@ -363,7 +363,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `commonmark` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Empty table header rows are retained.
 
 ### `commonmark_x` ✅
 - A list item starting with a nested block has incorrect spacing.
@@ -387,7 +386,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `markdown_strict` ✅
 - A list item starting with a nested block has incorrect spacing.
-- Empty table header rows are retained.
 
 ### `beamer` ✅
 - Task-list checkboxes are not rendered.
@@ -396,15 +394,11 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - `data:` images are used as graphics filenames rather than decoded.
 
 ### `html` (+ `html5`) ✅
-- Empty table header rows are retained.
-
 ### `html4` ✅
-- Empty table header rows are retained.
 
 ### `revealjs` ✅
 - No slide-relative table of contents.
 - Headings are not section-numbered.
-- Empty table header rows are retained.
 
 ### `latex` ✅
 - A table nested in a cell cannot split across pages.
@@ -482,7 +476,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   only under EPUB 3's XHTML5 content model.
 - A resource that cannot be fetched offline (a remote image, an absent local image, or a link to a
   nonexistent target) yields a dangling reference.
-- Empty table header rows are retained.
 
 ### `ipynb` ✅
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.

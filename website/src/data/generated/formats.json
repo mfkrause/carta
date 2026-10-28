@@ -58,8 +58,7 @@
         "ships": true,
         "feature": "write-commonmark",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Empty table header rows are retained."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -236,8 +235,7 @@
         "ships": true,
         "feature": "write-markdown",
         "gaps": [
-          "A list item starting with a nested block has incorrect spacing.",
-          "Empty table header rows are retained."
+          "A list item starting with a nested block has incorrect spacing."
         ]
       }
     },
@@ -335,9 +333,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-html",
-        "gaps": [
-          "Empty table header rows are retained."
-        ]
+        "gaps": []
       }
     },
     {
@@ -355,9 +351,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-html4",
-        "gaps": [
-          "Empty table header rows are retained."
-        ]
+        "gaps": []
       }
     },
     {
@@ -395,8 +389,7 @@
         "feature": "write-revealjs",
         "gaps": [
           "No slide-relative table of contents.",
-          "Headings are not section-numbered.",
-          "Empty table header rows are retained."
+          "Headings are not section-numbered."
         ]
       }
     },
@@ -1090,8 +1083,7 @@
         "feature": "write-epub",
         "gaps": [
           "EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u` element, block content in a table caption, an empty table, a task-list checkbox) are represented only under EPUB 3's XHTML5 content model.",
-          "A resource that cannot be fetched offline (a remote image, an absent local image, or a link to a nonexistent target) yields a dangling reference.",
-          "Empty table header rows are retained."
+          "A resource that cannot be fetched offline (a remote image, an absent local image, or a link to a nonexistent target) yields a dangling reference."
         ]
       }
     },
