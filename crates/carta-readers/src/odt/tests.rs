@@ -61,6 +61,54 @@ fn cached_fields_do_not_add_display_text() {
 }
 
 #[test]
+fn first_style_definitions_win_in_each_family() {
+    let first = "<style:style style:name=\"Inline\" style:family=\"text\">\
+        <style:text-properties fo:font-weight=\"bold\"/></style:style>\
+        <style:style style:name=\"Paragraph\" style:family=\"paragraph\">\
+        <style:paragraph-properties fo:margin-left=\"1in\"/></style:style>\
+        <text:list-style style:name=\"List\"><text:list-level-style-bullet \
+        text:level=\"1\" text:bullet-char=\"*\"/></text:list-style>";
+    let later = "<style:style style:name=\"Inline\" style:family=\"text\">\
+        <style:text-properties fo:font-style=\"italic\"/></style:style>\
+        <style:style style:name=\"Paragraph\" style:family=\"paragraph\">\
+        <style:paragraph-properties fo:margin-left=\"0in\"/></style:style>\
+        <text:list-style style:name=\"List\"><text:list-level-style-number \
+        text:level=\"1\" style:num-format=\"I\"/></text:list-style>";
+    let body = content(
+        "<text:p><text:span text:style-name=\"Inline\">Styled</text:span></text:p>\
+         <text:p text:style-name=\"Paragraph\">Quoted</text:p>\
+         <text:list text:style-name=\"List\"><text:list-item><text:p>Item</text:p></text:list-item></text:list>",
+    )
+    .replace(
+        "<office:body>",
+        &format!("<office:automatic-styles>{later}</office:automatic-styles><office:body>"),
+    );
+    for groups in [
+        format!("<office:styles>{first}{later}</office:styles>"),
+        format!(
+            "<office:styles>{later}</office:styles><office:automatic-styles>{first}</office:automatic-styles>"
+        ),
+        format!(
+            "<office:automatic-styles>{first}</office:automatic-styles><office:styles>{later}</office:styles>"
+        ),
+    ] {
+        let styles = format!("<office:document-styles>{groups}</office:document-styles>");
+        let odt = package(&[
+            ("content.xml", body.as_bytes()),
+            ("styles.xml", styles.as_bytes()),
+        ]);
+        assert_eq!(
+            read(&odt).expect("read colliding styles").blocks,
+            vec![
+                Block::Para(vec![Inline::Strong(vec![Inline::Str("Styled".into())])]),
+                Block::BlockQuote(vec![Block::Para(vec![Inline::Str("Quoted".into())])]),
+                Block::BulletList(vec![vec![Block::Plain(vec![Inline::Str("Item".into())])]]),
+            ]
+        );
+    }
+}
+
+#[test]
 fn cached_list_numbers_do_not_add_item_text() {
     let body = content(
         "<text:list><text:list-item><text:p><text:number>1.</text:number>Text</text:p>\

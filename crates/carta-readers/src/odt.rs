@@ -182,7 +182,7 @@ impl<'a> Converter<'a> {
     }
 
     fn run(mut self) -> Result<Vec<Block>> {
-        // Shared styles first so a like-named automatic style in the content part overrides.
+        // Read the styles part first to preserve its definitions when names collide.
         if let Some(root) = self
             .parts
             .get("styles.xml")
@@ -231,15 +231,17 @@ impl<'a> Converter<'a> {
     }
 
     fn index_styles(&mut self, root: &Element) {
-        for group in root.elements() {
-            if !matches!(local_name(&group.name), "automatic-styles" | "styles") {
-                continue;
-            }
-            for style in group.elements() {
-                match local_name(&style.name) {
-                    "style" => self.index_style(style),
-                    "list-style" => self.index_list_style(style),
-                    _ => {}
+        for name in ["automatic-styles", "styles"] {
+            for group in root
+                .elements()
+                .filter(|group| local_name(&group.name) == name)
+            {
+                for style in group.elements() {
+                    match local_name(&style.name) {
+                        "style" => self.index_style(style),
+                        "list-style" => self.index_list_style(style),
+                        _ => {}
+                    }
                 }
             }
         }
@@ -253,21 +255,21 @@ impl<'a> Converter<'a> {
         match style.attr("family") {
             Some("text") => {
                 self.text_styles
-                    .insert(name.to_owned(), read_text_props(&decoded, style));
+                    .entry(name.to_owned())
+                    .or_insert_with(|| read_text_props(&decoded, style));
             }
             Some("paragraph") => {
                 let margin_left = style
                     .child("paragraph-properties")
                     .and_then(|props| props.attr("margin-left"))
                     .and_then(parse_length);
-                self.para_styles.insert(
-                    name.to_owned(),
-                    ParaStyle {
+                self.para_styles
+                    .entry(name.to_owned())
+                    .or_insert(ParaStyle {
                         preformatted: decoded == "Preformatted Text",
                         margin_left,
                         parent: style.attr("parent-style-name").map(str::to_owned),
-                    },
-                );
+                    });
             }
             _ => {}
         }
@@ -307,7 +309,8 @@ impl<'a> Converter<'a> {
             }
         }
         self.list_styles
-            .insert(name.to_owned(), ListStyle { levels });
+            .entry(name.to_owned())
+            .or_insert(ListStyle { levels });
     }
 
     /// Resolves preformatted text first, then captions and the nearest declared indentation.

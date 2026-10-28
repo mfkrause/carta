@@ -272,8 +272,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
 - An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
-- A `content.xml` automatic style colliding by name with a `styles.xml` shared style overrides it
-  rather than the shared definition winning.
 - `ReaderOptions` are ignored, so `east_asian_line_breaks` has no effect (a soft break between CJK
   runs is kept).
 - MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
