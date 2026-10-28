@@ -65,6 +65,8 @@ mod tabs;
 mod transliterate;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
+#[cfg(any(feature = "docbook", feature = "odt"))]
+mod wide_breaks;
 #[cfg(any(
     feature = "docbook",
     feature = "docx",

@@ -15,6 +15,7 @@ use carta_core::{Extension, Reader, ReaderOptions, Result};
 use crate::entities::{code_point, lookup_named};
 use crate::mathml::to_tex;
 use crate::tabs::expand_tabs;
+use crate::wide_breaks::{drop_wide_breaks, drop_wide_breaks_in};
 use crate::xml::{Element, Node, local_name, parse_tolerant_with};
 
 /// Parses a `DocBook` document into the document model.
@@ -1779,57 +1780,6 @@ fn verbatim(text: &str) -> String {
 
 // East Asian line breaks
 
-/// Drops a soft line break falling between two East Asian wide characters, so wrapped text rejoins
-/// with no intervening space.
-fn drop_wide_breaks(blocks: &mut [Block]) {
-    for block in blocks.iter_mut() {
-        match block {
-            Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
-                drop_wide_breaks_in(inlines);
-            }
-            Block::LineBlock(lines) => lines.iter_mut().for_each(drop_wide_breaks_in),
-            Block::BlockQuote(children) | Block::Div(_, children) => drop_wide_breaks(children),
-            Block::Figure(_, caption, children) => {
-                drop_wide_breaks(&mut caption.long);
-                drop_wide_breaks(children);
-            }
-            Block::OrderedList(_, items) | Block::BulletList(items) => {
-                for item in items {
-                    drop_wide_breaks(item);
-                }
-            }
-            Block::DefinitionList(entries) => {
-                for (term, definitions) in entries {
-                    drop_wide_breaks_in(term);
-                    for definition in definitions {
-                        drop_wide_breaks(definition);
-                    }
-                }
-            }
-            Block::Table(table) => {
-                drop_wide_breaks(&mut table.caption.long);
-                for row in table
-                    .head
-                    .rows
-                    .iter_mut()
-                    .chain(
-                        table
-                            .bodies
-                            .iter_mut()
-                            .flat_map(|body| body.body.iter_mut()),
-                    )
-                    .chain(table.foot.rows.iter_mut())
-                {
-                    for cell in &mut row.cells {
-                        drop_wide_breaks(&mut cell.content);
-                    }
-                }
-            }
-            Block::CodeBlock(_, _) | Block::RawBlock(_, _) | Block::HorizontalRule => {}
-        }
-    }
-}
-
 /// Applies the same rejoining to a metadata value, which carries the same wording as the body.
 fn drop_wide_breaks_in_meta(value: &mut MetaValue) {
     match value {
@@ -1843,100 +1793,6 @@ fn drop_wide_breaks_in_meta(value: &mut MetaValue) {
         }
         MetaValue::MetaString(_) | MetaValue::MetaBool(_) => {}
     }
-}
-
-fn drop_wide_breaks_in(inlines: &mut Vec<Inline>) {
-    for inline in inlines.iter_mut() {
-        match inline {
-            Inline::Emph(children)
-            | Inline::Underline(children)
-            | Inline::Strong(children)
-            | Inline::Strikeout(children)
-            | Inline::Superscript(children)
-            | Inline::Subscript(children)
-            | Inline::SmallCaps(children)
-            | Inline::Quoted(_, children)
-            | Inline::Cite(_, children)
-            | Inline::Link(_, children, _)
-            | Inline::Image(_, children, _)
-            | Inline::Span(_, children) => drop_wide_breaks_in(children),
-            Inline::Note(children) => drop_wide_breaks(children),
-            _ => {}
-        }
-    }
-    let mut index = 0;
-    while index < inlines.len() {
-        let joins = matches!(inlines.get(index), Some(Inline::SoftBreak))
-            && index
-                .checked_sub(1)
-                .and_then(|previous| inlines.get(previous))
-                .and_then(edge_char::<true>)
-                .is_some_and(is_wide)
-            && inlines
-                .get(index + 1)
-                .and_then(edge_char::<false>)
-                .is_some_and(is_wide);
-        if joins {
-            inlines.remove(index);
-        } else {
-            index += 1;
-        }
-    }
-}
-
-/// The character an inline presents at one of its edges: its last when `LAST`, else its first. A
-/// quotation presents the mark it is set in rather than its content, and so never a wide one.
-fn edge_char<const LAST: bool>(inline: &Inline) -> Option<char> {
-    match inline {
-        Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => {
-            if LAST {
-                text.chars().next_back()
-            } else {
-                text.chars().next()
-            }
-        }
-        Inline::Emph(children)
-        | Inline::Underline(children)
-        | Inline::Strong(children)
-        | Inline::Strikeout(children)
-        | Inline::Superscript(children)
-        | Inline::Subscript(children)
-        | Inline::SmallCaps(children)
-        | Inline::Cite(_, children)
-        | Inline::Link(_, children, _)
-        | Inline::Image(_, children, _)
-        | Inline::Span(_, children) => {
-            if LAST {
-                children.iter().rev().find_map(edge_char::<LAST>)
-            } else {
-                children.iter().find_map(edge_char::<LAST>)
-            }
-        }
-        _ => None,
-    }
-}
-
-/// Whether a character occupies a wide cell in East Asian text (Unicode East Asian Width Wide or
-/// Fullwidth). Halfwidth and ambiguous-width characters are excluded.
-fn is_wide(ch: char) -> bool {
-    matches!(ch as u32,
-        0x1100..=0x115F
-        | 0x2E80..=0x303E
-        | 0x3041..=0x33FF
-        | 0x3400..=0x4DBF
-        | 0x4E00..=0x9FFF
-        | 0xA000..=0xA4CF
-        | 0xA960..=0xA97F
-        | 0xAC00..=0xD7A3
-        | 0xF900..=0xFAFF
-        | 0xFE10..=0xFE19
-        | 0xFE30..=0xFE6F
-        | 0xFF00..=0xFF60
-        | 0xFFE0..=0xFFE6
-        | 0x1_7000..=0x1_87FF
-        | 0x1_B000..=0x1_B2FF
-        | 0x1_F200..=0x1_F2FF
-        | 0x2_0000..=0x3_FFFD)
 }
 
 /// The wording an element carries in its own right, with any nested markup left out.

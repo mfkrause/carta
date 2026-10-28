@@ -1137,7 +1137,6 @@
           "An image wrapped in a hyperlink (`draw:frame` inside `text:a`) keeps the `Image` inside the `Link` rather than dropping it.",
           "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically).",
           "An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.",
-          "`ReaderOptions` are ignored, so `east_asian_line_breaks` has no effect (a soft break between CJK runs is kept).",
           "MathML `math:mfenced` loses its visible open/close delimiters (no `\\left`/`\\right`).",
           "A `mathvariant` on `math:mi` / `math:mstyle` is ignored, dropping the styled variant.",
           "A function-name script base is wrapped in redundant braces (`{\\sin}^{2}` rather than `\\sin^{2}`).",

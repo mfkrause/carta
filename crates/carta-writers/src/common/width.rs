@@ -4,7 +4,9 @@ mod tables;
 
 use std::cmp::Ordering;
 
-use tables::{COMBINING, EMOJI, FORMAT, MODIFIER_BASE, WIDE};
+pub(crate) use carta_core::width::is_wide;
+
+use tables::{COMBINING, EMOJI, FORMAT, MODIFIER_BASE};
 
 /// Joins the emoji before it into the glyph that follows.
 const JOINER: char = '\u{200D}';
@@ -90,11 +92,6 @@ pub(crate) fn char_width(ch: char) -> usize {
         return 0;
     }
     if is_wide(code) { 2 } else { 1 }
-}
-
-/// Whether a code point occupies two display columns.
-pub(crate) fn is_wide(code: u32) -> bool {
-    contains(WIDE, code)
 }
 
 /// Columns `ch` claims when `tail` follows it and `opening` marks the start of the text.

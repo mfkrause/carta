@@ -8,7 +8,9 @@ use carta_ast::{
     Target, Text, slug,
 };
 use carta_core::container::zip;
-use carta_core::{BytesReader, DeepStack, Error, MediaBag, ReaderOptions, Result, on_deep_stack};
+use carta_core::{
+    BytesReader, DeepStack, Error, Extension, MediaBag, ReaderOptions, Result, on_deep_stack,
+};
 
 use crate::heading_ids::IdRegistry;
 use crate::xml::{self, Element, Node, local_name};
@@ -39,10 +41,13 @@ impl BytesReader for OdtReader {
         Ok(self.read_media(input, options)?.0)
     }
 
-    fn read_media(&self, input: &[u8], _options: &ReaderOptions) -> Result<(Document, MediaBag)> {
+    fn read_media(&self, input: &[u8], options: &ReaderOptions) -> Result<(Document, MediaBag)> {
         let parts = zip::read_map(input)?;
         let mut media = MediaBag::new();
-        let blocks = convert_on_owned_stack(&parts, &mut media)?;
+        let mut blocks = convert_on_owned_stack(&parts, &mut media)?;
+        if options.extensions.contains(Extension::EastAsianLineBreaks) {
+            crate::wide_breaks::drop_wide_breaks(&mut blocks);
+        }
         Ok((
             Document {
                 blocks,

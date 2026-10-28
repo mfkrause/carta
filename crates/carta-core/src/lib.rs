@@ -20,6 +20,7 @@ pub mod stack;
 #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
 pub mod template;
 pub mod walk;
+pub mod width;
 
 pub use extensions::{Extension, Extensions, presets};
 pub use media::{MediaBag, MediaItem};
