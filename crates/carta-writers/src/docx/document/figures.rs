@@ -167,9 +167,7 @@ pub(super) fn render_caption(
     let mut rest = blocks.iter();
     if let Some(first) = rest.clone().next() {
         let leading = match first {
-            Block::Para(inlines) | Block::Plain(inlines)
-                if ctx.features.native_numbering && !inlines.is_empty() =>
-            {
+            Block::Para(inlines) | Block::Plain(inlines) if ctx.features.native_numbering => {
                 Some(inlines)
             }
             _ => None,
