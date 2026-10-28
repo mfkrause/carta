@@ -47,10 +47,7 @@ man	math/braces
 man	math/matrix-array
 man	math/over-under-set
 
-# A code block whose body already ends in a newline gains a spurious extra blank line (a stray
-# trailing break in DOCX) from these writers; the trailing-terminator handling is only at parity in
-# the other targets.
-dokuwiki	common/code-block-trailing-newline
+# DOCX adds a trailing break when a code block ends in a newline.
 docx	common/code-block-trailing-newline
 
 # A table nested inside a block quote is not yet reflowed at parity by these writers, which drop the

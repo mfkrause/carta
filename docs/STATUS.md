@@ -440,7 +440,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `dokuwiki` ✅
 - Lists in table cells are flattened or misplaced.
-- A code block ending in a newline gains an extra trailing break.
 - Tables inside block quotes have incorrect continuation lines.
 - Empty table header rows are retained.
 - Hard line breaks in table cells are doubled and widen the column.

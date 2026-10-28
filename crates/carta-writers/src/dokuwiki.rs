@@ -95,6 +95,7 @@ fn line_block(lines: &[Vec<Inline>], wrap: WrapMode) -> String {
 /// A fenced code block: the verbatim payload between `<code>` tags, the first class naming the
 /// source language when present.
 fn code_block(attr: &Attr, text: &str) -> String {
+    let text = text.strip_suffix('\n').unwrap_or(text);
     match attr.classes.first() {
         Some(language) if !language.is_empty() => format!("<code {language}>\n{text}\n</code>"),
         _ => format!("<code>\n{text}\n</code>"),
@@ -711,6 +712,24 @@ fn pad_cell(text: &str, width: usize, align: &Alignment) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn code_blocks_preserve_trailing_breaks() {
+        for (text, expected) in [
+            ("", "<code>\n\n</code>"),
+            ("x", "<code>\nx\n</code>"),
+            ("x\n", "<code>\nx\n</code>"),
+            ("x\n\n", "<code>\nx\n\n</code>"),
+            ("\n", "<code>\n\n</code>"),
+        ] {
+            assert_eq!(code_block(&Attr::default(), text), expected);
+        }
+        let attr = Attr {
+            classes: vec!["rust".into()],
+            ..Attr::default()
+        };
+        assert_eq!(code_block(&attr, "x\n"), "<code rust>\nx\n</code>");
+    }
 
     fn render(inlines: Vec<Inline>) -> String {
         let document = Document {
