@@ -57,9 +57,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-commonmark",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -77,9 +75,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-markdown",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -115,9 +111,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-gfm",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -141,8 +135,7 @@
         "feature": "write-markdown",
         "gaps": [
           "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
-          "Tables inside block quotes have incorrect continuation lines.",
-          "A list item starting with a nested block has incorrect spacing."
+          "Tables inside block quotes have incorrect continuation lines."
         ]
       }
     },
@@ -164,9 +157,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-markdown",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -189,9 +180,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-markdown",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -212,9 +201,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-markdown",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -234,9 +221,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-markdown",
-        "gaps": [
-          "A list item starting with a nested block has incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {
@@ -274,7 +259,6 @@
         "feature": "write-beamer",
         "gaps": [
           "Task-list checkboxes are not rendered.",
-          "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing.",
           "`data:` images are used as graphics filenames rather than decoded."
         ]
@@ -496,7 +480,6 @@
           "A table nested in a cell cannot split across pages.",
           "In a line block, a line whose content is entirely code spans is set without the trailing `\\strut` that keeps its full height, and a space ending a line is dropped.",
           "Task-list checkboxes are not rendered.",
-          "A list item starting with a nested block has incorrect spacing.",
           "Bullet lists inside definition-list items have incorrect spacing.",
           "`data:` images are used as graphics filenames rather than decoded."
         ]
@@ -562,7 +545,6 @@
         "feature": "write-typst",
         "gaps": [
           "Lists in table cells are flattened or misplaced.",
-          "A list item starting with a nested block has incorrect spacing.",
           "A bullet list inside an ordered-list item gains a blank line."
         ]
       }
@@ -1145,8 +1127,7 @@
         "feature": "write-ipynb",
         "gaps": [
           "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",
-          "Standalone (`-s`), TOC, and section numbering are no-ops.",
-          "A list item starting with a nested block has incorrect spacing."
+          "Standalone (`-s`), TOC, and section numbering are no-ops."
         ]
       }
     },
@@ -1670,8 +1651,7 @@
         "ships": true,
         "feature": "write-plain",
         "gaps": [
-          "Tables inside block quotes have incorrect continuation lines.",
-          "A list item starting with a nested block has incorrect spacing."
+          "Tables inside block quotes have incorrect continuation lines."
         ]
       }
     },

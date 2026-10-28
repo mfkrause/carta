@@ -2,26 +2,33 @@
 
 use carta_ast::{Block, ListNumberDelim, ListNumberStyle};
 
-/// Whether a list is tight: every item is empty or opens with a [`Block::Plain`].
+/// Whether each item is empty or opens with plain text or a tight nested list.
 #[cfg_attr(
     not(any(
         feature = "commonmark",
         feature = "gfm",
         feature = "latex",
         feature = "markdown",
-        feature = "plain"
+        feature = "plain",
+        feature = "typst"
     )),
     allow(dead_code)
 )]
 pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
-    items
-        .iter()
-        .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
+    let mut pending: Vec<_> = items.iter().collect();
+    while let Some(item) = pending.pop() {
+        match item.first() {
+            None | Some(Block::Plain(_)) => {}
+            Some(Block::BulletList(children) | Block::OrderedList(_, children)) => {
+                pending.extend(children);
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 
-/// Whether a list is loose: at least one item carries a top-level paragraph. A loose list's items
-/// are separated with a blank line and each item's blocks are laid out with blank lines; a tight
-/// list uses single newlines throughout.
+/// Whether an item's first block requires loose spacing.
 #[cfg_attr(
     not(any(
         feature = "commonmark",
@@ -281,6 +288,16 @@ mod tests {
         assert!(list_is_tight(&tight));
         assert!(!is_loose(&tight));
         assert!(is_loose(&loose));
+        assert!(list_is_tight(&[vec![Block::BulletList(tight.clone())]]));
+        assert!(!list_is_tight(&[vec![Block::BulletList(loose)]]));
+        assert!(list_is_tight(&[vec![
+            Block::Plain(vec![]),
+            Block::Para(vec![])
+        ]]));
+        assert!(!list_is_tight(&[vec![Block::CodeBlock(
+            Box::default(),
+            "x".into()
+        )]]));
         assert_eq!(item_separator(true), "\n\n");
         assert_eq!(item_separator(false), "\n");
     }

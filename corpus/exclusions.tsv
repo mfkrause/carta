@@ -57,21 +57,8 @@ dokuwiki	table/table-in-blockquote
 # spaced differently by these writers (a stray or missing blank line, a dropped tightness marker, or
 # a missing leading placeholder), so the nested-first-block layout is skipped until it is uniform.
 asciidoc	common/list-nested-first-block
-beamer	common/list-nested-first-block
-commonmark	common/list-nested-first-block
-commonmark_x	common/list-nested-first-block
-gfm	common/list-nested-first-block
-ipynb	common/list-nested-first-block
-latex	common/list-nested-first-block
 man	common/list-nested-first-block
-markdown	common/list-nested-first-block
-markdown_github	common/list-nested-first-block
-markdown_mmd	common/list-nested-first-block
-markdown_phpextra	common/list-nested-first-block
-markdown_strict	common/list-nested-first-block
 org	common/list-nested-first-block
-plain	common/list-nested-first-block
-typst	common/list-nested-first-block
 
 # A bullet list nested inside a definition-list item is not yet laid out at parity by these writers —
 # a missing tightness marker, list-continuation glue, or definition-term prefix leaves the inner

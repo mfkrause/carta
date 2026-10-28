@@ -362,34 +362,20 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ## Writers
 
 ### `commonmark` ✅
-- A list item starting with a nested block has incorrect spacing.
-
 ### `commonmark_x` ✅
-- A list item starting with a nested block has incorrect spacing.
-
 ### `gfm` ✅
-- A list item starting with a nested block has incorrect spacing.
 
 ### `markdown` ✅
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
 - Tables inside block quotes have incorrect continuation lines.
-- A list item starting with a nested block has incorrect spacing.
 
 ### `markdown_github` ✅
-- A list item starting with a nested block has incorrect spacing.
-
 ### `markdown_mmd` ✅
-- A list item starting with a nested block has incorrect spacing.
-
 ### `markdown_phpextra` ✅
-- A list item starting with a nested block has incorrect spacing.
-
 ### `markdown_strict` ✅
-- A list item starting with a nested block has incorrect spacing.
 
 ### `beamer` ✅
 - Task-list checkboxes are not rendered.
-- A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
 - `data:` images are used as graphics filenames rather than decoded.
 
@@ -405,7 +391,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - In a line block, a line whose content is entirely code spans is set without the trailing `\strut`
   that keeps its full height, and a space ending a line is dropped.
 - Task-list checkboxes are not rendered.
-- A list item starting with a nested block has incorrect spacing.
 - Bullet lists inside definition-list items have incorrect spacing.
 - `data:` images are used as graphics filenames rather than decoded.
 
@@ -415,7 +400,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `typst` ✅
 - Lists in table cells are flattened or misplaced.
-- A list item starting with a nested block has incorrect spacing.
 - A bullet list inside an ordered-list item gains a blank line.
 
 ### `asciidoc` ✅
@@ -480,7 +464,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `ipynb` ✅
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
-- A list item starting with a nested block has incorrect spacing.
 
 ### `odt` ✅
 - Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment
@@ -596,7 +579,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `plain` ✅
 - Tables inside block quotes have incorrect continuation lines.
-- A list item starting with a nested block has incorrect spacing.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,

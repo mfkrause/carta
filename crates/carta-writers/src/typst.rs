@@ -5,7 +5,7 @@ use carta_ast::{
 };
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
-use crate::common::FILL_COLUMN;
+use crate::common::{FILL_COLUMN, list_is_tight};
 
 mod escape;
 mod inline;
@@ -218,13 +218,6 @@ fn ordered_list(
             attrs.start,
         )
     }
-}
-
-/// Whether every item is empty or opens with a [`Block::Plain`]; such a list renders tight.
-fn list_is_tight(items: &[Vec<Block>]) -> bool {
-    items
-        .iter()
-        .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
 }
 
 /// Whether an ordered list uses Typst's implicit `+` numbering: decimal style, period delimiter, and

@@ -13,7 +13,6 @@ write = "usable"
 read-feature = "read-commonmark"
 write-feature = "write-commonmark"
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -25,7 +24,6 @@ write = "usable"
 read-feature = "read-commonmark"
 write-feature = "write-markdown"
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -44,7 +42,6 @@ write = "usable"
 read-feature = "read-commonmark"
 write-feature = "write-gfm"
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -63,7 +60,6 @@ read-gaps = [
 write-gaps = [
   "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
   "Tables inside block quotes have incorrect continuation lines.",
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -79,7 +75,6 @@ read-gaps = [
   "Shares the `markdown` reader gaps.",
 ]
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -97,7 +92,6 @@ read-gaps = [
   "Shares the `markdown` reader gaps.",
 ]
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -113,7 +107,6 @@ read-gaps = [
   "Shares the `markdown` reader gaps.",
 ]
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -128,7 +121,6 @@ read-gaps = [
   "Shares the `markdown` reader gaps.",
 ]
 write-gaps = [
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -147,7 +139,6 @@ write = "usable"
 write-feature = "write-beamer"
 write-gaps = [
   "Task-list checkboxes are not rendered.",
-  "A list item starting with a nested block has incorrect spacing.",
   "Bullet lists inside definition-list items have incorrect spacing.",
   "`data:` images are used as graphics filenames rather than decoded.",
 ]
@@ -260,7 +251,6 @@ write-gaps = [
   "A table nested in a cell cannot split across pages.",
   '''In a line block, a line whose content is entirely code spans is set without the trailing `\strut` that keeps its full height, and a space ending a line is dropped.''',
   "Task-list checkboxes are not rendered.",
-  "A list item starting with a nested block has incorrect spacing.",
   "Bullet lists inside definition-list items have incorrect spacing.",
   "`data:` images are used as graphics filenames rather than decoded.",
 ]
@@ -299,7 +289,6 @@ write = "usable"
 write-feature = "write-typst"
 write-gaps = [
   "Lists in table cells are flattened or misplaced.",
-  "A list item starting with a nested block has incorrect spacing.",
   "A bullet list inside an ordered-list item gains a blank line.",
 ]
 
@@ -610,7 +599,6 @@ read-gaps = [
 write-gaps = [
   "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",
   "Standalone (`-s`), TOC, and section numbering are no-ops.",
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
@@ -905,7 +893,6 @@ write = "usable"
 write-feature = "write-plain"
 write-gaps = [
   "Tables inside block quotes have incorrect continuation lines.",
-  "A list item starting with a nested block has incorrect spacing.",
 ]
 
 [[format]]
