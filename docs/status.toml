@@ -871,7 +871,6 @@ write = "usable"
 read-feature = "read-opml"
 write-feature = "write-opml"
 write-gaps = [
-  "Lossy by the format's nature: the body is serialized to Markdown inside `_note`.",
 ]
 
 [[format]]

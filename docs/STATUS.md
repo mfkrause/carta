@@ -562,9 +562,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `json` ✅
 ### `native` ✅
-
 ### `opml` ✅
-- Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
 ### `plain` ✅
 - Tables inside block quotes have incorrect continuation lines.

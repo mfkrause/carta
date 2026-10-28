@@ -1618,9 +1618,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-opml",
-        "gaps": [
-          "Lossy by the format's nature: the body is serialized to Markdown inside `_note`."
-        ]
+        "gaps": []
       }
     },
     {
