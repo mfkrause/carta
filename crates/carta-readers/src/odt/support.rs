@@ -265,7 +265,10 @@ pub(super) fn read_text_props(decoded_name: &str, style: &Element) -> TextProps 
 }
 
 fn is_bold(weight: &str) -> bool {
-    weight == "bold" || weight.parse::<u32>().is_ok_and(|value| value >= 700)
+    matches!(
+        weight,
+        "bold" | "100" | "200" | "300" | "400" | "500" | "600" | "700" | "800" | "900"
+    )
 }
 
 fn is_italic(style: &str) -> bool {

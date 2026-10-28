@@ -273,8 +273,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   one level.
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
-- `fo:font-weight` step weights 100–600 are not read as `Strong` (only `bold` and ≥700 are),
-  diverging on the 500/600 semibold steps.
 - An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
 - A `content.xml` automatic style colliding by name with a `styles.xml` shared style overrides it
   rather than the shared definition winning.
