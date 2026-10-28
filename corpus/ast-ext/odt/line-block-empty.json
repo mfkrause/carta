@@ -1,0 +1,119 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "section-0",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "Heading"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "LineBlock",
+      "c": []
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "after"
+        }
+      ]
+    },
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "section-1",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "Heading"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "LineBlock",
+      "c": [
+        []
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "after"
+        }
+      ]
+    },
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "section-2",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "Heading"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "LineBlock",
+      "c": [
+        [],
+        []
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "after"
+        }
+      ]
+    },
+    {
+      "t": "LineBlock",
+      "c": [
+        [],
+        [
+          {
+            "t": "Str",
+            "c": "text"
+          }
+        ],
+        []
+      ]
+    }
+  ]
+}

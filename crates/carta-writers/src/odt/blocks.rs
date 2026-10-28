@@ -109,6 +109,9 @@ impl Builder<'_> {
 
     /// A line block: one paragraph whose source line divisions become hard breaks.
     fn line_block_like(&mut self, lines: &[Vec<Inline>], fixed: Option<&str>) {
+        if !self.keep_empty && lines.len() <= 1 && lines.iter().all(Vec::is_empty) {
+            return;
+        }
         let style = match fixed {
             Some(style) => style,
             None => self.flowing_style(),
