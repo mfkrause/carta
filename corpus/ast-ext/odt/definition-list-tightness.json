@@ -1,0 +1,79 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "DefinitionList",
+      "c": [
+        [
+          [
+            {
+              "t": "Str",
+              "c": "term1"
+            }
+          ],
+          [
+            [
+              {
+                "t": "Plain",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "definition1"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Str",
+              "c": "term2"
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "definition2"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Str",
+              "c": "term3"
+            }
+          ],
+          [
+            [
+              {
+                "t": "Plain",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "definition3"
+                  }
+                ]
+              }
+            ]
+          ]
+        ]
+      ]
+    }
+  ]
+}

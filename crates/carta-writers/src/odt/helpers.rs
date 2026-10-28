@@ -34,14 +34,10 @@ pub(super) fn trim_flanking_spacing(inlines: &[Inline]) -> &[Inline] {
 /// its first item is plain, flowing text; a leading paragraph or a leading block structure makes the
 /// whole list loose.
 pub(super) fn is_tight(items: &[Vec<Block>]) -> bool {
-    leads_with_plain(items.first().map(Vec::as_slice).unwrap_or_default())
-}
-
-/// Whether a block sequence begins with `Plain`, the marker for a tight list.
-pub(super) fn leads_with_plain(blocks: &[Block]) -> bool {
-    blocks
-        .first()
-        .is_some_and(|block| matches!(block, Block::Plain(_)))
+    matches!(
+        items.first().and_then(|item| item.first()),
+        Some(Block::Plain(_))
+    )
 }
 
 /// Gathers caption runs while retaining inline formatting and paragraph boundaries.

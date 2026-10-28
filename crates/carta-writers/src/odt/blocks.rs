@@ -11,8 +11,7 @@ use carta_core::container::xml::escape_attribute;
 
 use super::helpers::{
     caption_inlines, collect_caption_runs, column_letter, custom_style, inlines_are_empty,
-    is_block_math, is_opendocument, is_tight, leads_with_plain, table_column_count,
-    trim_flanking_spacing,
+    is_block_math, is_opendocument, is_tight, table_column_count, trim_flanking_spacing,
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
@@ -272,20 +271,15 @@ impl Builder<'_> {
     }
 
     fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) {
-        let tight = items
-            .first()
-            .and_then(|(_, defs)| defs.first())
-            .map(Vec::as_slice)
-            .is_none_or(leads_with_plain);
-        let (term_style, def_style) = if tight {
-            (
-                "Definition_20_Term_20_Tight",
-                "Definition_20_Definition_20_Tight",
-            )
-        } else {
-            ("Definition_20_Term", "Definition_20_Definition")
-        };
         for (term, defs) in items {
+            let (term_style, def_style) = if is_tight(defs) {
+                (
+                    "Definition_20_Term_20_Tight",
+                    "Definition_20_Definition_20_Tight",
+                )
+            } else {
+                ("Definition_20_Term", "Definition_20_Definition")
+            };
             self.paragraph(term_style, term);
             for def in defs {
                 let checkpoint = self.body.len();
