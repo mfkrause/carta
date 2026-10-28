@@ -3,10 +3,12 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Alignment, Attr, Block, Cell, Inline, ListNumberDelim, ListNumberStyle, Row};
+use carta_ast::{
+    Alignment, Attr, Block, Caption, Cell, Inline, ListNumberDelim, ListNumberStyle, Row,
+};
 
 use crate::heading_ids::IdRegistry;
-use crate::xml::{Element, Node, local_name};
+use crate::xml::Element;
 
 use super::{TextProps, Vertical};
 
@@ -43,14 +45,24 @@ pub(super) fn flush_code(out: &mut Vec<Block>, code: &mut Vec<String>) {
     }
 }
 
-/// Collapses a single-paragraph block sequence to a bare `Plain`, the compact shape a list item or
-/// table cell carries when it holds nothing but one paragraph.
+/// Compacts a sole final paragraph; other paragraph sequences use loose spacing.
 pub(super) fn compact(mut blocks: Vec<Block>) -> Vec<Block> {
-    if blocks.len() == 1
-        && matches!(blocks.first(), Some(Block::Para(_)))
-        && let Some(Block::Para(inlines)) = blocks.pop().as_mut()
-    {
-        blocks.push(Block::Plain(std::mem::take(inlines)));
+    let paragraphs = blocks
+        .iter()
+        .filter(|block| matches!(block, Block::Para(_)))
+        .count();
+    if paragraphs == 1 && matches!(blocks.last(), Some(Block::Para(_))) {
+        if let Some(block) = blocks.last_mut()
+            && let Block::Para(inlines) = block
+        {
+            *block = Block::Plain(std::mem::take(inlines));
+        }
+    } else if paragraphs > 0 {
+        for block in &mut blocks {
+            if let Block::Plain(inlines) = block {
+                *block = Block::Para(std::mem::take(inlines));
+            }
+        }
     }
     blocks
 }
@@ -310,24 +322,49 @@ pub(super) fn decode_style_name(name: &str) -> String {
     out
 }
 
-/// The text box a figure paragraph wraps, or `None` if the paragraph is ordinary prose. A figure
-/// paragraph holds nothing but a single frame that in turn holds a text box, the shape a captioned
-/// image takes; any sibling text or a second element keeps the frame inline instead.
-pub(super) fn figure_paragraph(paragraph: &Element) -> Option<&Element> {
-    let mut frame = None;
-    for node in &paragraph.children {
-        match node {
-            Node::Text(text) if text.trim().is_empty() => {}
-            Node::Element(element) if local_name(&element.name) == "frame" => {
-                if frame.is_some() {
-                    return None;
-                }
-                frame = Some(element);
-            }
-            _ => return None,
+/// Converts isolated figure images after list and table paragraphs have been compacted.
+pub(super) fn convert_figures(blocks: &mut [Block]) {
+    carta_core::walk::for_each_block(blocks, &mut |block| {
+        let Block::Para(inlines) = block else {
+            return;
+        };
+        if inlines.len() != 1 {
+            return;
         }
-    }
-    frame?.child("text-box")
+        let Some(Inline::Image(attr, alt, target)) = inlines.first_mut() else {
+            return;
+        };
+        if !target.title.starts_with("fig:") {
+            return;
+        }
+        let id = std::mem::take(&mut attr.id);
+        let mut caption = alt.clone();
+        target.title = "".into();
+        if let [
+            Inline::Str(_),
+            Inline::Space,
+            Inline::Str(number),
+            Inline::Space,
+            ..,
+        ] = caption.as_slice()
+            && number.ends_with(':')
+            && number.chars().all(|ch| ch.is_ascii_digit() || ch == ':')
+        {
+            caption.drain(..4);
+        }
+        let content = std::mem::take(inlines);
+        *block = Block::Figure(
+            Box::new(Attr {
+                id,
+                ..Attr::default()
+            }),
+            Box::new(Caption {
+                short: None,
+                long: vec![Block::Plain(caption)],
+            }),
+            vec![Block::Plain(content)],
+        );
+    });
 }
 
 /// Whether a qualified element name belongs to the drawing namespace, the shapes ODF uses for

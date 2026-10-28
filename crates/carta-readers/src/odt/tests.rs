@@ -36,6 +36,33 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn compaction_depends_on_the_final_paragraph() {
+    let paragraph = Block::Para(vec![Inline::Str("Text".into())]);
+    let plain = Block::Plain(vec![Inline::Str("Text".into())]);
+    let container = Block::Div(Box::default(), vec![paragraph.clone()]);
+    for (blocks, expected) in [
+        (
+            vec![container.clone(), paragraph.clone()],
+            vec![container.clone(), plain.clone()],
+        ),
+        (
+            vec![paragraph.clone(), container.clone()],
+            vec![paragraph.clone(), container.clone()],
+        ),
+        (
+            vec![plain.clone(), paragraph.clone(), paragraph.clone()],
+            vec![paragraph.clone(), paragraph.clone(), paragraph.clone()],
+        ),
+        (
+            vec![plain.clone(), container.clone()],
+            vec![plain, container],
+        ),
+    ] {
+        assert_eq!(super::compact(blocks), expected);
+    }
+}
+
+#[test]
 fn table_caption_style_keeps_its_class() {
     let body = content(
         "<text:p text:style-name=\"Table\">Caption</text:p>\
@@ -85,6 +112,76 @@ fn table_caption_style_keeps_its_class() {
     assert_eq!(
         read(&preformatted).expect("read code caption").blocks,
         vec![Block::CodeBlock(Box::default(), "Caption".into())]
+    );
+}
+
+#[test]
+fn figure_conversion_follows_list_and_cell_compaction() {
+    let figure = "<text:p><draw:frame><draw:text-box><text:p>\
+        <draw:frame><draw:image xlink:href=\"image.png\"/></draw:frame>Figure 1: Caption\
+        </text:p></draw:text-box></draw:frame></text:p>";
+    for (extra, expected_figures, expected_title) in
+        [("", 0, "fig:"), ("<text:p>After</text:p>", 1, "")]
+    {
+        for body in [
+            format!("<text:list><text:list-item>{figure}{extra}</text:list-item></text:list>"),
+            format!(
+                "<table:table><table:table-row><table:table-cell>{figure}{extra}</table:table-cell></table:table-row></table:table>"
+            ),
+        ] {
+            let body = content(&body);
+            let odt = package(&[("content.xml", body.as_bytes())]);
+            let mut document = read(&odt).expect("read compacted figure");
+            assert!(matches!(
+                document.blocks.first(),
+                Some(Block::OrderedList(..) | Block::Table(_))
+            ));
+            let mut figures = 0;
+            let mut images = Vec::new();
+            carta_core::walk::for_each_block(&mut document.blocks, &mut |block| {
+                if matches!(block, Block::Figure(..)) {
+                    figures += 1;
+                }
+                if let Block::Plain(inlines) = block
+                    && let Some(Inline::Image(_, alt, target)) = inlines.first()
+                {
+                    images.push((carta_ast::to_plain_text(alt), target.title.to_string()));
+                }
+            });
+            assert_eq!(figures, expected_figures);
+            assert_eq!(
+                images,
+                vec![("Figure 1: Caption".to_string(), expected_title.to_string())]
+            );
+        }
+    }
+}
+
+#[test]
+fn caption_classes_wrap_framed_figures() {
+    let body = content(
+        "<text:p text:style-name=\"Table\"><draw:frame><draw:text-box><text:p>\
+         <draw:frame><draw:image xlink:href=\"image.png\"/></draw:frame>Figure 1: Caption\
+         </text:p></draw:text-box></draw:frame></text:p>",
+    );
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Table\" style:family=\"paragraph\"/>\
+        </office:styles></office:document-styles>";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("styles.xml", styles.as_bytes()),
+    ]);
+    let document = read(&odt).expect("read framed caption");
+    let Some(Block::Div(attr, blocks)) = document.blocks.first() else {
+        panic!("expected a caption container");
+    };
+    assert!(matches!(attr.classes.as_slice(), [class] if class == "caption"));
+    let Some(Block::Figure(_, caption, _)) = blocks.first() else {
+        panic!("expected a figure");
+    };
+    assert_eq!(
+        carta_ast::to_plain_text(carta_ast::single_block_inlines(&caption.long)),
+        "Caption"
     );
 }
 

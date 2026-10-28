@@ -16,7 +16,7 @@ use crate::xml::{self, Element, Node, local_name};
 mod support;
 
 use support::{
-    apply_wrappers, coalesce_text, compact, decode_style_name, empty_span, figure_paragraph,
+    apply_wrappers, coalesce_text, compact, convert_figures, decode_style_name, empty_span,
     flush_code, flush_quote, formula_part_path, inlines_to_plain, intern_anchor, is_drawing_shape,
     map_delim, map_number_style, parse_length, push_text, read_text_props, row_width, square_rows,
 };
@@ -225,6 +225,7 @@ impl<'a> Converter<'a> {
                 }
             }
         }
+        convert_figures(&mut output);
         Ok(output)
     }
 
@@ -371,15 +372,6 @@ impl<'a> Converter<'a> {
             }
             match local_name(&element.name) {
                 "p" => {
-                    // A paragraph that is entirely a framed, captioned image lifts to a figure.
-                    if let Some(figure) =
-                        figure_paragraph(element).and_then(|textbox| self.convert_figure(textbox))
-                    {
-                        flush_code(&mut out, &mut code);
-                        flush_quote(&mut out, &mut quote);
-                        out.push(figure);
-                        continue;
-                    }
                     let role = match self.para_role(element.attr("style-name")) {
                         // In a list item a margin is list indentation, not a quote signal.
                         ParaRole::Quote if in_list_item => ParaRole::Normal,
@@ -840,33 +832,6 @@ impl<'a> Converter<'a> {
             }
         }
         None
-    }
-
-    /// A block-level figure built from a figure text box: the framed image becomes the figure body,
-    /// and the caption that trails it becomes the figure caption.
-    fn convert_figure(&mut self, textbox: &Element) -> Option<Block> {
-        let (frame, mut caption) = self.figure_image(textbox)?;
-        let image = self.image_from_frame(frame, caption.clone(), "")?;
-        if let [
-            Inline::Str(_),
-            Inline::Space,
-            Inline::Str(number),
-            Inline::Space,
-            ..,
-        ] = caption.as_slice()
-            && number.ends_with(':')
-            && number.chars().all(|ch| ch.is_ascii_digit() || ch == ':')
-        {
-            caption.drain(..4);
-        }
-        Some(Block::Figure(
-            Box::default(),
-            Box::new(Caption {
-                short: None,
-                long: vec![Block::Plain(caption)],
-            }),
-            vec![Block::Plain(vec![image])],
-        ))
     }
 
     /// The TeX rendering of a formula object's MathML, taken from MathML embedded directly in the
