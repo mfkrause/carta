@@ -261,11 +261,15 @@ impl State {
         task_markers: bool,
         width: usize,
     ) -> String {
-        let mut out = String::new();
-        let mut started = false;
+        let starts_with_paragraph = matches!(item.first(), Some(Block::Plain(_) | Block::Para(_)));
+        let mut out = if starts_with_paragraph {
+            String::new()
+        } else {
+            format!("{marker} {{blank}}")
+        };
         for (index, block) in item.iter().enumerate() {
             let is_list = matches!(block, Block::BulletList(_) | Block::OrderedList(..));
-            let rendered = if index == 0 && !is_list {
+            let rendered = if index == 0 && starts_with_paragraph {
                 let checkbox = task_markers.then(|| task_checkbox(block)).flatten();
                 let text = match checkbox {
                     Some((box_marker, rest)) => {
@@ -278,21 +282,21 @@ impl State {
             } else {
                 self.block(block, width)
             };
-            if !started {
+            if out.is_empty() {
                 out.push_str(&rendered);
-                started = true;
                 continue;
             }
             if is_list {
                 out.push('\n');
             } else {
                 out.push_str("\n+\n");
+                if matches!(block, Block::HorizontalRule) {
+                    out.push('\n');
+                }
             }
             out.push_str(&rendered);
         }
-        if !started {
-            out.push_str(marker);
-        }
+        out.truncate(out.trim_end_matches('\n').len());
         out
     }
 

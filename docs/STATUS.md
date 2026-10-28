@@ -405,7 +405,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).
 - Lists in table cells are flattened or misplaced.
-- A list item starting with a nested block has incorrect spacing.
 - Empty table header rows are retained.
 
 ### `org` ✅

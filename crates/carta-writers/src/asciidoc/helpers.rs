@@ -139,7 +139,10 @@ pub(super) fn quote_glyphs(kind: &QuoteType) -> (String, String) {
 pub(super) fn ordered_style_line(attrs: &ListAttributes) -> Option<String> {
     let style = match attrs.style {
         ListNumberStyle::Example => return None,
-        ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal => "arabic",
+        ListNumberStyle::DefaultStyle => {
+            return (attrs.start != 1).then(|| format!("[start={}]", attrs.start));
+        }
+        ListNumberStyle::Decimal => "arabic",
         ListNumberStyle::LowerAlpha => "loweralpha",
         ListNumberStyle::UpperAlpha => "upperalpha",
         ListNumberStyle::LowerRoman => "lowerroman",

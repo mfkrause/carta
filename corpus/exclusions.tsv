@@ -56,7 +56,6 @@ dokuwiki	table/table-in-blockquote
 # A list item whose first child is itself a block — a nested list with no leading paragraph — is
 # spaced differently by these writers (a stray or missing blank line, a dropped tightness marker, or
 # a missing leading placeholder), so the nested-first-block layout is skipped until it is uniform.
-asciidoc	common/list-nested-first-block
 man	common/list-nested-first-block
 org	common/list-nested-first-block
 

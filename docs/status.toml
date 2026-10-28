@@ -302,7 +302,6 @@ write-feature = "write-asciidoc"
 write-gaps = [
   "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
   "Lists in table cells are flattened or misplaced.",
-  "A list item starting with a nested block has incorrect spacing.",
   "Empty table header rows are retained.",
 ]
 
