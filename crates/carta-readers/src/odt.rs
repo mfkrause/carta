@@ -18,8 +18,8 @@ mod support;
 use support::{
     apply_wrappers, coalesce_text, compact, convert_figures, decode_style_name, empty_span,
     flush_code, flush_quote, formula_part_path, inlines_to_plain, intern_anchor, is_drawing_shape,
-    map_delim, map_number_style, parse_length, parse_space_count, push_text, read_text_props,
-    row_width, square_rows,
+    map_delim, map_number_style, package_target, parse_length, parse_space_count, push_text,
+    read_text_props, row_width, square_rows,
 };
 
 /// The most columns a table grid is allowed to span. Far wider than any authored table, this bounds
@@ -688,7 +688,7 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_link(&mut self, element: &Element, out: &mut Vec<Inline>) {
-        let url = element.attr("href").unwrap_or_default().to_owned();
+        let url = package_target(element.attr("href").unwrap_or_default()).to_owned();
         let title = element.attr("title").unwrap_or_default().to_owned();
         let inner = self.convert_inlines(&element.children);
         out.push(Inline::Link(
@@ -804,10 +804,8 @@ impl<'a> Converter<'a> {
         title: &str,
     ) -> Option<Inline> {
         let image = frame.child("image")?;
-        let href = image
-            .attr("href")
-            .filter(|href| !href.is_empty())?
-            .to_owned();
+        let href = image.attr("href").filter(|href| !href.is_empty())?;
+        let href = package_target(href).to_owned();
         self.register_media(&href);
         let mut attributes = Vec::new();
         if let Some(width) = frame.attr("width") {

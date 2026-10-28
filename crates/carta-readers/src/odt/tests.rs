@@ -133,6 +133,36 @@ fn images_without_targets_are_dropped() {
 }
 
 #[test]
+fn package_targets_remove_one_parent_prefix_and_keep_image_bytes() {
+    let body = content(
+        "<text:p><text:a xlink:href=\"../../document#section\">Link</text:a>\
+         <draw:frame><draw:image xlink:href=\"../Pictures/image.png\"/></draw:frame></text:p>",
+    );
+    let image = b"image bytes";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("Pictures/image.png", image),
+    ]);
+    let (document, media) = OdtReader
+        .read_media(&odt, &ReaderOptions::default())
+        .expect("read package targets");
+    let Some(Block::Para(inlines)) = document.blocks.first() else {
+        panic!("expected a paragraph");
+    };
+    assert!(matches!(
+        inlines.as_slice(),
+        [Inline::Link(_, _, link), Inline::Image(_, _, image)]
+            if link.url == "../document#section" && image.url == "Pictures/image.png"
+    ));
+    assert_eq!(
+        media
+            .get("Pictures/image.png")
+            .map(|item| item.bytes.as_slice()),
+        Some(image.as_slice())
+    );
+}
+
+#[test]
 fn space_counts_follow_integer_reading_rules() {
     for (value, count) in [
         ("-1", 0),

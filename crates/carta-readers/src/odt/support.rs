@@ -12,6 +12,11 @@ use crate::xml::Element;
 
 use super::{TextProps, Vertical};
 
+/// Removes one parent-directory prefix from a package target.
+pub(super) fn package_target(target: &str) -> &str {
+    target.strip_prefix("../").unwrap_or(target)
+}
+
 /// The identifier an anchor name resolves to, assigned once on first sighting and reused for every
 /// later use of the same name so the anchor and any reference to it share one target. `seed` is the
 /// base the fresh identifier is disambiguated from: a fixed label for a name that is dropped, or the

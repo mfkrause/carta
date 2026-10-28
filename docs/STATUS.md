@@ -269,8 +269,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.
 - An image wrapped in a hyperlink (`draw:frame` inside `text:a`) keeps the `Image` inside the `Link`
   rather than dropping it.
-- A package-relative hyperlink target with a leading `../` is kept verbatim rather than stripped by
-  one level.
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
 - An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
