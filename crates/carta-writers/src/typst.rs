@@ -63,10 +63,10 @@ enum Fragment {
 }
 
 /// Render a top-level (or nested) block sequence. Every block is separated from the next by a blank
-/// line, except that a header is followed by a single newline.
+/// line, except that a plain block or header is followed by a single newline.
 fn blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
     let mut out = String::new();
-    let mut previous_is_header = false;
+    let mut needs_blank_line = false;
     for item in items {
         let piece = block(item, width, wrap, smart);
         if piece.is_empty() {
@@ -74,12 +74,12 @@ fn blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String 
         }
         if !out.is_empty() {
             out.push('\n');
-            if !previous_is_header {
+            if needs_blank_line {
                 out.push('\n');
             }
         }
         out.push_str(&piece);
-        previous_is_header = matches!(item, Block::Header(..));
+        needs_blank_line = !matches!(item, Block::Header(..) | Block::Plain(_));
     }
     out
 }
@@ -277,12 +277,12 @@ fn definition_list(
 ) -> String {
     let mut lines = Vec::new();
     for (term, definitions) in items {
-        let body = blocks(
-            &definitions.iter().flatten().cloned().collect::<Vec<_>>(),
-            width,
-            wrap,
-            smart,
-        );
+        let body = definitions
+            .iter()
+            .map(|definition| blocks(definition, width, wrap, smart))
+            .filter(|body| !body.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n");
         lines.push(format!(
             "/ {}: #block[\n{body}\n]",
             escape_term_colons(&inline_run(term, width, wrap, smart))

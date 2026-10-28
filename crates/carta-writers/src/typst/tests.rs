@@ -52,6 +52,20 @@ fn empty_document() {
 }
 
 #[test]
+fn plain_blocks_keep_the_next_block_on_the_following_line() {
+    for (next, expected) in [
+        (Block::Para(vec![str_inline("next")]), "first\nnext"),
+        (
+            Block::BulletList(vec![vec![Block::Plain(vec![str_inline("next")])]]),
+            "first\n- next",
+        ),
+    ] {
+        let output = render(vec![Block::Plain(vec![str_inline("first")]), next]);
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
 fn code_blocks_preserve_trailing_newlines() {
     for (text, expected) in [
         ("", "```\n```"),

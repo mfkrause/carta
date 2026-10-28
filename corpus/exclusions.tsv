@@ -68,10 +68,6 @@ latex	common/list-bullet-in-definition
 mediawiki	common/list-bullet-in-definition
 org	common/list-bullet-in-definition
 
-# A bullet list nested directly inside an ordered-list item gains a stray blank line from the Typst
-# writer, so this mixed-nesting case is skipped.
-typst	common/list-bullet-in-ordered
-
 # Table captions wrapped in Div blocks.
 typst	table/table-caption-div
 

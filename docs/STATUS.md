@@ -400,7 +400,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `typst` ✅
 - Lists in table cells are flattened or misplaced.
-- A bullet list inside an ordered-list item gains a blank line.
 
 ### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).

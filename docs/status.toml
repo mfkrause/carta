@@ -289,7 +289,6 @@ write = "usable"
 write-feature = "write-typst"
 write-gaps = [
   "Lists in table cells are flattened or misplaced.",
-  "A bullet list inside an ordered-list item gains a blank line.",
 ]
 
 [[format]]
