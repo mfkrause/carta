@@ -500,7 +500,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 match image_drawing_for(attr, target, alt, ctx) {
                     Some(drawing) => {
-                        let mut run = run_with_props(props);
+                        let mut run = Element::new("w:r");
                         run.push(drawing);
                         out.push(run);
                     }

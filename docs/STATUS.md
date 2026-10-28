@@ -463,8 +463,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A `lang` value carried by a span or div is dropped rather than set as a run language property.
 - A `dir=rtl` carried by a span or div is dropped rather than set as a run right-to-left property,
   with a paragraph bidi property added when it sits on a div.
-- An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
-  picture run does not carry.
 - Repeated images are embedded separately rather than shared.
 - A paragraph that ends in an inline equation (whether the equation renders to Office Math or, when
   it cannot be parsed, falls back to its raw dollar-delimited text) omits the trailing
