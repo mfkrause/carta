@@ -1,0 +1,125 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "heading",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "Heading"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Space"
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "SoftBreak"
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "RawInline",
+          "c": [
+            "latex",
+            "raw"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "RawInline",
+          "c": [
+            "odt",
+            "raw"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": []
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "Space"
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "SoftBreak"
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "RawInline",
+          "c": [
+            "latex",
+            "raw"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "RawInline",
+          "c": [
+            "odt",
+            "raw"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": []
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "after"
+        }
+      ]
+    }
+  ]
+}

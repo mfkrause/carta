@@ -6,7 +6,7 @@ use carta_ast::{Attr, Block, Format, Inline, MathType, Row, Table};
 
 use super::{STACK_RED_ZONE, STACK_SEGMENT};
 
-/// Whether an inline sequence carries no visible content, so a flowing paragraph of it is dropped.
+/// Whether a paragraph segment beside display math has no visible content.
 pub(super) fn inlines_are_empty(inlines: &[Inline]) -> bool {
     inlines.iter().all(|inline| match inline {
         Inline::Space | Inline::SoftBreak => true,

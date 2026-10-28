@@ -49,7 +49,7 @@ impl Builder<'_> {
         }
         if let Some(style) = fixed {
             self.paragraph(style, inlines);
-        } else if !inlines_are_empty(inlines) || self.keep_empty {
+        } else if !inlines.is_empty() || self.keep_empty {
             self.flowing_paragraph(inlines);
         }
     }
