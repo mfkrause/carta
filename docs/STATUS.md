@@ -273,7 +273,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   than falling back to a `BulletList`.
 - An `OrderedList` `text:start-value` that overflows `i32` falls back to start 1 rather than the
   parsed value.
-- A `text:section`'s content is lifted in place rather than wrapped in a `Div`.
 - Block content (a list, table, or heading) inside a footnote/endnote body is kept rather than
   reduced to paragraph flow.
 - A `text:h` heading inside a table cell is kept as a `Header` rather than dropped.

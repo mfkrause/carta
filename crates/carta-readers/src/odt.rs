@@ -420,6 +420,14 @@ impl<'a> Converter<'a> {
                     flush_quote(&mut out, &mut quote);
                     out.push(self.convert_table(element));
                 }
+                "section" => {
+                    flush_code(&mut out, &mut code);
+                    flush_quote(&mut out, &mut quote);
+                    out.push(Block::Div(
+                        Box::default(),
+                        self.convert_blocks(element, list_depth, list_inherited, in_list_item),
+                    ));
+                }
                 // Drop non-rendered markers and generated indexes with stale entries.
                 "soft-page-break" | "sequence-decls" | "forms" | "tracked-changes" | "note"
                 | "table-of-content" | "table-of-contents" | "bibliography"

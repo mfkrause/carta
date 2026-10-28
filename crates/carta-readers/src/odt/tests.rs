@@ -36,6 +36,40 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn sections_keep_their_containers_inside_lists_and_body() {
+    let body = content(
+        "<text:section text:name=\"Named\"><text:section/><text:p>Text</text:p></text:section>\
+         <text:list><text:list-item><text:section><text:p>Inside</text:p></text:section>\
+         <text:p>After</text:p></text:list-item></text:list>",
+    );
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    let document = read(&odt).expect("read sections");
+    assert_eq!(
+        document.blocks[0],
+        Block::Div(
+            Box::default(),
+            vec![
+                Block::Div(Box::default(), vec![]),
+                Block::Para(vec![Inline::Str("Text".into())]),
+            ]
+        )
+    );
+    let Block::OrderedList(_, items) = &document.blocks[1] else {
+        panic!("expected a list");
+    };
+    assert_eq!(
+        items,
+        &vec![vec![
+            Block::Div(
+                Box::default(),
+                vec![Block::Para(vec![Inline::Str("Inside".into())])]
+            ),
+            Block::Plain(vec![Inline::Str("After".into())]),
+        ]]
+    );
+}
+
+#[test]
 fn compaction_depends_on_the_final_paragraph() {
     let paragraph = Block::Para(vec![Inline::Str("Text".into())]);
     let plain = Block::Plain(vec![Inline::Str("Text".into())]);
