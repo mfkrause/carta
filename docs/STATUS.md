@@ -613,7 +613,7 @@ Notes list gaps and limitations only.
 | Table of contents (`--toc`) | ✅ | — |
 | Text wrapping (`--wrap`, `--columns`) | ✅ | A few constructs still account for width incorrectly when reflowed at narrow columns: line blocks, footnote bodies, the AsciiDoc list-marker indent, and roff line-continuation. |
 | Tab expansion (`--tab-stop`) | 🚧 | Only the `docbook` reader takes the column width from the option; the `rst`, `dokuwiki`, and `mediawiki` readers expand tabs on a fixed four-column grid. |
-| Section numbering (`--number-sections`) | ✅ | Inert in the Markdown family and `plain` (no heading-number syntax); `revealjs` is not yet numbered. |
+| Section numbering (`--number-sections`) | ✅ | — |
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | — |
 | Syntax highlighting | ✅ | Language classes resolve as written (no alias canonicalization), so a mixed-case spelling of an alias may color differently from its lowercase form. |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in the AST, not processed. |

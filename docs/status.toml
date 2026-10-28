@@ -1014,7 +1014,6 @@ notes = "Only the `docbook` reader takes the column width from the option; the `
 [[feature]]
 name = "Section numbering (`--number-sections`)"
 status = "usable"
-notes = "Inert in the Markdown family and `plain` (no heading-number syntax); `revealjs` is not yet numbered."
 
 [[feature]]
 name = "Metadata / variables (`-M`, `-V`, `--metadata-file`)"
