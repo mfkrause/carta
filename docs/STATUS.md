@@ -460,8 +460,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Long runs of adjacent inline equations wrap at different columns.
 
 ### `docx` ✅
-- A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
-  part's convention uses.
 - A `lang` value carried by a span or div is dropped rather than set as a run language property.
 - A `dir=rtl` carried by a span or div is dropped rather than set as a run right-to-left property,
   with a paragraph bidi property added when it sits on a div.

@@ -81,7 +81,11 @@ pub(super) fn core_xml(meta: &BTreeMap<Text, MetaValue>, epoch: i64) -> String {
     if !subject.is_empty() {
         root.push(text_element("dc:subject", &subject));
     }
-    root.child(text_element("cp:keywords", &field(meta, "keywords")))
+    let keywords = match meta.get("keywords") {
+        Some(MetaValue::MetaList(items)) => items.iter().map(plain).collect::<Vec<_>>().join(", "),
+        _ => String::new(),
+    };
+    root.child(text_element("cp:keywords", &keywords))
         .child(created)
         .child(modified)
         .render_document()
@@ -170,7 +174,27 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
 
 #[cfg(test)]
 mod tests {
-    use super::iso_utc;
+    use super::*;
+
+    #[test]
+    fn keyword_lists_use_commas_and_author_lists_keep_semicolons() {
+        let values = MetaValue::MetaList(vec![
+            MetaValue::MetaString("alpha".into()),
+            MetaValue::MetaInlines(vec![carta_ast::Inline::Emph(vec![carta_ast::Inline::Str(
+                "beta".into(),
+            )])]),
+        ]);
+        let meta = BTreeMap::from([
+            ("keywords".into(), values.clone()),
+            ("author".into(), values),
+        ]);
+        let xml = core_xml(&meta, 0);
+        assert!(xml.contains("<cp:keywords>alpha, beta</cp:keywords>"));
+        assert!(xml.contains("<dc:creator>alpha; beta</dc:creator>"));
+
+        let meta = BTreeMap::from([("keywords".into(), MetaValue::MetaString("alpha".into()))]);
+        assert!(core_xml(&meta, 0).contains("<cp:keywords></cp:keywords>"));
+    }
 
     #[test]
     fn epoch_one_is_the_first_second_of_1970() {
