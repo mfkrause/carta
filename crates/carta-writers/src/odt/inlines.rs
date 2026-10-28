@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use carta_ast::{Attr, Block, Inline, MathType, QuoteType, Target};
-use carta_core::container::xml::{escape_attribute, escape_text, is_xml_char};
+use carta_core::container::xml::{escape_attribute, is_xml_char};
 use carta_core::media::{decode_data_uri, extension_for_mime, image_mime_for_extension};
 
 use super::helpers::{custom_style, is_opendocument, parent_prefix_index};
@@ -246,7 +246,8 @@ impl Builder<'_> {
     fn math(&mut self, kind: &MathType, tex: &str) {
         let display = matches!(kind, MathType::DisplayMath);
         let Some(mathml) = crate::math::to_mathml(tex, display) else {
-            escape_text(tex, &mut self.body);
+            let delimiter = if display { "$$" } else { "$" };
+            self.push_verbatim(&format!("{delimiter}{tex}{delimiter}"));
             return;
         };
         let index = self.object_index;

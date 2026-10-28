@@ -509,7 +509,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   order, and attribute order across the manifest, metadata, and formula parts.
 - Attribute ordering inside a combined-decoration text style groups per decoration rather than all
   `fo:*` attributes first.
-- When math fails to convert, the fallback emits the bare TeX and drops its `$` delimiters.
 - Bare fence delimiters `( ) [ ] { } |` are emitted as plain `math:mo` with no `stretchy="false"`,
   so they grow to the enclosed height.
 - Math accents duplicate `accent="true"` onto the `mover` and use a combining mark rather than the

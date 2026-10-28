@@ -1,0 +1,9 @@
+{
+  "pandoc-api-version": [1, 23, 1, 2],
+  "meta": {},
+  "blocks": [
+    {"t": "Para", "c": [{"t": "Math", "c": [{"t": "InlineMath"}, "\\frac{x}"]}]},
+    {"t": "Para", "c": [{"t": "Math", "c": [{"t": "DisplayMath"}, "x_{"]}]},
+    {"t": "Para", "c": [{"t": "Strong", "c": [{"t": "Math", "c": [{"t": "InlineMath"}, "\\frac{a&b}"]}]}]}
+  ]
+}
