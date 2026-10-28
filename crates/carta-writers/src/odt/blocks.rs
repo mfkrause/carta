@@ -301,7 +301,7 @@ impl Builder<'_> {
     /// Renders a caption's blocks as a single paragraph, joining its paragraph-level runs with hard
     /// line breaks so a multi-paragraph caption reads as one caption line.
     fn caption_block(&mut self, style: &str, blocks: &[Block]) {
-        let mut runs: Vec<&[Inline]> = Vec::new();
+        let mut runs = Vec::new();
         collect_caption_runs(blocks, &mut runs);
         self.body.push_str("<text:p text:style-name=\"");
         self.body.push_str(style);

@@ -1,6 +1,10 @@
 //! Small shared predicates and structural helpers for the ODT writer.
 
+use std::borrow::Cow;
+
 use carta_ast::{Attr, Block, Format, Inline, MathType, Row, Table};
+
+use super::{STACK_RED_ZONE, STACK_SEGMENT};
 
 /// Whether an inline sequence carries no visible content, so a flowing paragraph of it is dropped.
 pub(super) fn inlines_are_empty(inlines: &[Inline]) -> bool {
@@ -41,18 +45,56 @@ pub(super) fn leads_with_plain(blocks: &[Block]) -> bool {
         .is_none_or(|block| matches!(block, Block::Plain(_)))
 }
 
-/// Gathers the inline runs a caption contributes, in document order, descending through wrapper
-/// blocks so a caption written as a `Div` still surfaces its text.
-pub(super) fn collect_caption_runs<'a>(blocks: &'a [Block], runs: &mut Vec<&'a [Inline]>) {
-    for block in blocks {
-        match block {
-            Block::Para(inlines) | Block::Plain(inlines) => runs.push(inlines),
-            Block::Div(_, children) | Block::BlockQuote(children) => {
-                collect_caption_runs(children, runs);
+/// Gathers caption runs while retaining inline formatting and paragraph boundaries.
+pub(super) fn collect_caption_runs<'a>(blocks: &'a [Block], runs: &mut Vec<Cow<'a, [Inline]>>) {
+    stacker::maybe_grow(STACK_RED_ZONE, STACK_SEGMENT, || {
+        for block in blocks {
+            match block {
+                Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
+                    runs.push(Cow::Borrowed(inlines));
+                }
+                Block::CodeBlock(attr, text) => {
+                    runs.push(Cow::Owned(vec![Inline::Code(attr.clone(), text.clone())]));
+                }
+                Block::Div(_, children) | Block::BlockQuote(children) => {
+                    collect_caption_runs(children, runs);
+                }
+                Block::BulletList(items) | Block::OrderedList(_, items) => {
+                    runs.push(Cow::Owned(
+                        items
+                            .iter()
+                            .flat_map(|item| caption_inlines(item))
+                            .collect(),
+                    ));
+                }
+                Block::DefinitionList(items) => {
+                    let mut inlines = Vec::new();
+                    for (term, definitions) in items {
+                        inlines.extend(term.iter().cloned());
+                        inlines.push(Inline::Str(": ".into()));
+                        for definition in definitions {
+                            inlines.extend(caption_inlines(definition));
+                        }
+                    }
+                    runs.push(Cow::Owned(inlines));
+                }
+                _ => {}
             }
-            _ => {}
         }
+    });
+}
+
+fn caption_inlines(blocks: &[Block]) -> Vec<Inline> {
+    let mut runs = Vec::new();
+    collect_caption_runs(blocks, &mut runs);
+    let mut inlines = Vec::new();
+    for (index, run) in runs.into_iter().enumerate() {
+        if index > 0 {
+            inlines.push(Inline::LineBreak);
+        }
+        inlines.extend(run.into_owned());
     }
+    inlines
 }
 
 /// The number of columns a table has: its column specs, or the widest row when it declares none.
