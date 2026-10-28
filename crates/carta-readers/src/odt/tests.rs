@@ -63,6 +63,30 @@ fn compaction_depends_on_the_final_paragraph() {
 }
 
 #[test]
+fn code_flattens_inline_breaks_but_keeps_paragraph_breaks() {
+    let body = content(
+        "<text:p text:style-name=\"Preformatted_20_Text\">A<text:line-break/>B</text:p>\
+         <text:p text:style-name=\"Preformatted_20_Text\">C\nD</text:p>\
+         <text:p><text:span text:style-name=\"Source_20_Text\">E<text:line-break/>F</text:span></text:p>",
+    );
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Preformatted_20_Text\" style:family=\"paragraph\"/>\
+        <style:style style:name=\"Source_20_Text\" style:family=\"text\"/>\
+        </office:styles></office:document-styles>";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("styles.xml", styles.as_bytes()),
+    ]);
+    assert_eq!(
+        read(&odt).expect("read code breaks").blocks,
+        vec![
+            Block::CodeBlock(Box::default(), "A B\nC D".into()),
+            Block::Para(vec![Inline::Code(Box::default(), "E F".into())]),
+        ]
+    );
+}
+
+#[test]
 fn table_caption_style_keeps_its_class() {
     let body = content(
         "<text:p text:style-name=\"Table\">Caption</text:p>\

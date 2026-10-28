@@ -146,7 +146,7 @@ pub(super) fn apply_wrappers(props: TextProps, inner: Vec<Inline>) -> Vec<Inline
 }
 
 /// Flattens inline content to its plain text, the form a code span or code block carries and the
-/// basis for a heading's slug. Spaces and line breaks render as their literal characters.
+/// basis for a heading's slug. Line breaks contribute a space.
 pub(super) fn inlines_to_plain(inlines: &[Inline]) -> String {
     let mut out = String::new();
     collect_plain(inlines, &mut out);
@@ -169,8 +169,7 @@ fn collect_plain(inlines: &[Inline], out: &mut String) {
     for inline in inlines {
         match inline {
             Inline::Str(text) => out.push_str(text),
-            Inline::Space => out.push(' '),
-            Inline::SoftBreak | Inline::LineBreak => out.push('\n'),
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
             Inline::Code(_, text) => out.push_str(text),
             Inline::Emph(children)
             | Inline::Strong(children)
