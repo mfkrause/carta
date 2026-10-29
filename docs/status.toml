@@ -398,7 +398,6 @@ read-gaps = [
 ]
 write-gaps = [
   "Tables inside block quotes have incorrect continuation lines.",
-  "Hard line breaks in table cells are doubled and widen the column.",
 ]
 
 [[format]]

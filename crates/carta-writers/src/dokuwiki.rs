@@ -18,12 +18,9 @@ use crate::common::{
 /// Columns each level of list nesting adds, and the base indent of a top-level list line.
 const LIST_INDENT: usize = 2;
 
-/// A line break that belongs to a paragraph's own content (a source break kept under preserve wrap)
-/// rather than a boundary between blocks. It is held as this marker, distinct from the structural
-/// newlines that join blocks and list items, so a block quote prefixes only the structural lines and a
-/// table cell can fold a content break into its inline-break marker. Resolved to a newline once the
-/// document is fully assembled. A private-use codepoint that never occurs in rendered markup.
-const CONTENT_BREAK: char = '\u{e000}';
+// Content breaks must not receive block-quote prefixes.
+const CONTENT_BREAK: &str = "\u{e000}s";
+const FORCED_BREAK: &str = "\u{e000}h";
 
 // Nested table rows must stay distinct from ordinary forced breaks when measuring padding.
 const TABLE_BREAK: &str = "\u{e001}";
@@ -39,6 +36,7 @@ impl Writer for DokuwikiWriter {
         // Any content break that survived to the top level stands on its own physical line.
         Ok(body
             .replace(CONTENT_BREAK, "\n")
+            .replace(FORCED_BREAK, "\\\\\n")
             .replace(TABLE_ROW_END, "\n")
             .replace(TABLE_BREAK, "\\\\ "))
     }
@@ -89,7 +87,7 @@ fn line_block(lines: &[Vec<Inline>], wrap: WrapMode) -> String {
         .iter()
         .map(|line| inlines_to_markup(line, wrap))
         .collect::<Vec<_>>()
-        .join("\\\\\n")
+        .join(FORCED_BREAK)
 }
 
 /// A fenced code block: the verbatim payload between `<code>` tags, the first class naming the
@@ -386,16 +384,16 @@ fn inline(inline: &Inline, wrap: WrapMode) -> String {
             let (open, close) = quote_marks(kind);
             format!("{open}{}{close}", inlines_to_markup(inlines, wrap))
         }
-        Inline::Code(_, text) => format!("''%%{text}%%''"),
+        Inline::Code(_, text) => format!("''%%{}%%''", text.replace('\n', CONTENT_BREAK)),
         Inline::Space => " ".to_owned(),
         Inline::SoftBreak => {
             if wrap == WrapMode::Preserve {
-                CONTENT_BREAK.to_string()
+                CONTENT_BREAK.to_owned()
             } else {
                 " ".to_owned()
             }
         }
-        Inline::LineBreak => "\\\\\n".to_owned(),
+        Inline::LineBreak => FORCED_BREAK.to_owned(),
         Inline::Math(kind, text) => match kind {
             MathType::InlineMath => format!("${text}$"),
             MathType::DisplayMath => format!("$${text}$$"),
@@ -576,9 +574,7 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
 
     let widths = column_widths(&rows, columns);
     let mut out = String::new();
-    let caption = caption_lines(&table.caption.long, cell_wrap)
-        .join("\\\\\n")
-        .replace(CONTENT_BREAK, "\\\\ ");
+    let caption = caption_lines(&table.caption.long, cell_wrap).join(FORCED_BREAK);
     if !caption.is_empty() {
         out.push_str(&caption);
         out.push_str(TABLE_ROW_END);
@@ -686,7 +682,9 @@ fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
         .collect::<Vec<_>>()
         .join("\n\n")
         .replace(TABLE_ROW_END, TABLE_BREAK)
-        .replace(['\n', CONTENT_BREAK], "\\\\ ")
+        .replace(FORCED_BREAK, "\\\\ ")
+        .replace(CONTENT_BREAK, "\\\\ ")
+        .replace('\n', "\\\\ ")
 }
 
 /// Render one block of a table cell. Top-level lists start at the left margin (depth zero) rather
@@ -845,6 +843,82 @@ mod tests {
             render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
             "[[http://e.com/a%20b|click]]"
         );
+    }
+
+    #[test]
+    fn captions_preserve_source_breaks() {
+        let document = Document {
+            blocks: vec![Block::Table(Box::new(Table {
+                caption: Caption {
+                    long: vec![Block::Para(vec![s("left"), Inline::SoftBreak, s("right")])],
+                    ..Caption::default()
+                },
+                ..Table::default()
+            }))],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.wrap = WrapMode::Preserve;
+        assert_eq!(
+            DokuwikiWriter.write(&document, &options).unwrap(),
+            "left\nright\n"
+        );
+    }
+
+    #[test]
+    fn hard_breaks_fold_once_and_keep_verbatim_backslashes() {
+        let paragraph = vec![s("left"), Inline::LineBreak, s("right")];
+        for (content, expected) in [
+            (Block::Para(paragraph.clone()), "left\\\\ right"),
+            (
+                Block::Plain(vec![s("left"), Inline::LineBreak]),
+                "left\\\\ ",
+            ),
+            (
+                Block::LineBlock(vec![vec![s("left")], vec![s("right")]]),
+                "left\\\\ right",
+            ),
+            (
+                Block::CodeBlock(Box::default(), "left\\\\\nright".into()),
+                "<code>\\\\ left\\\\\\\\ right\\\\ </code>",
+            ),
+            (
+                Block::Para(vec![Inline::Code(Box::default(), "left\\\\\nright".into())]),
+                "''%%left\\\\\\\\ right%%''",
+            ),
+            (
+                Block::Para(vec![s("left\\\\"), Inline::SoftBreak, s("right")]),
+                "left\\\\\\\\ right",
+            ),
+        ] {
+            let cell = Cell {
+                attr: Attr::default(),
+                align: Alignment::AlignDefault,
+                row_span: 1,
+                col_span: 1,
+                content: vec![content],
+            };
+            assert_eq!(cell_text(&cell, WrapMode::Preserve), expected);
+        }
+        for (content, expected) in [
+            (Block::Para(paragraph.clone()), "> left\\\\\nright"),
+            (Block::Plain(paragraph), "> left\\\\\nright"),
+            (
+                Block::Para(vec![Inline::Code(Box::default(), "left\\\\\nright".into())]),
+                "> ''%%left\\\\\nright%%''",
+            ),
+        ] {
+            let document = Document {
+                blocks: vec![Block::BlockQuote(vec![content])],
+                ..Document::default()
+            };
+            assert_eq!(
+                DokuwikiWriter
+                    .write(&document, &WriterOptions::default())
+                    .unwrap(),
+                expected
+            );
+        }
     }
 
     #[test]
