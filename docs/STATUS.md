@@ -253,8 +253,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-- Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
-  and ancestor styles are not re-applied to inner spans (renders identically).
 
 ### `rtf` ✅
 - A `\mac`, `\pc`, or `\pca` document's `\'xx` bytes decode as Windows-1252 rather than the declared

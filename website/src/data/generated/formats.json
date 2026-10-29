@@ -1124,9 +1124,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-odt",
-        "gaps": [
-          "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically)."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

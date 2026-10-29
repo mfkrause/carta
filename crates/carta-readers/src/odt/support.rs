@@ -186,7 +186,7 @@ pub(super) fn apply_wrappers(props: TextProps, inner: Vec<Inline>) -> Vec<Inline
     if props.strong {
         inlines = vec![Inline::Strong(inlines)];
     }
-    if props.emph {
+    if props.emph || props.underline {
         inlines = vec![Inline::Emph(inlines)];
     }
     match props.vertical {
@@ -249,20 +249,14 @@ pub(super) fn read_text_props(decoded_name: &str, style: &Element) -> TextProps 
     if let Some(weight) = text_props.attr("font-weight") {
         props.strong = is_bold(weight);
     }
-    if text_props.attr("font-style").is_some_and(is_italic) {
-        props.emph = true;
+    if let Some(style) = text_props.attr("font-style") {
+        props.emph = is_italic(style);
     }
-    if text_props
-        .attr("text-underline-style")
-        .is_some_and(|value| value != "none")
-    {
-        props.emph = true;
+    if let Some(underline) = text_props.attr("text-underline-style") {
+        props.underline = underline != "none";
     }
-    if text_props
-        .attr("text-line-through-style")
-        .is_some_and(|value| value != "none")
-    {
-        props.strike = true;
+    if let Some(strike) = text_props.attr("text-line-through-style") {
+        props.strike = strike != "none";
     }
     if let Some(position) = text_props.attr("text-position") {
         props.vertical = parse_position(position);

@@ -597,7 +597,6 @@ write = "usable"
 read-feature = "read-odt"
 write-feature = "write-odt"
 read-gaps = [
-  "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically).",
 ]
 write-gaps = [
   "Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment collapse to one style rather than one per column per section.",

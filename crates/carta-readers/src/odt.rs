@@ -99,13 +99,14 @@ enum Vertical {
     Sub,
 }
 
-/// The formatting a character (`text`-family) style declares in its own properties, plus whether it
-/// names inline code. Character styles do not inherit, so only the directly referenced style counts.
-#[allow(clippy::struct_excessive_bools)]
+/// A character style's own formatting and inline-code role.
+/// Parent style definitions are not followed.
 #[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_excessive_bools)]
 struct TextProps {
     strong: bool,
     emph: bool,
+    underline: bool,
     strike: bool,
     vertical: Vertical,
     code: bool,
@@ -161,6 +162,7 @@ struct Converter<'a> {
     parts: &'a BTreeMap<String, Vec<u8>>,
     media: &'a mut MediaBag,
     text_styles: BTreeMap<String, TextProps>,
+    span_style: TextProps,
     para_styles: BTreeMap<String, ParaStyle>,
     list_styles: BTreeMap<String, ListStyle>,
     ids: IdRegistry,
@@ -179,6 +181,7 @@ impl<'a> Converter<'a> {
             parts,
             media,
             text_styles: BTreeMap::new(),
+            span_style: TextProps::default(),
             para_styles: BTreeMap::new(),
             list_styles: BTreeMap::new(),
             ids: IdRegistry::default(),
@@ -721,6 +724,17 @@ impl<'a> Converter<'a> {
             }
         }
         coalesce_text(&mut out);
+        out.dedup_by(|next, previous| match (next, previous) {
+            (Inline::Strong(source), Inline::Strong(target))
+            | (Inline::Emph(source), Inline::Emph(target))
+            | (Inline::Strikeout(source), Inline::Strikeout(target))
+            | (Inline::Superscript(source), Inline::Superscript(target))
+            | (Inline::Subscript(source), Inline::Subscript(target)) => {
+                target.append(source);
+                true
+            }
+            _ => false,
+        });
         out
     }
 
@@ -770,20 +784,36 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_span(&mut self, element: &Element, out: &mut Vec<Inline>) {
-        let props = element
+        let Some(own) = element
             .attr("style-name")
             .and_then(|name| self.text_styles.get(name))
             .copied()
-            .unwrap_or_default();
+        else {
+            out.extend(self.convert_inlines(&element.children));
+            return;
+        };
+        let previous = std::mem::replace(&mut self.span_style, own);
+        let props = TextProps {
+            strong: own.strong != previous.strong,
+            emph: own.emph != previous.emph,
+            underline: own.underline != previous.underline,
+            strike: own.strike != previous.strike,
+            vertical: if own.vertical == previous.vertical {
+                Vertical::Baseline
+            } else {
+                own.vertical
+            },
+            code: own.code,
+        };
+        let inner = self.convert_inlines(&element.children);
+        self.span_style = previous;
         if props.code {
-            let inner = self.convert_inlines(&element.children);
             out.push(Inline::Code(
                 Box::default(),
                 inlines_to_plain(&inner).into(),
             ));
             return;
         }
-        let inner = self.convert_inlines(&element.children);
         out.extend(apply_wrappers(props, inner));
     }
 

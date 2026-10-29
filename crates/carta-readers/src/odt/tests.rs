@@ -36,6 +36,54 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn nested_span_properties_keep_changes_and_merge_adjacent_wrappers() {
+    let body = content(
+        "<text:p><text:span text:style-name=\"Strong\">A\
+         <text:span text:style-name=\"StrongAlias\">B</text:span>C</text:span> \
+         <text:span text:style-name=\"Strong\">D\
+         <text:span text:style-name=\"Emphasis\">E</text:span>F</text:span> \
+         <text:span text:style-name=\"Emphasis\">G</text:span>\
+         <text:span text:style-name=\"Emphasis\">H</text:span> \
+         <text:span text:style-name=\"Emphasis\">I\
+         <text:span text:style-name=\"Underline\">J</text:span>K</text:span></text:p>",
+    );
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Strong\" style:family=\"text\">\
+        <style:text-properties fo:font-weight=\"bold\"/></style:style>\
+        <style:style style:name=\"StrongAlias\" style:family=\"text\">\
+        <style:text-properties fo:font-weight=\"bold\"/></style:style>\
+        <style:style style:name=\"Emphasis\" style:family=\"text\">\
+        <style:text-properties fo:font-style=\"italic\"/></style:style>\
+        <style:style style:name=\"Underline\" style:family=\"text\">\
+        <style:text-properties style:text-underline-style=\"solid\"/></style:style>\
+        </office:styles></office:document-styles>";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("styles.xml", styles.as_bytes()),
+    ]);
+    assert_eq!(
+        read(&odt).expect("read nested span properties").blocks,
+        vec![Block::Para(vec![
+            Inline::Strong(vec![Inline::Str("ABC".into())]),
+            Inline::Space,
+            Inline::Strong(vec![
+                Inline::Str("D".into()),
+                Inline::Emph(vec![Inline::Strong(vec![Inline::Str("E".into())])]),
+                Inline::Str("F".into()),
+            ]),
+            Inline::Space,
+            Inline::Emph(vec![Inline::Str("G".into()), Inline::Str("H".into())]),
+            Inline::Space,
+            Inline::Emph(vec![
+                Inline::Str("I".into()),
+                Inline::Emph(vec![Inline::Str("J".into())]),
+                Inline::Str("K".into()),
+            ]),
+        ])]
+    );
+}
+
+#[test]
 fn oversized_cell_spans_stop_at_section_edges_and_fill_only_free_slots() {
     for header in [false, true] {
         let first = "<table:table-row><table:table-cell table:number-columns-spanned=\"999\" \
