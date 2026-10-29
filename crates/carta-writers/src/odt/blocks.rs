@@ -51,7 +51,7 @@ impl Builder<'_> {
             Block::Plain(inlines) if inlines.is_empty() && fixed.is_none() => {}
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, fixed),
             Block::LineBlock(lines) => self.line_block_like(lines, fixed),
-            Block::Div(attr, inner) => self.div(attr, inner, fixed),
+            Block::Div(attr, inner) => self.div(attr, inner),
             Block::RawBlock(..) | Block::Figure(..) => self.block_other(block, fixed),
             other => {
                 self.first_para = true;
@@ -148,9 +148,8 @@ impl Builder<'_> {
         self.body.push_str("</text:p>");
     }
 
-    /// A generic container: transparent to the flow, wrapped in a section when it carries an id, and
-    /// re-styling its direct paragraphs when it carries a recognized `custom-style`.
-    fn div(&mut self, attr: &Attr, inner: &[Block], fixed: Option<&str>) {
+    /// A section container with flowing paragraphs or its own named paragraph style.
+    fn div(&mut self, attr: &Attr, inner: &[Block]) {
         let language = attr_value(attr, "lang")
             .and_then(Language::parse)
             .filter(|language| !self.languages.contains(language));
@@ -171,7 +170,7 @@ impl Builder<'_> {
         }
         match custom_style(attr) {
             Some(name) => self.render_blocks(inner, Some(name)),
-            None => self.render_blocks(inner, fixed),
+            None => self.render_blocks(inner, None),
         }
         if section {
             self.body.push_str("</text:section>");
@@ -225,7 +224,7 @@ impl Builder<'_> {
             }
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, None),
             Block::LineBlock(lines) => self.line_block_like(lines, None),
-            Block::Div(attr, inner) => self.div(attr, inner, None),
+            Block::Div(attr, inner) => self.div(attr, inner),
         }
     }
 
@@ -814,6 +813,28 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn div_paragraphs_use_flowing_styles_inside_a_fixed_style_container() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let paragraph = |text: &str| Block::Para(vec![Inline::Str(text.into())]);
+        builder.render_blocks(
+            &[Block::BlockQuote(vec![
+                Block::Div(
+                    Box::new(Attr::default()),
+                    vec![paragraph("INNER"), paragraph("SECOND")],
+                ),
+                paragraph("AFTER"),
+            ])],
+            None,
+        );
+        assert!(builder.body.contains(concat!(
+            "<text:p text:style-name=\"First_20_paragraph\">INNER</text:p>",
+            "<text:p text:style-name=\"Text_20_body\">SECOND</text:p>",
+            "<text:p text:style-name=\"Quotations\">AFTER</text:p>"
+        )));
+    }
 
     #[test]
     fn nested_lists_indent_items_and_keep_empty_items_explicit() {
