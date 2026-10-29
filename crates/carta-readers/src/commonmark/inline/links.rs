@@ -1,5 +1,7 @@
 //! Bracket resolution: links, images, spans, footnotes, inline notes, and bracketed citations.
 
+use std::collections::BTreeSet;
+
 use carta_ast::{Attr, Citation, CitationMode, Inline, Target};
 use carta_core::Extension;
 
@@ -21,7 +23,7 @@ use super::{
 /// Outcome of resolving an explicit link target after a closing `]`.
 enum Explicit {
     /// An inline or reference target resolved to this destination, ending at the given position.
-    Target(Target, usize),
+    Target(Target, usize, Attr),
     /// An explicit reference was present but its label is undefined: not a link.
     Failed,
     /// No explicit target syntax follows; a span or shortcut reference may still apply.
@@ -66,8 +68,8 @@ impl<'a> InlineParser<'a> {
         // An inactive `[` cannot form a link (spec 6.3 rule 6) but may still open a span.
         if is_active {
             match self.resolve_explicit(opener_index) {
-                Explicit::Target(target, next) => {
-                    self.finish_link(opener_index, is_image, target, next);
+                Explicit::Target(target, next, attributes) => {
+                    self.finish_link(opener_index, is_image, target, next, attributes);
                     return;
                 }
                 // Undefined explicit reference: brackets stay literal, no span/shortcut fallback.
@@ -96,9 +98,15 @@ impl<'a> InlineParser<'a> {
         if is_active && !self.refs.is_empty() {
             let raw = self.raw_label(opener_index);
             if raw.len() <= MAX_LABEL_BYTES
-                && let Some(target) = self.refs.get(&normalize_label(raw)).map(def_target)
+                && let Some(definition) = self.refs.get(&normalize_label(raw))
             {
-                self.finish_link(opener_index, is_image, target, self.pos);
+                self.finish_link(
+                    opener_index,
+                    is_image,
+                    def_target(definition),
+                    self.pos,
+                    definition.attr.clone(),
+                );
                 return;
             }
         }
@@ -256,11 +264,25 @@ impl<'a> InlineParser<'a> {
     }
 
     /// Pop the opener, consume an optional trailing attribute block, and emit the link or image.
-    fn finish_link(&mut self, opener_index: usize, is_image: bool, target: Target, next: usize) {
+    fn finish_link(
+        &mut self,
+        opener_index: usize,
+        is_image: bool,
+        target: Target,
+        next: usize,
+        mut attributes: Attr,
+    ) {
         self.bracket_stack.pop();
         self.pos = next;
-        let attr = self.take_link_attr();
-        self.build_link(opener_index, is_image, target, attr);
+        let mut inline_attributes = self.take_link_attr();
+        let keys: BTreeSet<_> = inline_attributes
+            .attributes
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect();
+        attributes.attributes.retain(|(key, _)| !keys.contains(key));
+        attr::merge(&mut inline_attributes, attributes);
+        self.build_link(opener_index, is_image, target, inline_attributes);
         if !is_image {
             self.deactivate_earlier_brackets(opener_index);
         }
@@ -402,7 +424,7 @@ impl<'a> InlineParser<'a> {
                 scan_inline_target(self.text, self.pos)
             };
             if let Some((target, next)) = scanned {
-                return Explicit::Target(target, next);
+                return Explicit::Target(target, next, Attr::default());
             }
         }
         // `spaced_reference_links` permits whitespace between reference brackets.
@@ -427,8 +449,10 @@ impl<'a> InlineParser<'a> {
             } else {
                 normalize_label(&label)
             };
-            return match self.refs.get(&key).map(def_target) {
-                Some(target) => Explicit::Target(target, next),
+            return match self.refs.get(&key) {
+                Some(definition) => {
+                    Explicit::Target(def_target(definition), next, definition.attr.clone())
+                }
                 None => Explicit::Failed,
             };
         }

@@ -111,6 +111,51 @@ fn trailing_header_labels_resolve_with_their_original_spaces() {
 }
 
 #[test]
+fn reference_attributes_keep_image_paths_titles_and_continuations() {
+    let source = "[photo]\n\n[photo]: image.png \"Title\" width=100\n height='50' class=\"wide blue\" key=one key=two\n\nRest.\n";
+    let document = read_markdown(source, &[Extension::MmdLinkAttributes]);
+    let Some(Block::Para(inlines)) = document.blocks.first() else {
+        panic!()
+    };
+    let Some(Inline::Link(attributes, _, target)) = inlines.first() else {
+        panic!()
+    };
+    assert_eq!(target.url, "image.png");
+    assert_eq!(target.title, "Title");
+    assert_eq!(attributes.classes, ["wide", "blue"]);
+    assert_eq!(
+        attributes.attributes,
+        [
+            ("width".into(), "100".into()),
+            ("height".into(), "50".into()),
+            ("key".into(), "two".into())
+        ]
+    );
+    let source = "[photo]: image.png width=100 trailing\n\n[photo]\n";
+    let document = read_markdown(source, &[Extension::MmdLinkAttributes]);
+    assert!(reference_targets(&document.blocks).is_empty());
+    assert_eq!(document.blocks.len(), 2);
+}
+
+#[test]
+fn inline_link_attributes_override_reference_attributes() {
+    let source = "[x]: image.png id=old class=old width=100\n\n[label][x]{#new .new width=200}\n";
+    let document = read_markdown(
+        source,
+        &[Extension::MmdLinkAttributes, Extension::LinkAttributes],
+    );
+    let Some(Block::Para(inlines)) = document.blocks.first() else {
+        panic!()
+    };
+    let Some(Inline::Link(attributes, _, _)) = inlines.first() else {
+        panic!()
+    };
+    assert_eq!(attributes.id, "new");
+    assert_eq!(attributes.classes, ["new", "old"]);
+    assert_eq!(attributes.attributes, [("width".into(), "200".into())]);
+}
+
+#[test]
 fn implicit_header_references_match_full_collapsed_and_image_forms() {
     let result = blocks_with_many(
         "# Some Heading\n\n[text][Some Heading] [Some Heading][] ![Some Heading]\n",

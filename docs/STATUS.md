@@ -154,7 +154,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Shares the `markdown` reader gaps.
 
 ### `markdown_mmd` ✅
-- A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.
 - Shares the `markdown` reader gaps.
 
 ### `markdown_phpextra` ✅

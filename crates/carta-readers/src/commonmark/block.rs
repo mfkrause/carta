@@ -532,9 +532,11 @@ impl Parser {
                 // The underline heads only what remains after leading link reference definitions.
                 let text = self.node_text(para);
                 let mut body = text.as_str();
-                while let Some((_, _, rest)) =
-                    scan::parse_link_reference_definition(body, self.greedy_paragraphs)
-                {
+                while let Some((_, _, rest)) = scan::parse_link_reference_definition(
+                    body,
+                    self.greedy_paragraphs,
+                    self.extensions.contains(Extension::MmdLinkAttributes),
+                ) {
                     body = rest;
                 }
                 // Markdown family: the underline heads a single-line paragraph only.

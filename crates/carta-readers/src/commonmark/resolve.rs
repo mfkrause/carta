@@ -196,6 +196,7 @@ fn gather_headers_nested(
                 refs.entry(normalize_label(content)).or_insert(LinkDef {
                     url: format!("#{id}"),
                     title: String::new(),
+                    attr: Attr::default(),
                 });
                 if ext.contains(Extension::MmdHeaderIdentifiers)
                     && let Some((_, label)) = split_mmd_header_id(text)
@@ -204,6 +205,7 @@ fn gather_headers_nested(
                     refs.entry(normalize_label(label)).or_insert(LinkDef {
                         url: format!("#{id}"),
                         title: String::new(),
+                        attr: Attr::default(),
                     });
                 }
                 if heading_content_is_context_independent(content) {

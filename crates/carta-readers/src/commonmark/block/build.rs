@@ -112,9 +112,11 @@ impl Parser {
         let abbreviations = column_zero && self.extensions.contains(Extension::Abbreviations);
         let mut remaining = text;
         loop {
-            if let Some((label, def, rest)) =
-                scan::parse_link_reference_definition(remaining, self.greedy_paragraphs)
-            {
+            if let Some((label, def, rest)) = scan::parse_link_reference_definition(
+                remaining,
+                self.greedy_paragraphs,
+                self.extensions.contains(Extension::MmdLinkAttributes),
+            ) {
                 self.refs.entry(label).or_insert(def);
                 remaining = rest;
                 continue;
@@ -140,9 +142,11 @@ impl Parser {
         let text = node.text.as_str();
         let mut remaining = text;
         loop {
-            if let Some((label, def, rest)) =
-                scan::parse_link_reference_definition(remaining, greedy)
-            {
+            if let Some((label, def, rest)) = scan::parse_link_reference_definition(
+                remaining,
+                greedy,
+                self.extensions.contains(Extension::MmdLinkAttributes),
+            ) {
                 self.refs.entry(label).or_insert(def);
                 remaining = rest;
                 continue;

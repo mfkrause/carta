@@ -4,6 +4,8 @@ use carta_ast::{Inline, Target};
 
 use super::LinkDef;
 
+mod reference_attributes;
+
 /// Percent-encode the characters a link destination may not safely carry literally: ASCII
 /// whitespace and the delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes
 /// through unchanged (including a literal `%`, so an existing `%XX` sequence is preserved rather
@@ -550,6 +552,7 @@ pub(crate) fn unescape_string(text: &str) -> String {
 pub(crate) fn parse_link_reference_definition(
     text: &str,
     markdown: bool,
+    attributes: bool,
 ) -> Option<(String, LinkDef, &str)> {
     let mut index = 0;
     skip_spaces_up_to_three(text, &mut index);
@@ -585,6 +588,17 @@ pub(crate) fn parse_link_reference_definition(
     }
     index += 1;
     skip_inline_whitespace_no_double_newline(text, &mut index)?;
+    if markdown
+        && attributes
+        && let Some(start) = reference_attributes::find(text, index)
+    {
+        let (attributes, end) = reference_attributes::parse(text, start)?;
+        // Reuse the URL and title grammar after separating the attribute tail.
+        let prefix = format!("{}\n", text.get(..start)?.trim_end());
+        let (label, mut definition, _) = parse_link_reference_definition(&prefix, markdown, false)?;
+        definition.attr = attributes;
+        return Some((label, definition, text.get(end..)?));
+    }
     let angle = char_at(text, index) == Some('<');
 
     let (url, title) = if markdown && !angle {
@@ -619,6 +633,7 @@ pub(crate) fn parse_link_reference_definition(
     let def = LinkDef {
         url: unescape_string(&url),
         title: unescape_string(&title),
+        attr: carta_ast::Attr::default(),
     };
     let rest = text.get(index..).unwrap_or("");
     Some((normalized, def, rest))

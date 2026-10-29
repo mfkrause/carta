@@ -169,7 +169,6 @@
         "ships": true,
         "feature": "read-commonmark",
         "gaps": [
-          "A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.",
           "Shares the `markdown` reader gaps."
         ]
       },

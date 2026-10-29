@@ -50,6 +50,7 @@ fn ref_map(entries: &[(&str, &str)]) -> RefMap {
             LinkDef {
                 url: v.to_string(),
                 title: String::new(),
+                attr: Attr::default(),
             },
         );
     }

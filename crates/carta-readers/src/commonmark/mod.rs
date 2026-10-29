@@ -153,11 +153,12 @@ pub(crate) struct IrDefItem {
     pub definitions: Vec<Vec<IrBlock>>,
 }
 
-/// A resolved link reference definition: its destination URL and optional title.
+/// A resolved link reference definition with its destination, title, and attributes.
 #[derive(Debug, Clone)]
 pub(crate) struct LinkDef {
     pub url: String,
     pub title: String,
+    pub attr: Attr,
 }
 
 /// Reference definitions keyed by their normalized label: the explicit `[label]: url` definitions,

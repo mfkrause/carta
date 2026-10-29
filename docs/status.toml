@@ -85,7 +85,6 @@ write = "usable"
 read-feature = "read-commonmark"
 write-feature = "write-markdown"
 read-gaps = [
-  "A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.",
   "Shares the `markdown` reader gaps.",
 ]
 write-gaps = [
