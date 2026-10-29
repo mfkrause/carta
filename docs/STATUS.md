@@ -318,7 +318,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `rst` ✅
 
 ### `dokuwiki` ✅
-- Lists in table cells are flattened or misplaced.
 - Tables inside block quotes have incorrect continuation lines.
 - Hard line breaks in table cells are doubled and widen the column.
 

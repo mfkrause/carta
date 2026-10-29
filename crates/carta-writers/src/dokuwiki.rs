@@ -62,9 +62,9 @@ fn block(block: &Block, wrap: WrapMode) -> String {
         Block::CodeBlock(attr, text) => code_block(attr, text),
         Block::RawBlock(format, text) => raw_passthrough(format, text),
         Block::BlockQuote(blocks) => block_quote(blocks, wrap),
-        Block::BulletList(items) => bullet_list(items, LIST_INDENT, wrap),
-        Block::OrderedList(_, items) => ordered_list(items, LIST_INDENT, wrap),
-        Block::DefinitionList(items) => definition_list(items, wrap),
+        Block::BulletList(items) => bullet_list(items, LIST_INDENT, wrap, false),
+        Block::OrderedList(_, items) => ordered_list(items, LIST_INDENT, wrap, false),
+        Block::DefinitionList(items) => definition_list(items, LIST_INDENT, wrap, false),
         Block::Header(level, _, inlines) => header(*level, inlines),
         Block::HorizontalRule => "\n----".to_owned(),
         Block::Table(table) => render_table(table, wrap),
@@ -166,42 +166,51 @@ fn figure(caption: &Caption, blocks: &[Block], wrap: WrapMode) -> String {
     }
 }
 
-fn bullet_list(items: &[Vec<Block>], indent: usize, wrap: WrapMode) -> String {
-    render_list(items, indent, '*', wrap)
-}
-
-fn ordered_list(items: &[Vec<Block>], indent: usize, wrap: WrapMode) -> String {
-    render_list(items, indent, '-', wrap)
-}
-
-/// Render a bullet (`*`) or ordered (`-`) list. Each item line opens with `indent` spaces, the
-/// marker, and a space. An item renders compactly when it is one leading text block followed only by
-/// sublists; any other shape is wrapped in a `<WRAP>` block.
-fn render_list(items: &[Vec<Block>], indent: usize, marker: char, wrap: WrapMode) -> String {
-    let prefix = format!("{}{marker} ", " ".repeat(indent));
+fn bullet_list(items: &[Vec<Block>], indent: usize, wrap: WrapMode, in_cell: bool) -> String {
+    let prefix = format!("{}* ", " ".repeat(indent));
     items
         .iter()
-        .map(|item| list_item(item, indent, &prefix, wrap))
+        .map(|item| list_item(item, indent, &prefix, wrap, in_cell))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// Render a single list item. An item renders compactly when it is empty, a lone text block, a text
-/// block followed only by sublists, or a text block followed by a single code block; any other shape
-/// is wrapped in a `<WRAP>` block. `indent` is this item's marker indent; sublists sit one level
-/// deeper.
-fn list_item(item: &[Block], indent: usize, prefix: &str, wrap: WrapMode) -> String {
-    if let Some(simple) = simple_item(item, indent, prefix, wrap) {
+fn ordered_list(items: &[Vec<Block>], indent: usize, wrap: WrapMode, in_cell: bool) -> String {
+    let prefix = format!("{}-", " ".repeat(indent));
+    items
+        .iter()
+        .map(|item| {
+            block_entry(
+                &prefix,
+                std::slice::from_ref(item),
+                indent + LIST_INDENT,
+                wrap,
+                in_cell,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Render one list item, wrapping complex content in a `<WRAP>` block.
+fn list_item(item: &[Block], indent: usize, prefix: &str, wrap: WrapMode, in_cell: bool) -> String {
+    if let Some(simple) = simple_item(item, indent, prefix, wrap, in_cell) {
         return simple;
     }
-    let body = wrap_body(item.iter(), indent + LIST_INDENT, wrap);
+    let body = wrap_body(item.iter(), indent + LIST_INDENT, wrap, in_cell);
     format!("{prefix}<WRAP>\n{body}\n</WRAP>")
 }
 
-fn simple_item(item: &[Block], indent: usize, prefix: &str, wrap: WrapMode) -> Option<String> {
+fn simple_item(
+    item: &[Block],
+    indent: usize,
+    prefix: &str,
+    wrap: WrapMode,
+    in_cell: bool,
+) -> Option<String> {
     let sub_indent = indent + LIST_INDENT;
     match item {
-        [] => Some(prefix.trim_end().to_owned()),
+        [] => Some(prefix.to_owned()),
         [Block::Plain(inlines) | Block::Para(inlines)] => {
             Some(format!("{prefix}{}", inlines_to_markup(inlines, wrap)))
         }
@@ -214,11 +223,15 @@ fn simple_item(item: &[Block], indent: usize, prefix: &str, wrap: WrapMode) -> O
             code_block(attr, text)
         )),
         [Block::Plain(inlines) | Block::Para(inlines), rest @ ..]
-            if rest.iter().all(is_sublist) =>
+            if rest.iter().all(is_simple_sublist) =>
         {
             let mut out = format!("{prefix}{}", inlines_to_markup(inlines, wrap));
             for sublist in rest {
-                let _ = write!(out, "\n{}", sublist_markup(sublist, sub_indent, wrap));
+                let _ = write!(
+                    out,
+                    "\n{}",
+                    sublist_markup(sublist, sub_indent, wrap, in_cell)
+                );
             }
             Some(out)
         }
@@ -226,15 +239,17 @@ fn simple_item(item: &[Block], indent: usize, prefix: &str, wrap: WrapMode) -> O
     }
 }
 
-fn is_sublist(block: &Block) -> bool {
-    matches!(block, Block::BulletList(_) | Block::OrderedList(..))
+fn is_simple_sublist(block: &Block) -> bool {
+    matches!(block, Block::BulletList(_))
+        || matches!(block, Block::OrderedList(attributes, _) if attributes.start == 1)
 }
 
 /// Render a sublist nested inside a list item at the given indent.
-fn sublist_markup(block: &Block, indent: usize, wrap: WrapMode) -> String {
+fn sublist_markup(block: &Block, indent: usize, wrap: WrapMode, in_cell: bool) -> String {
     match block {
-        Block::BulletList(items) => bullet_list(items, indent, wrap),
-        Block::OrderedList(_, items) => ordered_list(items, indent, wrap),
+        Block::BulletList(items) => bullet_list(items, indent, wrap, in_cell),
+        Block::OrderedList(_, items) => ordered_list(items, indent, wrap, in_cell),
+        Block::DefinitionList(items) => definition_list(items, indent, wrap, in_cell),
         other => self::block(other, wrap),
     }
 }
@@ -245,11 +260,13 @@ fn wrap_body<'a>(
     blocks: impl Iterator<Item = &'a Block>,
     sub_indent: usize,
     wrap: WrapMode,
+    in_cell: bool,
 ) -> String {
     blocks
         .map(|block| match block {
-            Block::BulletList(items) => bullet_list(items, sub_indent, wrap),
-            Block::OrderedList(_, items) => ordered_list(items, sub_indent, wrap),
+            Block::BulletList(items) => bullet_list(items, sub_indent, wrap, in_cell),
+            Block::OrderedList(_, items) => ordered_list(items, sub_indent, wrap, in_cell),
+            Block::DefinitionList(items) => definition_list(items, sub_indent, wrap, in_cell),
             // A fenced code block stands off from neighbouring content by a trailing blank line.
             Block::CodeBlock(attr, text) => format!("{}\n", code_block(attr, text)),
             other => self::block(other, wrap),
@@ -259,24 +276,41 @@ fn wrap_body<'a>(
         .join("\n")
 }
 
-/// A definition list: one bullet item per entry, the term in bold followed by its definitions. A
-/// single-block definition set joins inline with `; `; anything larger is wrapped.
-fn definition_list(items: &[(Vec<Inline>, Vec<Vec<Block>>)], wrap: WrapMode) -> String {
+/// Render bold terms in list items, wrapping multiline definitions when needed.
+fn definition_list(
+    items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+    indent: usize,
+    wrap: WrapMode,
+    in_cell: bool,
+) -> String {
     items
         .iter()
-        .map(|(term, definitions)| definition_entry(term, definitions, wrap))
+        .map(|(term, definitions)| {
+            let prefix = format!(
+                "{}* **{}**",
+                " ".repeat(indent),
+                inlines_to_markup(term, wrap)
+            );
+            block_entry(&prefix, definitions, indent + LIST_INDENT, wrap, in_cell)
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-fn definition_entry(term: &[Inline], definitions: &[Vec<Block>], wrap: WrapMode) -> String {
-    let strong = format!("**{}**", inlines_to_markup(term, wrap));
+fn block_entry(
+    prefix: &str,
+    definitions: &[Vec<Block>],
+    sub_indent: usize,
+    wrap: WrapMode,
+    in_cell: bool,
+) -> String {
     if definitions.is_empty() {
-        return format!("  * {strong} ");
+        return format!("{prefix} ");
     }
     let inline_each: Option<Vec<String>> = definitions
         .iter()
         .map(|definition| match definition.as_slice() {
+            [] => Some(String::new()),
             [Block::Plain(inlines) | Block::Para(inlines)] => {
                 Some(inlines_to_markup(inlines, wrap))
             }
@@ -284,10 +318,44 @@ fn definition_entry(term: &[Inline], definitions: &[Vec<Block>], wrap: WrapMode)
         })
         .collect();
     if let Some(parts) = inline_each {
-        format!("  * {strong} {}", parts.join("; "))
+        format!("{prefix} {}", parts.join("; "))
     } else {
-        let body = wrap_body(definitions.iter().flatten(), LIST_INDENT * 2, wrap);
-        format!("  * {strong} <WRAP>\n{body}\n</WRAP>")
+        let body = if in_cell {
+            definitions
+                .iter()
+                .map(|definition| {
+                    definition
+                        .iter()
+                        .map(|block| match block {
+                            Block::BulletList(_)
+                            | Block::OrderedList(..)
+                            | Block::DefinitionList(_) => {
+                                sublist_markup(block, sub_indent, wrap, in_cell)
+                            }
+                            other => cell_block(other, wrap),
+                        })
+                        .filter(|text| !text.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("\n\n")
+                })
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n")
+        } else {
+            wrap_body(definitions.iter().flatten(), sub_indent, wrap, in_cell)
+        };
+        let compact = matches!(definitions, [definition] if match definition.as_slice() {
+            [Block::Plain(_) | Block::Para(_), Block::CodeBlock(..)] => true,
+            [Block::Plain(_) | Block::Para(_), rest @ ..] => {
+                rest.iter().all(is_simple_sublist)
+            }
+            _ => false,
+        });
+        if compact {
+            format!("{prefix} {body}")
+        } else {
+            format!("{prefix} <WRAP>\n{body}\n</WRAP>")
+        }
     }
 }
 
@@ -625,8 +693,9 @@ fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
 /// than the document list indent; everything else renders as it would outside a cell.
 fn cell_block(block: &Block, wrap: WrapMode) -> String {
     match block {
-        Block::BulletList(items) => bullet_list(items, 0, wrap),
-        Block::OrderedList(_, items) => ordered_list(items, 0, wrap),
+        Block::BulletList(items) => bullet_list(items, 0, wrap, true),
+        Block::OrderedList(_, items) => ordered_list(items, 0, wrap, true),
+        Block::DefinitionList(items) => definition_list(items, 0, wrap, true),
         Block::Div(_, blocks) => blocks
             .iter()
             .map(|b| cell_block(b, wrap))
@@ -776,6 +845,88 @@ mod tests {
             render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
             "[[http://e.com/a%20b|click]]"
         );
+    }
+
+    #[test]
+    fn cell_definitions_keep_their_structure() {
+        let mut cell = Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content: vec![Block::DefinitionList(vec![(
+                vec![s("term")],
+                vec![vec![Block::Para(vec![s("definition")])]],
+            )])],
+        };
+        assert_eq!(cell_text(&cell, WrapMode::Auto), "* **term** definition");
+        cell.content = vec![Block::DefinitionList(vec![(
+            vec![s("term")],
+            vec![Vec::new()],
+        )])];
+        assert_eq!(cell_text(&cell, WrapMode::Auto), "* **term** ");
+        cell.content = vec![Block::DefinitionList(vec![(
+            vec![s("term")],
+            vec![vec![
+                Block::Para(vec![s("first")]),
+                Block::Para(vec![s("second")]),
+            ]],
+        )])];
+        assert_eq!(
+            cell_text(&cell, WrapMode::Auto),
+            "* **term** <WRAP>\\\\ first\\\\ \\\\ second\\\\ </WRAP>"
+        );
+        cell.content = vec![Block::DefinitionList(vec![(
+            vec![s("term")],
+            vec![vec![
+                Block::Para(vec![s("first")]),
+                Block::CodeBlock(Box::default(), "code".into()),
+            ]],
+        )])];
+        assert_eq!(
+            cell_text(&cell, WrapMode::Auto),
+            "* **term** first\\\\ \\\\ <code>\\\\ code\\\\ </code>"
+        );
+        assert_eq!(
+            block(&cell.content[0], WrapMode::Auto),
+            "  * **term** first\n<code>\ncode\n</code>\n"
+        );
+    }
+
+    #[test]
+    fn ordered_cells_keep_paragraph_breaks() {
+        let items = vec![vec![
+            Block::Para(vec![s("first")]),
+            Block::Para(vec![s("second")]),
+        ]];
+        assert_eq!(
+            ordered_list(&items, 0, WrapMode::Auto, true),
+            "- <WRAP>\nfirst\n\nsecond\n</WRAP>"
+        );
+    }
+
+    #[test]
+    fn numbered_sublists_wrap_when_the_start_changes() {
+        for (start, expected) in [
+            (1, "  * outer\n    - inner"),
+            (3, "  * <WRAP>\nouter\n    - inner\n</WRAP>"),
+        ] {
+            let item = vec![
+                Block::Plain(vec![s("outer")]),
+                Block::OrderedList(
+                    carta_ast::ListAttributes {
+                        start,
+                        style: carta_ast::ListNumberStyle::DefaultStyle,
+                        delim: carta_ast::ListNumberDelim::DefaultDelim,
+                    },
+                    vec![vec![Block::Plain(vec![s("inner")])]],
+                ),
+            ];
+            assert_eq!(
+                bullet_list(&[item], LIST_INDENT, WrapMode::Auto, false),
+                expected
+            );
+        }
     }
 
     #[test]

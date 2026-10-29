@@ -397,7 +397,6 @@ read-gaps = [
   "Bare-URL autolinking requires an explicit `scheme://`.",
 ]
 write-gaps = [
-  "Lists in table cells are flattened or misplaced.",
   "Tables inside block quotes have incorrect continuation lines.",
   "Hard line breaks in table cells are doubled and widen the column.",
 ]
