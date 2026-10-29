@@ -316,9 +316,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `org` ✅
 ### `rst` ✅
-
 ### `dokuwiki` ✅
-- Tables inside block quotes have incorrect continuation lines.
 
 ### `jira` ✅
 - Lists in table cells are flattened or misplaced.

@@ -397,7 +397,6 @@ read-gaps = [
   "Bare-URL autolinking requires an explicit `scheme://`.",
 ]
 write-gaps = [
-  "Tables inside block quotes have incorrect continuation lines.",
 ]
 
 [[format]]

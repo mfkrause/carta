@@ -765,9 +765,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-dokuwiki",
-        "gaps": [
-          "Tables inside block quotes have incorrect continuation lines."
-        ]
+        "gaps": []
       }
     },
     {

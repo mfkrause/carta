@@ -100,22 +100,97 @@ fn code_block(attr: &Attr, text: &str) -> String {
     }
 }
 
-/// A block quote: every non-empty line of the inner content prefixed with `> `; blank separator
-/// lines are left bare.
+/// Render quoted text and code while keeping tables and lists as structural blocks.
 fn block_quote(blocks: &[Block], wrap: WrapMode) -> String {
-    let body = render_blocks(blocks, "\n\n", wrap);
-    body.lines()
-        .map(|line| {
-            if line.is_empty() {
-                String::new()
-            } else if line.starts_with('>') {
-                format!(">{line}")
-            } else {
-                format!("> {line}")
+    let mut parts = Vec::new();
+    quote_parts(blocks, wrap, 1, &mut parts);
+    if budget::exhausted() {
+        String::new()
+    } else {
+        parts.join("\n\n")
+    }
+}
+
+fn quote_parts(blocks: &[Block], wrap: WrapMode, depth: usize, parts: &mut Vec<String>) {
+    carta_core::with_stack(|| {
+        for block in blocks {
+            if budget::exhausted() {
+                break;
             }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+            let start = parts.len();
+            let suffix = match block {
+                Block::BlockQuote(inner) => {
+                    quote_parts(inner, wrap, depth.saturating_add(1), parts);
+                    ""
+                }
+                Block::Div(_, inner) => {
+                    quote_parts(inner, wrap, depth, parts);
+                    "\n"
+                }
+                Block::Figure(_, caption, inner) => {
+                    quote_parts(inner, wrap, depth, parts);
+                    let caption_start = parts.len();
+                    quote_parts(&caption.long, wrap, depth, parts);
+                    if parts.len() > caption_start {
+                        if caption_start > start && !inner.last().is_some_and(closes_with_blank) {
+                            let first_caption = parts.remove(caption_start);
+                            if let Some(last) = parts.get_mut(caption_start.saturating_sub(1)) {
+                                last.push('\n');
+                                last.push_str(&first_caption);
+                                budget::charge(1);
+                            }
+                        }
+                        if caption.long.last().is_some_and(closes_with_blank) {
+                            "\n\n"
+                        } else {
+                            "\n"
+                        }
+                    } else if inner.last().is_some_and(closes_with_blank) {
+                        "\n"
+                    } else {
+                        ""
+                    }
+                }
+                _ => {
+                    let body = self::block(block, wrap);
+                    let rendered = match block {
+                        Block::Plain(_) | Block::Para(_) | Block::LineBlock(_) => body
+                            .lines()
+                            .take_while(|_| !budget::exhausted())
+                            .map(|line| quote_fragment(line, depth))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        Block::CodeBlock(..) => quote_fragment(&body, depth),
+                        _ => body,
+                    };
+                    if !rendered.is_empty() {
+                        parts.push(rendered);
+                    }
+                    ""
+                }
+            };
+            if !suffix.is_empty() && parts.len() > start {
+                budget::charge(suffix.len());
+                if !budget::exhausted()
+                    && let Some(last) = parts.last_mut()
+                {
+                    last.push_str(suffix);
+                }
+            }
+        }
+    });
+}
+
+fn quote_fragment(text: &str, depth: usize) -> String {
+    if text.is_empty() {
+        return String::new();
+    }
+    budget::charge(depth.saturating_add(text.len()).saturating_add(2));
+    if budget::exhausted() {
+        String::new()
+    } else {
+        format!("{} {text}", ">".repeat(depth))
+    }
 }
 
 /// A division renders its inner blocks transparently. It is set off from what follows by a blank
@@ -842,6 +917,77 @@ mod tests {
         assert_eq!(
             render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
             "[[http://e.com/a%20b|click]]"
+        );
+    }
+
+    #[test]
+    fn quoted_figures_keep_body_and_caption_boundaries() {
+        for (body, caption, expected) in [
+            (Block::Para(vec![s("body")]), Vec::new(), "> body\n"),
+            (
+                Block::Para(vec![s("body")]),
+                vec![Block::Para(vec![s("caption")])],
+                "> body\n\n> caption\n\n",
+            ),
+            (
+                Block::Plain(vec![s("body")]),
+                vec![Block::Para(vec![s("caption")])],
+                "> body\n> caption\n\n",
+            ),
+        ] {
+            let document = Document {
+                blocks: vec![Block::BlockQuote(vec![Block::Figure(
+                    Box::default(),
+                    Box::new(Caption {
+                        long: caption,
+                        ..Caption::default()
+                    }),
+                    vec![body],
+                )])],
+                ..Document::default()
+            };
+            assert_eq!(
+                DokuwikiWriter
+                    .write(&document, &WriterOptions::default())
+                    .unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn quoted_code_keeps_its_internal_text() {
+        let document = Document {
+            blocks: vec![Block::BlockQuote(vec![Block::CodeBlock(
+                Box::default(),
+                "first\n> literal\nlast".into(),
+            )])],
+            ..Document::default()
+        };
+        assert_eq!(
+            DokuwikiWriter
+                .write(&document, &WriterOptions::default())
+                .unwrap(),
+            "> <code>\nfirst\n> literal\nlast\n</code>"
+        );
+    }
+
+    #[test]
+    fn deep_quotes_keep_their_depth() {
+        let depth = 4096;
+        let mut block = Block::Para(vec![s("text")]);
+        for _ in 0..depth {
+            block = Block::BlockQuote(vec![block]);
+        }
+        let document = Document {
+            blocks: vec![block],
+            ..Document::default()
+        };
+        assert_eq!(
+            DokuwikiWriter
+                .write(&document, &WriterOptions::default())
+                .unwrap(),
+            format!("{} text", ">".repeat(depth))
         );
     }
 

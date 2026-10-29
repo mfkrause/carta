@@ -48,7 +48,6 @@ man	math/over-under-set
 # quote's blank continuation line or misprefix the table rows with the quote marker.
 plain	table/table-in-blockquote
 markdown	table/table-in-blockquote
-dokuwiki	table/table-in-blockquote
 
 # A list item whose first child is itself a block — a nested list with no leading paragraph — is
 # spaced differently by these writers (a stray or missing blank line, a dropped tightness marker, or
