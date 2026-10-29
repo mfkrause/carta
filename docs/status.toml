@@ -86,7 +86,6 @@ read-feature = "read-commonmark"
 write-feature = "write-markdown"
 read-gaps = [
   "A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.",
-  "An implicit header reference does not resolve against a header whose identifier was set by the trailing `[id]` syntax.",
   "Shares the `markdown` reader gaps.",
 ]
 write-gaps = [

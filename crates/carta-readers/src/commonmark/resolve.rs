@@ -197,6 +197,15 @@ fn gather_headers_nested(
                     url: format!("#{id}"),
                     title: String::new(),
                 });
+                if ext.contains(Extension::MmdHeaderIdentifiers)
+                    && let Some((_, label)) = split_mmd_header_id(text)
+                    && !label.trim().is_empty()
+                {
+                    refs.entry(normalize_label(label)).or_insert(LinkDef {
+                        url: format!("#{id}"),
+                        title: String::new(),
+                    });
+                }
                 if heading_content_is_context_independent(content) {
                     cache
                         .entry(content.to_owned())
@@ -703,8 +712,13 @@ pub(super) fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
         }
     }
     if ext.contains(Extension::MmdHeaderIdentifiers)
-        && let Some((content, id)) = split_mmd_header_id(text)
+        && let Some((content, label)) = split_mmd_header_id(text)
     {
+        let id: String = label
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .flat_map(char::to_lowercase)
+            .collect();
         return (
             content,
             Attr {
@@ -717,12 +731,10 @@ pub(super) fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
 }
 
 /// Split a trailing `[id]` label off a heading's text (`mmd_header_identifiers`), returning the
-/// content to keep and the identifier. The label is the last bracket group on the line, its opener
+/// content to keep and the raw label. The label is the last bracket group on the line, its opener
 /// reachable without crossing another bracket group's close (so a reference-link tail like
-/// `[text][ref]` is not mistaken for it). The identifier is the bracket content lowercased with all
-/// whitespace removed; an empty label is still stripped but yields an empty identifier, which then
-/// falls to an automatic one.
-fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
+/// `[text][ref]` is not mistaken for it). An empty label is still stripped.
+fn split_mmd_header_id(text: &str) -> Option<(&str, &str)> {
     let trimmed = text.trim_end();
     if !trimmed.ends_with(']') {
         return None;
@@ -757,12 +769,7 @@ fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
     if char_before(trimmed, before) == Some(']') {
         return None;
     }
-    let id: String = trimmed
-        .get(open + 1..close)?
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .flat_map(char::to_lowercase)
-        .collect();
+    let label = trimmed.get(open + 1..close)?;
     let content = text.get(..open).unwrap_or(text).trim_end();
-    Some((content, id))
+    Some((content, label))
 }

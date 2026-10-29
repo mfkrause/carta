@@ -85,6 +85,32 @@ fn implicit_header_references_resolve_a_shortcut_reference() {
 }
 
 #[test]
+fn trailing_header_labels_resolve_with_their_original_spaces() {
+    let extensions = [
+        Extension::MmdHeaderIdentifiers,
+        Extension::ImplicitHeaderReferences,
+    ];
+    let source = "[CUSTOM  ID]\n\n# Heading [Custom ID]\n\n[Heading]\n\n[customid]\n";
+    let document = read_markdown(source, &extensions);
+    assert_eq!(
+        reference_targets(&document.blocks),
+        ["#customid", "#customid"]
+    );
+    let source = "# Heading []\n\n[]\n";
+    assert!(reference_targets(&read_markdown(source, &extensions).blocks).is_empty());
+    let source = "# Heading [custom]\n\n[custom]: /explicit\n\n[custom]\n";
+    assert_eq!(
+        reference_targets(&read_markdown(source, &extensions).blocks),
+        ["/explicit"]
+    );
+    let source = "# Heading [custom]\n\n[custom]\n";
+    assert!(
+        reference_targets(&read_markdown(source, &[Extension::MmdHeaderIdentifiers]).blocks)
+            .is_empty()
+    );
+}
+
+#[test]
 fn implicit_header_references_match_full_collapsed_and_image_forms() {
     let result = blocks_with_many(
         "# Some Heading\n\n[text][Some Heading] [Some Heading][] ![Some Heading]\n",

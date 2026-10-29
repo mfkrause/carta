@@ -3,3 +3,5 @@
 ## Another Section
 
 See [Another Section] for the derived identifier.
+
+See [custom] for the explicit identifier.
