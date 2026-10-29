@@ -214,7 +214,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `jira` ✅
 
 ### `mediawiki` ✅
-- Block `<math display=block>` is emitted as inline math.
 - The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary
   wikilinks rather than links to the media file or remote wiki.
 - A mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
