@@ -310,7 +310,9 @@ impl<'a> Builder<'a> {
             out.push_str(CELL_STYLES);
         }
         out.push_str(&self.table_styles);
-        for style in &self.list_styles {
+        let mut list_styles: Vec<_> = self.list_styles.iter().collect();
+        list_styles.sort_by_key(|style| (style.numbering as u8, style.delimiter as u8));
+        for style in list_styles {
             out.push_str(&style.xml);
         }
         out.push_str(FORMULA_STYLES);

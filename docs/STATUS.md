@@ -372,8 +372,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
-- With two or more non-default numbered lists the automatic list-style definitions are emitted in
-  forward creation order rather than reverse (the references are equivalent).
 - Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper
   levels are not progressively indented.
 - A paragraph following a dropped non-opendocument `RawBlock`, or a flowing paragraph after a

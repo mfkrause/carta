@@ -581,8 +581,7 @@ impl Builder<'_> {
         format!("P{}", self.para_styles.len())
     }
 
-    /// Builds and records an automatic numbered-list style for a non-default numbering, returning
-    /// its name.
+    /// Returns a numbered-list style name, creating the style on first use.
     fn auto_list_style(&mut self, style: ListNumberStyle, delim: ListNumberDelim) -> String {
         let index = self
             .list_styles
@@ -694,6 +693,24 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn list_definitions_follow_numbering_and_delimiter_order() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let first =
+            builder.auto_list_style(ListNumberStyle::LowerRoman, ListNumberDelim::TwoParens);
+        let second =
+            builder.auto_list_style(ListNumberStyle::UpperAlpha, ListNumberDelim::TwoParens);
+        let third = builder.auto_list_style(ListNumberStyle::LowerRoman, ListNumberDelim::OneParen);
+        let xml = builder.finish_content();
+        let position = |name: &str| {
+            xml.find(&format!("<text:list-style style:name=\"{name}\">"))
+                .expect("list definition")
+        };
+        assert!(position(&third) < position(&first));
+        assert!(position(&first) < position(&second));
+    }
 
     #[test]
     fn repeated_numbering_settings_share_a_style() {
