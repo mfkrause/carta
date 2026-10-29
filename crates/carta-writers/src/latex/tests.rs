@@ -40,6 +40,27 @@ fn long_paragraph() -> Vec<Block> {
 }
 
 #[test]
+fn lists_start_below_definition_terms() {
+    let list = Block::BulletList(vec![vec![Block::Plain(str_inlines("Item"))]]);
+    for block in [
+        list.clone(),
+        Block::BlockQuote(vec![list.clone()]),
+        Block::Div(Box::new(Attr::default()), vec![list.clone()]),
+    ] {
+        let output = render(vec![Block::DefinitionList(vec![(
+            str_inlines("Term"),
+            vec![vec![block]],
+        )])]);
+        assert!(output.contains("\\hfill\n\\begin{itemize}"), "{output}");
+    }
+    let output = render(vec![Block::DefinitionList(vec![(
+        str_inlines("Term"),
+        vec![vec![Block::Plain(str_inlines("Text"))], vec![list]],
+    )])]);
+    assert!(!output.contains("\\hfill"));
+}
+
+#[test]
 fn bullet_tasks_use_checkbox_markers_and_keep_other_items() {
     let task = |glyph: &str| {
         vec![Block::Plain(vec![

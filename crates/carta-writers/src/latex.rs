@@ -648,13 +648,18 @@ fn definition_list(
             "\\item[{}]",
             inlines_to_string(term, width, dialect, wrap, smart, hl)
         );
-        let bodies: Vec<String> = definitions
+        let mut bodies: Vec<String> = definitions
             .iter()
             .map(|definition| {
                 render_blocks(definition, width, enum_depth, dialect, wrap, smart, hl)
             })
             .filter(|rendered| !rendered.is_empty())
             .collect();
+        if let Some(environment) = definition_list_environment(definitions)
+            && let Some(body) = bodies.first_mut()
+        {
+            *body = body.replacen(environment, &format!("\\hfill\n{environment}"), 1);
+        }
         if bodies.is_empty() {
             lines.push(header);
         } else {
@@ -663,6 +668,23 @@ fn definition_list(
     }
     lines.push("\\end{description}".to_owned());
     lines.join("\n")
+}
+
+fn definition_list_environment(definitions: &[Vec<Block>]) -> Option<&'static str> {
+    let mut pending: Vec<_> = definitions.iter().flatten().rev().collect();
+    while let Some(block) = pending.pop() {
+        match block {
+            Block::BulletList(_) => return Some("\\begin{itemize}"),
+            Block::OrderedList(..) => return Some("\\begin{enumerate}"),
+            Block::BlockQuote(children) | Block::Div(_, children) => {
+                pending.extend(children.iter().rev());
+            }
+            Block::Plain(inlines) | Block::Para(inlines) if inlines.is_empty() => {}
+            Block::RawBlock(format, text) if !is_latex_format(&format.0) || text.is_empty() => {}
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// Render a line block, breaking each line with `\\`. An empty line needs a placeholder so the break
