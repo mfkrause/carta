@@ -275,8 +275,8 @@ impl Builder<'_> {
         self.body
             .push_str("<text:list text:style-name=\"List_20_1\">");
         self.first_para = true;
-        self.list_items(items, item_style);
-        self.body.push_str("</text:list>");
+        self.list_items(items, item_style, false);
+        self.body.push_str("\n</text:list>");
     }
 
     fn ordered_list(&mut self, attrs: &ListAttributes, items: &[Vec<Block>]) {
@@ -304,29 +304,64 @@ impl Builder<'_> {
         }
         self.body.push_str("\">");
         self.first_para = true;
-        self.list_items(items, item_style);
-        self.body.push_str("</text:list>");
+        self.list_items(items, item_style, true);
+        self.body.push_str("\n</text:list>");
     }
 
-    fn list_items(&mut self, items: &[Vec<Block>], item_style: &str) {
+    fn list_items(&mut self, items: &[Vec<Block>], item_style: &str, separate_blocks: bool) {
         for item in items {
-            self.body.push_str("<text:list-item>");
+            if carta_core::budget::exhausted() {
+                break;
+            }
+            self.body.push_str("\n  <text:list-item>");
             let checkpoint = self.body.len();
-            self.render_blocks(item, Some(item_style));
-            self.close_or_self_close(checkpoint, "</text:list-item>");
+            for block in item {
+                let start = self.body.len();
+                self.render_blocks(std::slice::from_ref(block), Some(item_style));
+                if separate_blocks
+                    && start > checkpoint
+                    && self.body.len() > start
+                    && !self
+                        .body
+                        .get(..start)
+                        .is_some_and(|text| text.ends_with('\n'))
+                {
+                    self.body.insert(start, '\n');
+                }
+            }
+            self.indent_since(checkpoint, "    ");
+            self.body.push_str("\n  </text:list-item>");
         }
     }
 
-    /// Closes the element whose start tag ends just before `checkpoint`: when nothing was written
-    /// since, the start tag's `>` is rewritten to `/>` for an empty element; otherwise `close_tag`
-    /// ends it. `checkpoint` is the body length captured immediately after that `>`.
-    fn close_or_self_close(&mut self, checkpoint: usize, close_tag: &str) {
-        if self.body.len() == checkpoint {
-            self.body.truncate(checkpoint - 1);
-            self.body.push_str("/>");
-        } else {
-            self.body.push_str(close_tag);
+    fn indent_since(&mut self, checkpoint: usize, prefix: &str) {
+        let content = self.body.get(checkpoint..).unwrap_or_default();
+        if content.is_empty() {
+            return;
         }
+        if content.bytes().all(|byte| byte == b'\n') {
+            // The closing tag supplies the last line break.
+            let _ = self.body.pop();
+            return;
+        }
+        let content = content.trim_end_matches('\n');
+        carta_core::budget::charge(
+            content
+                .len()
+                .saturating_add(content.split('\n').count().saturating_mul(prefix.len())),
+        );
+        if carta_core::budget::exhausted() {
+            return;
+        }
+        let first = if content.starts_with('\n') {
+            ""
+        } else {
+            prefix
+        };
+        let indented = crate::common::indent_block(content, first, prefix);
+        self.body.truncate(checkpoint);
+        self.body.push('\n');
+        self.body.push_str(&indented);
     }
 
     fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) {
@@ -779,6 +814,73 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nested_lists_indent_items_and_keep_empty_items_explicit() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        builder.bullet_list(&[
+            vec![
+                Block::Para(vec![Inline::Str("one".into())]),
+                Block::BulletList(vec![vec![Block::Para(vec![Inline::Str("inner".into())])]]),
+            ],
+            Vec::new(),
+        ]);
+        assert_eq!(
+            builder.body,
+            concat!(
+                "<text:list text:style-name=\"List_20_1\">\n",
+                "  <text:list-item>\n",
+                "    <text:p text:style-name=\"List_20_Bullet\">one</text:p><text:list text:style-name=\"List_20_1\">\n",
+                "      <text:list-item>\n",
+                "        <text:p text:style-name=\"List_20_Bullet\">inner</text:p>\n",
+                "      </text:list-item>\n",
+                "    </text:list>\n",
+                "  </text:list-item>\n",
+                "  <text:list-item>\n",
+                "  </text:list-item>\n",
+                "</text:list>"
+            )
+        );
+    }
+
+    #[test]
+    fn nested_list_indentation_stops_at_the_output_limit() {
+        let mut block = Block::Para(vec![Inline::Str("text".into())]);
+        for _ in 0..256 {
+            block = Block::BulletList(vec![vec![block]]);
+        }
+        let document = carta_ast::Document {
+            blocks: vec![block],
+            ..Default::default()
+        };
+        assert!(matches!(
+            super::super::write_odt(&document, &carta_core::WriterOptions::default()),
+            Err(carta_core::Error::OutputTooLarge)
+        ));
+    }
+
+    #[test]
+    fn numbered_list_paragraphs_use_separate_lines() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        builder.ordered_list(
+            &ListAttributes {
+                start: 1,
+                style: ListNumberStyle::Decimal,
+                delim: ListNumberDelim::Period,
+            },
+            &[vec![
+                Block::Para(vec![Inline::Str("one".into())]),
+                Block::Para(vec![Inline::Str("two".into())]),
+            ]],
+        );
+        assert!(
+            builder
+                .body
+                .contains("one</text:p>\n    <text:p text:style-name=\"List_20_Number\">two")
+        );
+    }
 
     #[test]
     fn numbered_captions_keep_ids_and_independent_counters() {

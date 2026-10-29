@@ -90,15 +90,15 @@ expression: output
 </table:table-cell>
 <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="2" table:number-rows-spanned="2">
 <text:list text:style-name="List_20_1">
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">Cells.</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">Contain.</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">Blocks.</text:p>
-</text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">Cells.</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">Contain.</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">Blocks.</text:p>
+  </text:list-item>
 </text:list>
 </table:table-cell>
 </table:table-row>

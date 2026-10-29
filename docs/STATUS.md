@@ -371,7 +371,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `odt` ✅
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
-- List structural markup is emitted compact with no inter-tag whitespace rather than indented.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must

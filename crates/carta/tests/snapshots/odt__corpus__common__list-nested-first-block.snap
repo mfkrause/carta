@@ -18,19 +18,19 @@ expression: output
 <office:body>
 <office:text>
 <text:list text:style-name="List_20_1">
-<text:list-item>
-<text:list text:style-name="List_20_1">
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">inner one</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">inner two</text:p>
-</text:list-item>
-</text:list>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet">outer two</text:p>
-</text:list-item>
+  <text:list-item>
+    <text:list text:style-name="List_20_1">
+      <text:list-item>
+        <text:p text:style-name="List_20_Bullet_20_Tight">inner one</text:p>
+      </text:list-item>
+      <text:list-item>
+        <text:p text:style-name="List_20_Bullet_20_Tight">inner two</text:p>
+      </text:list-item>
+    </text:list>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet">outer two</text:p>
+  </text:list-item>
 </text:list>
 </office:text>
 </office:body>

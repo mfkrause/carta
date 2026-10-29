@@ -18,32 +18,34 @@ expression: output
 <office:body>
 <office:text>
 <text:list text:style-name="List_20_1">
-<text:list-item/>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet">second</text:p>
-</text:list-item>
+  <text:list-item>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet">second</text:p>
+  </text:list-item>
 </text:list>
 <text:list text:style-name="List_20_1">
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">first</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">second</text:p>
-</text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">first</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">second</text:p>
+  </text:list-item>
 </text:list>
 <text:list text:style-name="Numbering_20_1">
-<text:list-item/>
-<text:list-item>
-<text:p text:style-name="List_20_Number">second</text:p>
-</text:list-item>
+  <text:list-item>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Number">second</text:p>
+  </text:list-item>
 </text:list>
 <text:list text:style-name="Numbering_20_1">
-<text:list-item>
-<text:p text:style-name="List_20_Number_20_Tight">first</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Number_20_Tight">second</text:p>
-</text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Number_20_Tight">first</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Number_20_Tight">second</text:p>
+  </text:list-item>
 </text:list>
 </office:text>
 </office:body>

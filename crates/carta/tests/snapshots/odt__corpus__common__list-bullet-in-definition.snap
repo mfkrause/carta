@@ -19,12 +19,12 @@ expression: output
 <office:text>
 <text:p text:style-name="Definition_20_Term">term</text:p>
 <text:list text:style-name="List_20_1">
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">alpha</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Bullet_20_Tight">beta</text:p>
-</text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">alpha</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Bullet_20_Tight">beta</text:p>
+  </text:list-item>
 </text:list>
 </office:text>
 </office:body>

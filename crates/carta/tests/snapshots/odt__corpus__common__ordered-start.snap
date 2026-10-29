@@ -18,12 +18,12 @@ expression: output
 <office:body>
 <office:text>
 <text:list text:style-name="Numbering_20_1" text:start-value="5">
-<text:list-item>
-<text:p text:style-name="List_20_Number_20_Tight">five</text:p>
-</text:list-item>
-<text:list-item>
-<text:p text:style-name="List_20_Number_20_Tight">six</text:p>
-</text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Number_20_Tight">five</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Number_20_Tight">six</text:p>
+  </text:list-item>
 </text:list>
 </office:text>
 </office:body>
