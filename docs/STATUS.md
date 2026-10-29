@@ -398,8 +398,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   order, and attribute order across the manifest, metadata, and formula parts.
 - Attribute ordering inside a combined-decoration text style groups per decoration rather than all
   `fo:*` attributes first.
-- Bare fence delimiters `( ) [ ] { } |` are emitted as plain `math:mo` with no `stretchy="false"`,
-  so they grow to the enclosed height.
 - Math accents duplicate `accent="true"` onto the `mover` and use a combining mark rather than the
   spacing accent glyph on the `mo` alone.
 - A named math function (`\sin`, `\log`, and the like) emits a bare `mi` with no

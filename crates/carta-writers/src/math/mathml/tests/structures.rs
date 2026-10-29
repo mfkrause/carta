@@ -166,28 +166,28 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\langle a\\rangle",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo>⟨</mo><mi>a</mi><mo>⟩</mo></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"prefix\">⟨</mo><mi>a</mi><mo stretchy=\"false\" form=\"postfix\">⟩</mo></mrow></math>",
         ),
     ),
     (
         "\\lfloor a\\rfloor",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo>⌊</mo><mi>a</mi><mo>⌋</mo></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"prefix\">⌊</mo><mi>a</mi><mo stretchy=\"false\" form=\"postfix\">⌋</mo></mrow></math>",
         ),
     ),
     (
         "\\lceil a\\rceil",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo>⌈</mo><mi>a</mi><mo>⌉</mo></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"prefix\">⌈</mo><mi>a</mi><mo stretchy=\"false\" form=\"postfix\">⌉</mo></mrow></math>",
         ),
     ),
     (
         "\\|a\\|",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>∥</mi><mi>a</mi><mi>∥</mi></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"postfix\">∥</mo><mi>a</mi><mo stretchy=\"false\" form=\"postfix\">∥</mo></mrow></math>",
         ),
     ),
     (
@@ -215,7 +215,7 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\big\\|",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi minsize=\"120%\" maxsize=\"120%\" stretchy=\"true\">∥</mi></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mo minsize=\"120%\" maxsize=\"120%\" stretchy=\"true\" form=\"postfix\">∥</mo></math>",
         ),
     ),
     (

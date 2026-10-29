@@ -82,21 +82,21 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "(a)",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo>(</mo><mi>a</mi><mo>)</mo></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"prefix\">(</mo><mi>a</mi><mo stretchy=\"false\" form=\"postfix\">)</mo></mrow></math>",
         ),
     ),
     (
         "[a]",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo>[</mo><mi>a</mi><mo>]</mo></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"prefix\">[</mo><mi>a</mi><mo stretchy=\"false\" form=\"postfix\">]</mo></mrow></math>",
         ),
     ),
     (
         "|a|",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo>|</mo><mi>a</mi><mo>|</mo></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"false\" form=\"prefix\">|</mo><mi>a</mi><mo stretchy=\"false\" form=\"prefix\">|</mo></mrow></math>",
         ),
     ),
     (

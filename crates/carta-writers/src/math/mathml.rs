@@ -303,8 +303,27 @@ fn char_leaf(c: char) -> Node {
     let (glyph, class) = char_glyph(c);
     match class {
         Class::Ord => leaf("mi", glyph),
-        _ => leaf("mo", glyph),
+        _ => operator(&glyph, class),
     }
+}
+
+fn operator(glyph: &str, class: Class) -> Node {
+    if matches!(class, Class::Open | Class::Close) {
+        return Node::Element(
+            Element::new("mo")
+                .attr("stretchy", "false")
+                .attr(
+                    "form",
+                    if class == Class::Open {
+                        "prefix"
+                    } else {
+                        "postfix"
+                    },
+                )
+                .text(glyph),
+        );
+    }
+    leaf("mo", glyph)
 }
 
 /// A single source character's glyph text and math class. A hyphen-minus prints as the minus sign.
@@ -314,8 +333,10 @@ pub(super) fn char_glyph(c: char) -> (String, Class) {
         '+' | '*' => (c.to_string(), Class::Bin),
         '=' | '<' | '>' | ':' => (c.to_string(), Class::Rel),
         ',' | ';' => (c.to_string(), Class::Punct),
-        '(' | '[' => (c.to_string(), Class::Open),
-        ')' | ']' | '|' => (c.to_string(), Class::Close),
+        '(' | '[' | '|' | '⟨' | '⌊' | '⌈' | '⌜' | '⌞' | '⟦' => {
+            (c.to_string(), Class::Open)
+        }
+        ')' | ']' | '⟩' | '⌋' | '⌉' | '⌝' | '⌟' | '⟧' => (c.to_string(), Class::Close),
         _ => (c.to_string(), Class::Ord),
     }
 }
@@ -330,6 +351,14 @@ fn command_nucleus(name: &str) -> Vec<Node> {
         return vec![leaf("mi", glyph.to_string())];
     }
     if let Some(symbol) = symbols::symbol(name) {
+        let class = if matches!(name, "vert" | "Vert" | "|") {
+            Class::Close
+        } else {
+            symbol.class
+        };
+        if matches!(class, Class::Open | Class::Close) {
+            return vec![operator(symbol.text, class)];
+        }
         let tag = if symbol.italic || symbol.class == Class::Ord {
             "mi"
         } else {

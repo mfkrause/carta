@@ -2,12 +2,10 @@
 //! remaining multi-part lowerings the nucleus dispatch calls.
 
 use super::super::parse::{
-    Atom, Body, BraceKind, ColumnAlign, Delim, GridKind, MatrixDelim, ModKind, StackSide,
+    Atom, BraceKind, ColumnAlign, Delim, GridKind, MatrixDelim, ModKind, StackSide,
 };
-use super::super::symbols::{self, Class};
-use super::{
-    Element, Node, apply_scripts, apply_sibling, char_glyph, leaf, lower_seq, nucleus, slot,
-};
+use super::super::symbols;
+use super::{Element, Node, apply_scripts, apply_sibling, leaf, lower_seq, nucleus, slot};
 
 pub(super) fn binomial(top: &[Atom], bottom: &[Atom], display: bool, depth: usize) -> Node {
     let stack = Node::Element(
@@ -324,38 +322,30 @@ pub(super) fn delimited(
 
 pub(super) fn big_delimiter(scale: u16, inner: &Atom, display: bool, depth: usize) -> Vec<Node> {
     let size = format!("{scale}%");
-    let form = big_form(&inner.body);
     let mut nodes = nucleus(&inner.body, display, depth);
     for node in &mut nodes {
         if let Node::Element(element) = node
             && (element.name == "mo" || element.name == "mi")
         {
+            let form = element
+                .attributes
+                .iter()
+                .find(|(key, _)| *key == "form")
+                .cloned();
+            element
+                .attributes
+                .retain(|(key, _)| !matches!(*key, "stretchy" | "form"));
             element.attributes.push(("minsize", size.clone()));
             element.attributes.push(("maxsize", size.clone()));
             element.attributes.push(("stretchy", "true".to_string()));
             if element.name == "mo"
                 && let Some(form) = form
             {
-                element.attributes.push(("form", form.to_string()));
+                element.attributes.push(form);
             }
         }
     }
     nodes
-}
-
-/// The fence side a sized delimiter takes, from the glyph's math class: an opening delimiter is a
-/// `prefix` operator, a closing one a `postfix` operator, anything else unsided.
-fn big_form(body: &Body) -> Option<&'static str> {
-    let class = match body {
-        Body::Char(c) => char_glyph(*c).1,
-        Body::Command(name) => symbols::symbol(name)?.class,
-        _ => return None,
-    };
-    match class {
-        Class::Open => Some("prefix"),
-        Class::Close => Some("postfix"),
-        _ => None,
-    }
 }
 
 /// The glyph a stretchy delimiter renders on its opening or closing side.
