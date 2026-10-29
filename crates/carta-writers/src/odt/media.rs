@@ -38,6 +38,9 @@ pub(super) fn image_metrics(bytes: &[u8]) -> ((i64, i64), (f64, f64)) {
     if let Some(dimensions) = svg_dimensions(bytes) {
         return (dimensions_as_signed(dimensions), (96.0, 96.0));
     }
+    if let Some(dimensions) = avif_dimensions(bytes) {
+        return (dimensions_as_signed(dimensions), (72.0, 72.0));
+    }
     if let Some(image) = Tiff::new(bytes)
         && let Some(dimensions) = image.dimensions()
     {
@@ -128,6 +131,36 @@ fn svg_attribute(tag: &str, name: &str) -> Option<String> {
 fn svg_length_pixels(value: &str) -> Option<u32> {
     let pixels = common::dimension_pixels(&common::parse_dimension(value)?)?;
     Some(u32::try_from(pixels).unwrap_or(u32::MAX))
+}
+
+fn avif_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.get(4..8)? != b"ftyp" || !matches!(bytes.get(8..12)?, b"avif" | b"avis") {
+        return None;
+    }
+    avif_box_dimensions(bytes, 0)
+}
+
+fn avif_box_dimensions(mut bytes: &[u8], depth: u8) -> Option<(u32, u32)> {
+    while !bytes.is_empty() {
+        let length = match read_be_u32(bytes, 0)? {
+            0 => bytes.len(),
+            // shortcut: Extended box sizes use default sizing; add support for large metadata files.
+            1 => return None,
+            length => usize::try_from(length).ok()?,
+        };
+        let payload = bytes.get(8..length)?;
+        let dimensions = match bytes.get(4..8)? {
+            b"ispe" => Some((read_be_u32(payload, 4)?, read_be_u32(payload, 8)?)),
+            b"meta" if depth < 3 => avif_box_dimensions(payload.get(4..)?, depth + 1),
+            b"iprp" | b"ipco" if depth < 3 => avif_box_dimensions(payload, depth + 1),
+            _ => None,
+        };
+        if dimensions.is_some() {
+            return dimensions;
+        }
+        bytes = bytes.get(length..)?;
+    }
+    None
 }
 
 fn eps_dimensions(bytes: &[u8]) -> Option<(i64, i64)> {
@@ -569,6 +602,36 @@ mod tests {
         assert_eq!(pdf_dimensions(b"/MediaBox [0 0 32 16]"), None);
         let image = b"%PDF-1.4\n/MediaBox [bad] /MediaBox [0 0 32 16] /MediaBox [0 0 64 32]\xff";
         assert_eq!(image_metrics(image), ((32, 16), (72.0, 72.0)));
+    }
+
+    #[test]
+    fn avif_dimensions_reads_nested_properties_and_checks_box_bounds() {
+        fn image_box(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+            let mut bytes = u32::try_from(payload.len() + 8)
+                .unwrap()
+                .to_be_bytes()
+                .to_vec();
+            bytes.extend(kind);
+            bytes.extend(payload);
+            bytes
+        }
+        let header = image_box(b"ftyp", b"avif\0\0\0\0avifmif1");
+        let property = image_box(b"ispe", b"\0\0\0\0\0\0\0\x20\0\0\0\x10");
+        let properties = image_box(b"ipco", &property);
+        let properties = image_box(b"iprp", &properties);
+        let metadata = image_box(b"meta", &[b"\0\0\0\0", properties.as_slice()].concat());
+        let image = [header.as_slice(), &metadata].concat();
+        assert_eq!(image_metrics(&image), ((32, 16), (72.0, 72.0)));
+        for length in 0..image.len() {
+            assert_eq!(avif_dimensions(&image[..length]), None, "{length}");
+        }
+        let payload = image_box(b"mdat", &property);
+        assert_eq!(
+            avif_dimensions(&[header.as_slice(), &payload].concat()),
+            None
+        );
+        let truncated = [header.as_slice(), b"\0\0\0\x08ispe"].concat();
+        assert_eq!(avif_dimensions(&truncated), None);
     }
 
     #[test]
