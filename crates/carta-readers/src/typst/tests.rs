@@ -885,6 +885,41 @@ fn wide_text_helpers_visit_nested_inlines() {
 }
 
 #[test]
+fn code_math_calls_keep_formulas_and_surrounding_text() {
+    for (source, expected) in [
+        ("math.frac([1], [2])", "\\frac{1}{2}"),
+        ("math.sqrt([x])", "\\sqrt{x}"),
+        ("math.root(3, [x])", "\\sqrt[3]{x}"),
+        ("math.frac(math.sqrt([x]), [2])", "\\frac{\\sqrt{x}}{2}"),
+        ("math.sqrt([a *b*])", "\\sqrt{\\text{a }b}"),
+        ("math.frac(1, 2)", "\\frac{}{}"),
+        ("math.sqrt([ ])", "\\sqrt{\\ }"),
+        ("math.norm([a$x$b])", "\\left\\| {axb} \\right\\|"),
+        ("math.abs([→])", "| \\rightarrow |"),
+        (
+            "math.mat(([a], [b]), ([c], [d]))",
+            "\\begin{pmatrix}\na & b \\\\\nc & d\n\\end{pmatrix}",
+        ),
+    ] {
+        assert_eq!(
+            inlines(&format!("Before #{source} after.")),
+            vec![
+                text("Before"),
+                Inline::Space,
+                Inline::Math(MathType::InlineMath, expected.into()),
+                Inline::Space,
+                text("after."),
+            ],
+            "{source}"
+        );
+    }
+    assert_eq!(
+        inlines("#math.equation([x], block: true)"),
+        vec![Inline::Math(MathType::DisplayMath, "x".into())]
+    );
+}
+
+#[test]
 fn math_translation_covers_groups_calls_and_layout() {
     let cases = [
         ("[a, b]", "[a,b]"),

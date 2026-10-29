@@ -4779,6 +4779,9 @@ impl Parser {
         if let Some(entry) = symbol(name) {
             return Ok(Value::Inlines(vec![Inline::Str(entry.glyph.into())]));
         }
+        if let Some(function) = name.strip_prefix("math.") {
+            return Ok(code_math_call(function, args));
+        }
         if !args
             .iter()
             .any(|arg| arg.name.is_none() && matches!(arg.value, Value::Content(_)))
@@ -7401,6 +7404,179 @@ impl MathArgs {
     fn join_row(row: &[MathArg], separator: &str) -> MathText {
         MathText::join(row.iter().map(|argument| argument.text.clone()), separator)
     }
+}
+
+fn code_math_call(name: &str, args: Vec<Arg>) -> Value {
+    let display = name == "equation" && matches!(named(&args, "block"), Some(Value::Bool(true)));
+    let mut arguments = MathArgs {
+        rows: if name == "mat" {
+            Vec::new()
+        } else {
+            vec![Vec::new()]
+        },
+        ..MathArgs::default()
+    };
+    for arg in args {
+        if name == "mat" && arg.name.is_none() {
+            if let Value::Array(row) = arg.value {
+                arguments
+                    .rows
+                    .push(row.into_iter().map(code_math_argument).collect());
+            }
+            continue;
+        }
+        let value = if name == "root" && arguments.count() == 0 && arg.name.is_none() {
+            match arg.value {
+                Value::Int(number) => MathArg {
+                    text: number.to_string().into(),
+                    atomic: true,
+                },
+                other => code_math_argument(other),
+            }
+        } else {
+            code_math_argument(arg.value)
+        };
+        match arg.name {
+            Some(key) => arguments.named.push((key, value.text)),
+            None => {
+                if let Some(row) = arguments.rows.first_mut() {
+                    row.push(value);
+                }
+            }
+        }
+    }
+    if matches!(name, "abs" | "norm" | "floor" | "ceil" | "round")
+        && let Some(first) = arguments.rows.first_mut().and_then(|row| row.first_mut())
+        && !first.atomic
+    {
+        first.text = math_text!["{", &first.text, "}"];
+    }
+    let text = match name {
+        "equation" => arguments.positional(0),
+        "class" => arguments.positional(1),
+        "abs" => {
+            let first = arguments.positional(0);
+            let text = first.render();
+            let simple = text.chars().count() == 1
+                || text.parse::<f64>().is_ok()
+                || text
+                    .strip_prefix('\\')
+                    .is_some_and(|tail| tail.chars().count() == 1)
+                || text.starts_with('\\') && !text.contains(['{', '}', '^', '_', ' ', '\n']);
+            if simple {
+                if matches!(text.as_str(), "+" | "-" | "=" | "<" | ">")
+                    || SYMBOLS
+                        .iter()
+                        .any(|(_, _, tex, relation)| *relation && *tex == text)
+                {
+                    math_text!["| ", first, " |"]
+                } else {
+                    math_text!["|", first, "|"]
+                }
+            } else {
+                math_text!["\\left| ", first, " \\right|"]
+            }
+        }
+        _ => math_call(name, &arguments).text(),
+    };
+    let kind = if display {
+        MathType::DisplayMath
+    } else {
+        MathType::InlineMath
+    };
+    Value::Inlines(vec![Inline::Math(kind, text.render().into())])
+}
+
+fn code_math_argument(value: Value) -> MathArg {
+    let pieces = match value {
+        Value::Str(text) => vec![Piece::Atom(math_literal(&text))],
+        Value::Inlines(inlines) => code_math_pieces(&inlines),
+        Value::Content(blocks) => {
+            let mut pieces = Vec::new();
+            for block in blocks {
+                if !pieces.is_empty() {
+                    pieces.push(Piece::Atom("{}".into()));
+                }
+                pieces.extend(code_math_pieces(&blocks_to_inlines(vec![block])));
+            }
+            pieces
+        }
+        _ => Vec::new(),
+    };
+    MathArg {
+        atomic: pieces.len() == 1 || pieces.iter().any(|piece| matches!(piece, Piece::Break)),
+        text: match pieces.as_slice() {
+            [piece] => piece.text(),
+            _ => render_math(&pieces),
+        },
+    }
+}
+
+fn code_math_pieces(inlines: &[Inline]) -> Vec<Piece> {
+    carta_core::with_stack(|| {
+        let mut pieces = Vec::new();
+        let mut text = String::new();
+        for inline in inlines {
+            match inline {
+                Inline::Str(value) => text.push_str(value),
+                Inline::Space | Inline::SoftBreak => text.push(' '),
+                _ => {
+                    if !text.is_empty() {
+                        pieces.push(Piece::Atom(math_literal(&text)));
+                        text.clear();
+                    }
+                    match inline {
+                        Inline::Math(_, value) => pieces.push(Piece::Atom(value.as_str().into())),
+                        Inline::LineBreak => pieces.push(Piece::Break),
+                        Inline::Emph(inner)
+                        | Inline::Strong(inner)
+                        | Inline::Underline(inner)
+                        | Inline::Strikeout(inner)
+                        | Inline::SmallCaps(inner)
+                        | Inline::Superscript(inner)
+                        | Inline::Subscript(inner)
+                        | Inline::Span(_, inner)
+                        | Inline::Link(_, inner, _) => pieces.extend(code_math_pieces(inner)),
+                        other => pieces.push(Piece::Atom(math_literal(&carta_ast::to_plain_text(
+                            std::slice::from_ref(other),
+                        )))),
+                    }
+                }
+            }
+        }
+        if !text.is_empty() {
+            pieces.push(Piece::Atom(math_literal(&text)));
+        }
+        pieces
+    })
+}
+
+fn math_literal(text: &str) -> MathText {
+    if let Some((_, _, tex, _)) = SYMBOLS.iter().find(|(_, glyph, _, _)| *glyph == text) {
+        return (*tex).into();
+    }
+    if text.chars().count() == 1 {
+        return match text {
+            " " => "\\ ".into(),
+            "~" => "\\sim".into(),
+            "^" => "\\hat{}".into(),
+            _ => text
+                .chars()
+                .next()
+                .map(escaped_atom)
+                .unwrap_or_default()
+                .into(),
+        };
+    }
+    if text.is_empty()
+        || text
+            .chars()
+            .all(|character| character.is_ascii_digit() || character == '.')
+    {
+        return text.into();
+    }
+    let escaped: String = text.chars().map(escaped_atom).collect();
+    math_text!["\\text{", escaped, "}"]
 }
 
 /// Render a math function call as TeX.

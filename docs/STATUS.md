@@ -200,7 +200,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `typst` ✅
 - Content holding several blocks that opens mid-paragraph folds into the surrounding paragraph
   rather than splitting it.
-- A `math.` function called from code mode (`#math.frac(1, 2)`) contributes no math node.
 
 ### `org` ✅
 - A property drawer's `:ID:` is not used as a fallback heading identifier when no `:CUSTOM_ID:` is
