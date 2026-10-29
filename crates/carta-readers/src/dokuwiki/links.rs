@@ -3,7 +3,6 @@
 use carta_ast::{Attr, Format, Inline, Target};
 
 use super::Ctx;
-use super::blocks::parse_blocks_str;
 use super::helpers::{is_blank, matches_at};
 use super::inline::{ScanCache, scan_slice};
 
@@ -273,22 +272,6 @@ fn interwiki_url(prefix: &str, rest: &str) -> String {
         "callto" => format!("callto://{rest}"),
         other => format!("{other}>{rest}"),
     }
-}
-
-/// Parse a `((…))` footnote into a note holding the block content of its body. A body that is empty
-/// or only whitespace is not a footnote, so the opener stays literal.
-pub(super) fn parse_footnote(
-    chars: &[char],
-    begin: usize,
-    ctx: Ctx,
-    cache: &ScanCache,
-) -> Option<(Inline, usize)> {
-    let close = cache.find(begin + 2, "))")?;
-    let inner: String = chars.get(begin + 2..close).unwrap_or(&[]).iter().collect();
-    if inner.trim().is_empty() {
-        return None;
-    }
-    Some((Inline::Note(parse_blocks_str(&inner, ctx)), close + 2))
 }
 
 /// Parse a `%%…%%` no-formatting span: its content is taken verbatim as text. Like the emphasis

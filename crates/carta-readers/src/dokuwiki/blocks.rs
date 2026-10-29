@@ -581,10 +581,3 @@ fn is_east_asian_wide(c: char) -> bool {
         | 0x20000..=0x2FFFD
         | 0x30000..=0x3FFFD)
 }
-
-/// Split text into lines and parse them as blocks.
-pub(super) fn parse_blocks_str(text: &str, ctx: Ctx) -> Vec<Block> {
-    let lines: Vec<&str> = text.split('\n').collect();
-    let mut index = 0;
-    parse_blocks(&lines, &mut index, ctx)
-}

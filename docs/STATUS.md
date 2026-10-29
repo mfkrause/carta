@@ -211,7 +211,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `dokuwiki` ✅
-- A footnote closes at the first `))`, so nested parentheses are unbalanced.
 - Bare-URL autolinking requires an explicit `scheme://`.
 
 ### `jira` ✅

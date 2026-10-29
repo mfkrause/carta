@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Inline, InlineParts, MathType, QuoteType, Target, to_plain_text};
+use carta_ast::{Block, Inline, InlineParts, MathType, QuoteType, Target, to_plain_text};
 
 use crate::entities;
 use crate::inline_text::trim_inline_ends;
@@ -12,9 +12,7 @@ use crate::smart_fold::{
 };
 
 use super::helpers::{boundary_before, matches_at, run_length};
-use super::links::{
-    parse_angle, parse_footnote, parse_link, parse_macro, parse_media, parse_nowiki_pct,
-};
+use super::links::{parse_angle, parse_link, parse_macro, parse_media, parse_nowiki_pct};
 use super::{Closer, Ctx};
 
 type ScanKey = (usize, Closer, bool, bool, bool);
@@ -77,6 +75,7 @@ impl ScanCache {
             Closer::Delim('/') => ("emphasis", 1),
             Closer::Delim(_) => ("underline", 1),
             Closer::Mono => ("monospace", 1),
+            Closer::Note => ("))", 0),
             Closer::Quote('\'') => ("single", 0),
             Closer::Quote(_) => ("double", 0),
         };
@@ -337,6 +336,7 @@ fn at_closer(chars: &[char], pos: usize, start: usize, closer: Closer) -> bool {
                 && pos > start
                 && chars.get(pos - 1).is_some_and(|c| !c.is_whitespace())
         }
+        Closer::Note => matches_at(chars, pos, "))"),
         Closer::Mono => {
             chars.get(pos) == Some(&'\'')
                 && chars.get(pos + 1) == Some(&'\'')
@@ -350,7 +350,7 @@ fn at_closer(chars: &[char], pos: usize, start: usize, closer: Closer) -> bool {
 fn closer_width(closer: Closer) -> usize {
     match closer {
         Closer::Quote(_) => 1,
-        Closer::Delim(_) | Closer::Mono => 2,
+        Closer::Delim(_) | Closer::Mono | Closer::Note => 2,
     }
 }
 
@@ -432,7 +432,7 @@ fn scan_construct(
     pos: usize,
     c: char,
     ctx: Ctx,
-    cache: &ScanCache,
+    cache: &mut ScanCache,
 ) -> Option<(Vec<Inline>, usize)> {
     match c {
         '[' => parse_link(chars, pos, cache).map(|(node, end)| (vec![node], end)),
@@ -443,6 +443,31 @@ fn scan_construct(
         '~' => parse_macro(chars, pos).map(|end| (Vec::new(), end)),
         _ => None,
     }
+}
+
+/// Read a footnote with inline content and nested delimiter handling.
+fn parse_footnote(
+    chars: &[char],
+    begin: usize,
+    ctx: Ctx,
+    cache: &mut ScanCache,
+) -> Option<(Inline, usize)> {
+    if matches!(chars.get(begin + 2), None | Some(' ' | '\t')) {
+        return None;
+    }
+    let mut pos = begin + 2;
+    let (inner, closed) = scan(
+        chars,
+        &mut pos,
+        Some(Closer::Note),
+        ctx,
+        QuoteCtx::default(),
+        cache,
+    );
+    if !closed || inner.is_empty() || matches!(chars.get(pos.saturating_sub(3)), Some(' ' | '\t')) {
+        return None;
+    }
+    Some((Inline::Note(vec![Block::Para(inner)]), pos))
 }
 
 /// Dispatch an inline construct opener at `*pos`: on a successful parse the produced nodes are

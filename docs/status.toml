@@ -393,7 +393,6 @@ write = "usable"
 read-feature = "read-dokuwiki"
 write-feature = "write-dokuwiki"
 read-gaps = [
-  "A footnote closes at the first `))`, so nested parentheses are unbalanced.",
   "Bare-URL autolinking requires an explicit `scheme://`.",
 ]
 write-gaps = [

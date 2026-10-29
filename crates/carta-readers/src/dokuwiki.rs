@@ -33,6 +33,8 @@ enum Closer {
     Delim(char),
     /// A `''…''` monospace run, closed by `''`.
     Mono,
+    /// A footnote, closed by `))`.
+    Note,
 }
 
 /// Parses `DokuWiki` markup into the document model.

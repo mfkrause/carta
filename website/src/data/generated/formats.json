@@ -757,7 +757,6 @@
         "ships": true,
         "feature": "read-dokuwiki",
         "gaps": [
-          "A footnote closes at the first `))`, so nested parentheses are unbalanced.",
           "Bare-URL autolinking requires an explicit `scheme://`."
         ]
       },
