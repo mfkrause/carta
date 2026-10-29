@@ -611,7 +611,10 @@ impl<'a> Converter<'a> {
         }
     }
 
-    fn convert_inlines(&mut self, children: &[Node]) -> Vec<Inline> {
+    fn convert_inlines<'node>(
+        &mut self,
+        children: impl IntoIterator<Item = &'node Node>,
+    ) -> Vec<Inline> {
         let mut out = Vec::new();
         for node in children {
             let boundary = out.len();
@@ -698,7 +701,10 @@ impl<'a> Converter<'a> {
     fn convert_link(&mut self, element: &Element, out: &mut Vec<Inline>) {
         let url = package_target(element.attr("href").unwrap_or_default()).to_owned();
         let title = element.attr("title").unwrap_or_default().to_owned();
-        let inner = self.convert_inlines(&element.children);
+        let inner = self.convert_inlines(element.children.iter().filter(|node| {
+            !matches!(node, Node::Element(element)
+                if matches!(local_name(&element.name), "frame" | "line-break" | "a"))
+        }));
         out.push(Inline::Link(
             Box::default(),
             inner,

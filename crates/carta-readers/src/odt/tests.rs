@@ -1,5 +1,5 @@
 use super::{MAX_REPEATED_SPACES, OdtReader, parse_length};
-use carta_ast::{Attr, Block, Inline};
+use carta_ast::{Attr, Block, Inline, Target};
 use carta_core::container::zip::ZipArchive;
 use carta_core::{BytesReader, ReaderOptions};
 
@@ -245,6 +245,74 @@ fn package_targets_remove_one_parent_prefix_and_keep_image_bytes() {
             .map(|item| item.bytes.as_slice()),
         Some(image.as_slice())
     );
+}
+
+#[test]
+fn links_filter_direct_children_but_keep_span_content() {
+    for (markup, middle) in [
+        (
+            "<draw:frame><draw:image xlink:href=\"Pictures/image.png\"/></draw:frame>",
+            Inline::Image(
+                Box::default(),
+                vec![],
+                Box::new(Target {
+                    url: "Pictures/image.png".into(),
+                    title: "".into(),
+                }),
+            ),
+        ),
+        ("<text:line-break/>", Inline::LineBreak),
+        (
+            "<text:a xlink:href=\"/inner\">Inner</text:a>",
+            Inline::Link(
+                Box::default(),
+                vec![Inline::Str("Inner".into())],
+                Box::new(Target {
+                    url: "/inner".into(),
+                    title: "".into(),
+                }),
+            ),
+        ),
+    ] {
+        for wrapped in [false, true] {
+            let inner = if wrapped {
+                format!("<text:span>{markup}</text:span>")
+            } else {
+                markup.to_owned()
+            };
+            let body = content(&format!(
+                "<text:p><text:a xlink:href=\"/outer\">Before{inner}After</text:a></text:p>"
+            ));
+            let odt = package(&[
+                ("content.xml", body.as_bytes()),
+                ("Pictures/image.png", b"image bytes"),
+            ]);
+            let (document, media) = OdtReader
+                .read_media(&odt, &ReaderOptions::default())
+                .expect("read link content");
+            let Some(Block::Para(inlines)) = document.blocks.first() else {
+                panic!("expected a paragraph");
+            };
+            let [Inline::Link(_, label, target)] = inlines.as_slice() else {
+                panic!("expected a link");
+            };
+            assert_eq!(target.url, "/outer");
+            let expected = if wrapped {
+                vec![
+                    Inline::Str("Before".into()),
+                    middle.clone(),
+                    Inline::Str("After".into()),
+                ]
+            } else {
+                vec![Inline::Str("BeforeAfter".into())]
+            };
+            assert_eq!(label, &expected);
+            assert_eq!(
+                media.get("Pictures/image.png").is_some(),
+                wrapped && matches!(&middle, Inline::Image(..))
+            );
+        }
+    }
 }
 
 #[test]
