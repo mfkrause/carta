@@ -206,7 +206,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `rst` ✅
 - The `table` directive's `:widths:` is not applied to the built table.
-- Doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `dokuwiki` ✅
 ### `jira` ✅

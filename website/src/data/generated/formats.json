@@ -680,8 +680,7 @@
         "ships": true,
         "feature": "read-rst",
         "gaps": [
-          "The `table` directive's `:widths:` is not applied to the built table.",
-          "Doctest blocks (`>>>`) read as ordinary paragraphs."
+          "The `table` directive's `:widths:` is not applied to the built table."
         ]
       },
       "write": {
