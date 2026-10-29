@@ -356,7 +356,6 @@ read-feature = "read-rst"
 write-feature = "write-rst"
 read-gaps = [
   "The `table` directive's `:widths:` is not applied to the built table.",
-  "A definition-list classifier (`term : classifier`) stays part of the term.",
   "Doctest blocks (`>>>`) read as ordinary paragraphs.",
 ]
 write-gaps = [
