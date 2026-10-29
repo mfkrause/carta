@@ -1,5 +1,6 @@
 //! Block-level rendering for the ODT writer.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -10,14 +11,14 @@ use carta_ast::{
 use carta_core::container::xml::escape_attribute;
 
 use super::helpers::{
-    attr_value, caption_inlines, collect_caption_runs, column_letter, custom_style,
-    inlines_are_empty, is_block_math, is_opendocument, is_tight, table_column_count,
-    trim_flanking_spacing,
+    attr_value, collect_caption_runs, column_letter, custom_style, inlines_are_empty,
+    is_block_math, is_opendocument, is_tight, table_column_count, trim_flanking_spacing,
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
 use super::{
-    AlignKind, Builder, Language, ListStyle, ParaKind, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT,
+    AlignKind, Builder, CaptionKind, Language, ListStyle, ParaKind, ParaStyle, STACK_RED_ZONE,
+    STACK_SEGMENT,
 };
 
 impl Builder<'_> {
@@ -216,7 +217,7 @@ impl Builder<'_> {
                     .push_str("<text:p text:style-name=\"Horizontal_20_Line\" />");
             }
             Block::Table(table) => self.table(table),
-            Block::Figure(_, caption, content) => self.figure(caption, content),
+            Block::Figure(attr, caption, content) => self.figure(attr, caption, content),
             Block::RawBlock(format, text) => {
                 if is_opendocument(format) {
                     self.body.push_str(text);
@@ -340,27 +341,23 @@ impl Builder<'_> {
         }
     }
 
-    fn figure(&mut self, caption: &Caption, content: &[Block]) {
-        let caption = caption_inlines(&caption.long);
-        let style = if caption.is_empty() {
-            "Figure"
-        } else {
+    fn figure(&mut self, attr: &Attr, caption: &Caption, content: &[Block]) {
+        let mut runs = Vec::new();
+        collect_caption_runs(&caption.long, &mut runs);
+        let has_caption = runs.len() > 1 || runs.first().is_some_and(|run| !run.is_empty());
+        let style = if has_caption {
             "FigureWithCaption"
+        } else {
+            "Figure"
         };
         self.render_blocks(content, Some(style));
-        if !caption.is_empty() {
-            self.paragraph("FigureCaption", &caption);
+        if has_caption {
+            self.caption(CaptionKind::Figure, attr.id.as_str(), &runs);
         }
     }
 
-    /// Renders a caption's blocks as a single paragraph, joining its paragraph-level runs with hard
-    /// line breaks so a multi-paragraph caption reads as one caption line.
-    fn caption_block(&mut self, style: &str, blocks: &[Block]) {
-        let mut runs = Vec::new();
-        collect_caption_runs(blocks, &mut runs);
-        self.body.push_str("<text:p text:style-name=\"");
-        self.body.push_str(style);
-        self.body.push_str("\">");
+    fn caption(&mut self, kind: CaptionKind, identifier: &str, runs: &[Cow<'_, [Inline]>]) {
+        self.caption_start(kind, identifier);
         for (index, inlines) in runs.iter().enumerate() {
             if index > 0 {
                 self.body.push_str("<text:line-break />");
@@ -370,9 +367,50 @@ impl Builder<'_> {
         self.body.push_str("</text:p>");
     }
 
+    fn caption_start(&mut self, kind: CaptionKind, identifier: &str) {
+        let (style, sequence, label, counter) = match kind {
+            CaptionKind::Figure => (
+                "FigureCaption",
+                "Illustration",
+                self.caption_labels.0,
+                &mut self.figure_number,
+            ),
+            CaptionKind::Table => (
+                "TableCaption",
+                "Table",
+                self.caption_labels.1,
+                &mut self.table_number,
+            ),
+        };
+        let _ = write!(self.body, "<text:p text:style-name=\"{style}\">");
+        if !self
+            .options
+            .extensions
+            .contains(carta_core::Extension::NativeNumbering)
+        {
+            return;
+        }
+        let index = *counter;
+        *counter = counter.saturating_add(1);
+        let number = *counter;
+        self.push_verbatim(label);
+        self.body.push_str(" <text:sequence text:ref-name=\"");
+        if identifier.is_empty() {
+            let _ = write!(self.body, "ref{sequence}{index}");
+        } else {
+            escape_attribute(identifier, &mut self.body);
+        }
+        let _ = write!(
+            self.body,
+            "\" text:name=\"{sequence}\" text:formula=\"ooow:{sequence}+1\" style:num-format=\"1\">{number}</text:sequence>: "
+        );
+    }
+
     fn table(&mut self, table: &Table) {
         if !table.caption.long.is_empty() {
-            self.caption_block("TableCaption", &table.caption.long);
+            let mut runs = Vec::new();
+            collect_caption_runs(&table.caption.long, &mut runs);
+            self.caption(CaptionKind::Table, table.attr.id.as_str(), &runs);
         }
         self.table_index += 1;
         let n = self.table_index;
@@ -736,6 +774,61 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn numbered_captions_keep_ids_and_independent_counters() {
+        let mut options = carta_core::WriterOptions::default();
+        options
+            .extensions
+            .insert(carta_core::Extension::NativeNumbering);
+        let caption = Caption {
+            long: vec![
+                Block::Para(vec![Inline::Str("Caption".into())]),
+                Block::RawBlock(
+                    carta_ast::Format("opendocument".into()),
+                    "<text:span>Raw</text:span>".into(),
+                ),
+                Block::LineBlock(vec![
+                    vec![Inline::Str("One".into())],
+                    vec![Inline::Str("Two".into())],
+                ]),
+            ],
+            ..Default::default()
+        };
+        let document = carta_ast::Document {
+            meta: BTreeMap::from([("lang".into(), MetaValue::MetaString("de".into()))]),
+            blocks: vec![
+                Block::Figure(Box::default(), Box::default(), Vec::new()),
+                Block::Figure(
+                    Box::new(Attr {
+                        id: "chart&one".into(),
+                        ..Default::default()
+                    }),
+                    Box::new(caption.clone()),
+                    Vec::new(),
+                ),
+                Block::Table(Box::new(Table {
+                    caption: caption.clone(),
+                    ..Default::default()
+                })),
+                Block::Figure(Box::default(), Box::new(caption), Vec::new()),
+            ],
+            ..Default::default()
+        };
+        let mut builder = Builder::new(&options);
+        builder.document(&document);
+        let xml = builder.finish_content();
+        assert_eq!((builder.figure_number, builder.table_number), (2, 1));
+        assert_eq!(
+            xml.matches("Raw</text:span><text:line-break />One<text:line-break />Two</text:p>")
+                .count(),
+            3
+        );
+        assert!(xml.contains("xmlns:ooow=\"http://openoffice.org/2004/writer\""));
+        assert!(xml.contains("Abbildung <text:sequence text:ref-name=\"chart&amp;one\""));
+        assert!(xml.contains("Tabelle <text:sequence text:ref-name=\"refTable0\""));
+        assert!(xml.contains("text:ref-name=\"refIllustration1\" text:name=\"Illustration\" text:formula=\"ooow:Illustration+1\" style:num-format=\"1\">2</text:sequence>: Caption"));
+    }
 
     #[test]
     fn relative_widths_keep_automatic_columns_and_even_percentage_ties() {

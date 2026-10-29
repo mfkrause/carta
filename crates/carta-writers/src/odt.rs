@@ -14,7 +14,7 @@ mod media;
 mod meta;
 mod styles;
 
-use language::Language;
+use language::{Language, caption_labels};
 use meta::{formula_content_xml, manifest_xml, meta_xml, plain_meta};
 use styles::{deco_style_xml, para_style_xml, styles_xml};
 
@@ -266,6 +266,12 @@ enum ParaKind {
     Quote(usize),
 }
 
+#[derive(Clone, Copy)]
+enum CaptionKind {
+    Figure,
+    Table,
+}
+
 struct ListStyle {
     numbering: ListNumberStyle,
     delimiter: ListNumberDelim,
@@ -295,6 +301,9 @@ struct Builder<'a> {
     /// A per-image ordinal, separate from the object index, that names each frame `imgN`.
     image_ordinal: usize,
     table_index: usize,
+    figure_number: usize,
+    table_number: usize,
+    caption_labels: (&'static str, &'static str),
     images: Vec<Image>,
     formulas: Vec<Formula>,
 }
@@ -316,12 +325,18 @@ impl<'a> Builder<'a> {
             object_index: 0,
             image_ordinal: 0,
             table_index: 0,
+            figure_number: 0,
+            table_number: 0,
+            caption_labels: ("Figure", "Table"),
             images: Vec::new(),
             formulas: Vec::new(),
         }
     }
 
     fn document(&mut self, document: &Document) {
+        if self.options.extensions.contains(Extension::NativeNumbering) {
+            self.caption_labels = caption_labels(&meta::meta_text(&document.meta, "lang"));
+        }
         self.title_block(&document.meta);
         self.abstract_block(&document.meta);
         if self.options.toc {
@@ -335,6 +350,9 @@ impl<'a> Builder<'a> {
         out.push_str(DECL);
         out.push_str("<office:document-content");
         out.push_str(NS);
+        if self.figure_number > 0 || self.table_number > 0 {
+            out.push_str(" xmlns:ooow=\"http://openoffice.org/2004/writer\"");
+        }
         out.push_str(" office:version=\"1.3\">");
         out.push_str("<office:font-face-decls>");
         out.push_str(

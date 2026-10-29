@@ -49,6 +49,15 @@ pub(super) fn collect_caption_runs<'a>(blocks: &'a [Block], runs: &mut Vec<Cow<'
                 Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
                     runs.push(Cow::Borrowed(inlines));
                 }
+                Block::LineBlock(lines) => {
+                    runs.extend(lines.iter().map(|line| Cow::Borrowed(line.as_slice())));
+                }
+                Block::RawBlock(format, text) => {
+                    runs.push(Cow::Owned(vec![Inline::RawInline(
+                        format.clone(),
+                        text.clone(),
+                    )]));
+                }
                 Block::CodeBlock(attr, text) => {
                     runs.push(Cow::Owned(vec![Inline::Code(attr.clone(), text.clone())]));
                 }

@@ -1,4 +1,4 @@
-//! Language fields retained in automatic text-style keys.
+//! Language fields for automatic text styles and caption labels.
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Language {
@@ -96,6 +96,121 @@ impl Language {
 fn letters(value: &str) -> bool {
     value.bytes().all(|byte| byte.is_ascii_alphabetic())
 }
+
+pub(super) fn caption_labels(value: &str) -> (&'static str, &'static str) {
+    let Some(language) = Language::parse(value) else {
+        return ("Figure", "Table");
+    };
+    match (language.code.as_str(), language.script.as_deref()) {
+        ("zh", Some("hans")) => ("图", "表"),
+        ("zh", Some("hant")) => ("圖", "表"),
+        ("sr", Some("latn")) => ("Slika", "Tabela"),
+        (code, _) => CAPTION_LABELS
+            .iter()
+            .find_map(|(language, labels)| (*language == code).then_some(*labels))
+            .unwrap_or(("", "")),
+    }
+}
+
+const CAPTION_LABELS: &[(&str, (&str, &str))] = &[
+    ("", ("Figure", "Table")),
+    ("a", ("Figure", "Table")),
+    ("af", ("Figuur", "Tabel")),
+    ("alt", ("Јурук", "")),
+    ("am", ("ሥዕል", "ሰንጠረዥ")),
+    ("ar", ("شكل", "جدول")),
+    ("as", ("চিত্ৰ", "তালিকা")),
+    ("ast", ("Figura", "Tabla")),
+    ("az", ("Şəkil", "Cədvəl")),
+    ("be", ("Рыс.", "Табліца")),
+    ("bg", ("Фигура", "Таблица")),
+    ("bn", ("ছবি/নকশা", "সারনী")),
+    ("bo", ("པར་རིས་", "རེའུ་མིག་")),
+    ("br", ("Figurenn", "Taolenn")),
+    ("bs", ("Slika", "Tabela")),
+    ("bua", ("Зураг", "Хүсэнэгт")),
+    ("ca", ("Figura", "Taula")),
+    ("cs", ("Obrázek", "Tabulka")),
+    ("cu", ("Рис.", "Таблица")),
+    ("cy", ("Darlun", "Taflen")),
+    ("cz", ("Obrázek", "Tabulka")),
+    ("da", ("Figur", "Tabel")),
+    ("de", ("Abbildung", "Tabelle")),
+    ("dsb", ("Wobraz", "Tabulka")),
+    ("el", ("Σχήμα", "Πίνακας")),
+    ("en", ("Figure", "Table")),
+    ("eo", ("Figuro", "Tabelo")),
+    ("es", ("Figura", "Cuadro")),
+    ("et", ("Joonis", "Tabel")),
+    ("eu", ("Irudia", "Taula")),
+    ("fa", ("شكل", "جدول")),
+    ("fi", ("Kuva", "Taulukko")),
+    ("fil", ("Laraw", "Talay")),
+    ("fr", ("Figure", "Tableau")),
+    ("fur", ("Figure", "Tabele")),
+    ("ga", ("Léaráid", "Tábla")),
+    ("gd", ("Dealbh", "Clàr")),
+    ("gl", ("Figura", "Cadro")),
+    ("grc", ("Σχῆμα", "Π\u{1f77}ναξ")),
+    ("gu", ("", "ટેબલ")),
+    ("ha", ("Addadi", "tabili")),
+    ("he", ("איור", "טבלה")),
+    ("hi", ("चित्र", "तालिका")),
+    ("hr", ("Slika", "Tablica")),
+    ("hsb", ("Wobraz", "Tabulka")),
+    ("hu", ("ábra", "táblázat")),
+    ("hy", ("Նկար", "Աղյուսակ")),
+    ("ia", ("Figura", "Tabella")),
+    ("id", ("Gambar", "Tabel")),
+    ("is", ("Mynd", "Tafla")),
+    ("it", ("Figura", "Tabella")),
+    ("ja", ("図", "表")),
+    ("ka", ("სურ.", "ცხრ.")),
+    ("km", ("រូប", "តារាង")),
+    ("kn", ("ಚಿತ್ರ", "ಕೋಷ್ಟಕ")),
+    ("ko", ("그림", "표")),
+    ("la", ("Descriptio", "Tabula")),
+    ("lb", ("Bild", "Tabell")),
+    ("lo", ("ຮູບທີ", "ຕາຕະລາງທີ")),
+    ("lt", ("pav.", "lentelė")),
+    ("lv", ("Att.", "Tabula")),
+    ("mk", ("Слика", "Табела")),
+    ("ml", ("ചിത്രം", "പട്ടിക")),
+    ("mn", ("Зураг", "Хүснэгт")),
+    ("mr", ("आकृती", "कोष्टक")),
+    ("ms", ("Gambar", "Jadual")),
+    ("nb", ("Figur", "Tabell")),
+    ("nko", ("ߢߊ", "ߦߌ߬ߘߊ߬ߥߟߊ")),
+    ("nl", ("Figuur", "Tabel")),
+    ("nn", ("Figur", "Tabell")),
+    ("no", ("Figur", "Tabell")),
+    ("oc", ("Figura", "Tablèu")),
+    ("or", ("ପ୍ରତିଛବି", "ଟେବୁଲ୍")),
+    ("pa", ("\u{a36}ਕਲ", "ਲੇਖਾ")),
+    ("pl", ("Rysunek", "Tabela")),
+    ("pms", ("Figura", "Tabela")),
+    ("pt", ("Figura", "Tabela")),
+    ("rm", ("Figura", "Tabella")),
+    ("ro", ("Figura", "Tabela")),
+    ("ru", ("Рис.", "Таблица")),
+    ("se", ("Govus", "Tabealla")),
+    ("si", ("සටහන", "වගුව")),
+    ("sk", ("Obr.", "Tabuľka")),
+    ("sl", ("Slika", "Tabela")),
+    ("sq", ("Figura", "Tabela")),
+    ("sr", ("Слика", "Табела")),
+    ("sv", ("Figur", "Tabell")),
+    ("ta", ("படம்", "அட்டவணை")),
+    ("te", ("ఆకృతి", "పట్టిక")),
+    ("th", ("รูปที่", "ตารางที่")),
+    ("tk", ("Surat", "Tablisa")),
+    ("tr", ("Şekil", "Tablo")),
+    ("ua", ("Ілюстрація", "Таблиця")),
+    ("ug", ("رەسىم", "جەدۋەل")),
+    ("uk", ("Рис.", "Табл.")),
+    ("ur", ("شكل", "جدول")),
+    ("vi", ("Hình", "Bảng")),
+];
 
 #[cfg(test)]
 mod tests {
