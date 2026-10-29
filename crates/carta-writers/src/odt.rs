@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Document, MetaValue, Text};
+use carta_ast::{Document, ListNumberDelim, ListNumberStyle, MetaValue, Text};
 use carta_core::container::zip::ZipArchive;
 use carta_core::{BytesWriter, Extension, Result, WriterOptions};
 
@@ -226,6 +226,12 @@ struct ParaStyle {
     align: AlignKind,
 }
 
+struct ListStyle {
+    numbering: ListNumberStyle,
+    delimiter: ListNumberDelim,
+    xml: String,
+}
+
 /// Threads the render state: the growing body, the automatic styles discovered along the way, the
 /// collected images, and the per-document counters.
 #[allow(clippy::struct_excessive_bools)]
@@ -238,7 +244,7 @@ struct Builder<'a> {
     keep_empty: bool,
     text_styles: Vec<Vec<Deco>>,
     para_styles: Vec<ParaStyle>,
-    list_styles: String,
+    list_styles: Vec<ListStyle>,
     table_styles: String,
     note_id: usize,
     /// A shared counter over every drawing object (image or formula), advanced by one for an image
@@ -246,7 +252,6 @@ struct Builder<'a> {
     object_index: usize,
     /// A per-image ordinal, separate from the object index, that names each frame `imgN`.
     image_ordinal: usize,
-    list_auto_index: usize,
     table_index: usize,
     images: Vec<Image>,
     formulas: Vec<Formula>,
@@ -261,12 +266,11 @@ impl<'a> Builder<'a> {
             keep_empty: options.extensions.contains(Extension::EmptyParagraphs),
             text_styles: Vec::new(),
             para_styles: Vec::new(),
-            list_styles: String::new(),
+            list_styles: Vec::new(),
             table_styles: String::new(),
             note_id: 0,
             object_index: 0,
             image_ordinal: 0,
-            list_auto_index: 0,
             table_index: 0,
             images: Vec::new(),
             formulas: Vec::new(),
@@ -306,7 +310,9 @@ impl<'a> Builder<'a> {
             out.push_str(CELL_STYLES);
         }
         out.push_str(&self.table_styles);
-        out.push_str(&self.list_styles);
+        for style in &self.list_styles {
+            out.push_str(&style.xml);
+        }
         out.push_str(FORMULA_STYLES);
         out.push_str("</office:automatic-styles>");
 

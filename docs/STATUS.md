@@ -372,8 +372,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
-- A non-default ordered or example list reuses the generic `L1` auto-style name rather than a
-  distinct numbering-style name.
 - With two or more non-default numbered lists the automatic list-style definitions are emitted in
   forward creation order rather than reverse (the references are equivalent).
 - Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper

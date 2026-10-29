@@ -15,7 +15,7 @@ use super::helpers::{
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
-use super::{AlignKind, Builder, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT};
+use super::{AlignKind, Builder, ListStyle, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT};
 
 impl Builder<'_> {
     /// Renders a block sequence. `fixed` names a paragraph style imposed on the sequence's direct
@@ -584,8 +584,15 @@ impl Builder<'_> {
     /// Builds and records an automatic numbered-list style for a non-default numbering, returning
     /// its name.
     fn auto_list_style(&mut self, style: ListNumberStyle, delim: ListNumberDelim) -> String {
-        self.list_auto_index += 1;
-        let name = format!("L{}", self.list_auto_index);
+        let index = self
+            .list_styles
+            .iter()
+            .position(|existing| existing.numbering == style && existing.delimiter == delim)
+            .unwrap_or(self.list_styles.len());
+        let name = format!("Numbering_5f_{}", index + 1);
+        if index < self.list_styles.len() {
+            return name;
+        }
         let format = num_format(style);
         let (prefix, suffix) = delim_fixes(delim);
         let mut out = format!("<text:list-style style:name=\"{name}\">");
@@ -608,7 +615,11 @@ impl Builder<'_> {
             );
         }
         out.push_str("</text:list-style>");
-        self.list_styles.push_str(&out);
+        self.list_styles.push(ListStyle {
+            numbering: style,
+            delimiter: delim,
+            xml: out,
+        });
         name
     }
 
@@ -683,6 +694,27 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn repeated_numbering_settings_share_a_style() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let first =
+            builder.auto_list_style(ListNumberStyle::LowerRoman, ListNumberDelim::DefaultDelim);
+        assert_eq!(
+            first,
+            builder.auto_list_style(ListNumberStyle::LowerRoman, ListNumberDelim::DefaultDelim)
+        );
+        assert_ne!(
+            first,
+            builder.auto_list_style(ListNumberStyle::LowerRoman, ListNumberDelim::Period)
+        );
+        assert_ne!(
+            first,
+            builder.auto_list_style(ListNumberStyle::UpperRoman, ListNumberDelim::DefaultDelim)
+        );
+        assert_eq!(builder.list_styles.len(), 3);
+    }
 
     #[test]
     fn aligned_columns_keep_distinct_styles_without_header_content() {

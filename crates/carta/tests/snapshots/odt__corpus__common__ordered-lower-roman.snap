@@ -8,7 +8,7 @@ expression: output
 <style:font-face style:name="Courier New" style:font-family-generic="modern" style:font-pitch="fixed" svg:font-family="'Courier New'" />
 </office:font-face-decls>
 <office:automatic-styles>
-<text:list-style style:name="L1">
+<text:list-style style:name="Numbering_5f_1">
 <text:list-level-style-number text:level="1" text:style-name="Numbering_20_Symbols" style:num-format="i" style:num-suffix=".">
 <style:list-level-properties text:space-before="0.0000in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
 </text:list-level-style-number>
@@ -49,7 +49,7 @@ expression: output
 </office:automatic-styles>
 <office:body>
 <office:text>
-<text:list text:style-name="L1">
+<text:list text:style-name="Numbering_5f_1">
 <text:list-item>
 <text:p text:style-name="List_20_Number_20_Tight">one</text:p>
 </text:list-item>
