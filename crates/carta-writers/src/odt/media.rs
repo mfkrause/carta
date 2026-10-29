@@ -73,24 +73,14 @@ fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     }
 }
 
-/// The pixel dimensions declared by an SVG document's `<svg>` element: its `width` and `height`
-/// attributes when both are present, otherwise the extents given by its `viewBox`.
+/// The pixel dimensions declared by both `width` and `height` on an SVG document.
 fn svg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     let text = core::str::from_utf8(bytes).ok()?;
     let opening = text.get(text.find("<svg")?..)?;
     let tag = opening.get(..opening.find('>')?)?;
-    let width = svg_attribute(tag, "width").and_then(|value| svg_length_pixels(&value));
-    let height = svg_attribute(tag, "height").and_then(|value| svg_length_pixels(&value));
-    if let (Some(w), Some(h)) = (width, height) {
-        return Some((w, h));
-    }
-    let view_box = svg_attribute(tag, "viewBox")?;
-    let mut extents = view_box
-        .split(|c: char| c.is_whitespace() || c == ',')
-        .filter(|part| !part.is_empty());
-    let w = extents.nth(2)?;
-    let h = extents.next()?;
-    Some((svg_number_pixels(w)?, svg_number_pixels(h)?))
+    let width = svg_length_pixels(&svg_attribute(tag, "width")?)?;
+    let height = svg_length_pixels(&svg_attribute(tag, "height")?)?;
+    Some((width, height))
 }
 
 /// Extracts the value of a whole-token attribute from an element's opening tag, ignoring names that
@@ -119,40 +109,10 @@ fn svg_attribute(tag: &str, name: &str) -> Option<String> {
     None
 }
 
-/// Rounds a pixel measure to the nearest whole pixel. The float-to-integer cast saturates, so a
-/// negative, non-finite, or oversized measure maps to `0` or `u32::MAX` rather than wrapping.
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn round_to_pixels(measure: f64) -> u32 {
-    measure.round() as u32
-}
-
-/// Converts a CSS length (a number with an optional unit) to pixels at 96 dots per inch; a bare
-/// number is already in pixels.
+/// Converts an absolute SVG length to whole pixels at 96 dots per inch.
 fn svg_length_pixels(value: &str) -> Option<u32> {
-    let text = value.trim();
-    let units: [(&str, f64); 7] = [
-        ("px", 1.0),
-        ("pt", 96.0 / 72.0),
-        ("pc", 16.0),
-        ("in", 96.0),
-        ("cm", 96.0 / 2.54),
-        ("mm", 96.0 / 25.4),
-        ("em", 16.0),
-    ];
-    for (unit, factor) in units {
-        if let Some(number) = text.strip_suffix(unit)
-            && let Ok(measure) = number.trim().parse::<f64>()
-        {
-            return Some(round_to_pixels(measure * factor));
-        }
-    }
-    text.parse::<f64>().ok().map(round_to_pixels)
-}
-
-/// A `viewBox` extent is expressed in unit-less user-space coordinates, which map one to one to
-/// pixels.
-fn svg_number_pixels(value: &str) -> Option<u32> {
-    value.trim().parse::<f64>().ok().map(round_to_pixels)
+    let pixels = common::dimension_pixels(&common::parse_dimension(value)?)?;
+    Some(u32::try_from(pixels).unwrap_or(u32::MAX))
 }
 
 fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
@@ -448,10 +408,11 @@ mod tests {
     }
 
     #[test]
-    fn svg_dimensions_reads_view_box_without_explicit_size() {
+    fn svg_dimensions_requires_both_explicit_dimensions() {
+        assert_eq!(svg_dimensions(b"<svg viewBox=\"0 0 200 100\">"), None);
         assert_eq!(
-            svg_dimensions(b"<svg viewBox=\"0 0 200 100\">"),
-            Some((200, 100))
+            svg_dimensions(b"<svg width='200' viewBox='0 0 200 100'>"),
+            None
         );
     }
 
@@ -467,18 +428,23 @@ mod tests {
         assert_eq!(svg_length_pixels("72pt"), Some(96));
         assert_eq!(svg_length_pixels("1pc"), Some(16));
         assert_eq!(svg_length_pixels("1in"), Some(96));
-        assert_eq!(svg_length_pixels("2.54cm"), Some(96));
-        assert_eq!(svg_length_pixels("25.4mm"), Some(96));
+        assert_eq!(svg_length_pixels("2.54cm"), Some(95));
+        assert_eq!(svg_length_pixels("25.4mm"), Some(95));
         assert_eq!(svg_length_pixels("1em"), Some(16));
         assert_eq!(svg_length_pixels("42"), Some(42));
         assert_eq!(svg_length_pixels("nonsense"), None);
     }
 
     #[test]
-    fn svg_number_pixels_rounds_to_nearest() {
-        assert_eq!(svg_number_pixels("200"), Some(200));
-        assert_eq!(svg_number_pixels("10.6"), Some(11));
-        assert_eq!(svg_number_pixels("bad"), None);
+    fn svg_lengths_truncate_pixels_and_reject_invalid_values() {
+        for (value, pixels) in [("2.5", 2), ("0.1in", 9), ("2.5em", 41), ("0", 0)] {
+            assert_eq!(svg_length_pixels(value), Some(pixels), "{value}");
+        }
+        for value in [
+            "-1", "NaN", "inf", "+1", ".5", "1.", "1e2", "1 px", " 1", "1px ", "50%",
+        ] {
+            assert_eq!(svg_length_pixels(value), None, "{value}");
+        }
     }
 
     #[test]
