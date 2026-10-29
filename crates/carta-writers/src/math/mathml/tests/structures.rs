@@ -428,7 +428,7 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "∑_i^n",
         true,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><munderover><mi>∑</mi><mi>i</mi><mi>n</mi></munderover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><munderover><mo>∑</mo><mi>i</mi><mi>n</mi></munderover></math>",
         ),
     ),
 ];

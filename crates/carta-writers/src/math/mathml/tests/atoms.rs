@@ -586,7 +586,7 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\mathbf{+}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mo>+</mo></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>+</mi></math>",
         ),
     ),
     (

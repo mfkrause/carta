@@ -118,7 +118,7 @@ fn effective_classes(rendered: &[Rendered]) -> Vec<Class> {
 
 /// Whether an atom of this class strips the operator spacing of a binary operator written directly
 /// after it.
-fn retypes_following_operator(class: Class) -> bool {
+pub(super) fn retypes_following_operator(class: Class) -> bool {
     matches!(
         class,
         Class::Bin | Class::Op | Class::Rel | Class::Open | Class::Punct
@@ -531,33 +531,24 @@ fn wrap_text_run(name: &str, run: &str) -> Option<Vec<Inline>> {
     Some(wrapped)
 }
 
-/// Spacing class of a raw Unicode math glyph written directly in the source. It inverts the symbol
-/// table: each command's glyph (from [`symbols::symbol`]) carries that command's spacing class. A
-/// large operator written as a bare glyph takes no surrounding space, so [`Class::Op`] maps to
-/// [`Class::Ord`]; a bare delimiter glyph likewise carries no space of its own, so the open/close
-/// classes map to [`Class::Ord`]. Built once into a `BTreeMap` from an ordered iteration, so the
-/// result is deterministic; on a glyph reachable from several commands the first in iteration order
-/// wins.
+/// Math classes indexed by glyph, using the first command in table order for shared glyphs.
 static GLYPH_CLASS: LazyLock<BTreeMap<char, Class>> = LazyLock::new(build_glyph_class);
 
 fn build_glyph_class() -> BTreeMap<char, Class> {
     let mut map = BTreeMap::new();
     for (name, _) in SYMBOL_TYPST {
         if let Some(sym) = symbols::symbol(name) {
-            let class = match sym.class {
-                Class::Op | Class::Open | Class::Close => Class::Ord,
-                other => other,
-            };
             let mut chars = sym.text.chars();
             if let (Some(c), None) = (chars.next(), chars.next()) {
-                map.entry(c).or_insert(class);
+                map.entry(c).or_insert(sym.class);
             }
         }
     }
     map
 }
 
-fn glyph_class(c: char) -> Option<Class> {
+/// Return a raw glyph's math class, if the symbol table defines it.
+pub(super) fn glyph_class(c: char) -> Option<Class> {
     GLYPH_CLASS.get(&c).copied()
 }
 
@@ -602,7 +593,13 @@ fn char_glyph(c: char) -> (String, Class, bool) {
         '|' => ("|".to_string(), Class::Open),
         '~' => ("\u{00A0}".to_string(), Class::Ord),
         _ if is_limit_glyph(c) => (c.to_string(), Class::Op),
-        _ => (c.to_string(), glyph_class(c).unwrap_or(Class::Ord)),
+        _ => (
+            c.to_string(),
+            match glyph_class(c) {
+                Some(Class::Op | Class::Open | Class::Close) | None => Class::Ord,
+                Some(class) => class,
+            },
+        ),
     };
     (text, class, is_limit_glyph(c))
 }

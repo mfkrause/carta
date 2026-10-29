@@ -71,6 +71,28 @@ fn function_application_tracks_scripts_and_following_atoms() {
 }
 
 #[test]
+fn binary_symbols_use_their_surrounding_operands() {
+    for (source, body) in [
+        (r"\times x", "<mrow><mi>×</mi><mi>x</mi></mrow>"),
+        (r"a\times x", "<mrow><mi>a</mi><mo>×</mo><mi>x</mi></mrow>"),
+        (
+            r"a\times=x",
+            "<mrow><mi>a</mi><mi>×</mi><mo>=</mo><mi>x</mi></mrow>",
+        ),
+        ("++x", "<mrow><mi>+</mi><mo>+</mo><mi>x</mi></mrow>"),
+        ("a≤b", "<mrow><mi>a</mi><mo>≤</mo><mi>b</mi></mrow>"),
+    ] {
+        assert_eq!(
+            to_mathml(source, false, false),
+            Some(format!(
+                "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\">{body}</math>"
+            )),
+            "{source}",
+        );
+    }
+}
+
+#[test]
 fn deeply_nested_input_does_not_panic() {
     // a pathological brace nest is bounded by the depth limit: no stack overflow
     let source = format!("{}x{}", "{".repeat(400), "}".repeat(400));

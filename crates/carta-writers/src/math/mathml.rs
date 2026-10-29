@@ -124,10 +124,27 @@ pub(super) fn lower_seq(atoms: &[Atom], display: bool, depth: usize) -> Vec<Node
         .iter()
         .filter(|atom| !matches!(atom.body, Body::Label(_)))
         .peekable();
+    let mut previous = None;
     while let Some(atom) = atoms.next() {
+        let mut class = atom_class(&atom.body);
+        if class == Class::Bin && previous.is_none_or(super::inlines::retypes_following_operator) {
+            class = Class::Ord;
+        }
+        previous = Some(class);
+        if class == Class::Bin
+            && atoms.peek().is_some_and(|next| {
+                matches!(
+                    atom_class(&next.body),
+                    Class::Rel | Class::Close | Class::Punct
+                )
+            })
+        {
+            class = Class::Ord;
+        }
         out.append(&mut lower_atom(
             atom,
             atoms.peek().is_some(),
+            class,
             display,
             depth,
         ));
@@ -154,7 +171,13 @@ pub(super) fn slot(atoms: &[Atom], display: bool, depth: usize) -> Node {
 }
 
 /// Lower one atom: its nucleus wrapped by whatever script chain it carries.
-fn lower_atom(atom: &Atom, following: bool, display: bool, depth: usize) -> Vec<Node> {
+fn lower_atom(
+    atom: &Atom,
+    following: bool,
+    class: Class,
+    display: bool,
+    depth: usize,
+) -> Vec<Node> {
     // A horizontal brace stacks its matching-side label, so it resolves before the script pass.
     if let Body::Brace(kind, inner) = &atom.body {
         return brace_atom(*kind, inner, atom, display, depth);
@@ -163,6 +186,13 @@ fn lower_atom(atom: &Atom, following: bool, display: bool, depth: usize) -> Vec<
     let scripted = atom.sub.is_some() || atom.sup.is_some() || !atom.siblings.is_empty();
     let stack = stacks(atom, display);
     let mut base = nucleus(&atom.body, display, depth);
+    if class == Class::Ord
+        && atom_class(&atom.body) == Class::Bin
+        && let Some(Node::Element(element)) = base.first_mut()
+        && element.name == "mo"
+    {
+        element.name = "mi";
+    }
     let function = match &atom.body {
         Body::Command(name) => symbols::named_function(name).is_some(),
         Body::Text(name, _) => matches!(name.as_str(), "operatorname" | "operatorname*"),
@@ -314,6 +344,9 @@ pub(super) fn nucleus(body: &Body, display: bool, depth: usize) -> Vec<Node> {
 /// The leaf element for a single source character: a digit as `<mn>`, a letter as `<mi>`, and every
 /// operator, relation, delimiter, or punctuation glyph as `<mo>`.
 fn char_leaf(c: char) -> Node {
+    if matches!(c, '‖' | '℘') {
+        return leaf("mo", c.to_string());
+    }
     if c.is_ascii_digit() {
         return leaf("mn", c.to_string());
     }
@@ -350,14 +383,42 @@ fn operator(glyph: &str, class: Class) -> Node {
 pub(super) fn char_glyph(c: char) -> (String, Class) {
     match c {
         '-' => ("\u{2212}".to_string(), Class::Bin),
-        '+' | '*' => (c.to_string(), Class::Bin),
-        '=' | '<' | '>' | ':' => (c.to_string(), Class::Rel),
+        '+' | '*' | '≀' | '⋄' => (c.to_string(), Class::Bin),
+        '=' | '<' | '>' | ':' | '∣' | '∥' | '↯' | '⊲' | '⊳' | '⋮' => {
+            (c.to_string(), Class::Rel)
+        }
         ',' | ';' => (c.to_string(), Class::Punct),
         '(' | '[' | '|' | '⟨' | '⌊' | '⌈' | '⌜' | '⌞' | '⟦' => {
             (c.to_string(), Class::Open)
         }
         ')' | ']' | '⟩' | '⌋' | '⌉' | '⌝' | '⌟' | '⟧' => (c.to_string(), Class::Close),
-        _ => (c.to_string(), Class::Ord),
+        '⎰' | '⎱' | '∴' | '‖' | '℘' => (c.to_string(), Class::Ord),
+        '∐' => (c.to_string(), Class::Op),
+        _ => (
+            c.to_string(),
+            super::inlines::glyph_class(c).unwrap_or(Class::Ord),
+        ),
+    }
+}
+
+fn atom_class(body: &Body) -> Class {
+    match body {
+        Body::Char(character) => char_glyph(*character).1,
+        Body::ColonEq => Class::Rel,
+        Body::Command(name) => {
+            symbols::symbol(name).map_or(Class::Ord, |symbol| symbol_class(name, symbol.class))
+        }
+        _ => Class::Ord,
+    }
+}
+
+fn symbol_class(name: &str, class: Class) -> Class {
+    match name {
+        "vert" | "Vert" | "|" => Class::Close,
+        "lmoustache" | "rmoustache" => Class::Ord,
+        "lightning" => Class::Rel,
+        "Box" | "Diamond" | "diamond" | "exists" | "forall" | "lozenge" | "neg" => Class::Op,
+        _ => class,
     }
 }
 
@@ -371,15 +432,11 @@ fn command_nucleus(name: &str) -> Vec<Node> {
         return vec![leaf("mi", glyph.to_string())];
     }
     if let Some(symbol) = symbols::symbol(name) {
-        let class = if matches!(name, "vert" | "Vert" | "|") {
-            Class::Close
-        } else {
-            symbol.class
-        };
+        let class = symbol_class(name, symbol.class);
         if matches!(class, Class::Open | Class::Close) {
             return vec![operator(symbol.text, class)];
         }
-        let tag = if symbol.italic || symbol.class == Class::Ord {
+        let tag = if symbol.italic || class == Class::Ord {
             "mi"
         } else {
             "mo"
