@@ -229,9 +229,13 @@ fn push_caption_text(caption: &Caption, output: &mut String) {
     push_blocks_text(&caption.long, output);
 }
 
-/// The inline content of a metadata field, or `None` when it is absent or empty.
+/// Inline content for a conditional metadata field, excluding missing, empty, and false values.
 pub(super) fn meta_inlines(meta: &BTreeMap<Text, MetaValue>, key: &str) -> Option<Vec<Inline>> {
-    let inlines = value_inlines(meta.get(key)?);
+    let value = meta.get(key)?;
+    if matches!(value, MetaValue::MetaBool(false)) {
+        return None;
+    }
+    let inlines = value_inlines(value);
     if inlines.is_empty() {
         None
     } else {
@@ -257,13 +261,17 @@ fn value_inlines(value: &MetaValue) -> Vec<Inline> {
             }
             out
         }
-        _ => Vec::new(),
+        MetaValue::MetaBool(value) => vec![Inline::Str(value.to_string().into())],
+        MetaValue::MetaMap(_) => vec![Inline::Str("true".into())],
     }
 }
 
 /// The abstract's paragraphs, one inline sequence per `Para`/`Plain` block, or a single sequence for
 /// an inline-valued field.
 pub(super) fn abstract_paragraphs(value: &MetaValue) -> Vec<Vec<Inline>> {
+    if matches!(value, MetaValue::MetaBool(false)) {
+        return Vec::new();
+    }
     if let MetaValue::MetaBlocks(blocks) = value {
         return blocks
             .iter()
@@ -343,5 +351,17 @@ mod tests {
             )])]),
         ]);
         assert_eq!(user_defined_value(&value), "First“Second”");
+    }
+
+    #[test]
+    fn author_values_keep_text_that_conditional_fields_hide() {
+        let mut meta = BTreeMap::new();
+        meta.insert("author".into(), MetaValue::MetaMap(BTreeMap::new()));
+        assert_eq!(meta_authors(&meta), vec![vec![Inline::Str("true".into())]]);
+        meta.insert("author".into(), MetaValue::MetaBool(false));
+        assert_eq!(meta_authors(&meta), vec![vec![Inline::Str("false".into())]]);
+        meta.insert("title".into(), MetaValue::MetaBool(false));
+        assert!(meta_inlines(&meta, "title").is_none());
+        assert!(abstract_paragraphs(&MetaValue::MetaBool(false)).is_empty());
     }
 }

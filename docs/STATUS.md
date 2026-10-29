@@ -389,8 +389,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   plain.
 - A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted
   plain.
-- A title-block author given as a YAML map is dropped rather than stringified into an author
-  paragraph.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
 - Attribute ordering inside a combined-decoration text style groups per decoration rather than all
