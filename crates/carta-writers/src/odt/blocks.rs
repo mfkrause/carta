@@ -437,7 +437,7 @@ impl Builder<'_> {
         specs: &[ColSpec],
         covered: &mut [usize],
     ) {
-        for row in rows {
+        for (row_index, row) in rows.iter().enumerate() {
             self.body.push_str("<table:table-row>");
             let mut cells = row.cells.iter();
             let mut column = 0usize;
@@ -453,7 +453,9 @@ impl Builder<'_> {
                     let span = usize::try_from(cell.col_span.max(1))
                         .unwrap_or(usize::MAX)
                         .min(columns - column);
-                    let rows_spanned = usize::try_from(cell.row_span.max(1)).unwrap_or(usize::MAX);
+                    let rows_spanned = usize::try_from(cell.row_span.max(1))
+                        .unwrap_or(usize::MAX)
+                        .min(rows.len() - row_index);
                     let para_header = column < head_columns;
                     self.emit_cell(
                         cell,
@@ -667,5 +669,33 @@ impl Builder<'_> {
         }
         self.body.push_str("</text:table-of-content-source>");
         self.body.push_str("</text:table-of-content>");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn row_spans_stop_at_the_last_row() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let rows: Vec<Row> = [1, i64::MAX]
+            .into_iter()
+            .map(|row_span| Row {
+                attr: Attr::default(),
+                cells: vec![Cell {
+                    attr: Attr::default(),
+                    align: Alignment::AlignDefault,
+                    row_span,
+                    col_span: 1,
+                    content: Vec::new(),
+                }],
+            })
+            .collect();
+        let mut covered = [0];
+        builder.table_rows(&rows, false, 0, 1, &[], &mut covered);
+        assert!(!builder.body.contains("table:number-rows-spanned"));
+        assert_eq!(covered, [0]);
     }
 }
