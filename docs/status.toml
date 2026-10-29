@@ -406,7 +406,6 @@ write = "usable"
 read-feature = "read-jira"
 write-feature = "write-jira"
 read-gaps = [
-  "When a `{quote}` macro's content shares the line with its fences, the leading whitespace of its first paragraph is kept rather than trimmed.",
 ]
 write-gaps = [
   "Lists in table cells are flattened or misplaced.",

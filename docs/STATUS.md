@@ -211,10 +211,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `dokuwiki` ✅
-
 ### `jira` ✅
-- When a `{quote}` macro's content shares the line with its fences, the leading whitespace of its
-  first paragraph is kept rather than trimmed.
 
 ### `mediawiki` ✅
 - Block `<math display=block>` is emitted as inline math.

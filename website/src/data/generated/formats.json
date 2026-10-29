@@ -774,9 +774,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-jira",
-        "gaps": [
-          "When a `{quote}` macro's content shares the line with its fences, the leading whitespace of its first paragraph is kept rather than trimmed."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

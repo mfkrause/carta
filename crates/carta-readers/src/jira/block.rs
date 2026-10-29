@@ -635,7 +635,11 @@ impl BlockParser<'_> {
         let Some(content) = self.take_fenced(fence_end, "{quote}") else {
             return Vec::new();
         };
-        vec![Block::BlockQuote(parse_blocks_from_str(&content))]
+        let mut blocks = parse_blocks_from_str(&content);
+        if let Some(Block::Para(inlines)) = blocks.first_mut() {
+            trim_edge_whitespace(inlines);
+        }
+        vec![Block::BlockQuote(blocks)]
     }
 
     /// Parses a `{panel}` block. Like `{code}`, its open fence must stand alone on its line: a

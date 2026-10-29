@@ -456,6 +456,23 @@ fn quote_macro_holds_blocks() {
 }
 
 #[test]
+fn quote_macro_trims_only_its_initial_whitespace() {
+    assert_eq!(
+        blocks("{quote}\u{a0}text{quote}"),
+        vec![Block::BlockQuote(vec![Block::Para(vec![str_node(
+            "\u{a0}text"
+        )])])]
+    );
+    assert_eq!(
+        blocks("{quote} \tinside\n\n  next{quote}"),
+        vec![Block::BlockQuote(vec![
+            Block::Para(vec![str_node("inside")]),
+            Block::Para(vec![Inline::Space, str_node("next")]),
+        ])]
+    );
+}
+
+#[test]
 fn panel_with_title() {
     assert_eq!(
         blocks("{panel:title=Note}\nbody\n{panel}"),
