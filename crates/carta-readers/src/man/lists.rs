@@ -57,7 +57,9 @@ fn enumerator_body(body: &str, delim: ListNumberDelim) -> Option<ListAttributes>
             delim,
         });
     }
-    if let Some(start) = roman_value_loose_forward(body) {
+    if (body.len() > 1 || matches!(body, "i" | "I"))
+        && let Some(start) = roman_value_loose_forward(body)
+    {
         let style = if body.chars().next().is_some_and(char::is_uppercase) {
             ListNumberStyle::UpperRoman
         } else {
@@ -134,7 +136,10 @@ pub(super) fn push_ordered(
     attrs: ListAttributes,
     body: Vec<Block>,
 ) {
-    if let Some(Pending::Ordered(_, items)) = pending {
+    if let Some(Pending::Ordered(previous, items)) = pending
+        && previous.style == attrs.style
+        && previous.delim == attrs.delim
+    {
         items.push(body);
         return;
     }

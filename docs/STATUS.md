@@ -176,8 +176,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `mediawiki` ✅
 
 ### `man` ✅
-- A single ambiguous list-marker letter (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than
-  lower-alpha.
 - `.MR`/`.SM`/`.SB` are dropped.
 - Verbatim regions flatten embedded font macros (literal tabs are preserved).
 - A `tbl` table using row or column spans degrades to a placeholder paragraph.

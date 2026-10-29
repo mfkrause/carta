@@ -342,6 +342,46 @@ fn numbered_indented_paragraphs_become_an_ordered_list() {
 }
 
 #[test]
+fn ordered_lists_split_when_marker_styles_change() {
+    for (first, second) in [("i.", "j."), ("v.", "vi."), ("c.", "d)")] {
+        let document = read(&format!(".IP {first}\nFirst\n.IP {second}\nSecond\n"));
+        assert!(matches!(
+            document.blocks.as_slice(),
+            [Block::OrderedList(..), Block::OrderedList(..)]
+        ));
+    }
+}
+
+#[test]
+fn single_letter_markers_keep_their_alphabetic_positions() {
+    for (marker, start) in [
+        ("c.", 3),
+        ("d.", 4),
+        ("l.", 12),
+        ("m.", 13),
+        ("v.", 22),
+        ("x.", 24),
+    ] {
+        assert!(matches!(
+            parse_enumerator(marker),
+            Some(ListAttributes {
+                start: actual,
+                style: ListNumberStyle::LowerAlpha,
+                ..
+            }) if actual == start
+        ));
+    }
+    assert!(matches!(
+        parse_enumerator("i."),
+        Some(ListAttributes {
+            start: 1,
+            style: ListNumberStyle::LowerRoman,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn roman_marker_is_lower_roman() {
     assert!(matches!(
         parse_enumerator("iv."),

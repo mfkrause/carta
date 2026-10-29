@@ -19,3 +19,8 @@ Second numbered item.
 .SH PLAIN
 .IP
 An indented paragraph with no marker.
+.SH ALPHABETIC
+.IP c. 4
+Third letter.
+.IP d. 4
+Fourth letter.
