@@ -530,7 +530,7 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\mathbf{\\alpha}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi mathvariant=\"bold\">𝛂</mi></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi mathvariant=\"bold-italic\">𝜶</mi></math>",
         ),
     ),
     (
@@ -586,7 +586,7 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\mathbf{+}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>+</mi></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi mathvariant=\"bold-italic\">+</mi></math>",
         ),
     ),
     (

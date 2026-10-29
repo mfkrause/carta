@@ -93,6 +93,26 @@ fn binary_symbols_use_their_surrounding_operands() {
 }
 
 #[test]
+fn greek_letters_keep_explicit_font_choices() {
+    for (source, glyph, variant) in [
+        (r"\Gamma", "Γ", "normal"),
+        (r"\mathit{\Gamma}", "𝛤", "italic"),
+        (r"\mathcal{\Gamma}", "Γ", "script"),
+        (r"\mathit{\mathrm{\Gamma}}", "Γ", "normal"),
+        (r"\mathbf{\alpha}", "𝜶", "bold-italic"),
+        (r"\mathit{\partial}", "𝜕", "italic"),
+    ] {
+        assert_eq!(
+            to_mathml(source, false, false),
+            Some(format!(
+                "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi mathvariant=\"{variant}\">{glyph}</mi></math>"
+            )),
+            "{source}",
+        );
+    }
+}
+
+#[test]
 fn deeply_nested_input_does_not_panic() {
     // a pathological brace nest is bounded by the depth limit: no stack overflow
     let source = format!("{}x{}", "{".repeat(400), "}".repeat(400));

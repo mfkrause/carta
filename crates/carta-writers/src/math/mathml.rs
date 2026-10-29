@@ -96,6 +96,17 @@ impl Element {
             escape_attribute(value, out);
             out.push('"');
         }
+        // Apply the default after explicit font styles have changed the glyph.
+        if self.name == "mi"
+            && !self.attributes.iter().any(|(key, _)| *key == "mathvariant")
+            && let [Node::Text(text)] = self.children.as_slice()
+            && !text.is_empty()
+            && text.chars().all(|character| {
+                matches!(character, '\u{0391}'..='\u{03A9}') && character.is_uppercase()
+            })
+        {
+            out.push_str(" mathvariant=\"normal\"");
+        }
         out.push('>');
         for child in &self.children {
             match child {
@@ -629,9 +640,7 @@ fn apply_math_style(node: &mut Node, style: MathStyle) {
     }
 }
 
-/// Map a token's glyphs into a font-variant alphabet in place, tagging it with the `mathvariant`. A
-/// leaf that already carries a variant, or that holds a character with no styled form in the target
-/// alphabet, is left untouched.
+/// Map a token's glyphs into a font-variant alphabet, preserving any explicit inner variant.
 fn restyle_token(element: &mut Element, style: MathStyle) {
     if element
         .attributes
@@ -646,9 +655,7 @@ fn restyle_token(element: &mut Element, style: MathStyle) {
     let mut glyph = String::new();
     let mut variant: Option<&'static str> = None;
     for ch in text.chars() {
-        let Some((styled, next)) = style_char(style, ch) else {
-            return;
-        };
+        let (styled, next) = style_char(style, ch);
         if variant.is_some_and(|current| current != next) {
             return;
         }
@@ -674,28 +681,37 @@ fn token_text(element: &Element) -> Option<String> {
     }
 }
 
-/// A single character's styled glyph and `mathvariant` under a font style, or `None` where the style
-/// leaves the character unchanged (a symbol with no form in the target alphabet).
-fn style_char(style: MathStyle, ch: char) -> Option<(String, &'static str)> {
-    match style {
-        MathStyle::Roman => Some((ch.to_string(), "normal")),
-        MathStyle::DoubleStruck => symbols::styled_letter(symbols::Alphabet::DoubleStruck, ch)
-            .map(|g| (g, "double-struck")),
-        MathStyle::Script => {
-            symbols::styled_letter(symbols::Alphabet::Script, ch).map(|g| (g, "script"))
+/// A character's styled glyph and font variant, keeping the glyph when the alphabet has no replacement.
+fn style_char(style: MathStyle, ch: char) -> (String, &'static str) {
+    let (glyph, variant) = match style {
+        MathStyle::Roman => (None, "normal"),
+        MathStyle::DoubleStruck => (
+            symbols::styled_letter(symbols::Alphabet::DoubleStruck, ch)
+                .or_else(|| symbols::double_struck_special(ch).map(|glyph| glyph.to_string())),
+            "double-struck",
+        ),
+        MathStyle::Script => (
+            symbols::styled_letter(symbols::Alphabet::Script, ch),
+            "script",
+        ),
+        MathStyle::Fraktur => (
+            symbols::styled_letter(symbols::Alphabet::Fraktur, ch),
+            "fraktur",
+        ),
+        MathStyle::SansSerif => (
+            block_glyph(ch, 0x1D5A0, 0x1D5BA, Some(0x1D7E2)),
+            "sans-serif",
+        ),
+        MathStyle::Monospace => (
+            block_glyph(ch, 0x1D670, 0x1D68A, Some(0x1D7F6)),
+            "monospace",
+        ),
+        MathStyle::Italic => (italic_glyph(ch), "italic"),
+        MathStyle::Bold => {
+            return bold_glyph(ch).unwrap_or_else(|| (ch.to_string(), "bold-italic"));
         }
-        MathStyle::Fraktur => {
-            symbols::styled_letter(symbols::Alphabet::Fraktur, ch).map(|g| (g, "fraktur"))
-        }
-        MathStyle::SansSerif => {
-            block_glyph(ch, 0x1D5A0, 0x1D5BA, Some(0x1D7E2)).map(|g| (g, "sans-serif"))
-        }
-        MathStyle::Monospace => {
-            block_glyph(ch, 0x1D670, 0x1D68A, Some(0x1D7F6)).map(|g| (g, "monospace"))
-        }
-        MathStyle::Italic => italic_glyph(ch).map(|g| (g, "italic")),
-        MathStyle::Bold => bold_glyph(ch),
-    }
+    };
+    (glyph.unwrap_or_else(|| ch.to_string()), variant)
 }
 
 /// A letter or digit glyph from a contiguous Mathematical Alphanumeric block, given the block's base
@@ -713,17 +729,15 @@ fn block_glyph(ch: char, upper: u32, lower: u32, digit: Option<u32>) -> Option<S
     char::from_u32(code).map(|c| c.to_string())
 }
 
-/// The italic form of a Latin letter. Italic small `h` has no place in the block and takes the
-/// Planck-constant glyph instead; a digit keeps its upright form.
+/// The italic form of a Latin or Greek letter, including the separate Planck-constant glyph for `h`.
 fn italic_glyph(ch: char) -> Option<String> {
     if ch == 'h' {
         return Some('\u{210E}'.to_string());
     }
-    block_glyph(ch, 0x1D434, 0x1D44E, None)
+    block_glyph(ch, 0x1D434, 0x1D44E, None).or_else(|| greek_glyph(ch, 0x1D6E2, 0x1D6FC))
 }
 
-/// The bold form of a character: a Latin letter takes the bold-italic block that `\mathbf` renders, a
-/// Greek letter the bold Greek block, and a digit the bold digit block.
+/// The bold form of a character: capitals in Greek and digits stay upright; other letters use bold italic.
 fn bold_glyph(ch: char) -> Option<(String, &'static str)> {
     if ch.is_ascii_alphabetic() {
         return block_glyph(ch, 0x1D468, 0x1D482, None).map(|g| (g, "bold-italic"));
@@ -731,16 +745,25 @@ fn bold_glyph(ch: char) -> Option<(String, &'static str)> {
     if ch.is_ascii_digit() {
         return block_glyph(ch, 0, 0, Some(0x1D7CE)).map(|g| (g, "bold"));
     }
-    bold_greek(ch).map(|g| (g, "bold"))
+    greek_glyph(ch, 0x1D6A8, 0x1D736).map(|glyph| {
+        let variant = if matches!(ch, '\u{0391}'..='\u{03A9}') {
+            "bold"
+        } else {
+            "bold-italic"
+        };
+        (glyph, variant)
+    })
 }
 
-/// The bold form of a Greek letter, from the bold Greek block that mirrors the Greek layout.
-fn bold_greek(ch: char) -> Option<String> {
+/// Map a Greek letter to the given uppercase and lowercase mathematical alphabet blocks.
+fn greek_glyph(ch: char, uppercase: u32, lowercase: u32) -> Option<String> {
     let code = ch as u32;
     let mapped = if (0x391..=0x3A9).contains(&code) {
-        0x1D6A8 + (code - 0x391)
+        uppercase + (code - 0x391)
     } else if (0x3B1..=0x3C9).contains(&code) {
-        0x1D6C2 + (code - 0x3B1)
+        lowercase + (code - 0x3B1)
+    } else if ch == '∂' {
+        lowercase + 25
     } else {
         return None;
     };
