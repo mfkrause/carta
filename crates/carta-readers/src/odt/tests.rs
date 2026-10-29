@@ -124,6 +124,48 @@ fn direct_tables_in_list_items_do_not_split_code_runs() {
 }
 
 #[test]
+fn notes_skip_other_blocks_without_splitting_code_or_reserving_heading_ids() {
+    for note_class in ["footnote", "endnote"] {
+        let body = content(&format!(
+            "<text:p><text:note text:note-class=\"{note_class}\"><text:note-body>\
+             <text:p text:style-name=\"Preformatted_20_Text\">Before</text:p>\
+             <text:h text:outline-level=\"1\">Heading</text:h>\
+             <text:list><text:list-item><text:p>Hidden</text:p></text:list-item></text:list>\
+             <table:table><table:table-row><table:table-cell><text:p>Hidden</text:p>\
+             </table:table-cell></table:table-row></table:table>\
+             <text:section><text:p>Hidden</text:p></text:section>\
+             <text:p text:style-name=\"Preformatted_20_Text\">After</text:p>\
+             </text:note-body></text:note></text:p>\
+             <text:h text:outline-level=\"1\">Heading</text:h>"
+        ));
+        let styles = "<office:document-styles><office:styles>\
+            <style:style style:name=\"Preformatted_20_Text\" style:family=\"paragraph\"/>\
+            </office:styles></office:document-styles>";
+        let odt = package(&[
+            ("content.xml", body.as_bytes()),
+            ("styles.xml", styles.as_bytes()),
+        ]);
+        assert_eq!(
+            read(&odt).expect("read note blocks").blocks,
+            vec![
+                Block::Para(vec![Inline::Note(vec![Block::CodeBlock(
+                    Box::default(),
+                    "Before\nAfter".into()
+                )])]),
+                Block::Header(
+                    1,
+                    Box::new(Attr {
+                        id: "heading".into(),
+                        ..Attr::default()
+                    }),
+                    vec![Inline::Str("Heading".into())]
+                )
+            ]
+        );
+    }
+}
+
+#[test]
 fn wide_soft_breaks_are_optional_and_hard_breaks_remain() {
     let body = content(
         "<text:p>漢\n字</text:p><text:p>漢<text:line-break/>字</text:p>\

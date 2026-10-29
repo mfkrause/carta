@@ -793,12 +793,20 @@ impl<'a> Converter<'a> {
         ));
     }
 
-    /// A note reference becomes a `Note` carrying its body's blocks. A body supplying only a
+    /// A note reference becomes a `Note` carrying its body's paragraph blocks. A body supplying only a
     /// citation and no body is kept as an empty note, so its anchor point still separates the text
     /// around it rather than the whole note vanishing.
     fn convert_note(&mut self, element: &Element) -> Inline {
         match element.child("note-body") {
-            Some(body) => Inline::Note(self.convert_body_blocks(body)),
+            Some(body) => Inline::Note(
+                self.convert_blocks(
+                    body.elements()
+                        .filter(|element| local_name(&element.name) == "p"),
+                    1,
+                    None,
+                    false,
+                ),
+            ),
             None => Inline::Note(Vec::new()),
         }
     }
