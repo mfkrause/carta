@@ -36,6 +36,41 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn cross_references_and_marks_share_forward_targets() {
+    for reference in ["bookmark-ref", "reference-ref"] {
+        for mark in ["bookmark", "reference-mark-start"] {
+            let body = content(&format!(
+                "<text:p><text:{reference}>A<text:span>Hidden</text:span>B</text:{reference}>\
+                 <text:{reference} text:ref-name=\"target\">A<text:span>Hidden</text:span>B</text:{reference}>\
+                 <text:{mark} text:name=\"target\"/></text:p>"
+            ));
+            let odt = package(&[("content.xml", body.as_bytes())]);
+            assert_eq!(
+                read(&odt).expect("read shared forward target").blocks,
+                vec![Block::Para(vec![
+                    Inline::Str("AB".into()),
+                    Inline::Link(
+                        Box::default(),
+                        vec![Inline::Str("AB".into())],
+                        Box::new(Target {
+                            url: "#anchor".into(),
+                            title: "".into(),
+                        }),
+                    ),
+                    Inline::Span(
+                        Box::new(Attr {
+                            id: "anchor".into(),
+                            ..Attr::default()
+                        }),
+                        Vec::new(),
+                    ),
+                ])]
+            );
+        }
+    }
+}
+
+#[test]
 fn bibliography_marks_keep_the_identifier_and_only_direct_text() {
     let mark = "<text:bibliography-mark text:identifier=\"source\">\
                 A<text:span>Hidden</text:span> B</text:bibliography-mark>";

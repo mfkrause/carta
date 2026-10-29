@@ -160,12 +160,8 @@ struct Converter<'a> {
     para_styles: BTreeMap<String, ParaStyle>,
     list_styles: BTreeMap<String, ListStyle>,
     ids: IdRegistry,
-    /// Bookmark names mapped to the anchor identifier assigned on first sighting, so repeated uses of
-    /// one name resolve to the same anchor.
-    bookmarks: BTreeMap<String, String>,
-    /// Reference-mark names mapped to the identifier assigned on first sighting, so repeated uses of
-    /// one name resolve to the same anchor.
-    reference_marks: BTreeMap<String, String>,
+    /// Bookmark and reference-mark names share the anchor assigned on first sighting.
+    anchors: BTreeMap<String, String>,
     /// The identifier of the heading currently being converted, so a bookmark that merely repeats it
     /// is recognized as the heading's own anchor rather than a distinct one.
     heading_anchor: Option<String>,
@@ -180,8 +176,7 @@ impl<'a> Converter<'a> {
             para_styles: BTreeMap::new(),
             list_styles: BTreeMap::new(),
             ids: IdRegistry::default(),
-            bookmarks: BTreeMap::new(),
-            reference_marks: BTreeMap::new(),
+            anchors: BTreeMap::new(),
             heading_anchor: None,
         }
     }
@@ -765,7 +760,7 @@ impl<'a> Converter<'a> {
     /// sighting and reused for every later use of the same name, so a bookmark and any reference to it
     /// share one target.
     fn bookmark_anchor(&mut self, name: &str) -> String {
-        intern_anchor(&mut self.bookmarks, &mut self.ids, name, "anchor")
+        intern_anchor(&mut self.anchors, &mut self.ids, name, "anchor")
     }
 
     /// A reference mark keeps its authored name as its identifier. The same name reused refers to the
@@ -779,20 +774,24 @@ impl<'a> Converter<'a> {
     /// The anchor identifier a reference-mark name resolves to, assigned on first sighting from the
     /// authored name and reused thereafter so a mark and any reference to it share one target.
     fn reference_mark_anchor(&mut self, name: &str) -> String {
-        intern_anchor(&mut self.reference_marks, &mut self.ids, name, name)
+        intern_anchor(&mut self.anchors, &mut self.ids, name, name)
     }
 
     /// A cross-reference field (`bookmark-ref` or `reference-ref`) becomes an internal link to the
-    /// anchor its target name resolves to, carrying the field's flattened display text as the link
+    /// anchor its target name resolves to, carrying the field's direct text as the link
     /// content.
     fn convert_cross_reference(&mut self, element: &Element, out: &mut Vec<Inline>) {
-        let name = element.attr("ref-name").unwrap_or_default().to_owned();
-        let anchor = if local_name(&element.name) == "reference-ref" {
-            self.reference_mark_anchor(&name)
-        } else {
-            self.bookmark_anchor(&name)
+        let inner = self.convert_inlines(
+            element
+                .children
+                .iter()
+                .filter(|node| matches!(node, Node::Text(_))),
+        );
+        let Some(name) = element.attr("ref-name") else {
+            out.extend(inner);
+            return;
         };
-        let inner = self.convert_inlines(&element.children);
+        let anchor = self.bookmark_anchor(name);
         out.push(Inline::Link(
             Box::default(),
             inner,
