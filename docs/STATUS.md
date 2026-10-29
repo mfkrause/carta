@@ -261,8 +261,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   and ancestor styles are not re-applied to inner spans (renders identically).
 - An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
 - MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
-- An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the
-  like) contributes no spacing.
 
 ### `rtf` ✅
 - A `\mac`, `\pc`, or `\pca` document's `\'xx` bytes decode as Windows-1252 rather than the declared

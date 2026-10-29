@@ -1129,8 +1129,7 @@
           "Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width is taken as the sum of colspans and rows go ragged.",
           "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically).",
           "An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.",
-          "MathML `math:mfenced` loses its visible open/close delimiters (no `\\left`/`\\right`).",
-          "An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the like) contributes no spacing."
+          "MathML `math:mfenced` loses its visible open/close delimiters (no `\\left`/`\\right`)."
         ]
       },
       "write": {

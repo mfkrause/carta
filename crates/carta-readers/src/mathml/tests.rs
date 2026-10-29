@@ -295,7 +295,16 @@ fn math_spaces_cover_named_measured_and_fallback_commands() {
     assert_eq!(space_mu("thinmathspace"), Some(3));
     assert_eq!(space_mu("negativeveryverythickmathspace"), Some(-7));
     assert_eq!(space_mu("0.5em"), Some(9));
+    assert_eq!(space_mu("0.75pt"), Some(140));
+    assert_eq!(space_mu("1ex"), Some(41));
+    assert_eq!(space_mu("-0.5ex"), Some(-21));
+    assert_eq!(space_mu("1mm"), Some(631));
+    assert_eq!(space_mu("10000000mm"), Some(6_318_000_000));
+    assert_eq!(space_mu("1cm"), Some(6));
     assert_eq!(space_mu("+1em"), None);
+    assert_eq!(space_mu(".5em"), None);
+    assert_eq!(space_mu("1.em"), None);
+    assert_eq!(space_mu("1e2em"), None);
     assert_eq!(space_mu("1px"), None);
     assert_eq!(space_mu("NaNem"), None);
     assert_eq!(space_command(0), "");

@@ -1498,8 +1498,7 @@ fn render_operator(op: &str, faces: Faces) -> Piece {
     }
 }
 
-/// `<mspace>`: a horizontal gap rendered as the TeX spacing command its `width` selects. A named
-/// math-space keyword or an `em` length is honored; a width in any other unit yields no command.
+/// `<mspace>`: a horizontal gap rendered as the TeX spacing command its `width` selects.
 fn render_space<T: MathTree>(e: &T) -> Piece {
     let mu = e.attribute("width").and_then(|w| space_mu(&w)).unwrap_or(0);
     Piece {
@@ -1508,29 +1507,44 @@ fn render_space<T: MathTree>(e: &T) -> Piece {
     }
 }
 
-/// The width of an `<mspace>` in math units: a named math space, or an `em` length scaled at eighteen
-/// mu to the em with ties rounded to even. `None` for a width given in any other form.
-fn space_mu(width: &str) -> Option<i32> {
+/// The width of an `<mspace>` in math units, from a named space or measured length.
+/// Measured widths round to even before their unit scale is applied and rounded down.
+fn space_mu(width: &str) -> Option<i64> {
     if let Some(mu) = named_space_mu(width) {
         return Some(mu);
     }
-    let em = width.strip_suffix("em")?;
-    if em.starts_with('+') {
+    let end = width.find(|character: char| character.is_ascii_alphabetic())?;
+    let (amount, unit) = width.split_at(end);
+    let digits = amount.strip_prefix('-').unwrap_or(amount);
+    if !digits.starts_with(|character: char| character.is_ascii_digit()) || digits.ends_with('.') {
         return None;
     }
-    let value: f64 = em.parse().ok()?;
+    let value: f64 = amount.parse().ok()?;
     if !value.is_finite() {
         return None;
     }
-    // The measure is finite; the saturating cast bounds an extreme scaled value into `i32`.
+    let (numerator, denominator) = match unit {
+        "em" => (1.0, 1.0),
+        "ex" => (232.0, 100.0),
+        "pt" => (10.0, 1.0),
+        "pc" => (83.0, 100.0),
+        "in" => (14.0, 100.0),
+        "cm" => (35.0, 100.0),
+        "mm" => (351.0, 10.0),
+        "bp" => (996.0, 1000.0),
+        "dd" => (93.0, 100.0),
+        "mu" => (18.0, 1.0),
+        _ => return None,
+    };
+    // Scaling can overflow a finite measure; the cast saturates the result to `i64`.
     #[allow(clippy::cast_possible_truncation)]
-    let mu = (value * 18.0).round_ties_even() as i32;
+    let mu = ((value * 18.0).round_ties_even() * numerator / denominator).floor() as i64;
     Some(mu)
 }
 
 /// The math-unit width of a named MathML space keyword, thin through very-very-thick and their
 /// negatives, each one mu apart.
-fn named_space_mu(name: &str) -> Option<i32> {
+fn named_space_mu(name: &str) -> Option<i64> {
     Some(match name {
         "veryverythinmathspace" => 1,
         "verythinmathspace" => 2,
@@ -1554,7 +1568,7 @@ fn named_space_mu(name: &str) -> Option<i32> {
 /// exists, `\quad`/`\qquad` at the em and double-em, an empty command at zero width, and an explicit
 /// `\mspace` for every other amount. Four mu is the control space, whose own trailing space both
 /// separates it and keeps it from reading as a bare backslash.
-fn space_command(mu: i32) -> String {
+fn space_command(mu: i64) -> String {
     match mu {
         0 => String::new(),
         3 => "\\,".to_string(),
