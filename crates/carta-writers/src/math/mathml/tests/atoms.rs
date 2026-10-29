@@ -334,126 +334,126 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\hat{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{302}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{302}</mo></mover></math>",
         ),
     ),
     (
         "\\widehat{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{302}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{302}</mo></mover></math>",
         ),
     ),
     (
         "\\tilde{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{303}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{303}</mo></mover></math>",
         ),
     ),
     (
         "\\widetilde{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{303}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{303}</mo></mover></math>",
         ),
     ),
     (
         "\\vec{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{20d7}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{2192}</mo></mover></math>",
         ),
     ),
     (
         "\\overrightarrow{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{20d7}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{2192}</mo></mover></math>",
         ),
     ),
     (
         "\\overleftarrow{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{20d6}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{20d6}</mo></mover></math>",
         ),
     ),
     (
         "\\dot{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{307}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{307}</mo></mover></math>",
         ),
     ),
     (
         "\\ddot{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{308}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{308}</mo></mover></math>",
         ),
     ),
     (
         "\\dddot{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{20db}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{20db}</mo></mover></math>",
         ),
     ),
     (
         "\\check{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{30c}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{30c}</mo></mover></math>",
         ),
     ),
     (
         "\\breve{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{306}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{306}</mo></mover></math>",
         ),
     ),
     (
         "\\acute{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{301}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{301}</mo></mover></math>",
         ),
     ),
     (
         "\\grave{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{300}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{300}</mo></mover></math>",
         ),
     ),
     (
         "\\mathring{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">\u{30a}</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">\u{30a}</mo></mover></math>",
         ),
     ),
     (
         "\\bar{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">‾</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">‾</mo></mover></math>",
         ),
     ),
     (
         "\\overline{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover accent=\"true\"><mi>a</mi><mo accent=\"true\">‾</mo></mover></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mover><mi>a</mi><mo accent=\"true\">¯</mo></mover></math>",
         ),
     ),
     (
         "\\underline{a}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><munder accentunder=\"true\"><mi>a</mi><mo>\u{332}</mo></munder></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><munder><mi>a</mi><mo accent=\"true\">_</mo></munder></math>",
         ),
     ),
     (

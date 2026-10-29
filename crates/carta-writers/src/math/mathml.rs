@@ -430,31 +430,23 @@ fn radical(index: Option<&[Atom]>, radicand: &[Atom], display: bool, depth: usiz
 fn accent(name: &str, base: &[Atom], display: bool, depth: usize) -> Node {
     let inner = slot(base, display, depth);
     if name == "underline" {
-        return Node::Element(
-            Element::new("munder")
-                .node(inner)
-                .node(leaf("mo", "\u{0332}"))
-                .attr("accentunder", "true"),
-        );
+        return Node::Element(Element::new("munder").node(inner).node(Node::Element(
+            Element::new("mo").attr("accent", "true").text("_"),
+        )));
     }
     let mark = accent_mark(name);
-    Node::Element(
-        Element::new("mover")
-            .attr("accent", "true")
-            .node(inner)
-            .node(Node::Element(
-                Element::new("mo").attr("accent", "true").text(mark),
-            )),
-    )
+    Node::Element(Element::new("mover").node(inner).node(Node::Element(
+        Element::new("mo").attr("accent", "true").text(mark),
+    )))
 }
 
-/// The combining mark an accent command places over its base, defaulting to a macron for an unmapped
+/// The mark an accent command places over its base, defaulting to a macron for an unmapped
 /// accent so the construct still renders.
 fn accent_mark(name: &str) -> String {
     let mark = match name {
         "hat" | "widehat" => '\u{0302}',
         "tilde" | "widetilde" => '\u{0303}',
-        "vec" | "overrightarrow" => '\u{20D7}',
+        "vec" | "overrightarrow" => '\u{2192}',
         "overleftarrow" => '\u{20D6}',
         "dot" => '\u{0307}',
         "ddot" => '\u{0308}',
@@ -464,6 +456,7 @@ fn accent_mark(name: &str) -> String {
         "acute" => '\u{0301}',
         "grave" => '\u{0300}',
         "mathring" => '\u{030A}',
+        "overline" => '\u{00AF}',
         _ => '\u{203E}',
     };
     mark.to_string()
