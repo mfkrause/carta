@@ -243,6 +243,16 @@ pub fn escape_text(text: &str, out: &mut String) {
     }
 }
 
+/// Escape text and double quotes, preserving whitespace and dropping forbidden XML characters.
+pub fn escape_text_with_quotes(text: &str, out: &mut String) {
+    for (index, part) in text.split('"').enumerate() {
+        if index > 0 {
+            out.push_str("&quot;");
+        }
+        escape_text(part, out);
+    }
+}
+
 /// Escapes an attribute value, additionally guarding the quote and whitespace that would break a
 /// double-quoted attribute. Characters XML forbids are dropped, so the output is well-formed
 /// regardless of the input.
@@ -273,7 +283,7 @@ pub fn escape_attribute(value: &str, out: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Element, is_xml_char};
+    use super::{Element, escape_text_with_quotes, is_xml_char};
 
     #[test]
     fn empty_element_self_closes() {
@@ -287,6 +297,9 @@ mod tests {
             .attr("data-x", "a\u{0}b\u{1}c\t")
             .text("x\u{0}y\u{b}z\u{c}w\u{fffe}");
         assert_eq!(element.render(), "<p data-x=\"abc&#9;\">xyzw</p>");
+        let mut text = String::new();
+        escape_text_with_quotes("\"x\u{0}y\"\t\n\r", &mut text);
+        assert_eq!(text, "&quot;xy&quot;\t\n\r");
     }
 
     #[test]

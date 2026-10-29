@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use carta_ast::{Block, Inline, MetaValue, Text};
-use carta_core::container::xml::{escape_attribute, escape_text};
+use carta_core::container::xml::{escape_attribute, escape_text_with_quotes};
 
 use super::{DATE_EPOCH, DECL, Formula, Image, MIMETYPE, NS, meta_keywords};
 
@@ -14,14 +14,14 @@ pub(super) fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
     let stamp = iso_utc(DATE_EPOCH);
     let escaped = |key: &str| {
         let mut out = String::new();
-        escape_text(&meta_text(meta, key), &mut out);
+        escape_text_with_quotes(&meta_text(meta, key), &mut out);
         out
     };
     let title = escaped("title");
     let description = escaped("description");
     let subject = escaped("subject");
     let mut keywords = String::new();
-    escape_text(&meta_keywords(meta), &mut keywords);
+    escape_text_with_quotes(&meta_keywords(meta), &mut keywords);
     let language = escaped("lang");
     let creator = escaped("author");
 
@@ -52,7 +52,7 @@ pub(super) fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
         let mut name = String::new();
         escape_attribute(key.as_str(), &mut name);
         let mut text = String::new();
-        escape_text(&user_defined_value(value), &mut text);
+        escape_text_with_quotes(&user_defined_value(value), &mut text);
         let _ = write!(
             out,
             "<meta:user-defined meta:name=\"{name}\" meta:value-type=\"string\">{text}\

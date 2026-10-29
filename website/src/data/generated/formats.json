@@ -1141,7 +1141,6 @@
           "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",
           "A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted plain.",
           "A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted plain.",
-          "A double-quote in XML text content is emitted literally rather than as `&quot;`.",
           "A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.",
           "A `data:` image with an empty or absent media type gets a `.plain` extension rather than none.",
           "A title-block author given as a YAML map is dropped rather than stringified into an author paragraph.",

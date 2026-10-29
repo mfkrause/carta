@@ -350,6 +350,7 @@ impl Builder<'_> {
                 '&' => self.body.push_str("&amp;"),
                 '<' => self.body.push_str("&lt;"),
                 '>' => self.body.push_str("&gt;"),
+                '"' => self.body.push_str("&quot;"),
                 other if is_xml_char(other) => self.body.push(other),
                 _ => {}
             }

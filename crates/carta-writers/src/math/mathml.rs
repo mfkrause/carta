@@ -2,7 +2,7 @@
 
 use super::parse::{self, Atom, Body, FracStyle, ScriptKind, Sibling, TextPiece};
 use super::symbols::{self, Class};
-use carta_core::container::xml::{escape_attribute, escape_text};
+use carta_core::container::xml::{escape_attribute, escape_text, escape_text_with_quotes};
 
 mod builders;
 
@@ -46,7 +46,7 @@ pub(crate) fn to_mathml(tex: &str, display: bool, annotate: bool) -> Option<Stri
         vec![group(body)]
     };
     let mut out = String::new();
-    root.render(&mut out);
+    root.render(&mut out, !annotate);
     Some(out)
 }
 
@@ -86,7 +86,7 @@ impl Element {
         self
     }
 
-    fn render(&self, out: &mut String) {
+    fn render(&self, out: &mut String, quote_text: bool) {
         out.push('<');
         out.push_str(self.name);
         for (key, value) in &self.attributes {
@@ -110,7 +110,8 @@ impl Element {
         out.push('>');
         for child in &self.children {
             match child {
-                Node::Element(element) => element.render(out),
+                Node::Element(element) => element.render(out, quote_text),
+                Node::Text(text) if quote_text => escape_text_with_quotes(text, out),
                 Node::Text(text) => escape_text(text, out),
             }
         }

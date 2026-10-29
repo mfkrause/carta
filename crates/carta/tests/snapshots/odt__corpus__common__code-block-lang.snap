@@ -17,7 +17,7 @@ expression: output
 </office:automatic-styles>
 <office:body>
 <office:text>
-<text:p text:style-name="Preformatted_20_Text">let s = "hi";</text:p>
+<text:p text:style-name="Preformatted_20_Text">let s = &quot;hi&quot;;</text:p>
 <text:p text:style-name="Preformatted_20_Text">x &lt; y &amp;&amp; y &gt; z</text:p>
 </office:text>
 </office:body>
