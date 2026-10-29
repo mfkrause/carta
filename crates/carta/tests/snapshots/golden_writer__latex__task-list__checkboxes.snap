@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item[$\square$]
+  todo
+\item[$\boxtimes$]
+  done
+\end{itemize}

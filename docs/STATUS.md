@@ -241,7 +241,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `markdown_strict` ✅
 
 ### `beamer` ✅
-- Task-list checkboxes are not rendered.
 - Bullet lists inside definition-list items have incorrect spacing.
 - `data:` images are used as graphics filenames rather than decoded.
 
@@ -251,7 +250,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `latex` ✅
 - A table nested in a cell cannot split across pages.
-- Task-list checkboxes are not rendered.
 - Bullet lists inside definition-list items have incorrect spacing.
 - `data:` images are used as graphics filenames rather than decoded.
 

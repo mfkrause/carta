@@ -77,22 +77,6 @@ pub(super) fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
     carta_ast::to_plain_text(cap) == carta_ast::to_plain_text(alt)
 }
 
-/// A list item is a task-list entry when its first block opens with a ballot-box character followed
-/// by a space; the boolean reports whether the box is checked.
-pub(super) fn checkbox_state(item: &[Block]) -> Option<bool> {
-    let (Block::Plain(inlines) | Block::Para(inlines)) = item.first()? else {
-        return None;
-    };
-    let [Inline::Str(marker), Inline::Space, ..] = inlines.as_slice() else {
-        return None;
-    };
-    match marker.as_str() {
-        "\u{2610}" => Some(false),
-        "\u{2612}" => Some(true),
-        _ => None,
-    }
-}
-
 fn has_explicit_widths(specs: &[ColSpec]) -> bool {
     specs
         .iter()

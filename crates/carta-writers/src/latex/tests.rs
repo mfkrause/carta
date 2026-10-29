@@ -40,6 +40,26 @@ fn long_paragraph() -> Vec<Block> {
 }
 
 #[test]
+fn bullet_tasks_use_checkbox_markers_and_keep_other_items() {
+    let task = |glyph: &str| {
+        vec![Block::Plain(vec![
+            Inline::Str(glyph.into()),
+            Inline::Space,
+            Inline::Str("Task".into()),
+        ])]
+    };
+    assert_eq!(
+        render(vec![Block::BulletList(vec![
+            task("☐"),
+            vec![Block::Plain(str_inlines("Ordinary"))],
+            task("☒"),
+            vec![Block::Plain(str_inlines("☐"))],
+        ])]),
+        "\\begin{itemize}\n\\tightlist\n\\item[$\\square$]\n  Task\n\\item\n  Ordinary\n\\item[$\\boxtimes$]\n  Task\n\\item\n  ☐\n\\end{itemize}"
+    );
+}
+
+#[test]
 fn line_blocks_keep_code_height_and_trailing_spaces() {
     let code = Inline::Code(Box::new(Attr::default()), "code".into());
     assert_eq!(

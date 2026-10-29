@@ -1,5 +1,7 @@
 //! List-tightness, block spacing, and ordered-list numerals and delimiters.
 
+#[cfg(any(feature = "html", feature = "docx", feature = "latex"))]
+use carta_ast::Inline;
 use carta_ast::{Block, ListNumberDelim, ListNumberStyle};
 
 /// Whether each item is empty or opens with plain text or a tight nested list.
@@ -226,6 +228,35 @@ pub(crate) fn roman(number: i64, upper: bool) -> String {
         }
     }
     if upper { out.to_uppercase() } else { out }
+}
+
+#[cfg(any(feature = "html", feature = "docx", feature = "latex"))]
+/// A list item is a task-list entry when its first block opens with a ballot-box character followed
+/// by a space; the boolean reports whether the box is checked.
+pub(crate) fn checkbox_state(item: &[Block]) -> Option<bool> {
+    let (Block::Plain(inlines) | Block::Para(inlines)) = item.first()? else {
+        return None;
+    };
+    let [Inline::Str(marker), Inline::Space, ..] = inlines.as_slice() else {
+        return None;
+    };
+    match marker.as_str() {
+        "\u{2610}" => Some(false),
+        "\u{2612}" => Some(true),
+        _ => None,
+    }
+}
+
+#[cfg(any(feature = "docx", feature = "latex"))]
+/// A task item's blocks with the leading ballot-box glyph and the space after it removed from the
+/// first paragraph, so the checkbox does not double as both the marker and inline text.
+pub(crate) fn strip_checkbox(item: &[Block]) -> Vec<Block> {
+    let mut blocks = item.to_vec();
+    if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut() {
+        let cut = inlines.len().min(2);
+        inlines.drain(..cut);
+    }
+    blocks
 }
 
 #[cfg(test)]

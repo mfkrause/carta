@@ -253,7 +253,6 @@
         "ships": true,
         "feature": "write-beamer",
         "gaps": [
-          "Task-list checkboxes are not rendered.",
           "Bullet lists inside definition-list items have incorrect spacing.",
           "`data:` images are used as graphics filenames rather than decoded."
         ]
@@ -462,7 +461,6 @@
         "feature": "write-latex",
         "gaps": [
           "A table nested in a cell cannot split across pages.",
-          "Task-list checkboxes are not rendered.",
           "Bullet lists inside definition-list items have incorrect spacing.",
           "`data:` images are used as graphics filenames rather than decoded."
         ]

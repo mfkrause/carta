@@ -5,6 +5,7 @@ use super::tables::render_table;
 use super::{
     Ctx, FlowStyle, custom_style, heading_style, paragraph, render_flow, styled_paragraph,
 };
+use crate::common::{checkbox_state, strip_checkbox};
 use carta_ast::{Block, Inline, ListAttributes};
 use carta_core::container::xml::Element;
 
@@ -40,32 +41,6 @@ fn task_list_states(items: &[Vec<Block>]) -> Option<Vec<bool>> {
         return None;
     }
     items.iter().map(|item| checkbox_state(item)).collect()
-}
-
-/// Whether an item leads with a task-list checkbox, and if so whether it is ticked. An item qualifies
-/// when its first block is a `Plain` or `Para` whose first inline is the empty or ticked ballot box
-/// followed by a space.
-fn checkbox_state(item: &[Block]) -> Option<bool> {
-    let (Block::Plain(inlines) | Block::Para(inlines)) = item.first()? else {
-        return None;
-    };
-    let checked = match inlines.first()? {
-        Inline::Str(text) if text.as_str() == "\u{2610}" => false,
-        Inline::Str(text) if text.as_str() == "\u{2612}" => true,
-        _ => return None,
-    };
-    matches!(inlines.get(1), Some(Inline::Space)).then_some(checked)
-}
-
-/// A task item's blocks with the leading ballot-box glyph and the space after it removed from the
-/// first paragraph, so the checkbox does not double as both the marker and inline text.
-fn strip_checkbox(item: &[Block]) -> Vec<Block> {
-    let mut blocks = item.to_vec();
-    if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut() {
-        let cut = inlines.len().min(2);
-        inlines.drain(..cut);
-    }
-    blocks
 }
 
 /// Renders an ordered list, binding every item to the concrete number its marker style, delimiter

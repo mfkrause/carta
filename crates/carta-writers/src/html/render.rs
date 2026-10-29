@@ -11,14 +11,14 @@ use carta_ast::{
 #[cfg(feature = "highlight")]
 use carta_highlight::{SourceLine, Token};
 
-use crate::common::{RowSpanGrid, quote_marks};
+use crate::common::{RowSpanGrid, checkbox_state, quote_marks};
 #[cfg(feature = "highlight")]
 use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 
 use super::helpers::{
-    alignment_style, append_trailing_newline, cell_attr, cell_attr_html4, checkbox_state, colgroup,
-    has_table_head, header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type,
-    ordered_list_type, raw_passthrough, render_attr_into, table_width_style, title_attr,
+    alignment_style, append_trailing_newline, cell_attr, cell_attr_html4, colgroup, has_table_head,
+    header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type, ordered_list_type,
+    raw_passthrough, render_attr_into, table_width_style, title_attr,
 };
 #[cfg(feature = "highlight")]
 use super::helpers::{render_id_into, render_keyvals_into};

@@ -10,7 +10,8 @@ use carta_ast::{
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, fill, indent_block, list_is_tight, numeral, wrap_delim,
+    FILL_COLUMN, Piece, attribute_value, checkbox_state, fill, indent_block, list_is_tight,
+    numeral, strip_checkbox, wrap_delim,
 };
 
 mod code;
@@ -534,7 +535,23 @@ fn bullet_list(
         lines.push("\\tightlist".to_owned());
     }
     for item in items {
-        lines.push(list_item(item, width, enum_depth, dialect, wrap, smart, hl));
+        let checked = checkbox_state(item);
+        let stripped = checked.map(|_| strip_checkbox(item));
+        let marker = match checked {
+            Some(false) => "\\item[$\\square$]",
+            Some(true) => "\\item[$\\boxtimes$]",
+            None => "\\item",
+        };
+        lines.push(list_item(
+            stripped.as_deref().unwrap_or(item),
+            marker,
+            width,
+            enum_depth,
+            dialect,
+            wrap,
+            smart,
+            hl,
+        ));
     }
     lines.push("\\end{itemize}".to_owned());
     lines.join("\n")
@@ -576,7 +593,9 @@ fn ordered_list(
         lines.push("\\tightlist".to_owned());
     }
     for item in items {
-        lines.push(list_item(item, width, depth, dialect, wrap, smart, hl));
+        lines.push(list_item(
+            item, "\\item", width, depth, dialect, wrap, smart, hl,
+        ));
     }
     lines.push("\\end{enumerate}".to_owned());
     lines.join("\n")
@@ -586,6 +605,7 @@ fn ordered_list(
 #[allow(clippy::too_many_arguments)]
 fn list_item(
     item: &[Block],
+    marker: &str,
     width: usize,
     enum_depth: usize,
     dialect: Dialect,
@@ -603,9 +623,9 @@ fn list_item(
         hl,
     );
     if body.is_empty() {
-        "\\item".to_owned()
+        marker.to_owned()
     } else {
-        format!("\\item\n{}", indent_block(&body, "  ", "  "))
+        format!("{marker}\n{}", indent_block(&body, "  ", "  "))
     }
 }
 
