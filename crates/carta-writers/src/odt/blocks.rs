@@ -377,11 +377,7 @@ impl Builder<'_> {
         self.table_index += 1;
         let n = self.table_index;
         let columns = table_column_count(table);
-        let has_widths = table
-            .col_specs
-            .iter()
-            .any(|spec| matches!(spec.width, ColWidth::ColWidth(_)));
-        self.push_table_style(n, columns, &table.col_specs, has_widths);
+        self.push_table_style(n, columns, &table.col_specs);
         let headings: Vec<_> = (0..columns)
             .map(|column| self.column_paragraph_style(true, column, &table.col_specs))
             .collect();
@@ -445,32 +441,26 @@ impl Builder<'_> {
     }
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    fn push_table_style(&mut self, n: usize, columns: usize, specs: &[ColSpec], has_widths: bool) {
+    fn push_table_style(&mut self, n: usize, columns: usize, specs: &[ColSpec]) {
         let _ = write!(
             self.table_styles,
             "<style:style style:name=\"Table{n}\" style:family=\"table\">\
              <style:table-properties table:align=\"center\""
         );
-        if has_widths {
-            let total: f64 = specs
-                .iter()
-                .map(|spec| match spec.width {
-                    ColWidth::ColWidth(fraction) => fraction,
-                    ColWidth::ColWidthDefault => 0.0,
-                })
-                .sum();
-            let percent = (total * 100.0).round() as i64;
+        let relative_width = |spec: &ColSpec| match spec.width {
+            ColWidth::ColWidth(fraction) if fraction > 0.0 => Some(fraction),
+            _ => None,
+        };
+        let total: f64 = specs.iter().filter_map(relative_width).sum();
+        if total > 0.0 && total <= 1.0 {
+            let percent = (total * 100.0).round_ties_even() as i64;
             let _ = write!(self.table_styles, " style:rel-width=\"{percent}%\"");
         }
         self.table_styles.push_str(" /></style:style>");
 
         for column in 0..columns {
             let letter = column_letter(column);
-            if has_widths {
-                let fraction = match specs.get(column).map(|spec| &spec.width) {
-                    Some(ColWidth::ColWidth(value)) => *value,
-                    _ => 0.0,
-                };
+            if let Some(fraction) = specs.get(column).and_then(relative_width) {
                 let relative = (fraction * 65535.0) as u64;
                 let _ = write!(
                     self.table_styles,
@@ -746,6 +736,41 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relative_widths_keep_automatic_columns_and_even_percentage_ties() {
+        let options = carta_core::WriterOptions::default();
+        for (widths, percent) in [
+            ([0.0, 0.025], Some("2%")),
+            ([-0.25, 0.5], Some("50%")),
+            ([0.0, 0.0], None),
+            ([0.0, 1.5], None),
+        ] {
+            let mut builder = Builder::new(&options);
+            let specs: Vec<_> = widths
+                .into_iter()
+                .map(|width| ColSpec {
+                    align: Alignment::AlignDefault,
+                    width: ColWidth::ColWidth(width),
+                })
+                .collect();
+            builder.push_table_style(1, 2, &specs);
+            assert!(
+                builder.table_styles.contains(
+                    "<style:style style:name=\"Table1.A\" style:family=\"table-column\" />"
+                )
+            );
+            if let Some(percent) = percent {
+                assert!(
+                    builder
+                        .table_styles
+                        .contains(&format!("style:rel-width=\"{percent}\""))
+                );
+            } else {
+                assert!(!builder.table_styles.contains("style:rel-width="));
+            }
+        }
+    }
 
     #[test]
     fn nested_quotes_indent_and_restart_inside_lists_and_notes() {

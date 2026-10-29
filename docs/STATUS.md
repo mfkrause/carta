@@ -382,8 +382,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   styling.
 - Image intrinsic sizing reads only PNG, GIF, and JPEG pixel dimensions; other formats fall back to
   attribute-supplied or default sizing under a fixed DPI.
-- Table relative column widths are approximated as a percentage rel-width plus rounded integer
-  proportions.
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must
   come from an external reference document.
 - `styles.xml` is authored with a neutral style-name scheme; no reference-document engine ships.
