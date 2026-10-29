@@ -92,3 +92,91 @@ fn footnote_content_stays_inline_and_rejects_edge_spaces() {
         );
     }
 }
+
+#[test]
+fn registered_schemes_link_without_an_authority_prefix() {
+    use carta_ast::{Block, Inline};
+
+    for address in [
+        "mailto:user@example.com",
+        "tel:+123456",
+        "news:comp.lang.rust",
+        "urn:isbn:123",
+        "https:example.com",
+        "file:/tmp/document",
+        "https://example.com",
+    ] {
+        let document = DokuwikiReader
+            .read(&format!("{address}."), &ReaderOptions::default())
+            .unwrap();
+        let Block::Para(inlines) = &document.blocks[0] else {
+            panic!()
+        };
+        let Inline::Link(_, label, target) = &inlines[0] else {
+            panic!()
+        };
+        assert_eq!(target.url.as_str(), address);
+        assert_eq!(label, &vec![Inline::Str(address.into())]);
+        assert_eq!(inlines[1], Inline::Str(".".into()));
+    }
+    for text in [
+        "www.example.com",
+        "user@example.com",
+        "unknown:address",
+        "mailto:",
+    ] {
+        let document = DokuwikiReader
+            .read(text, &ReaderOptions::default())
+            .unwrap();
+        assert_eq!(
+            document.blocks,
+            vec![Block::Para(vec![Inline::Str(text.into())])]
+        );
+    }
+}
+
+#[test]
+fn uri_labels_keep_text_and_escape_destination_delimiters() {
+    use carta_ast::Inline;
+
+    let context = Ctx {
+        smart: false,
+        math: false,
+    };
+    for (input, label, destination) in [
+        ("mailto:[name]", "mailto:[name]", "mailto:%5Bname%5D"),
+        ("mailto:a&amp;b", "mailto:a&b", "mailto:a&b"),
+        ("mailto:a&#32;b", "mailto:a b", "mailto:a%20b"),
+        ("mailto:a&nbsp;b", "mailto:a\u{a0}b", "mailto:a%C2%A0b"),
+        ("doi:10.1/example", "doi:10.1/example", "doi:10.1/example"),
+    ] {
+        let inlines = inline::inline_content(input, context);
+        let Inline::Link(_, text, target) = &inlines[0] else {
+            panic!()
+        };
+        assert_eq!(text, &vec![Inline::Str(label.into())]);
+        assert_eq!(target.url.as_str(), destination);
+    }
+    for input in [
+        "mailto:a(one)",
+        "mailto:_name",
+        "mailto:a&copy;",
+        "mailto:a_",
+    ] {
+        let inlines = inline::inline_content(input, context);
+        assert!(
+            !inlines
+                .iter()
+                .any(|inline| matches!(inline, Inline::Link(..)))
+        );
+    }
+    let inlines = inline::inline_content("mailto:a\\\\ b", context);
+    assert_eq!(
+        inlines,
+        vec![
+            Inline::Str("mailto:a".into()),
+            Inline::LineBreak,
+            Inline::Str("b".into())
+        ]
+    );
+}

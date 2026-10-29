@@ -393,7 +393,6 @@ write = "usable"
 read-feature = "read-dokuwiki"
 write-feature = "write-dokuwiki"
 read-gaps = [
-  "Bare-URL autolinking requires an explicit `scheme://`.",
 ]
 write-gaps = [
 ]

@@ -211,7 +211,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `dokuwiki` ✅
-- Bare-URL autolinking requires an explicit `scheme://`.
 
 ### `jira` ✅
 - When a `{quote}` macro's content shares the line with its fences, the leading whitespace of its

@@ -1,6 +1,7 @@
 //! Inline scanning: emphasis, quotes, monospace, math, autolinks, and construct dispatch.
 
 use std::collections::BTreeMap;
+use std::fmt::Write;
 
 use carta_ast::{Block, Inline, InlineParts, MathType, QuoteType, Target, to_plain_text};
 
@@ -748,7 +749,7 @@ fn parse_inline_math(chars: &[char], begin: usize) -> Option<(Inline, usize)> {
     None
 }
 
-/// Match a bare URL beginning at `pos` (`scheme://…`), returning the link and the end index.
+/// Match a registered URI scheme followed by a colon and an address.
 fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     let mut k = pos;
     while chars
@@ -757,26 +758,43 @@ fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     {
         k += 1;
     }
-    if !matches_at(chars, k, "://") {
+    if chars.get(k) != Some(&':') {
         return None;
     }
     let scheme: String = chars.get(pos..k)?.iter().collect::<String>().to_lowercase();
-    if !crate::url_schemes::is_scheme(&scheme) {
+    if !crate::url_schemes::is_scheme(&scheme)
+        && !matches!(scheme.as_str(), "doi" | "isbn" | "javascript")
+    {
         return None;
     }
-    let content_start = k + 3;
-    let scan_end = forward_scan(chars, pos);
-    let end = trim_trailing(chars, content_start, scan_end);
+    let content_start = k + 1;
+    if matches!(chars.get(content_start), Some('*' | '_' | ']')) {
+        return None;
+    }
+    let scan_end = forward_scan(chars, content_start);
+    let end = trim_trailing(chars, content_start, scan_end)?;
     if end <= content_start {
         return None;
     }
-    let url: String = chars.get(pos..end)?.iter().collect();
+    let mut url = String::new();
+    let mut index = pos;
+    while index < end {
+        if chars.get(index) == Some(&'&')
+            && let Some((decoded, next)) = entities::read_reference(chars, index, end, true)
+        {
+            url.push_str(&decoded);
+            index = next;
+        } else {
+            url.push(*chars.get(index)?);
+            index += 1;
+        }
+    }
     Some((
         Inline::Link(
             Box::default(),
             vec![Inline::Str(url.clone().into())],
             Box::new(Target {
-                url: url.into(),
+                url: escape_uri(&url).into(),
                 title: carta_ast::Text::default(),
             }),
         ),
@@ -784,51 +802,90 @@ fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     ))
 }
 
-/// Walk a URL run forward, stopping at whitespace or `<`, balancing parentheses, and ending at an
-/// unbalanced `)` or a `]` outside any parenthesis.
-fn forward_scan(chars: &[char], from: usize) -> usize {
-    let mut depth: i32 = 0;
-    let mut j = from;
-    while let Some(&c) = chars.get(j) {
-        if c.is_whitespace() || c == '<' {
-            break;
-        }
-        match c {
-            '(' => depth += 1,
-            ')' | ']' if depth == 0 => break,
-            ')' => depth -= 1,
-            _ => {}
-        }
-        j += 1;
+/// Find the end of a URI candidate before whitespace or an angle bracket.
+fn forward_scan(chars: &[char], mut position: usize) -> usize {
+    while chars
+        .get(position)
+        .is_some_and(|character| !character.is_whitespace() && !matches!(character, '<' | '>'))
+    {
+        position += 1;
     }
-    j
+    position
 }
 
-/// Drop trailing punctuation from a URL run, never below `min`. A trailing `;` takes a preceding
-/// `&entity;` with it.
-fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
-    while end > min {
+/// Keep balanced brackets and exclude sentence punctuation from a URI.
+fn trim_trailing(chars: &[char], start: usize, mut end: usize) -> Option<usize> {
+    let mut parentheses = 0isize;
+    let mut brackets = 0isize;
+    let mut braces = 0isize;
+    for character in chars.get(start..end)? {
+        match character {
+            '(' => parentheses += 1,
+            ')' => parentheses -= 1,
+            '[' => brackets += 1,
+            ']' => brackets -= 1,
+            '{' => braces += 1,
+            '}' => braces -= 1,
+            _ => {}
+        }
+    }
+    while end > start {
         match chars.get(end - 1) {
-            Some('!' | '"' | '\'' | '*' | ',' | '.' | ':' | '?' | '_' | '~') => end -= 1,
+            Some('!' | '"' | '\'' | '*' | ',' | '.' | ':' | '?' | '~' | '`') => end -= 1,
             Some(';') => {
-                let mut j = end - 1;
-                while j > min
+                let mut begin = end - 1;
+                while begin > start
                     && chars
-                        .get(j - 1)
-                        .is_some_and(|&c| c.is_ascii_alphanumeric() || c == '#')
+                        .get(begin - 1)
+                        .is_some_and(char::is_ascii_alphanumeric)
                 {
-                    j -= 1;
+                    begin -= 1;
                 }
-                end = if j > min && chars.get(j - 1) == Some(&'&') {
-                    j - 1
-                } else {
-                    end - 1
-                };
+                if begin > start && chars.get(begin - 1) == Some(&'&') {
+                    let name: String = chars.get(begin..end - 1)?.iter().collect();
+                    if entities::lookup_named(&name).is_some() {
+                        return None;
+                    }
+                }
+                end -= 1;
             }
+            Some(')') if parentheses < 0 => {
+                parentheses += 1;
+                end -= 1;
+            }
+            Some(']') if brackets < 0 => {
+                brackets += 1;
+                end -= 1;
+            }
+            Some('}') if braces < 0 => {
+                braces += 1;
+                end -= 1;
+            }
+            Some(')' | '_' | '\\') => return None,
             _ => break,
         }
     }
-    end
+    Some(end)
+}
+
+fn escape_uri(url: &str) -> String {
+    let mut output = String::with_capacity(url.len());
+    for character in url.chars() {
+        if character.is_whitespace()
+            || matches!(
+                character,
+                '<' | '>' | '|' | '"' | '{' | '}' | '[' | ']' | '^' | '`'
+            )
+        {
+            let mut bytes = [0; 4];
+            for byte in character.encode_utf8(&mut bytes).as_bytes() {
+                let _ = write!(output, "%{byte:02X}");
+            }
+        } else {
+            output.push(character);
+        }
+    }
+    output
 }
 
 /// Merge adjacent text runs and collapse adjacent whitespace into a single token (preferring a hard

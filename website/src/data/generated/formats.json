@@ -756,9 +756,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-dokuwiki",
-        "gaps": [
-          "Bare-URL autolinking requires an explicit `scheme://`."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",
