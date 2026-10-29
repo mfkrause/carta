@@ -14,22 +14,32 @@ use super::helpers::attr_value;
 /// The intrinsic pixel dimensions of an encoded image paired with the pixel density (horizontal,
 /// vertical dots per inch) that maps those pixels to a physical size. Unrecognized data resolves to
 /// a square default so a frame still gets a sensible size rather than a degenerate zero one.
-pub(super) fn image_metrics(bytes: &[u8]) -> ((u32, u32), (f64, f64)) {
+pub(super) fn image_metrics(bytes: &[u8]) -> ((i64, i64), (f64, f64)) {
+    let dimensions_as_signed = |(width, height)| (i64::from(width), i64::from(height));
     if let Some(dimensions) = png_dimensions(bytes) {
         let (horizontal, vertical) = image_dpi(bytes);
-        return (dimensions, (f64::from(horizontal), f64::from(vertical)));
+        return (
+            dimensions_as_signed(dimensions),
+            (f64::from(horizontal), f64::from(vertical)),
+        );
     }
     if let Some(dimensions) = gif_dimensions(bytes) {
-        return (dimensions, (72.0, 72.0));
+        return (dimensions_as_signed(dimensions), (72.0, 72.0));
     }
     if let Some(dimensions) = jpeg_dimensions(bytes) {
-        return (dimensions, jpeg_density(bytes).unwrap_or((72.0, 72.0)));
+        return (
+            dimensions_as_signed(dimensions),
+            jpeg_density(bytes).unwrap_or((72.0, 72.0)),
+        );
     }
     if let Some(dimensions) = webp_dimensions(bytes) {
-        return (dimensions, (96.0, 96.0));
+        return (dimensions_as_signed(dimensions), (96.0, 96.0));
     }
     if let Some(dimensions) = svg_dimensions(bytes) {
-        return (dimensions, (96.0, 96.0));
+        return (dimensions_as_signed(dimensions), (96.0, 96.0));
+    }
+    if let Some(dimensions) = eps_dimensions(bytes) {
+        return (dimensions, (72.0, 72.0));
     }
     ((100, 100), (72.0, 72.0))
 }
@@ -115,6 +125,30 @@ fn svg_length_pixels(value: &str) -> Option<u32> {
     Some(u32::try_from(pixels).unwrap_or(u32::MAX))
 }
 
+fn eps_dimensions(bytes: &[u8]) -> Option<(i64, i64)> {
+    let mut lines = bytes.split(|byte| *byte == b'\n');
+    let header = core::str::from_utf8(lines.next()?).ok()?;
+    if !header.starts_with("%!PS-Adobe-")
+        || !header.split_ascii_whitespace().nth(1)?.starts_with("EPSF-")
+    {
+        return None;
+    }
+    let bounds = lines.find_map(|line| line.strip_prefix(b"%%BoundingBox:"))?;
+    if !bounds.first()?.is_ascii_whitespace() {
+        return None;
+    }
+    let mut coordinates = core::str::from_utf8(bounds).ok()?.split_ascii_whitespace();
+    let mut number = || {
+        let text = coordinates.next()?;
+        if text.starts_with('+') {
+            return None;
+        }
+        text.parse::<i64>().ok()
+    };
+    let [_, _, width, height] = [number()?, number()?, number()?, number()?];
+    coordinates.next().is_none().then_some((width, height))
+}
+
 fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
     let start: [u8; 2] = bytes.get(0..2)?.try_into().ok()?;
     if start != [0xFF, 0xD8] {
@@ -164,12 +198,13 @@ enum Dimension {
 /// The size attributes for an image frame. An explicit `width`/`height` attribute is resolved to
 /// inches; a single explicit dimension carries the other along the image's aspect ratio. Absent
 /// both, the frame takes the intrinsic pixel size mapped to points through the image's density.
-pub(super) fn image_size(attr: &Attr, width: u32, height: u32, density: (f64, f64)) -> String {
+#[allow(clippy::cast_precision_loss)]
+pub(super) fn image_size(attr: &Attr, width: i64, height: i64, density: (f64, f64)) -> String {
     let (dpi_x, dpi_y) = density;
     let requested_width = attr_value(attr, "width").and_then(parse_dimension);
     let requested_height = attr_value(attr, "height").and_then(parse_dimension);
-    let width_points = f64::from(width) * 72.0 / dpi_x;
-    let height_points = f64::from(height) * 72.0 / dpi_y;
+    let width_points = width as f64 * 72.0 / dpi_x;
+    let height_points = height as f64 * 72.0 / dpi_y;
     let ratio = width_points / height_points;
     let natural_width = format!("{}pt", show_number(width_points));
     let natural_height = format!("{}pt", show_number(height_points));
@@ -445,6 +480,26 @@ mod tests {
         ] {
             assert_eq!(svg_length_pixels(value), None, "{value}");
         }
+    }
+
+    #[test]
+    fn eps_dimensions_reads_integer_bounds_and_keeps_signed_sizes() {
+        for (bounds, expected) in [
+            ("0 0 32 16", Some((32, 16))),
+            ("-5 -7 27 9", Some((27, 9))),
+            ("0 0 -32 -16", Some((-32, -16))),
+            ("0 0 32.5 16.5", None),
+            ("0 0 32", None),
+            ("0 0 32 16 extra", None),
+            ("0 0 +32 16", None),
+            ("(atend)", None),
+        ] {
+            let image = format!("%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: {bounds}\n");
+            assert_eq!(eps_dimensions(image.as_bytes()), expected, "{bounds}");
+        }
+        let image = b"%!PS-Adobe-2.0 EPSF-2.0\r\n%%BoundingBox: 0 0 32 16\r\n\xff";
+        assert_eq!(image_metrics(image), ((32, 16), (72.0, 72.0)));
+        assert_eq!(eps_dimensions(b"%!PS\n%%BoundingBox: 0 0 32 16\n"), None);
     }
 
     #[test]
