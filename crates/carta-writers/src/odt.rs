@@ -12,10 +12,12 @@ mod inlines;
 mod language;
 mod media;
 mod meta;
+mod references;
 mod styles;
 
 use language::{Language, caption_labels};
 use meta::{formula_content_xml, manifest_xml, meta_xml, plain_meta};
+use references::ReferenceKind;
 use styles::{deco_style_xml, para_style_xml, styles_xml};
 
 /// The package's MIME marker; the first archive entry, stored uncompressed.
@@ -290,6 +292,7 @@ struct Builder<'a> {
     keep_empty: bool,
     text_styles: BTreeMap<Vec<Deco>, usize>,
     languages: BTreeSet<Language>,
+    references: BTreeMap<Text, ReferenceKind>,
     para_styles: Vec<ParaStyle>,
     quote_depth: usize,
     list_styles: Vec<ListStyle>,
@@ -317,6 +320,7 @@ impl<'a> Builder<'a> {
             keep_empty: options.extensions.contains(Extension::EmptyParagraphs),
             text_styles: BTreeMap::new(),
             languages: BTreeSet::new(),
+            references: BTreeMap::new(),
             para_styles: Vec::new(),
             quote_depth: 0,
             list_styles: Vec::new(),
@@ -336,6 +340,17 @@ impl<'a> Builder<'a> {
     fn document(&mut self, document: &Document) {
         if self.options.extensions.contains(Extension::NativeNumbering) {
             self.caption_labels = caption_labels(&meta::meta_text(&document.meta, "lang"));
+        }
+        if self
+            .options
+            .extensions
+            .contains(Extension::CrossReferenceName)
+            || self
+                .options
+                .extensions
+                .contains(Extension::CrossReferenceNumber)
+        {
+            self.references = references::collect(&document.blocks);
         }
         self.title_block(&document.meta);
         self.abstract_block(&document.meta);

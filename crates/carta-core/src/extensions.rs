@@ -206,6 +206,10 @@ define_extensions! {
     NativeNumbering => "native_numbering",
     /// An empty paragraph in the document model is preserved in the output rather than dropped.
     EmptyParagraphs => "empty_paragraphs",
+    /// Links to known headings, figures, and tables use reference text fields.
+    CrossReferenceName => "xrefs_name",
+    /// Links to known headings, figures, and tables use reference number fields.
+    CrossReferenceNumber => "xrefs_number",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;

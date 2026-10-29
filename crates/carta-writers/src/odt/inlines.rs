@@ -9,7 +9,8 @@ use carta_core::media::{decode_data_uri, extension_for_mime, image_mime_for_exte
 use super::helpers::{attr_value, custom_style, is_opendocument, parent_prefix_index};
 use super::media::{image_metrics, image_size};
 use super::{
-    Builder, Deco, Formula, Image, Language, STACK_RED_ZONE, STACK_SEGMENT, clone_decorations,
+    Builder, Deco, Formula, Image, Language, ReferenceKind, STACK_RED_ZONE, STACK_SEGMENT,
+    clone_decorations,
 };
 
 impl Builder<'_> {
@@ -239,6 +240,15 @@ impl Builder<'_> {
     }
 
     fn link(&mut self, text: &[Inline], target: &Target, decos: &[Deco]) {
+        if let Some((identifier, kind)) = target.url.strip_prefix('#').and_then(|identifier| {
+            self.references
+                .get(identifier)
+                .copied()
+                .map(|kind| (identifier, kind))
+        }) {
+            self.reference(kind, identifier, text, decos);
+            return;
+        }
         self.body
             .push_str("<text:a xlink:type=\"simple\" xlink:href=\"");
         let url = target.url.as_str();
@@ -257,6 +267,48 @@ impl Builder<'_> {
             .push_str("<text:span text:style-name=\"Definition\">");
         self.walk(text, decos);
         self.body.push_str("</text:span></text:a>");
+    }
+
+    fn reference(
+        &mut self,
+        kind: ReferenceKind,
+        identifier: &str,
+        text: &[Inline],
+        decos: &[Deco],
+    ) {
+        let (element, name_format, number_format) = match kind {
+            ReferenceKind::Bookmark => ("text:bookmark-ref", "text", "number"),
+            ReferenceKind::Sequence => ("text:sequence-ref", "caption", "value"),
+        };
+        let show_name = self
+            .options
+            .extensions
+            .contains(carta_core::Extension::CrossReferenceName);
+        let show_number = self
+            .options
+            .extensions
+            .contains(carta_core::Extension::CrossReferenceNumber);
+        for (enabled, format, show_text) in [
+            (show_number, number_format, false),
+            (show_name, name_format, true),
+        ] {
+            if !enabled {
+                continue;
+            }
+            if show_text && show_number {
+                self.body.push_str("<text:s />");
+            }
+            let _ = write!(
+                self.body,
+                "<{element} text:reference-format=\"{format}\" text:ref-name=\""
+            );
+            escape_attribute(identifier, &mut self.body);
+            self.body.push_str("\">");
+            if show_text {
+                self.walk(text, decos);
+            }
+            let _ = write!(self.body, "</{element}>");
+        }
     }
 
     fn note(&mut self, blocks: &[Block]) {

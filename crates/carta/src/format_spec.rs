@@ -194,9 +194,10 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::Styles,
         ]),
         "odt" => Extensions::from_list(&[
-            // not modeled: xrefs_name, xrefs_number
             Extension::AsciiIdentifiers,
             Extension::AutoIdentifiers,
+            Extension::CrossReferenceName,
+            Extension::CrossReferenceNumber,
             Extension::EastAsianLineBreaks,
             Extension::EmptyParagraphs,
             Extension::GfmAutoIdentifiers,
@@ -708,11 +709,15 @@ mod tests {
 
     #[test]
     fn odt_admits_its_declared_extensions_and_rejects_others() {
-        let (_, ext) = parse_format_spec("odt+empty_paragraphs+native_numbering").unwrap();
+        let (_, ext) =
+            parse_format_spec("odt+empty_paragraphs+native_numbering+xrefs_name+xrefs_number")
+                .unwrap();
         assert!(ext.contains(Extension::EmptyParagraphs));
         assert!(ext.contains(Extension::NativeNumbering));
         assert!(ext.contains(Extension::AutoIdentifiers));
 
+        assert!(ext.contains(Extension::CrossReferenceName));
+        assert!(ext.contains(Extension::CrossReferenceNumber));
         for spec in ["odt+styles", "odt+raw_html"] {
             let err = parse_format_spec(spec).unwrap_err();
             assert!(matches!(

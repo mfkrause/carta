@@ -1,5 +1,5 @@
 {
-  "count": 80,
+  "count": 82,
   "supported": [
     "smart",
     "strikeout",
@@ -1080,7 +1080,9 @@
         "east_asian_line_breaks",
         "empty_paragraphs",
         "gfm_auto_identifiers",
-        "native_numbering"
+        "native_numbering",
+        "xrefs_name",
+        "xrefs_number"
       ],
       "enabled": [
         "auto_identifiers"

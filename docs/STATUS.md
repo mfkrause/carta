@@ -372,8 +372,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
-- `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather
-  than rewriting the internal link to a reference field.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
 - Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token
@@ -413,7 +411,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ## Extensions
 
-Reader-side toggles on the CommonMark engine. The enum defines 80 names; the reader branches on the
+Reader-side toggles on the CommonMark engine. The enum defines 82 names; the reader branches on the
 **Supported** set below and treats every other name within a format's accepted set as a recorded
 no-op toggle, so a format spec naming one parses and records it rather than aborting. Each format
 declares the set of extensions it accepts: exactly the names `--list-extensions=<format>` prints,
