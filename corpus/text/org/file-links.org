@@ -1,0 +1,9 @@
+[[file:///tmp/document.txt][Document]]
+
+[[file://server/share/document.txt][Shared document]]
+
+[[/tmp/document.txt]]
+
+[[file:/tmp/image.png]]
+
+[[file:./image.png]]

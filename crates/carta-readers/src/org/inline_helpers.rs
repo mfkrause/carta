@@ -66,12 +66,19 @@ pub(super) fn image(target: &str, alt: Vec<Inline>) -> Inline {
     )
 }
 
-/// Processes a link target: strips a `file:` prefix and leaves other targets untouched.
+/// Preserve file URLs and turn absolute paths into file URLs.
 pub(super) fn process_target(raw: &str) -> String {
-    if let Some(rest) = raw.strip_prefix("file:") {
-        return rest.to_owned();
+    if raw.starts_with("file://") {
+        return raw.to_owned();
     }
-    raw.to_owned()
+    let path = raw.strip_prefix("file:").unwrap_or(raw);
+    if path.starts_with("//") {
+        format!("file:///{path}")
+    } else if path.starts_with('/') {
+        format!("file://{path}")
+    } else {
+        path.to_owned()
+    }
 }
 
 pub(super) fn is_internal_target(raw: &str) -> bool {

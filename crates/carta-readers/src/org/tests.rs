@@ -385,3 +385,26 @@ fn unresolved_links_keep_their_labels() {
         vec![Block::Para(vec![Inline::Str("[[missing][]]".into())])]
     );
 }
+
+#[test]
+fn file_links_preserve_urls_and_absolute_paths() {
+    for (source, expected) in [
+        ("[[file:///tmp/document.txt]]", "file:///tmp/document.txt"),
+        (
+            "[[file://server/share/document.txt]]",
+            "file://server/share/document.txt",
+        ),
+        ("[[/tmp/document.txt]]", "file:///tmp/document.txt"),
+        ("[[file:/tmp/image.png]]", "file:///tmp/image.png"),
+        ("[[file:./image.png]]", "./image.png"),
+    ] {
+        let mut document = doc(source);
+        let mut destinations = Vec::new();
+        carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+            if let Inline::Link(_, _, target) | Inline::Image(_, _, target) = inline {
+                destinations.push(target.url.to_string());
+            }
+        });
+        assert_eq!(destinations, [expected], "{source}");
+    }
+}
