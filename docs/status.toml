@@ -597,7 +597,6 @@ write = "usable"
 read-feature = "read-odt"
 write-feature = "write-odt"
 read-gaps = [
-  "Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width is taken as the sum of colspans and rows go ragged.",
   "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically).",
 ]
 write-gaps = [

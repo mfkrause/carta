@@ -430,40 +430,41 @@ pub(super) fn formula_part_path(href: &str) -> String {
     format!("{base}/content.xml")
 }
 
-/// The widest row's column count, summing each cell's column span with saturating arithmetic so a
-/// cell declaring an outsized span cannot overflow the running total.
+/// The widest row's cell count before spans are applied.
 pub(super) fn row_width(rows: &[Row]) -> i64 {
-    rows.iter().map(cells_width).max().unwrap_or(0)
+    rows.iter()
+        .map(|row| i64::try_from(row.cells.len()).unwrap_or(i64::MAX))
+        .max()
+        .unwrap_or(0)
 }
 
-/// A row's occupied column count: the sum of its cells' column spans, saturating so a cell declaring
-/// an outsized span cannot overflow the running total.
-fn cells_width(row: &Row) -> i64 {
-    row.cells
-        .iter()
-        .fold(0i64, |acc, cell| acc.saturating_add(cell.col_span.max(1)))
-}
-
-/// Squares each row off to the grid width by appending empty single-column cells, so every row spans
-/// the same number of columns, while leaving columns already occupied by a row-spanning cell
-/// overhanging from an earlier row unfilled. A row whose cells plus inherited overhang already reach
-/// the width is left untouched.
+/// Clamps spans to the available grid and fills slots not covered by earlier rows.
 pub(super) fn square_rows(rows: &mut [Row], columns: i64) {
     let width = usize::try_from(columns).unwrap_or(0);
     // `covered[c]`: how many further rows column `c` stays covered by a row span from above.
     let mut covered = vec![0i64; width];
-    for row in rows {
-        let overhang =
-            i64::try_from(covered.iter().filter(|count| **count > 0).count()).unwrap_or(i64::MAX);
+    let total_rows = rows.len();
+    for (index, row) in rows.iter_mut().enumerate() {
+        let remaining_rows = i64::try_from(total_rows - index).unwrap_or(i64::MAX);
         let mut new_cover = vec![0i64; width];
         let mut column = 0usize;
-        for cell in &row.cells {
+        row.cells.retain_mut(|cell| {
             while covered.get(column).is_some_and(|count| *count > 0) {
                 column += 1;
             }
-            let span = usize::try_from(cell.col_span.max(1))
-                .unwrap_or(1)
-                .min(width.saturating_sub(column));
+            if column >= width {
+                return false;
+            }
+            let requested = usize::try_from(cell.col_span.max(1)).unwrap_or(usize::MAX);
+            let span = covered
+                .get(column..)
+                .unwrap_or_default()
+                .iter()
+                .take(requested)
+                .take_while(|count| **count == 0)
+                .count();
+            cell.col_span = i64::try_from(span).unwrap_or(i64::MAX);
+            cell.row_span = cell.row_span.max(1).min(remaining_rows);
             if cell.row_span > 1 {
                 for offset in 0..span {
                     if let Some(slot) = new_cover.get_mut(column + offset) {
@@ -471,10 +472,14 @@ pub(super) fn square_rows(rows: &mut [Row], columns: i64) {
                     }
                 }
             }
-            column = column.saturating_add(usize::try_from(cell.col_span.max(1)).unwrap_or(1));
-        }
-        for _ in cells_width(row)..columns.saturating_sub(overhang) {
-            row.cells.push(empty_cell());
+            column += span;
+            true
+        });
+        while column < width {
+            if covered.get(column).is_some_and(|count| *count == 0) {
+                row.cells.push(empty_cell());
+            }
+            column += 1;
         }
         for (slot, added) in covered.iter_mut().zip(new_cover) {
             *slot = if added > 0 { added } else { (*slot - 1).max(0) };

@@ -36,6 +36,46 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn oversized_cell_spans_stop_at_section_edges_and_fill_only_free_slots() {
+    for header in [false, true] {
+        let first = "<table:table-row><table:table-cell table:number-columns-spanned=\"999\" \
+                     table:number-rows-spanned=\"999\"><text:p>A</text:p></table:table-cell>\
+                     <table:table-cell><text:p>B</text:p></table:table-cell></table:table-row>";
+        let first = if header {
+            format!("<table:table-header-rows>{first}</table:table-header-rows>")
+        } else {
+            first.to_owned()
+        };
+        let body = content(&format!(
+            "<table:table>{first}<table:table-row>\
+             <table:table-cell><text:p>D</text:p></table:table-cell>\
+             <table:table-cell><text:p>E</text:p></table:table-cell>\
+             <table:table-cell><text:p>F</text:p></table:table-cell>\
+             </table:table-row></table:table>"
+        ));
+        let odt = package(&[("content.xml", body.as_bytes())]);
+        let document = read(&odt).expect("read oversized spans");
+        let Some(Block::Table(table)) = document.blocks.first() else {
+            panic!("expected a table");
+        };
+        assert_eq!(table.col_specs.len(), 3);
+        let rows = &table.bodies[0].body;
+        let first = if header {
+            &table.head.rows[0]
+        } else {
+            &rows[0]
+        };
+        assert_eq!(first.cells.len(), 1);
+        assert_eq!(first.cells[0].col_span, 3);
+        assert_eq!(first.cells[0].row_span, if header { 1 } else { 2 });
+        assert_eq!(
+            rows.last().expect("last row").cells.len(),
+            if header { 3 } else { 0 }
+        );
+    }
+}
+
+#[test]
 fn list_preprocessing_reserves_heading_ids_and_nested_continuation_numbers() {
     let body = content(
         "<text:list><text:list-item><text:h text:outline-level=\"1\">Title</text:h>\

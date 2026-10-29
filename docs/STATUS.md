@@ -253,8 +253,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-- Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
-  is taken as the sum of colspans and rows go ragged.
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
 
