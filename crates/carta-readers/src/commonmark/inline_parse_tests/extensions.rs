@@ -28,6 +28,38 @@ fn superscript_caret() {
     );
 }
 
+#[test]
+fn markdown_keeps_empty_scripts_and_pairs_adjacent_delimiters() {
+    let extensions = exts(&[Extension::Superscript, Extension::Subscript]);
+    for (source, expected) in [
+        (
+            "a^^b",
+            vec![str("a"), Inline::Superscript(vec![]), str("b")],
+        ),
+        ("a~~b", vec![str("a"), Inline::Subscript(vec![]), str("b")]),
+        (
+            "^^a^^",
+            vec![
+                Inline::Superscript(vec![]),
+                str("a"),
+                Inline::Superscript(vec![]),
+            ],
+        ),
+        ("^^^a^^^", vec![Inline::Superscript(vec![str("a")])]),
+        (
+            "^a^^b^",
+            vec![Inline::Superscript(vec![str("a"), str("b")])],
+        ),
+        (
+            "a^b^^",
+            vec![str("a"), Inline::Superscript(vec![str("b")]), str("^")],
+        ),
+    ] {
+        assert_eq!(pm(source, extensions), expected, "{source}");
+    }
+    assert_eq!(pe("a^^b", extensions), vec![str("a^^b")]);
+}
+
 // Markdown-dialect inline rules
 
 #[test]

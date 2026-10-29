@@ -154,7 +154,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Shares the `markdown` reader gaps.
 
 ### `markdown_mmd` ✅
-- An empty sub/superscript delimiter pair (`x^^y`, `a~~b`) is not read as an empty span.
 - A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.
 - An implicit header reference does not resolve against a header whose identifier was set by the
   trailing `[id]` syntax.

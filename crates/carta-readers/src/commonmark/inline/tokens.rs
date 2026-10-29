@@ -586,8 +586,16 @@ impl InlineParser<'_> {
 
     pub(super) fn emphasis_run(&mut self, ch: u8) {
         let start = self.pos;
+        let script = self.notes.markdown
+            && (ch == b'^'
+                || (ch == b'~'
+                    && self.ext.contains(Extension::Subscript)
+                    && !self.ext.contains(Extension::Strikeout)));
         while self.peek() == Some(ch as char) {
             self.pos += 1;
+            if script {
+                break;
+            }
         }
         let count = self.pos - start;
         let before = char_before(self.text, start);
@@ -596,6 +604,12 @@ impl InlineParser<'_> {
         let relax_underscore =
             self.notes.markdown && !self.ext.contains(Extension::IntrawordUnderscores);
         let (can_open, can_close) = run_flanking(ch, before, after, relax_underscore);
+        if script
+            && matches!(self.nodes.last(), Some(Node::Delimiter(delimiter)) if delimiter.ch == ch)
+        {
+            // Leave a slot for an empty script between adjacent delimiters.
+            self.nodes.push(Node::Empty);
+        }
         self.nodes.push(Node::Delimiter(Delimiter {
             ch,
             count,

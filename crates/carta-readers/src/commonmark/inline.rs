@@ -337,8 +337,18 @@ pub(super) fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
                 }
                 text.push_str(&delimiter_literal(d.ch, d.count));
             }
-            Node::Inline(inline) => {
+            Node::Inline(mut inline) => {
                 flush(&mut text, &mut out);
+                if let Some(previous) = out.last_mut() {
+                    match (previous, &mut inline) {
+                        (Inline::Superscript(previous), Inline::Superscript(content))
+                        | (Inline::Subscript(previous), Inline::Subscript(content)) => {
+                            previous.append(content);
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
                 out.push(inline);
             }
             Node::SoftBreak => {
