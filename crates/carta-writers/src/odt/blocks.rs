@@ -38,6 +38,7 @@ impl Builder<'_> {
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, fixed),
             Block::LineBlock(lines) => self.line_block_like(lines, fixed),
             Block::Div(attr, inner) => self.div(attr, inner, fixed),
+            Block::RawBlock(..) | Block::Figure(..) => self.block_other(block),
             other => {
                 self.block_other(other);
                 self.first_para = true;
@@ -712,6 +713,39 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raw_blocks_and_figures_preserve_the_flowing_paragraph_state() {
+        let options = carta_core::WriterOptions::default();
+        let blocks = [
+            Block::RawBlock(carta_ast::Format("html".into()), "<p>Drop</p>".into()),
+            Block::RawBlock(
+                carta_ast::Format("opendocument".into()),
+                "<text:p>Raw</text:p>".into(),
+            ),
+            Block::Figure(
+                Box::default(),
+                Box::default(),
+                vec![Block::Para(vec![Inline::Str("Figure".into())])],
+            ),
+        ];
+        for block in blocks {
+            for first in [false, true] {
+                let mut builder = Builder::new(&options);
+                builder.first_para = first;
+                builder.render_blocks(std::slice::from_ref(&block), None);
+                builder.render_blocks(&[Block::Para(vec![Inline::Str("After".into())])], None);
+                let style = if first {
+                    "First_20_paragraph"
+                } else {
+                    "Text_20_body"
+                };
+                assert!(builder.body.ends_with(&format!(
+                    "<text:p text:style-name=\"{style}\">After</text:p>"
+                )));
+            }
+        }
+    }
 
     #[test]
     fn list_definitions_follow_numbering_and_delimiter_order() {
