@@ -400,7 +400,7 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\lim_x",
         true,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><munder><mi>lim</mi><mi>x</mi></munder></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><munder><mi mathvariant=\"normal\">lim</mi><mi>x</mi></munder></math>",
         ),
     ),
     (

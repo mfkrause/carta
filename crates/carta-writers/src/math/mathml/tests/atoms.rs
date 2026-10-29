@@ -124,14 +124,14 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\sin",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>sin</mi></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi mathvariant=\"normal\">sin</mi></math>",
         ),
     ),
     (
         "\\lim",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>lim</mi></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi mathvariant=\"normal\">lim</mi></math>",
         ),
     ),
     (

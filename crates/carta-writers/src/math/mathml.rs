@@ -120,8 +120,17 @@ pub(super) fn lower_seq(atoms: &[Atom], display: bool, depth: usize) -> Vec<Node
         return Vec::new();
     }
     let mut out = Vec::new();
-    for atom in atoms {
-        out.append(&mut lower_atom(atom, display, depth));
+    let mut atoms = atoms
+        .iter()
+        .filter(|atom| !matches!(atom.body, Body::Label(_)))
+        .peekable();
+    while let Some(atom) = atoms.next() {
+        out.append(&mut lower_atom(
+            atom,
+            atoms.peek().is_some(),
+            display,
+            depth,
+        ));
     }
     out
 }
@@ -145,18 +154,27 @@ pub(super) fn slot(atoms: &[Atom], display: bool, depth: usize) -> Node {
 }
 
 /// Lower one atom: its nucleus wrapped by whatever script chain it carries.
-fn lower_atom(atom: &Atom, display: bool, depth: usize) -> Vec<Node> {
+fn lower_atom(atom: &Atom, following: bool, display: bool, depth: usize) -> Vec<Node> {
     // A horizontal brace stacks its matching-side label, so it resolves before the script pass.
     if let Body::Brace(kind, inner) = &atom.body {
         return brace_atom(*kind, inner, atom, display, depth);
     }
 
-    let base = group(nucleus(&atom.body, display, depth));
-    if atom.sub.is_none() && atom.sup.is_none() && atom.siblings.is_empty() {
+    let scripted = atom.sub.is_some() || atom.sup.is_some() || !atom.siblings.is_empty();
+    let stack = stacks(atom, display);
+    let mut base = nucleus(&atom.body, display, depth);
+    if let Body::Command(name) = &atom.body
+        && symbols::named_function(name).is_some()
+        && (following || scripted)
+        && !(scripted && stack)
+    {
+        base.push(leaf("mo", "\u{2061}"));
+    }
+    let base = group(base);
+    if !scripted {
         return vec![base];
     }
 
-    let stack = stacks(atom, display);
     let mut node = apply_scripts(
         base,
         atom.sub.as_deref(),
@@ -367,7 +385,9 @@ fn command_nucleus(name: &str) -> Vec<Node> {
         return vec![leaf(tag, symbol.text.to_string())];
     }
     if let Some((word, _)) = symbols::named_function(name) {
-        return vec![leaf("mi", word.to_string())];
+        return vec![Node::Element(
+            Element::new("mi").attr("mathvariant", "normal").text(word),
+        )];
     }
     vec![leaf("mi", name.to_string())]
 }

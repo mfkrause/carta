@@ -26,6 +26,41 @@ fn xml_special_characters_are_escaped() {
 }
 
 #[test]
+fn function_application_tracks_scripts_and_following_atoms() {
+    for (source, display, body) in [
+        (
+            r"\sin x",
+            false,
+            "<mrow><mrow><mi mathvariant=\"normal\">sin</mi><mo>⁡</mo></mrow><mi>x</mi></mrow>",
+        ),
+        (
+            r"\sin^2",
+            false,
+            "<msup><mrow><mi mathvariant=\"normal\">sin</mi><mo>⁡</mo></mrow><mn>2</mn></msup>",
+        ),
+        (
+            r"\lim_x",
+            true,
+            "<munder><mi mathvariant=\"normal\">lim</mi><mi>x</mi></munder>",
+        ),
+        (
+            r"\sin\label{f}",
+            false,
+            "<mi mathvariant=\"normal\">sin</mi>",
+        ),
+    ] {
+        let mode = if display { "block" } else { "inline" };
+        assert_eq!(
+            to_mathml(source, display, false),
+            Some(format!(
+                "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"{mode}\">{body}</math>"
+            )),
+            "{source}",
+        );
+    }
+}
+
+#[test]
 fn deeply_nested_input_does_not_panic() {
     // a pathological brace nest is bounded by the depth limit: no stack overflow
     let source = format!("{}x{}", "{".repeat(400), "}".repeat(400));
