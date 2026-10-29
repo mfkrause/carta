@@ -307,9 +307,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `rst` ✅
 ### `dokuwiki` ✅
 ### `jira` ✅
-
 ### `mediawiki` ✅
-- Bullet lists inside definition-list items have incorrect spacing.
 
 ### `man` ✅
 - Code-block language attributes are ignored.

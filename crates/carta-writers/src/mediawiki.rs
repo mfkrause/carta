@@ -111,11 +111,12 @@ impl State {
             Block::BulletList(_) | Block::OrderedList(..) if html => self.html_list(block),
             Block::BulletList(items) => self.list(block, '*', items),
             Block::OrderedList(_, items) => self.list(block, '#', items),
+            Block::DefinitionList(items) if html => self.html_definition_list(items),
             Block::DefinitionList(items) => self.definition_list(items),
             Block::HorizontalRule => "-----".to_owned(),
             Block::Table(table) => self.table(table),
-            Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
-            Block::Div(attr, blocks) => self.division(attr, blocks),
+            Block::Figure(attr, _, blocks) => self.figure(attr, blocks, html),
+            Block::Div(attr, blocks) => self.division(attr, blocks, html),
             Block::LineBlock(lines) => self.line_block(lines),
         }
     }
@@ -136,7 +137,7 @@ impl State {
         }
     }
 
-    fn figure(&mut self, attr: &Attr, blocks: &[Block]) -> String {
+    fn figure(&mut self, attr: &Attr, blocks: &[Block], html: bool) -> String {
         let merged = Attr {
             id: attr.id.clone(),
             classes: std::iter::once(carta_ast::Text::from("figure"))
@@ -150,19 +151,19 @@ impl State {
                 if matches!(inlines.as_slice(), [Inline::Image(_, _, target)] if target.title == "fig:")
         );
         if legacy_image {
-            let body = self.blocks(blocks);
+            let body = self.block_seq(blocks, html);
             format!("<div{}>\n{body}\n</div>", render_html_attr(&merged))
         } else {
-            self.division(&merged, blocks)
+            self.division(&merged, blocks, html)
         }
     }
 
-    fn division(&mut self, attr: &Attr, blocks: &[Block]) -> String {
+    fn division(&mut self, attr: &Attr, blocks: &[Block], html: bool) -> String {
         if blocks.is_empty() {
             return format!("<div{}>\n</div>", render_html_attr(attr));
         }
-        let rendered = self.render_blocks(blocks, false);
-        let body = join_blocks(&rendered, false);
+        let rendered = self.render_blocks(blocks, html);
+        let body = join_blocks(&rendered, html);
         let trailing = match rendered.last() {
             Some((block, _))
                 if matches!(block, Block::Para(_) | Block::Div(..))

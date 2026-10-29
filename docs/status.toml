@@ -421,7 +421,6 @@ write-feature = "write-mediawiki"
 read-gaps = [
 ]
 write-gaps = [
-  "Bullet lists inside definition-list items have incorrect spacing.",
 ]
 
 [[format]]

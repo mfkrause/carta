@@ -58,7 +58,6 @@ man	common/list-nested-first-block
 # bullets on their own lines — so the case is skipped.
 beamer	common/list-bullet-in-definition
 latex	common/list-bullet-in-definition
-mediawiki	common/list-bullet-in-definition
 
 # Data-image references do not use the target's native resource handling.
 beamer	image-dimensions/image-embedded-jpeg

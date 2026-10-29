@@ -798,9 +798,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-mediawiki",
-        "gaps": [
-          "Bullet lists inside definition-list items have incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {

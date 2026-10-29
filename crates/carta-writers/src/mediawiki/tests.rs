@@ -40,3 +40,42 @@ fn plain_runs_on_into_the_next_block() {
     assert_eq!(separator(&plain, &Block::HorizontalRule, false), "\n\n");
     assert_eq!(separator(&para, &plain, false), "\n\n");
 }
+
+#[test]
+fn definition_lists_keep_html_context_through_containers() {
+    let list = Block::BulletList(vec![
+        vec![Block::Plain(vec![Inline::Str("alpha".into())])],
+        vec![Block::Plain(vec![Inline::Str("beta".into())])],
+    ]);
+    for (content, expected) in [
+        (
+            list.clone(),
+            "<ol start=\"2\">\n<li><dl>\n<dt>term</dt>\n<dd><ul>\n<li>alpha</li>\n<li>beta</li></ul></dd></dl></li></ol>",
+        ),
+        (
+            Block::Div(Box::default(), vec![list]),
+            "<ol start=\"2\">\n<li><dl>\n<dt>term</dt>\n<dd><div>\n<ul>\n<li>alpha</li>\n<li>beta</li></ul>\n\n</div></dd></dl></li></ol>",
+        ),
+    ] {
+        let document = Document {
+            blocks: vec![Block::OrderedList(
+                ListAttributes {
+                    start: 2,
+                    style: ListNumberStyle::DefaultStyle,
+                    delim: carta_ast::ListNumberDelim::DefaultDelim,
+                },
+                vec![vec![Block::DefinitionList(vec![(
+                    vec![Inline::Str("term".into())],
+                    vec![vec![content]],
+                )])]],
+            )],
+            ..Document::default()
+        };
+        assert_eq!(
+            MediawikiWriter
+                .write(&document, &WriterOptions::default())
+                .unwrap(),
+            expected
+        );
+    }
+}
