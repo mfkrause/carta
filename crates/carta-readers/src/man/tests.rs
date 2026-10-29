@@ -342,6 +342,24 @@ fn numbered_indented_paragraphs_become_an_ordered_list() {
 }
 
 #[test]
+fn alternating_font_macros_do_not_add_spaces_in_code_blocks() {
+    for macro_name in ["BR", "RB", "BI", "IB", "RI", "IR"] {
+        for (arguments, expected) in [
+            ("first second", "firstsecond"),
+            ("\"one two\" third", "one twothird"),
+            ("\"one  two\" third", "one  twothird"),
+            ("\"one\ttwo\" third", "one\ttwothird"),
+        ] {
+            let source = format!(".EX\n.{macro_name} {arguments}\n.EE\n");
+            assert_eq!(
+                read(&source).blocks,
+                [Block::CodeBlock(Box::default(), expected.into())]
+            );
+        }
+    }
+}
+
+#[test]
 fn manual_citations_keep_links_and_trailing_punctuation() {
     let document = read(".MR printf 3 ,\n");
     assert_eq!(

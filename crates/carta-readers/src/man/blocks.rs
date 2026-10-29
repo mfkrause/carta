@@ -75,9 +75,18 @@ impl Parser {
                         break;
                     }
                     "SH" | "SS" => break,
-                    "B" | "I" | "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
+                    "B" | "I" => {
                         self.advance();
                         text_lines.push(flatten(&split_args(rest).join(" "), &self.strings));
+                    }
+                    "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
+                        self.advance();
+                        text_lines.push(
+                            split_args(rest)
+                                .iter()
+                                .map(|argument| flatten(argument, &self.strings))
+                                .collect(),
+                        );
                     }
                     "SM" | "SB" | "MR" => {
                         self.advance();

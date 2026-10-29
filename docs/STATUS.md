@@ -176,7 +176,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `mediawiki` ✅
 
 ### `man` ✅
-- Verbatim regions flatten embedded font macros (literal tabs are preserved).
 - A `tbl` table using row or column spans degrades to a placeholder paragraph.
 
 ### `docx` ✅
