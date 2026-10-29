@@ -8,7 +8,7 @@ use super::directives::{
 };
 use super::markers::{Explicit, classify_explicit, explicit_body, explicit_extent};
 use super::{DEFAULT_ROLE, PENDING_CLASS, Parser, indent_of, line_at};
-use carta_ast::{Attr, Block, Caption, Format, Inline, MathType, Target};
+use carta_ast::{Attr, Block, Caption, ColWidth, Format, Inline, MathType, Target};
 
 impl Parser<'_> {
     // explicit markup
@@ -190,9 +190,13 @@ impl Parser<'_> {
                 };
             }
             "include" => {
-                if let Some(blocks) =
-                    included_blocks(argument.trim(), self.ext, self.work, self.includes)
-                {
+                if let Some(blocks) = included_blocks(
+                    argument.trim(),
+                    self.ext,
+                    self.columns,
+                    self.work,
+                    self.includes,
+                ) {
                     out.extend(blocks);
                 }
             }
@@ -311,21 +315,55 @@ impl Parser<'_> {
     fn table_directive(
         &mut self,
         argument: &str,
-        _options: &[(String, String)],
+        options: &[(String, String)],
         content: &[String],
         out: &mut Vec<Block>,
     ) {
         let mut blocks = self.blocks(content);
         let argument = argument.trim();
-        if !argument.is_empty() {
-            let caption = self.inlines(argument);
-            if let Some(Block::Table(table)) =
-                blocks.iter_mut().find(|b| matches!(b, Block::Table(_)))
-            {
+        if let Some(Block::Table(table)) = blocks
+            .iter_mut()
+            .find(|block| matches!(block, Block::Table(_)))
+        {
+            if !argument.is_empty() {
                 table.caption = Caption {
                     short: None,
-                    long: vec![Block::Plain(caption)],
+                    long: vec![Block::Plain(self.inlines(argument))],
                 };
+            }
+            if let Some((_, value)) = options.iter().find(|(key, _)| key == "widths") {
+                let value = value.trim();
+                if value != "grid" {
+                    let mut widths: Vec<f64> = if value == "auto" {
+                        Vec::new()
+                    } else {
+                        value
+                            .split(|character: char| character == ',' || character.is_whitespace())
+                            .filter(|token| !token.is_empty())
+                            .take(table.col_specs.len())
+                            .map(parse_table_width)
+                            .collect()
+                    };
+                    if value == "auto" && !table.head.rows.is_empty() {
+                        widths.resize(table.col_specs.len(), 0.0);
+                    }
+                    // Header cells reserve one separator column each.
+                    let margin = if table.head.rows.is_empty() {
+                        0
+                    } else {
+                        table.col_specs.len()
+                    };
+                    #[allow(clippy::cast_precision_loss)]
+                    let columns = self.columns.saturating_sub(margin).max(1) as f64;
+                    for (specification, width) in table.col_specs.iter_mut().zip(&widths) {
+                        specification.width = if *width > 0.0 {
+                            ColWidth::ColWidth(width / columns)
+                        } else {
+                            ColWidth::ColWidthDefault
+                        };
+                    }
+                    table.col_specs.truncate(widths.len());
+                }
             }
         }
         out.extend(blocks);
@@ -362,4 +400,35 @@ impl Parser<'_> {
             vec![Block::DefinitionList(items)],
         ))
     }
+}
+
+fn parse_table_width(mut value: &str) -> f64 {
+    while let Some(inner) = value
+        .strip_prefix('(')
+        .and_then(|inner| inner.strip_suffix(')'))
+    {
+        value = inner.trim();
+    }
+    if let Ok(number) = value.parse() {
+        return number;
+    }
+    let (radix, digits) = if let Some(digits) = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+    {
+        (16, digits)
+    } else if let Some(digits) = value
+        .strip_prefix("0o")
+        .or_else(|| value.strip_prefix("0O"))
+    {
+        (8, digits)
+    } else {
+        return 0.0;
+    };
+    digits
+        .chars()
+        .try_fold(0.0, |number, character| {
+            Some(number * f64::from(radix) + f64::from(character.to_digit(radix)?))
+        })
+        .unwrap_or(0.0)
 }

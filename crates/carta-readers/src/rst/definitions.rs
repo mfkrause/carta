@@ -102,6 +102,7 @@ pub(super) struct RoleChain {
 pub(super) fn included_blocks(
     path: &str,
     ext: Extensions,
+    columns: usize,
     work: &Cell<Option<usize>>,
     includes: &Includes,
 ) -> Option<Vec<Block>> {
@@ -135,6 +136,7 @@ pub(super) fn included_blocks(
         defs: &defs,
         work,
         ext,
+        columns,
         heading_styles: Vec::new(),
         ids: IdRegistry::default(),
         auto_footnote: 0,

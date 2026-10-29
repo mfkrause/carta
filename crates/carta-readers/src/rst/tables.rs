@@ -247,8 +247,8 @@ impl Parser<'_> {
 
         let last = *col_edges.last()?;
         let first = *col_edges.first()?;
-        let total = last.saturating_sub(first).saturating_sub(num_cols);
-        let divisor = total.max(72) as f64;
+        let total = last.saturating_sub(first);
+        let divisor = total.max(self.columns) as f64;
         let col_specs: Vec<ColSpec> = (0..num_cols)
             .map(|i| {
                 let lo = col_edges.get(i).copied().unwrap_or(0);

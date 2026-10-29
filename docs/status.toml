@@ -355,7 +355,6 @@ write = "usable"
 read-feature = "read-rst"
 write-feature = "write-rst"
 read-gaps = [
-  "The `table` directive's `:widths:` is not applied to the built table.",
 ]
 write-gaps = [
 ]

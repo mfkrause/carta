@@ -41,6 +41,7 @@ impl Reader for RstReader {
             defs: &defs,
             work: &work,
             ext: options.extensions,
+            columns: options.columns.max(1),
             heading_styles: Vec::new(),
             ids: IdRegistry::default(),
             auto_footnote: 0,
@@ -193,6 +194,7 @@ struct Parser<'a> {
     /// Remaining expanded text work, shared with included documents.
     work: &'a Cell<Option<usize>>,
     ext: Extensions,
+    columns: usize,
     heading_styles: Vec<(char, bool)>,
     ids: IdRegistry,
     auto_footnote: usize,

@@ -113,6 +113,8 @@ pub struct ReaderOptions {
     pub extensions: Extensions,
     /// Column grid a tab advances to in the formats that expand tabs. Zero leaves tabs as written.
     pub tab_stop: usize,
+    /// Source line width used to express table column widths as fractions.
+    pub columns: usize,
     /// When set, an open paragraph is greedy: a following line that would otherwise open a block (a
     /// blockquote, heading, list, thematic break, fenced div, or footnote definition) is folded
     /// into the paragraph as a lazy continuation instead. Only a blank line, a fenced code block, or
@@ -133,6 +135,7 @@ impl Default for ReaderOptions {
         Self {
             extensions: Extensions::default(),
             tab_stop: 4,
+            columns: 72,
             greedy_paragraphs: false,
             source_dir: None,
             source_dirs: std::collections::BTreeMap::new(),

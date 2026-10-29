@@ -205,8 +205,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
 ### `rst` ✅
-- The `table` directive's `:widths:` is not applied to the built table.
-
 ### `dokuwiki` ✅
 ### `jira` ✅
 ### `mediawiki` ✅

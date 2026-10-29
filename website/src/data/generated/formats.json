@@ -679,9 +679,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-rst",
-        "gaps": [
-          "The `table` directive's `:widths:` is not applied to the built table."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

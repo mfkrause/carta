@@ -407,6 +407,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let verbatim = writer_options.standalone || cli.template.is_some();
 
     let mut reader_options = ReaderOptions::default();
+    reader_options.columns = writer_options.columns.unwrap_or(72);
     if let Some(tab_stop) = cli.tab_stop {
         reader_options.tab_stop = tab_stop;
     }

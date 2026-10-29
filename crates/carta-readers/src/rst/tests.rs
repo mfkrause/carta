@@ -442,3 +442,102 @@ fn figure_directive_separates_figure_and_image_attributes() {
     let inner = first_image_attr(&body).expect("an inner image");
     assert_eq!(inner.classes, vec!["photo".to_string()]);
 }
+
+#[test]
+fn table_widths_use_the_reader_column_setting() {
+    use carta_ast::ColWidth;
+
+    let mut options = ReaderOptions::default();
+    options.columns = 20;
+    for (widths, expected) in [
+        (
+            "10 30",
+            vec![ColWidth::ColWidth(0.5), ColWidth::ColWidth(1.5)],
+        ),
+        (
+            "0 10",
+            vec![ColWidth::ColWidthDefault, ColWidth::ColWidth(0.5)],
+        ),
+        ("auto", Vec::new()),
+        (
+            "grid",
+            vec![ColWidth::ColWidth(0.2), ColWidth::ColWidth(0.2)],
+        ),
+    ] {
+        let source = format!(
+            ".. table:: Caption\n   :widths: {widths}\n\n   +---+---+\n   | a | b |\n   +---+---+\n"
+        );
+        let document = RstReader.read(&source, &options).unwrap();
+        let Block::Table(table) = &document.blocks[0] else {
+            panic!()
+        };
+        assert_eq!(
+            table
+                .col_specs
+                .iter()
+                .map(|column| column.width.clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            table.caption.long,
+            vec![Block::Plain(vec![Inline::Str("Caption".into())])]
+        );
+    }
+}
+
+#[test]
+fn header_table_widths_keep_space_for_cell_separators() {
+    use carta_ast::ColWidth;
+
+    let mut options = ReaderOptions::default();
+    options.columns = 20;
+    for (widths, expected) in [
+        (
+            "9 18",
+            vec![ColWidth::ColWidth(0.5), ColWidth::ColWidth(1.0)],
+        ),
+        (
+            "auto",
+            vec![ColWidth::ColWidthDefault, ColWidth::ColWidthDefault],
+        ),
+    ] {
+        let source = format!(
+            ".. table::\n   :widths: {widths}\n\n   === ===\n   a   b\n   === ===\n   c   d\n   === ===\n"
+        );
+        let document = RstReader.read(&source, &options).unwrap();
+        let Block::Table(table) = &document.blocks[0] else {
+            panic!()
+        };
+        assert_eq!(
+            table
+                .col_specs
+                .iter()
+                .map(|column| column.width.clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+}
+
+#[test]
+fn narrow_grid_tables_keep_normalized_column_widths() {
+    use carta_ast::ColWidth;
+
+    let mut options = ReaderOptions::default();
+    options.columns = 1;
+    let document = RstReader
+        .read("+---+---+\n| a | b |\n+---+---+\n", &options)
+        .unwrap();
+    let Block::Table(table) = &document.blocks[0] else {
+        panic!()
+    };
+    assert_eq!(
+        table
+            .col_specs
+            .iter()
+            .map(|column| column.width.clone())
+            .collect::<Vec<_>>(),
+        vec![ColWidth::ColWidth(0.5), ColWidth::ColWidth(0.5)]
+    );
+}
