@@ -16,14 +16,45 @@ use super::support::{
     switch_kind, symbol_text, trim_inlines, unescape_url, word_accent,
 };
 use super::tables::image_attributes;
-use super::{Frame, InlineStop, Parser, Stop};
+use super::{Frame, InlineStop, Parser, RAW_COMMAND, Stop};
+
+fn raw_commands_only(inlines: &[Inline]) -> bool {
+    !inlines.is_empty()
+        && inlines
+            .iter()
+            .all(|inline| matches!(inline, Inline::RawInline(format, _) if format.0 == RAW_COMMAND))
+}
 
 impl Parser {
     // Paragraph & inline
 
-    pub(super) fn parse_paragraph(&mut self) -> Vec<Inline> {
+    pub(super) fn parse_paragraph(&mut self) -> Vec<Block> {
         let inlines = self.parse_inlines(InlineStop::Paragraph);
-        trim_inlines(inlines)
+        let inlines = trim_inlines(inlines);
+        if raw_commands_only(&inlines) && (self.eof() || matches!(self.cur(), Some('\n' | '\r'))) {
+            return inlines
+                .iter()
+                .filter_map(|inline| {
+                    let Inline::RawInline(_, raw) = inline else {
+                        return None;
+                    };
+                    let end = raw
+                        .rfind('\n')
+                        .filter(|&index| {
+                            raw.get(index..)
+                                .is_some_and(|tail| tail.chars().all(char::is_whitespace))
+                        })
+                        .unwrap_or(raw.len());
+                    let raw = raw.get(..end).unwrap_or_default().trim_end_matches('\r');
+                    Some(Block::RawBlock(Format("latex".into()), raw.into()))
+                })
+                .collect();
+        }
+        if inlines.is_empty() {
+            Vec::new()
+        } else {
+            vec![Block::Para(inlines)]
+        }
     }
 
     /// Parse inlines until `stop`.
@@ -31,6 +62,7 @@ impl Parser {
         carta_core::with_stack(|| self.parse_inlines_inner(stop))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn parse_inlines_inner(&mut self, stop: InlineStop) -> Vec<Inline> {
         let mut out = Vec::new();
         let mut buf = String::new();
@@ -38,6 +70,13 @@ impl Parser {
             let Some(c) = self.cur() else {
                 break;
             };
+            if matches!(stop, InlineStop::Paragraph)
+                && matches!(c, '\n' | '\r')
+                && buf.is_empty()
+                && raw_commands_only(&out)
+            {
+                break;
+            }
             match stop {
                 InlineStop::Group if c == '}' => break,
                 InlineStop::Bracket if c == ']' => break,
@@ -246,8 +285,16 @@ impl Parser {
             self.exec_control_symbol(out, buf);
             return;
         }
-        let name = self.consume_control_word();
-        self.exec_named(&name, out, buf);
+        let name = self.peek_control_word().unwrap_or_default();
+        self.advance_chars(name.len() + 1);
+        let mut whitespace = String::new();
+        while let Some(character @ (' ' | '\t')) = self.cur() {
+            self.bump();
+            if self.ext.contains(Extension::RawTex) {
+                whitespace.push(character);
+            }
+        }
+        self.exec_named(&name, &whitespace, out, buf);
     }
 
     pub(super) fn exec_control_symbol(&mut self, out: &mut Vec<Inline>, buf: &mut String) {
@@ -312,7 +359,13 @@ impl Parser {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub(super) fn exec_named(&mut self, name: &str, out: &mut Vec<Inline>, buf: &mut String) {
+    pub(super) fn exec_named(
+        &mut self,
+        name: &str,
+        whitespace: &str,
+        out: &mut Vec<Inline>,
+        buf: &mut String,
+    ) {
         // Wrapping formatters. Most pull surrounding spacing out of the wrapper; underline keeps it.
         if let Some(wrap) = inline_wrapper(name) {
             let inner = self.parse_group_inlines();
@@ -508,14 +561,14 @@ impl Parser {
                 if let Some(text) = symbol_text(name) {
                     buf.push_str(text);
                 } else if self.ext.contains(Extension::RawTex) {
-                    let raw = self.reconstruct_command(name);
+                    let raw = self.reconstruct_command(name, whitespace);
                     emit(
                         out,
                         buf,
-                        Inline::RawInline(Format("latex".into()), raw.into()),
+                        Inline::RawInline(Format(RAW_COMMAND.into()), raw.into()),
                     );
                 } else {
-                    self.skip_adjacent_arguments();
+                    let _ = self.reconstruct_command(name, whitespace);
                 }
             }
         }
@@ -523,8 +576,15 @@ impl Parser {
 
     /// Rebuilds an unknown command's source, including any immediately following optional and braced
     /// arguments, for verbatim passthrough.
-    pub(super) fn reconstruct_command(&mut self, name: &str) -> String {
-        let mut raw = format!("\\{name}");
+    pub(super) fn reconstruct_command(&mut self, name: &str, whitespace: &str) -> String {
+        let mut raw = format!("\\{name}{whitespace}");
+        if self.cur() == Some('*') {
+            self.bump();
+            raw.push('*');
+            while self.cur().is_some_and(char::is_whitespace) {
+                self.bump();
+            }
+        }
         loop {
             match self.cur() {
                 Some('[') => {
@@ -532,6 +592,26 @@ impl Parser {
                         raw.push('[');
                         raw.push_str(&opt);
                         raw.push(']');
+                        let mut length = 0;
+                        let mut newline = None;
+                        while let Some(character) = self.at(length) {
+                            if !matches!(character, ' ' | '\t' | '\r' | '\n') {
+                                break;
+                            }
+                            if character == '\n' {
+                                if let Some(first) = newline {
+                                    length = first;
+                                    break;
+                                }
+                                newline = Some(length);
+                            }
+                            length += 1;
+                        }
+                        for _ in 0..length {
+                            if let Some(character) = self.bump() {
+                                raw.push(character);
+                            }
+                        }
                     } else {
                         break;
                     }

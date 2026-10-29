@@ -147,26 +147,6 @@ impl Parser {
         }
     }
 
-    /// Consumes the optional and braced argument groups directly following a command, stopping at the
-    /// first space or other token. Used to swallow an unknown command's arguments.
-    pub(super) fn skip_adjacent_arguments(&mut self) {
-        loop {
-            match self.cur() {
-                Some('[') => {
-                    if self.read_optional_raw().is_none() {
-                        break;
-                    }
-                }
-                Some('{') => {
-                    if self.read_group_raw().is_none() {
-                        break;
-                    }
-                }
-                _ => break,
-            }
-        }
-    }
-
     /// Captures a `\title`/`\author`/`\date`-family command's argument as document metadata.
     pub(super) fn capture_meta(&mut self, name: &str) {
         let _ = self.read_optional_raw();

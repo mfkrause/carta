@@ -1,5 +1,6 @@
 //! Read LaTeX documents, metadata, and macro definitions.
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -17,6 +18,8 @@ mod inline;
 mod support;
 mod tables;
 
+const RAW_COMMAND: &str = "\0latex-command";
+
 #[cfg(test)]
 mod tests;
 
@@ -26,8 +29,9 @@ pub struct LatexReader;
 
 impl Reader for LatexReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
+        let input = expand_tabs(input);
         let ext = options.extensions;
-        let (preamble, body) = split_document(input);
+        let (preamble, body) = split_document(&input);
 
         let base_level = base_section_level(body);
 
@@ -59,7 +63,7 @@ impl Reader for LatexReader {
         parser.set_source(body);
         let blocks = parser.parse_blocks(&Stop::Env("document"));
 
-        Ok(Document {
+        let mut document = Document {
             meta: parser
                 .meta
                 .into_iter()
@@ -67,8 +71,35 @@ impl Reader for LatexReader {
                 .collect(),
             blocks,
             ..Document::default()
-        })
+        };
+        carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+            if let carta_ast::Inline::RawInline(format, _) = inline
+                && format.0 == RAW_COMMAND
+            {
+                format.0 = "latex".into();
+            }
+        });
+        Ok(document)
     }
+}
+
+fn expand_tabs(input: &str) -> Cow<'_, str> {
+    if !input.contains('\t') {
+        return Cow::Borrowed(input);
+    }
+    let mut output = String::with_capacity(input.len());
+    let mut column = 0;
+    for character in input.chars() {
+        if character == '\t' {
+            let spaces = 4 - column % 4;
+            output.extend(std::iter::repeat_n(' ', spaces));
+            column += spaces;
+        } else {
+            output.push(character);
+            column = if character == '\n' { 0 } else { column + 1 };
+        }
+    }
+    Cow::Owned(output)
 }
 
 /// Splits the source into an optional preamble and the body to render. With a `\begin{document}`,
@@ -354,10 +385,20 @@ impl Parser {
             if let Some(mut produced) = self.parse_block_construct() {
                 blocks.append(&mut produced);
             } else {
+                let start = self
+                    .frames
+                    .last()
+                    .map(|frame| (Rc::as_ptr(&frame.source), frame.pos));
                 let para = self.parse_paragraph();
                 if !para.is_empty() {
-                    blocks.push(Block::Para(para));
-                } else if !self.advance_over_stray() {
+                    blocks.extend(para);
+                } else if start
+                    == self
+                        .frames
+                        .last()
+                        .map(|frame| (Rc::as_ptr(&frame.source), frame.pos))
+                    && !self.advance_over_stray()
+                {
                     break;
                 }
             }

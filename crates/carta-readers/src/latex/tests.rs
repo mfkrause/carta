@@ -28,6 +28,70 @@ fn parse_ext(input: &str, extensions: Extensions) -> Vec<Block> {
         .blocks
 }
 
+#[test]
+fn standalone_raw_commands_keep_arguments_and_end_at_a_new_line() {
+    let blocks = parse_ext(
+        "\\unknown[option] {argument}\nText.\n",
+        Extensions::from_list(&[Extension::RawTex]),
+    );
+    assert_eq!(
+        blocks,
+        vec![
+            Block::RawBlock(
+                Format("latex".into()),
+                "\\unknown[option] {argument}".into()
+            ),
+            Block::Para(vec![Inline::Str("Text.".into())]),
+        ]
+    );
+    assert_eq!(
+        parse_ext(
+            "\\unknown[option]\t{argument}",
+            Extensions::from_list(&[Extension::RawTex])
+        ),
+        vec![Block::RawBlock(
+            Format("latex".into()),
+            "\\unknown[option]    {argument}".into()
+        )]
+    );
+}
+
+#[test]
+fn inline_raw_commands_keep_consumed_spaces_and_nested_formats() {
+    let extensions = Extensions::from_list(&[Extension::RawTex]);
+    assert_eq!(
+        parse_ext("Before \\unknown[option] after.", extensions),
+        vec![Block::Para(vec![
+            Inline::Str("Before".into()),
+            Inline::Space,
+            Inline::RawInline(Format("latex".into()), "\\unknown[option] ".into()),
+            Inline::Str("after.".into()),
+        ])]
+    );
+    assert_eq!(
+        parse_ext("\\emph{\\unknown{argument}}", extensions),
+        vec![Block::Para(vec![Inline::Emph(vec![Inline::RawInline(
+            Format("latex".into()),
+            "\\unknown{argument}".into()
+        ),])])]
+    );
+}
+
+#[test]
+fn ignored_commands_keep_the_next_paragraph_intact() {
+    assert_eq!(
+        parse("\\unknown[option] {argument}\n\nText.\n"),
+        vec![Block::Para(vec![Inline::Str("Text.".into())])]
+    );
+    let extensions = Extensions::from_list(&[Extension::RawTex]);
+    assert_eq!(
+        parse_ext("\\begin{quote}\\unknown{argument}\\end{quote}", extensions),
+        vec![Block::BlockQuote(vec![Block::Para(vec![
+            Inline::RawInline(Format("latex".into()), "\\unknown{argument}".into())
+        ])])]
+    );
+}
+
 fn attr(attributes: Vec<(String, String)>) -> Attr {
     Attr {
         id: carta_ast::Text::default(),

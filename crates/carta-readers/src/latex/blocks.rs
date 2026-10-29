@@ -1,5 +1,7 @@
 //! Block-level LaTeX constructs: sectioning, environments, lists, verbatim, figures, and tables.
 
+use std::rc::Rc;
+
 use carta_ast::{
     Attr, Block, Caption, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
     MathType, MetaValue, slug, slug_gfm, to_plain_text,
@@ -416,10 +418,20 @@ impl Parser {
             if let Some(mut produced) = self.parse_block_construct() {
                 blocks.append(&mut produced);
             } else {
+                let start = self
+                    .frames
+                    .last()
+                    .map(|frame| (Rc::as_ptr(&frame.source), frame.pos));
                 let para = self.parse_paragraph();
                 if !para.is_empty() {
-                    blocks.push(Block::Para(para));
-                } else if !self.advance_over_stray() {
+                    blocks.extend(para);
+                } else if start
+                    == self
+                        .frames
+                        .last()
+                        .map(|frame| (Rc::as_ptr(&frame.source), frame.pos))
+                    && !self.advance_over_stray()
+                {
                     break;
                 }
             }

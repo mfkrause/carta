@@ -168,9 +168,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Only the `\begin{document}`…`\end{document}` body is rendered; the preamble contributes metadata
   (`\title`, `\author`, `\date`, `\subtitle`, `abstract`) and macro definitions but is otherwise
   dropped. A file with no `document` environment is read whole. `\institute` is dropped entirely.
-- With `raw_tex` off (the default), an unknown command is dropped together with its bracket and
-  brace arguments and an unknown environment becomes a classed `Div`; under `raw_tex` both are
-  preserved verbatim as raw LaTeX.
 - Delimited macro parameters, `\let` bindings, `\csname`/`\expandafter`, catcode changes, and
   multi-optional macros are unsupported. Expansion has a work allowance based on the source length.
 - Cross-reference commands (`\ref`, `\eqref`, `\autoref`, `\cref`, `\pageref`) resolve to a link
