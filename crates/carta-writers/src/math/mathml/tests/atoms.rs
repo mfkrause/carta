@@ -299,14 +299,14 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "\\tfrac{a}{b}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mfrac linethickness=\"0\"><mi>a</mi><mi>b</mi></mfrac></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mstyle displaystyle=\"false\"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle></math>",
         ),
     ),
     (
         "\\dfrac{a}{b}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mfrac><mi>a</mi><mi>b</mi></mfrac></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mstyle displaystyle=\"true\"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle></math>",
         ),
     ),
     (

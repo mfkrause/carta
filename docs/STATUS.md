@@ -406,8 +406,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   and relation operators.
 - An uppercase Greek letter emits a bare `mi` with no `mathvariant="normal"`, rendering slanted
   rather than upright.
-- `\dfrac` and `\tfrac` embed as a plain fraction without the display-style wrapper that would set
-  their size apart.
 - The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.
 - `--number-sections` is a no-op: headings carry no computed section numbers.
 - Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token

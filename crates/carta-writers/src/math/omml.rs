@@ -451,8 +451,8 @@ fn nucleus(body: &Body, style: Style, depth: usize) -> Option<Vec<Element>> {
         Body::Group(atoms) => lower_seq(atoms, style, depth + 1, false),
         Body::Frac(frac_style, numerator, denominator) => {
             let kind = match frac_style {
-                FracStyle::Bar => "bar",
-                FracStyle::Linear => "lin",
+                FracStyle::Default | FracStyle::Display => "bar",
+                FracStyle::Text => "lin",
             };
             Some(vec![fraction(numerator, denominator, kind, style, depth)?])
         }

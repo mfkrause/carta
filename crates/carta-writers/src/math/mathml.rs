@@ -405,15 +405,26 @@ fn fraction(
     display: bool,
     depth: usize,
 ) -> Node {
-    let mut frac = Element::new("mfrac");
-    if style == FracStyle::Linear {
-        frac = frac.attr("linethickness", "0");
+    let fraction = Node::Element(
+        Element::new("mfrac")
+            .node(slot(numerator, display, depth))
+            .node(slot(denominator, display, depth)),
+    );
+    match style {
+        FracStyle::Default => fraction,
+        FracStyle::Display | FracStyle::Text => Node::Element(
+            Element::new("mstyle")
+                .attr(
+                    "displaystyle",
+                    if style == FracStyle::Display {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                )
+                .node(fraction),
+        ),
     }
-    Node::Element(frac.node(slot(numerator, display, depth)).node(slot(
-        denominator,
-        display,
-        depth,
-    )))
 }
 
 fn radical(index: Option<&[Atom]>, radicand: &[Atom], display: bool, depth: usize) -> Node {

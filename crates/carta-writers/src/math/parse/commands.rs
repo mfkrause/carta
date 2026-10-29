@@ -137,10 +137,10 @@ pub(super) fn parse_command(
         "frac" | "dfrac" | "tfrac" => {
             let num = parse_required_group(tokens, pos, depth, tail)?;
             let den = parse_required_group(tokens, pos, depth, tail)?;
-            let style = if name == "tfrac" {
-                FracStyle::Linear
-            } else {
-                FracStyle::Bar
+            let style = match name {
+                "dfrac" => FracStyle::Display,
+                "tfrac" => FracStyle::Text,
+                _ => FracStyle::Default,
             };
             Some(Atom::new(Body::Frac(style, num, den)))
         }

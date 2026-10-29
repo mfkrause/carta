@@ -40,16 +40,20 @@ expression: output
 <!-- Formula-2/content.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
 <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
-<mfrac linethickness="0">
-<mi>a</mi>
-<mi>b</mi>
-</mfrac>
-</math>
-<!-- Formula-4/content.xml -->
-<?xml version="1.0" encoding="UTF-8"?>
-<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+<mstyle displaystyle="false">
 <mfrac>
 <mi>a</mi>
 <mi>b</mi>
 </mfrac>
+</mstyle>
+</math>
+<!-- Formula-4/content.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+<mstyle displaystyle="true">
+<mfrac>
+<mi>a</mi>
+<mi>b</mi>
+</mfrac>
+</mstyle>
 </math>

@@ -66,8 +66,7 @@ pub(super) enum Body {
     Accent(String, Vec<Atom>),
     /// A styled-alphabet/operator command applied to a single brace group, e.g. `\mathbb{R}`.
     Styled(String, Vec<Atom>),
-    /// `\frac{..}{..}` with its bar style, numerator and denominator. `\frac`/`\dfrac` draw a
-    /// horizontal bar; `\tfrac` sets the two arguments on one line without a bar.
+    /// A fraction with its size, numerator, and denominator.
     Frac(FracStyle, Vec<Atom>, Vec<Atom>),
     /// `\sqrt{..}` or `\sqrt[n]{..}` with an optional index.
     Sqrt(Option<Vec<Atom>>, Vec<Atom>),
@@ -132,10 +131,12 @@ pub(super) enum StackSide {
 /// How a fraction sets its numerator and denominator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FracStyle {
-    /// `\frac`/`\dfrac`: a horizontal bar separates the two arguments.
-    Bar,
-    /// `\tfrac`: the two arguments sit on one line with no bar.
-    Linear,
+    /// `\frac`: use the surrounding math size.
+    Default,
+    /// `\dfrac`: use display size.
+    Display,
+    /// `\tfrac`: use text size.
+    Text,
 }
 
 /// The flavour of an aligned/grid environment.
