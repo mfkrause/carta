@@ -99,6 +99,7 @@ enum CellBody {
     Inline {
         fragments: Vec<Fragment>,
         trailing_space: bool,
+        paragraph: bool,
     },
     Blocks {
         body: String,
@@ -109,18 +110,20 @@ enum CellBody {
 fn cell_body(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> CellBody {
     match cell.content.as_slice() {
         [] => CellBody::Empty,
-        [Block::Plain(inlines) | Block::Para(inlines)] => CellBody::Inline {
+        [block @ (Block::Plain(inlines) | Block::Para(inlines))] => CellBody::Inline {
             fragments: fragments(inlines, width, wrap, smart),
             trailing_space: matches!(inlines.last(), Some(Inline::Space)),
+            paragraph: matches!(block, Block::Para(_)),
         },
         other => {
             let body = blocks(other, width, wrap, smart);
-            if body.is_empty() {
+            if body.is_empty() && !other.iter().any(|block| matches!(block, Block::Para(_))) {
                 CellBody::Empty
             } else {
                 CellBody::Blocks {
+                    trailing_newline: body.is_empty()
+                        || !matches!(other.last(), Some(Block::Plain(_))),
                     body,
-                    trailing_newline: !matches!(other.last(), Some(Block::Plain(_))),
                 }
             }
         }
@@ -189,7 +192,11 @@ fn trailing_glue_widths(cells: &[(String, CellBody)], suffix: &str) -> Vec<usize
 fn leading_run(body: &CellBody) -> (usize, bool) {
     match body {
         CellBody::Empty => (0, false),
-        CellBody::Inline { fragments, .. } => {
+        CellBody::Inline {
+            fragments,
+            paragraph,
+            ..
+        } => {
             let mut run = 0;
             for fragment in fragments {
                 match fragment {
@@ -197,7 +204,7 @@ fn leading_run(body: &CellBody) -> (usize, bool) {
                     Fragment::Space | Fragment::Soft | Fragment::LineBreak => return (run, true),
                 }
             }
-            (run, false)
+            (run, *paragraph)
         }
         CellBody::Blocks { body, .. } => {
             let first_line = body.split('\n').next().unwrap_or("");
@@ -285,10 +292,16 @@ fn render_cell_body(
         CellBody::Inline {
             fragments,
             trailing_space,
+            paragraph,
         } => {
+            let glue = if *paragraph { 0 } else { glue };
             let filled = fill_cell(fragments, bracket_column + 1, indent, width, wrap, glue);
+            let filled = indent_continuation(&filled, &pad);
+            if *paragraph {
+                return format!("[{filled}\n\n{pad}]");
+            }
             let closing = if *trailing_space { " ]" } else { "]" };
-            format!("[{}{closing}", indent_continuation(&filled, &pad))
+            format!("[{filled}{closing}")
         }
         CellBody::Blocks {
             body,
@@ -316,4 +329,34 @@ fn indent_continuation(body: &str, indent: &str) -> String {
         out.push_str(line);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paragraph_cells_keep_their_closing_break() {
+        for (content, expected) in [
+            (Block::Plain(vec![Inline::Str("cell".into())]), "[cell]"),
+            (Block::Para(Vec::new()), "[\n\n    ]"),
+            (
+                Block::Para(vec![Inline::Str("cell".into())]),
+                "[cell\n\n    ]",
+            ),
+        ] {
+            let cell = Cell {
+                attr: Default::default(),
+                align: Alignment::AlignDefault,
+                row_span: 1,
+                col_span: 1,
+                content: vec![content],
+            };
+            let body = cell_body(&cell, 72, WrapMode::Auto, false);
+            assert_eq!(
+                render_cell_body(&body, 4, 4, 72, WrapMode::Auto, 0),
+                expected
+            );
+        }
+    }
 }

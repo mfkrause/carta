@@ -502,7 +502,7 @@ fn deeply_nested_tables_render_without_compounding_layout() {
             content,
         };
         let filler = Cell {
-            content: vec![para(vec![str_inline("cell")])],
+            content: vec![Block::Plain(vec![str_inline("cell")])],
             ..cell.clone()
         };
         let spec = ColSpec {
