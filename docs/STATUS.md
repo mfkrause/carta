@@ -168,7 +168,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Delimited macro parameters, `\let` bindings, `\csname`/`\expandafter`, catcode changes, and
   multi-optional macros are unsupported. Expansion has a work allowance based on the source length.
 - `\multirow` spans are not modeled.
-- Partial `\cline` rules are not modeled.
 - Nested tables may flatten.
 
 ### `typst` ✅
