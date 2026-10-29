@@ -385,6 +385,11 @@ fn typst_multi_digit_exponent_is_not_parenthesised() {
 #[test]
 fn typst_binary_mod_uses_medium_spaced_operator() {
     assert_eq!(to_typst("a \\bmod b").as_deref(), Some("a med mod med b"));
+    assert_eq!(
+        to_typst("a \\bmod {b+c}^2").as_deref(),
+        Some("a med mod med b + c^2")
+    );
+    assert_eq!(to_typst("a \\bmod {}").as_deref(), Some("a med mod med "));
 }
 
 #[test]

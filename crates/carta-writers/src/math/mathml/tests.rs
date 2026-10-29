@@ -118,3 +118,12 @@ fn deeply_nested_input_does_not_panic() {
     let source = format!("{}x{}", "{".repeat(400), "}".repeat(400));
     let _ = to_mathml(&source, false, false);
 }
+
+#[test]
+fn modulo_keeps_grouped_scripts_inside_the_operator_row() {
+    for command in ["bmod", "mod"] {
+        let source = format!("s\\{command} {{p+q}}^3+t");
+        let rendered = to_mathml(&source, false, false).expect("valid math");
+        assert!(rendered.contains("<msup><mrow><mi>p</mi><mo>+</mo><mi>q</mi></mrow><mn>3</mn></msup></mrow><mo>+</mo><mi>t</mi>"));
+    }
+}

@@ -87,8 +87,7 @@ pub(super) enum Body {
     /// paren takes its left form when written as `\middle(`, its right form as `\middle)`; a
     /// symmetric bar carries no side).
     Middle(Option<Delim>, bool),
-    /// A modulo operator. The kind selects the spacing and bracketing; the optional argument is the
-    /// bracketed modulus for the parenthesised forms.
+    /// A modulo operator with its operand. The kind selects spacing and bracketing.
     Mod(ModKind, Option<Vec<Atom>>),
     /// A `\not`-negated relation: the name of the relation being struck through (a command name, or a
     /// single character written as a one-character string for the literal forms `\not=`/`\not<`).
@@ -195,7 +194,7 @@ pub(super) enum ModKind {
     Bmod,
     /// `\pmod{..}`: a parenthesised `(mod ..)` trailing form.
     Pmod,
-    /// `\mod ..`: the `mod` operator that leads its following operand, which stays a separate atom.
+    /// `\mod ..`: the `mod` operator leading its operand.
     Mod,
     /// `\pod{..}`: a parenthesised `(..)` trailing form without the `mod` word.
     Pod,
@@ -836,6 +835,42 @@ fn parse_atom_into(
         out.push(Atom::new(Body::Number(rest)));
     }
     Some(())
+}
+
+fn parse_mod_argument(
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+    tail: &mut Option<String>,
+) -> Option<Vec<Atom>> {
+    skip_spaces(tokens, pos);
+    let mut atom = parse_atom(tokens, pos, depth + 1, tail)?;
+    let mut chain = ScriptChain::default();
+    while tail.is_none() {
+        skip_spaces(tokens, pos);
+        match tokens.get(*pos) {
+            Some(Token::Sub | Token::Sup) => {
+                let kind = if matches!(tokens.get(*pos), Some(Token::Sup)) {
+                    ScriptKind::Sup
+                } else {
+                    ScriptKind::Sub
+                };
+                *pos += 1;
+                let script = parse_script(tokens, pos, depth + 1)?;
+                attach_script(&mut atom, &mut chain, kind, script)?;
+            }
+            Some(Token::Char('\'')) if !prime_detaches(&atom, &chain) => {
+                *pos += 1;
+                attach_prime(&mut atom, &mut chain)?;
+            }
+            Some(Token::Command(name)) if name == "limits" || name == "nolimits" => {
+                atom.limits = Some(name == "limits");
+                *pos += 1;
+            }
+            _ => break,
+        }
+    }
+    Some(vec![atom])
 }
 
 fn skip_spaces(tokens: &[Token], pos: &mut usize) {

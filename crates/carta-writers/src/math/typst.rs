@@ -164,19 +164,23 @@ fn is_number_char(c: char) -> bool {
     c.is_ascii_digit() || c == '.'
 }
 
-#[allow(clippy::similar_names)]
 fn atom_str(display: bool, atom: &Atom) -> Option<String> {
     if let Body::Brace(kind, inner) = &atom.body {
         return brace_str(display, *kind, inner, atom);
     }
     let has_scripts = atom.sub.is_some() || atom.sup.is_some() || !atom.siblings.is_empty();
-    let mut out = match &atom.body {
+    let out = match &atom.body {
         Body::Empty => "\"\"".to_string(),
         Body::Prime(count) => "'".repeat(*count as usize),
         Body::EmptyGroup if has_scripts => "zws".to_string(),
         Body::EmptyGroup => String::new(),
         body => nucleus_str(display, body)?,
     };
+    scripted_str(display, atom, out)
+}
+
+#[allow(clippy::similar_names)]
+fn scripted_str(display: bool, atom: &Atom, mut out: String) -> Option<String> {
     // Display limit primes use the superscript path instead of a literal mark.
     let stack_prime = display && is_limit_op_body(&atom.body);
     // Reused script slots start a fresh empty base; literal primes precede subscripts.

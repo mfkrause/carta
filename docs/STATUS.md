@@ -378,7 +378,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   than rewriting the internal link to a reference field.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
-- The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.
 - Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token
   styling.
 - Image intrinsic sizing reads only PNG, GIF, and JPEG pixel dimensions; other formats fall back to

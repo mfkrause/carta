@@ -236,28 +236,28 @@ pub(super) const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         "a\\bmod b",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mrow><mi mathvariant=\"normal\">mod</mi><mo>\u{2061}</mo></mrow><mspace width=\"0.222em\"></mspace></mrow><mi>b</mi></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mrow><mi mathvariant=\"normal\">mod</mi><mo>\u{2061}</mo></mrow><mspace width=\"0.222em\"></mspace><mi>b</mi></mrow></mrow></math>",
         ),
     ),
     (
         "a\\mod b",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.444em\"></mspace><mrow><mi mathvariant=\"normal\">mod</mi><mo>\u{2061}</mo></mrow><mspace width=\"0.222em\"></mspace></mrow><mi>b</mi></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.444em\"></mspace><mrow><mi mathvariant=\"normal\">mod</mi><mo>\u{2061}</mo></mrow><mspace width=\"0.222em\"></mspace><mi>b</mi></mrow></mrow></math>",
         ),
     ),
     (
         "a\\pmod{n}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mo stretchy=\"true\" form=\"prefix\">(</mo><mrow><mi mathvariant=\"normal\">mod</mi><mo>\u{2061}</mo></mrow><mspace width=\"0.222em\"></mspace><mi>n</mi><mo stretchy=\"true\" form=\"postfix\">)</mo></mrow></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mo stretchy=\"false\" form=\"prefix\">(</mo><mrow><mi mathvariant=\"normal\">mod</mi><mo>\u{2061}</mo></mrow><mspace width=\"0.222em\"></mspace><mi>n</mi><mo stretchy=\"false\" form=\"postfix\">)</mo></mrow></mrow></math>",
         ),
     ),
     (
         "a\\pod{n}",
         false,
         Some(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mo stretchy=\"true\" form=\"prefix\">(</mo><mi>n</mi><mo stretchy=\"true\" form=\"postfix\">)</mo></mrow></mrow></math>",
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mo stretchy=\"false\" form=\"prefix\">(</mo><mi>n</mi><mo stretchy=\"false\" form=\"postfix\">)</mo></mrow></mrow></math>",
         ),
     ),
     (

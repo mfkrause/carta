@@ -39,7 +39,7 @@ expression: output
 <mrow>
 <mspace width="0.222em">
 </mspace>
-<mo stretchy="true" form="prefix">(</mo>
+<mo stretchy="false" form="prefix">(</mo>
 <mrow>
 <mi mathvariant="normal">mod</mi>
 <mo>⁡</mo>
@@ -47,7 +47,7 @@ expression: output
 <mspace width="0.222em">
 </mspace>
 <mi>n</mi>
-<mo stretchy="true" form="postfix">)</mo>
+<mo stretchy="false" form="postfix">)</mo>
 </mrow>
 </mrow>
 </math>
@@ -65,8 +65,8 @@ expression: output
 </mrow>
 <mspace width="0.222em">
 </mspace>
-</mrow>
 <mi>b</mi>
+</mrow>
 </mrow>
 </math>
 <!-- Formula-4/content.xml -->
@@ -83,8 +83,8 @@ expression: output
 </mrow>
 <mspace width="0.222em">
 </mspace>
-</mrow>
 <mi>b</mi>
+</mrow>
 </mrow>
 </math>
 <!-- Formula-6/content.xml -->
@@ -95,9 +95,9 @@ expression: output
 <mrow>
 <mspace width="0.222em">
 </mspace>
-<mo stretchy="true" form="prefix">(</mo>
+<mo stretchy="false" form="prefix">(</mo>
 <mi>n</mi>
-<mo stretchy="true" form="postfix">)</mo>
+<mo stretchy="false" form="postfix">)</mo>
 </mrow>
 </mrow>
 </math>

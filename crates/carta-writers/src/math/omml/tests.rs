@@ -245,3 +245,13 @@ fn deeply_nested_input_does_not_panic() {
 fn empty_input_renders_empty_math() {
     assert_eq!(to_omml("", false).as_deref(), Some("<m:oMath />"));
 }
+
+#[test]
+fn modulo_operands_keep_display_limits_and_empty_groups() {
+    for command in ["bmod", "mod"] {
+        let display = to_omml(&format!("a\\{command} \\lim_x"), true).expect("valid display math");
+        assert!(display.contains("<m:limLow>"));
+        let empty = to_omml(&format!("a\\{command} {{}}"), false).expect("valid empty group");
+        assert!(empty.contains("<m:t>\u{200B}</m:t>"));
+    }
+}

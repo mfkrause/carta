@@ -453,7 +453,7 @@ pub(super) fn modulo(
     let mut inner = Vec::new();
     inner.push(Node::Element(Element::new("mspace").attr("width", lead)));
     if parenthesised {
-        inner.push(fence_operator("(", true));
+        inner.push(super::char_leaf('('));
     }
     if !matches!(kind, ModKind::Pod) {
         let word = Node::Element(
@@ -472,7 +472,7 @@ pub(super) fn modulo(
         inner.append(&mut lower_seq(argument, display, depth + 1));
     }
     if parenthesised {
-        inner.push(fence_operator(")", false));
+        inner.push(super::char_leaf(')'));
     }
     let mut row = Element::new("mrow");
     row.children = inner;

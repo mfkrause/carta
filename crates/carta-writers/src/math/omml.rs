@@ -352,7 +352,7 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
     }
     // An opener never sealed reverts to plain text, set ahead of the run it had begun to enclose.
     while let Some(frame) = fences.pop() {
-        let mut literal = nucleus(frame.open_body, style, depth)?;
+        let mut literal = nucleus(frame.open_body, style, depth, display)?;
         let mut content = frame.content;
         let target = fence_target(&mut out, &mut fences);
         target.append(&mut literal);
@@ -363,7 +363,7 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
 
 /// Lower one atom: its nucleus wrapped by whatever script chain it carries.
 fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
-    let mut base = nucleus(&atom.body, style, depth)?;
+    let mut base = nucleus(&atom.body, style, depth, display)?;
     let mut runs = atom.script_runs();
     // Display limit operators place scripts above and below the base.
     if display
@@ -437,7 +437,7 @@ fn script_slot(atoms: &[Atom], style: Style, depth: usize) -> Option<Vec<Element
 }
 
 /// Lower an atom's nucleus (its body without scripts) to zero or more runs.
-fn nucleus(body: &Body, style: Style, depth: usize) -> Option<Vec<Element>> {
+fn nucleus(body: &Body, style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
     match body {
         Body::Char(c) => {
             let (text, ink) = char_glyph(*c);
@@ -448,6 +448,7 @@ fn nucleus(body: &Body, style: Style, depth: usize) -> Option<Vec<Element>> {
         Body::Prime(count) => Some(vec![leaf(&prime_marks(*count), Ink::Upright, style)]),
         Body::ColonEq => Some(vec![colon_equals(style)]),
         Body::Command(name) => command_nucleus(name, style),
+        Body::Group(atoms) if atoms.is_empty() => Some(vec![filler()]),
         Body::Group(atoms) => lower_seq(atoms, style, depth + 1, false),
         Body::Frac(frac_style, numerator, denominator) => {
             let kind = match frac_style {
@@ -479,9 +480,9 @@ fn nucleus(body: &Body, style: Style, depth: usize) -> Option<Vec<Element>> {
             Some(vec![delimited(*open, *close, content, style, depth)?])
         }
         Body::Grid(kind, aligns, rows) => grid(*kind, aligns, rows, style, depth),
-        Body::Big(_, inner) => nucleus(&inner.body, style, depth),
+        Body::Big(_, inner) => nucleus(&inner.body, style, depth, display),
         Body::Label(_) => Some(Vec::new()),
-        Body::Mod(kind, argument) => modulo(*kind, argument.as_deref(), style, depth),
+        Body::Mod(kind, argument) => modulo(*kind, argument.as_deref(), style, depth, display),
         Body::Negated(base) => negated(base),
         Body::NegatedGroup(atoms) => Some(vec![negated_group(atoms, style, depth)?]),
         Body::Brace(kind, group) => Some(vec![brace(*kind, group, style, depth)?]),
@@ -617,6 +618,7 @@ fn modulo(
     argument: Option<&[Atom]>,
     style: Style,
     depth: usize,
+    display: bool,
 ) -> Option<Vec<Element>> {
     let lead = if matches!(kind, ModKind::Mod) {
         "\u{2004}"
@@ -633,7 +635,7 @@ fn modulo(
         out.push(run("\u{2005}", None));
     }
     if let Some(argument) = argument {
-        out.append(&mut lower_seq(argument, style, depth + 1, false)?);
+        out.append(&mut lower_seq(argument, style, depth + 1, display)?);
     }
     if parenthesised {
         out.push(run(")", Some(upright_props())));

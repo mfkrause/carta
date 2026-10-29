@@ -450,7 +450,9 @@ fn render_mod(kind: ModKind, arg: Option<&[Atom]>) -> Option<(Vec<Inline>, Class
     let mut inlines = vec![Inline::Str(prefix.into())];
     if let Some(arg) = arg {
         inlines.extend(lower(arg)?);
-        inlines.push(Inline::Str(")".into()));
+        if matches!(kind, ModKind::Pmod | ModKind::Pod) {
+            inlines.push(Inline::Str(")".into()));
+        }
     }
     Some((merge_adjacent_str(inlines), Class::Ord, false, false))
 }

@@ -400,8 +400,22 @@ enum DelimSide {
 /// the parenthesised forms wrap their argument in escaped parentheses, and `\pod` omits the word.
 pub(super) fn mod_str(display: bool, kind: ModKind, arg: Option<&[Atom]>) -> Option<String> {
     match kind {
-        ModKind::Bmod => Some("med mod med".to_string()),
-        ModKind::Mod => Some("#h(0em) mod med".to_string()),
+        ModKind::Bmod | ModKind::Mod => {
+            let prefix = if matches!(kind, ModKind::Bmod) {
+                "med"
+            } else {
+                "#h(0em)"
+            };
+            let argument = arg?;
+            let inner = if let [atom] = argument
+                && let Body::Group(content) = &atom.body
+            {
+                super::scripted_str(display, atom, lower(display, content)?)?
+            } else {
+                lower(display, argument)?
+            };
+            Some(format!("{prefix} mod med {inner}"))
+        }
         ModKind::Pmod => {
             let inner = lower(display, arg?)?;
             Some(format!("med\\(mod med {inner}\\)"))

@@ -5,7 +5,7 @@ use super::environments::{parse_delimited, parse_environment, parse_grid_rows_br
 use super::text::{is_text_command, parse_verbatim_group, text_pieces_to_string};
 use super::{
     Atom, BinomKind, Body, BraceKind, FracStyle, GridKind, MAX_DEPTH, ModKind, StackSide, TextMode,
-    Token, parse_atom, parse_atom_into, parse_atoms, skip_spaces,
+    Token, parse_atom, parse_atom_into, parse_atoms, parse_mod_argument, skip_spaces,
 };
 
 /// A fixed-size delimiter wrapper (`\big`, `\Big`, `\bigg`, `\Bigg`, with optional `l`/`r` variant)
@@ -196,35 +196,18 @@ pub(super) fn parse_command(
             Some(Atom::new(Body::Grid(GridKind::Substack, Vec::new(), rows)))
         }
         "left" => parse_delimited(tokens, pos, depth),
-        // `\bmod` is infix: with no following operand it is invalid and falls back to verbatim.
-        "bmod" => {
-            let mut probe = *pos;
-            while matches!(tokens.get(probe), Some(Token::Space)) {
-                probe += 1;
-            }
-            if tokens
-                .get(probe)
-                .is_none_or(|t| matches!(t, Token::GroupClose))
-            {
-                return None;
-            }
-            Some(Atom::new(Body::Mod(ModKind::Bmod, None)))
+        "bmod" | "mod" => {
+            let argument = parse_mod_argument(tokens, pos, depth, tail)?;
+            let kind = if name == "bmod" {
+                ModKind::Bmod
+            } else {
+                ModKind::Mod
+            };
+            Some(Atom::new(Body::Mod(kind, Some(argument))))
         }
         "pmod" => {
             let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pmod, Some(arg))))
-        }
-        "mod" => {
-            skip_spaces(tokens, pos);
-            if tokens.get(*pos).is_none_or(|t| {
-                matches!(
-                    t,
-                    Token::Sub | Token::Sup | Token::GroupClose | Token::Space
-                )
-            }) {
-                return None;
-            }
-            Some(Atom::new(Body::Mod(ModKind::Mod, None)))
         }
         "pod" => {
             let arg = parse_required_group(tokens, pos, depth, tail)?;
