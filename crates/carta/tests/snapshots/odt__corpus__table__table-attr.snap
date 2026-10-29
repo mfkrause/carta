@@ -30,26 +30,26 @@ expression: output
 <office:text>
 <text:p text:style-name="TableCaption">Captioned and attributed</text:p>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-column table:style-name="Table1.B" />
-<table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">h1</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">h2</text:p>
-</table:table-cell>
-</table:table-row>
-</table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">a</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">b</text:p>
-</table:table-cell>
-</table:table-row>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-column table:style-name="Table1.B" />
+  <table:table-header-rows>
+    <table:table-row>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">h1</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">h2</text:p>
+      </table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">a</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">b</text:p>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 </office:text>
 </office:body>

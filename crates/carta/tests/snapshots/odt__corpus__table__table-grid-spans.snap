@@ -39,74 +39,74 @@ expression: output
 <office:body>
 <office:text>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-column table:style-name="Table1.B" />
-<table:table-column table:style-name="Table1.C" />
-<table:table-column table:style-name="Table1.D" />
-<table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">Header row, column 1</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">Header 2</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">Header 3</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">Header 4</text:p>
-</table:table-cell>
-</table:table-row>
-</table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">body row 1, column 1</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">column 2</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">column 3</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">column 4</text:p>
-</table:table-cell>
-</table:table-row>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">body row 2</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="3">
-<text:p text:style-name="Table_20_Contents">Cells may span columns.</text:p>
-</table:table-cell>
-</table:table-row>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">body row 3</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-rows-spanned="2">
-<text:p text:style-name="Table_20_Contents">Cells may span rows.</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="2" table:number-rows-spanned="2">
-<text:list text:style-name="List_20_1">
-  <text:list-item>
-    <text:p text:style-name="List_20_Bullet_20_Tight">Cells.</text:p>
-  </text:list-item>
-  <text:list-item>
-    <text:p text:style-name="List_20_Bullet_20_Tight">Contain.</text:p>
-  </text:list-item>
-  <text:list-item>
-    <text:p text:style-name="List_20_Bullet_20_Tight">Blocks.</text:p>
-  </text:list-item>
-</text:list>
-</table:table-cell>
-</table:table-row>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">body row 4</text:p>
-</table:table-cell>
-</table:table-row>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-column table:style-name="Table1.B" />
+  <table:table-column table:style-name="Table1.C" />
+  <table:table-column table:style-name="Table1.D" />
+  <table:table-header-rows>
+    <table:table-row>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">Header row, column 1</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">Header 2</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">Header 3</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">Header 4</text:p>
+      </table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">body row 1, column 1</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">column 2</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">column 3</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">column 4</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">body row 2</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="3">
+      <text:p text:style-name="Table_20_Contents">Cells may span columns.</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">body row 3</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-rows-spanned="2">
+      <text:p text:style-name="Table_20_Contents">Cells may span rows.</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="2" table:number-rows-spanned="2">
+      <text:list text:style-name="List_20_1">
+        <text:list-item>
+          <text:p text:style-name="List_20_Bullet_20_Tight">Cells.</text:p>
+        </text:list-item>
+        <text:list-item>
+          <text:p text:style-name="List_20_Bullet_20_Tight">Contain.</text:p>
+        </text:list-item>
+        <text:list-item>
+          <text:p text:style-name="List_20_Bullet_20_Tight">Blocks.</text:p>
+        </text:list-item>
+      </text:list>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">body row 4</text:p>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 </office:text>
 </office:body>

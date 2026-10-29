@@ -35,16 +35,16 @@ expression: output
 y</text:span>
 <text:line-break />A<text:line-break />BC<text:line-break />DE<text:line-break />Term: Meaning</text:p>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-column table:style-name="Table1.B" />
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">a</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">b</text:p>
-</table:table-cell>
-</table:table-row>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-column table:style-name="Table1.B" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">a</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">b</text:p>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 <text:p text:style-name="FigureWithCaption">
 <text:span text:style-name="Emphasis">a caption</text:span>

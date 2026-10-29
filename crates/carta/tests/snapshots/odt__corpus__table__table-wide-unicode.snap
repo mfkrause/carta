@@ -29,34 +29,34 @@ expression: output
 <office:body>
 <office:text>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-column table:style-name="Table1.B" />
-<table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">項目</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">値</text:p>
-</table:table-cell>
-</table:table-row>
-</table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">名前</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">漢字テキスト</text:p>
-</table:table-cell>
-</table:table-row>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">x</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">y</text:p>
-</table:table-cell>
-</table:table-row>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-column table:style-name="Table1.B" />
+  <table:table-header-rows>
+    <table:table-row>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">項目</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">値</text:p>
+      </table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">名前</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">漢字テキスト</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">x</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">y</text:p>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 </office:text>
 </office:body>

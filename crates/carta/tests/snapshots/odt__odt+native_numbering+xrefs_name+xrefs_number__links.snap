@@ -71,12 +71,12 @@ expression: output
 <text:p text:style-name="FigureCaption">Figure <text:sequence text:ref-name="trend" text:name="Illustration" text:formula="ooow:Illustration+1" style:num-format="1">1</text:sequence>: Trend</text:p>
 <text:p text:style-name="TableCaption">Table <text:sequence text:ref-name="values" text:name="Table" text:formula="ooow:Table+1" style:num-format="1">1</text:sequence>: Values</text:p>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">Cell</text:p>
-</table:table-cell>
-</table:table-row>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Cell</text:p>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 </office:text>
 </office:body>

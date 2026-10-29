@@ -29,34 +29,34 @@ expression: output
 <office:body>
 <office:text>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-column table:style-name="Table1.B" />
-<table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">name</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">notes</text:p>
-</table:table-cell>
-</table:table-row>
-</table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">alpha</text:p>
-</table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">first paragraph</text:p>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-column table:style-name="Table1.B" />
+  <table:table-header-rows>
+    <table:table-row>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">name</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">notes</text:p>
+      </table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">alpha</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">first paragraph</text:p>
 <text:list text:style-name="List_20_1">
-  <text:list-item>
-    <text:p text:style-name="List_20_Bullet_20_Tight">one</text:p>
-  </text:list-item>
-  <text:list-item>
-    <text:p text:style-name="List_20_Bullet_20_Tight">two</text:p>
-  </text:list-item>
-</text:list>
-</table:table-cell>
-</table:table-row>
+        <text:list-item>
+          <text:p text:style-name="List_20_Bullet_20_Tight">one</text:p>
+        </text:list-item>
+        <text:list-item>
+          <text:p text:style-name="List_20_Bullet_20_Tight">two</text:p>
+        </text:list-item>
+      </text:list>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 </office:text>
 </office:body>

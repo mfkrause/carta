@@ -29,19 +29,19 @@ expression: output
 <office:text>
 <text:p text:style-name="TableCaption">A caption for the table</text:p>
 <table:table table:name="Table1" table:style-name="Table1">
-<table:table-column table:style-name="Table1.A" />
-<table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Heading">h</text:p>
-</table:table-cell>
-</table:table-row>
-</table:table-header-rows>
-<table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string">
-<text:p text:style-name="Table_20_Contents">v</text:p>
-</table:table-cell>
-</table:table-row>
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-header-rows>
+    <table:table-row>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">h</text:p>
+      </table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">v</text:p>
+    </table:table-cell>
+  </table:table-row>
 </table:table>
 </office:text>
 </office:body>

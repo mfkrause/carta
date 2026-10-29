@@ -363,6 +363,12 @@ impl Builder<'_> {
         self.body.push_str(&indented);
     }
 
+    fn line_since(&mut self, checkpoint: usize) {
+        if self.body.len() > checkpoint && !self.body.ends_with('\n') {
+            self.body.push('\n');
+        }
+    }
+
     fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) {
         for (term, defs) in items {
             let (term_style, def_style) = if is_tight(defs) {
@@ -473,7 +479,9 @@ impl Builder<'_> {
             self.body,
             "<table:table table:name=\"Table{n}\" table:style-name=\"Table{n}\">"
         );
+        let checkpoint = self.body.len();
         for column in 0..columns {
+            self.line_since(checkpoint);
             let _ = write!(
                 self.body,
                 "<table:table-column table:style-name=\"Table{n}.{}\" />",
@@ -483,7 +491,9 @@ impl Builder<'_> {
 
         let mut covered = vec![0usize; columns];
         if !table.head.rows.is_empty() {
+            self.line_since(checkpoint);
             self.body.push_str("<table:table-header-rows>");
+            let header_start = self.body.len();
             self.table_rows(
                 &table.head.rows,
                 true,
@@ -492,10 +502,12 @@ impl Builder<'_> {
                 &styles,
                 &mut covered,
             );
-            self.body.push_str("</table:table-header-rows>");
+            self.indent_since(header_start, "  ");
+            self.body.push_str("\n</table:table-header-rows>");
         }
         for section in &table.bodies {
             let head_columns = usize::try_from(section.row_head_columns).unwrap_or(0);
+            self.line_since(checkpoint);
             self.table_rows(
                 &section.head,
                 false,
@@ -504,6 +516,7 @@ impl Builder<'_> {
                 &styles,
                 &mut covered,
             );
+            self.line_since(checkpoint);
             self.table_rows(
                 &section.body,
                 false,
@@ -513,8 +526,10 @@ impl Builder<'_> {
                 &mut covered,
             );
         }
+        self.line_since(checkpoint);
         self.table_rows(&table.foot.rows, false, 0, columns, &styles, &mut covered);
-        self.body.push_str("</table:table>");
+        self.indent_since(checkpoint, "  ");
+        self.body.push_str("\n</table:table>");
     }
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -563,8 +578,14 @@ impl Builder<'_> {
         styles: &[(String, String)],
         covered: &mut [usize],
     ) {
+        let rows_start = self.body.len();
         for (row_index, row) in rows.iter().enumerate() {
+            if carta_core::budget::exhausted() {
+                break;
+            }
+            self.line_since(rows_start);
             self.body.push_str("<table:table-row>");
+            let checkpoint = self.body.len();
             let mut cells = row.cells.iter();
             let mut column = 0usize;
             while column < columns {
@@ -575,6 +596,7 @@ impl Builder<'_> {
                     column += 1;
                     continue;
                 }
+                self.line_since(checkpoint);
                 if let Some(cell) = cells.next() {
                     let span = usize::try_from(cell.col_span.max(1))
                         .unwrap_or(usize::MAX)
@@ -605,7 +627,8 @@ impl Builder<'_> {
                     column += 1;
                 }
             }
-            self.body.push_str("</table:table-row>");
+            self.indent_since(checkpoint, "  ");
+            self.body.push_str("\n</table:table-row>");
         }
     }
 
@@ -637,8 +660,10 @@ impl Builder<'_> {
             let _ = write!(self.body, " table:number-rows-spanned=\"{rows_spanned}\"");
         }
         self.body.push('>');
+        let checkpoint = self.body.len();
         self.render_blocks(&cell.content, Some(&para_style));
-        self.body.push_str("</table:table-cell>");
+        self.indent_since(checkpoint, "  ");
+        self.body.push_str("\n</table:table-cell>");
     }
 
     fn emit_empty_cell(&mut self, cell_header: bool) {
@@ -649,7 +674,7 @@ impl Builder<'_> {
         };
         let _ = write!(
             self.body,
-            "<table:table-cell table:style-name=\"{cell_style}\" office:value-type=\"string\"></table:table-cell>"
+            "<table:table-cell table:style-name=\"{cell_style}\" office:value-type=\"string\">\n</table:table-cell>"
         );
     }
 
