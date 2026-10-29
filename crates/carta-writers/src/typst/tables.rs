@@ -64,11 +64,15 @@ pub(super) fn render_table(table: &Table, width: usize, wrap: WrapMode, smart: b
     }
 }
 
-/// Render a table caption within `[..]`. A single inline block stays on one line; richer content is
-/// laid out as an indented block, two columns in.
+/// Wraps a table caption in a content block, nesting continuation lines by two columns.
 fn table_caption(content: &[Block], width: usize, smart: bool) -> String {
     if let [Block::Plain(inlines) | Block::Para(inlines)] = content {
         format!("[{}]", inline_run(inlines, width, WrapMode::Auto, smart))
+    } else if matches!(content, [Block::Div(..)]) {
+        format!(
+            "[{}]",
+            indent_continuation(&blocks(content, width, WrapMode::Auto, smart), "  ")
+        )
     } else {
         let mut body = blocks(content, width, WrapMode::Auto, smart);
         if !matches!(content.last(), Some(Block::Plain(_))) {

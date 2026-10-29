@@ -65,9 +65,6 @@ jira	common/list-bullet-in-definition
 latex	common/list-bullet-in-definition
 mediawiki	common/list-bullet-in-definition
 
-# Table captions wrapped in Div blocks.
-typst	table/table-caption-div
-
 # Data-image references do not use the target's native resource handling.
 beamer	image-dimensions/image-embedded-jpeg
 beamer	image-dimensions/image-embedded-png

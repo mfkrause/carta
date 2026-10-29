@@ -52,6 +52,19 @@ fn empty_document() {
 }
 
 #[test]
+fn empty_and_nested_sections_keep_block_boundaries() {
+    assert_eq!(
+        render(vec![Block::Div(Box::default(), Vec::new())]),
+        "#block[\n]"
+    );
+    let inner = Block::Div(Box::default(), vec![para(vec![str_inline("text")])]);
+    assert_eq!(
+        render(vec![Block::Div(Box::default(), vec![inner])]),
+        "#block[\n#block[\ntext\n\n]\n]"
+    );
+}
+
+#[test]
 fn plain_blocks_keep_the_next_block_on_the_following_line() {
     for (next, expected) in [
         (Block::Para(vec![str_inline("next")]), "first\nnext"),

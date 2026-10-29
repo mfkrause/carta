@@ -324,10 +324,14 @@ fn line_block(lines: &[Vec<Inline>], width: usize, wrap: WrapMode, smart: bool) 
 fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
     let body = blocks(items, width, wrap, smart);
     let trailing = match items.last() {
-        Some(Block::Plain(_)) => "",
+        Some(Block::Plain(_) | Block::Div(..)) => "",
         _ => "\n",
     };
-    let block = format!("#block[\n{body}{trailing}\n]");
+    let block = if body.is_empty() {
+        "#block[\n]".to_owned()
+    } else {
+        format!("#block[\n{body}{trailing}\n]")
+    };
     match label(&attr.id) {
         Some(rendered) => format!("{block} {rendered}"),
         None => block,
