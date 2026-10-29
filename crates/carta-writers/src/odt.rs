@@ -257,7 +257,13 @@ enum AlignKind {
 /// An automatic paragraph style and its parent.
 struct ParaStyle {
     parent: String,
-    align: AlignKind,
+    kind: ParaKind,
+}
+
+#[derive(Clone, Copy)]
+enum ParaKind {
+    Align(AlignKind),
+    Quote(usize),
 }
 
 struct ListStyle {
@@ -279,6 +285,7 @@ struct Builder<'a> {
     text_styles: BTreeMap<Vec<Deco>, usize>,
     languages: BTreeSet<Language>,
     para_styles: Vec<ParaStyle>,
+    quote_depth: usize,
     list_styles: Vec<ListStyle>,
     table_styles: String,
     note_id: usize,
@@ -302,6 +309,7 @@ impl<'a> Builder<'a> {
             text_styles: BTreeMap::new(),
             languages: BTreeSet::new(),
             para_styles: Vec::new(),
+            quote_depth: 0,
             list_styles: Vec::new(),
             table_styles: String::new(),
             note_id: 0,
@@ -342,7 +350,7 @@ impl<'a> Builder<'a> {
             out.push_str(&deco_style_xml(*index, key));
         }
         for (index, key) in self.para_styles.iter().enumerate() {
-            out.push_str(&para_style_xml(index + 1, &key.parent, key.align));
+            out.push_str(&para_style_xml(index + 1, key));
         }
         if self.table_index != 0 {
             out.push_str(CELL_STYLES);

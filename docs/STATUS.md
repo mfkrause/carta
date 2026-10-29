@@ -372,8 +372,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
-- Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper
-  levels are not progressively indented.
 - `native_numbering` is not implemented, so figure and table captions emit no `text:sequence`
   numbering field.
 - `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather

@@ -1133,7 +1133,6 @@
         "gaps": [
           "Table structural markup is emitted compact with no whitespace between structural tags rather than indented.",
           "List structural markup is emitted compact with no inter-tag whitespace rather than indented.",
-          "Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper levels are not progressively indented.",
           "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",
           "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",
           "Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry order, and attribute order across the manifest, metadata, and formula parts.",

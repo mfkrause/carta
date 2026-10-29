@@ -7,7 +7,7 @@ use carta_ast::{ListNumberDelim, ListNumberStyle, MetaValue, Text};
 use carta_core::container::xml::{Element, escape_attribute};
 
 use super::meta::meta_text;
-use super::{AlignKind, DECL, Deco, NS, language_country};
+use super::{AlignKind, DECL, Deco, NS, ParaKind, ParaStyle, language_country};
 
 pub(super) fn deco_style_xml(index: usize, key: &[Deco]) -> String {
     // Super- and subscript share one text-position property; a run carrying both keeps superscript.
@@ -30,16 +30,29 @@ pub(super) fn deco_style_xml(index: usize, key: &[Deco]) -> String {
     )
 }
 
-pub(super) fn para_style_xml(index: usize, parent: &str, kind: AlignKind) -> String {
-    let align = match kind {
-        AlignKind::Center => "center",
-        AlignKind::Right => "end",
+pub(super) fn para_style_xml(index: usize, style: &ParaStyle) -> String {
+    let properties = match style.kind {
+        ParaKind::Align(kind) => {
+            let align = match kind {
+                AlignKind::Center => "center",
+                AlignKind::Right => "end",
+            };
+            format!(
+                "<style:paragraph-properties fo:text-align=\"{align}\" style:justify-single-word=\"false\" />"
+            )
+        }
+        ParaKind::Quote(half_inches) => {
+            let whole = half_inches / 2;
+            let fraction = if half_inches.is_multiple_of(2) { 0 } else { 5 };
+            format!(
+                "<style:paragraph-properties fo:margin-left=\"{whole}.{fraction}in\" fo:margin-right=\"0in\" fo:text-indent=\"0in\" style:auto-text-indent=\"false\" />"
+            )
+        }
     };
     format!(
         "<style:style style:name=\"P{index}\" style:family=\"paragraph\" \
-         style:parent-style-name=\"{parent}\">\
-         <style:paragraph-properties fo:text-align=\"{align}\" \
-         style:justify-single-word=\"false\" /></style:style>"
+         style:parent-style-name=\"{}\">{properties}</style:style>",
+        style.parent,
     )
 }
 

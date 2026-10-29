@@ -16,7 +16,9 @@ use super::helpers::{
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
-use super::{AlignKind, Builder, Language, ListStyle, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT};
+use super::{
+    AlignKind, Builder, Language, ListStyle, ParaKind, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT,
+};
 
 impl Builder<'_> {
     /// Renders a block sequence. `fixed` names a paragraph style imposed on the sequence's direct
@@ -33,17 +35,29 @@ impl Builder<'_> {
     }
 
     fn render_block(&mut self, block: &Block, fixed: Option<&str>) {
+        let quote_depth = self.quote_depth;
+        if matches!(
+            block,
+            Block::Div(..)
+                | Block::BulletList(..)
+                | Block::OrderedList(..)
+                | Block::Table(..)
+                | Block::Figure(..)
+        ) {
+            self.quote_depth = 0;
+        }
         match block {
             Block::Plain(inlines) if inlines.is_empty() && fixed.is_none() => {}
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, fixed),
             Block::LineBlock(lines) => self.line_block_like(lines, fixed),
             Block::Div(attr, inner) => self.div(attr, inner, fixed),
-            Block::RawBlock(..) | Block::Figure(..) => self.block_other(block),
+            Block::RawBlock(..) | Block::Figure(..) => self.block_other(block, fixed),
             other => {
                 self.first_para = true;
-                self.block_other(other);
+                self.block_other(other, fixed);
             }
         }
+        self.quote_depth = quote_depth;
     }
 
     /// A paragraph node: styled with the flowing first/body distinction, or with an imposed style.
@@ -167,13 +181,32 @@ impl Builder<'_> {
     }
 
     /// Renders a block that is neither a paragraph nor a transparent container.
-    fn block_other(&mut self, block: &Block) {
+    fn block_other(&mut self, block: &Block, fixed: Option<&str>) {
         match block {
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::CodeBlock(_, text) => self.code_block(text),
             Block::BlockQuote(blocks) => {
                 self.first_para = true;
-                self.render_blocks(blocks, Some("Quotations"));
+                let indentation = if matches!(
+                    fixed,
+                    Some("Definition_20_Definition" | "Definition_20_Definition_20_Tight")
+                ) {
+                    self.quote_depth = self.quote_depth.max(1);
+                    Some(self.quote_depth.saturating_sub(1).max(1))
+                } else {
+                    self.quote_depth += 1;
+                    (self.quote_depth > 1).then_some(self.quote_depth - 1)
+                };
+                let style = if let Some(half_inches) = indentation {
+                    self.para_styles.push(ParaStyle {
+                        parent: "Quotations".to_string(),
+                        kind: ParaKind::Quote(half_inches),
+                    });
+                    format!("P{}", self.para_styles.len())
+                } else {
+                    "Quotations".to_string()
+                };
+                self.render_blocks(blocks, Some(&style));
             }
             Block::BulletList(items) => self.bullet_list(items),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items),
@@ -596,7 +629,7 @@ impl Builder<'_> {
     fn align_style(&mut self, parent: &str, kind: AlignKind) -> String {
         self.para_styles.push(ParaStyle {
             parent: parent.to_owned(),
-            align: kind,
+            kind: ParaKind::Align(kind),
         });
         format!("P{}", self.para_styles.len())
     }
@@ -713,6 +746,54 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nested_quotes_indent_and_restart_inside_lists_and_notes() {
+        let paragraph = |text: &str| Block::Para(vec![Inline::Str(text.into())]);
+        let blocks = vec![Block::BlockQuote(vec![
+            paragraph("Outer"),
+            Block::BlockQuote(vec![
+                paragraph("Inner"),
+                Block::BlockQuote(vec![paragraph("Deep")]),
+            ]),
+            Block::BulletList(vec![vec![Block::BlockQuote(vec![paragraph("List")])]]),
+            Block::Para(vec![Inline::Note(vec![Block::BlockQuote(vec![
+                paragraph("Note"),
+            ])])]),
+            Block::BlockQuote(vec![paragraph("Last")]),
+        ])];
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        builder.render_blocks(&blocks, None);
+        assert_eq!(builder.quote_depth, 0);
+        assert_eq!(builder.para_styles.len(), 3);
+        let xml = builder.finish_content();
+        assert_eq!(xml.matches("fo:margin-left=\"0.5in\"").count(), 2);
+        assert_eq!(xml.matches("fo:margin-left=\"1.0in\"").count(), 1);
+        for text in ["List", "Note"] {
+            assert!(xml.contains(&format!(
+                "<text:p text:style-name=\"Quotations\">{text}</text:p>"
+            )));
+        }
+        assert!(xml.contains("<text:p text:style-name=\"P3\">Last</text:p>"));
+    }
+
+    #[test]
+    fn definitions_supply_the_first_quote_indent() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let blocks = vec![Block::DefinitionList(vec![(
+            vec![Inline::Str("Term".into())],
+            vec![vec![Block::BlockQuote(vec![Block::BlockQuote(vec![
+                Block::Para(vec![Inline::Str("Text".into())]),
+            ])])]],
+        )])];
+        builder.render_blocks(&blocks, None);
+        let xml = builder.finish_content();
+        assert_eq!(xml.matches("fo:margin-left=\"0.5in\"").count(), 2);
+        assert!(!xml.contains("fo:margin-left=\"1.0in\""));
+        assert!(xml.contains("<text:p text:style-name=\"P2\">Text</text:p>"));
+    }
 
     #[test]
     fn container_flow_state_starts_before_rendering_its_content() {
