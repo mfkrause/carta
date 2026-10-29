@@ -455,7 +455,7 @@ impl Parser {
         let aligns = parse_column_spec(&spec);
         let body = self.read_environment_source(env);
         self.consume_env_marker("\\end");
-        build_table(self, &aligns, &body)
+        build_table(self, &aligns, &body, env == "longtable")
     }
 
     /// Reads a math environment as a single math inline. `math`/`displaymath` carry the body alone;

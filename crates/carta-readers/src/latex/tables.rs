@@ -161,7 +161,12 @@ pub(super) fn skip_brace_group(chars: &[char], start: usize) -> usize {
 
 /// Builds a table from a column spec and the raw tabular body: rows are split on `\\`, cells on `&`.
 /// The rows before the first interior horizontal rule become the header; the rest form one body.
-pub(super) fn build_table(parser: &Parser, aligns: &[Alignment], body: &str) -> Block {
+pub(super) fn build_table(
+    parser: &Parser,
+    aligns: &[Alignment],
+    body: &str,
+    captions: bool,
+) -> Block {
     let col_specs: Vec<ColSpec> = aligns
         .iter()
         .map(|a| ColSpec {
@@ -173,10 +178,52 @@ pub(super) fn build_table(parser: &Parser, aligns: &[Alignment], body: &str) -> 
 
     // The first row becomes a header exactly when a horizontal rule immediately follows it.
     let mut rows: Vec<Row> = Vec::new();
+    let mut caption = Caption::default();
+    let mut attributes = Attr::default();
     let mut rule_pending = false;
     let mut first_row_ruled = false;
-    for chunk in split_top_level(body, '\n').join(" ").split("\\\\") {
-        let (leading_rule, content) = strip_leading_rules(chunk);
+    for chunk in split_rows(body) {
+        let (leading_rule, mut content) = strip_leading_rules(&chunk);
+        if captions && (content.starts_with("\\caption") || content.starts_with("\\label")) {
+            let mut source = parser.child(&content, false);
+            loop {
+                source.skip_block_ws();
+                if source.at_control_word("caption") {
+                    source.consume_control_word();
+                    source.skip_block_ws();
+                    if source.cur() == Some('*') {
+                        source.bump();
+                        attributes.classes.push("unnumbered".into());
+                        source.skip_block_ws();
+                    }
+                    let short = source
+                        .read_optional_raw()
+                        .map(|text| source.parse_fragment(&text));
+                    source.skip_block_ws();
+                    let mut identifier = None;
+                    let inlines = source.parse_group_inlines_capturing_label(&mut identifier);
+                    if caption.long.is_empty() {
+                        caption.short = short;
+                    }
+                    caption.long.push(Block::Plain(inlines));
+                    if let Some(identifier) = identifier {
+                        attributes.id = identifier.into();
+                    }
+                } else if source.at_control_word("label") {
+                    source.consume_control_word();
+                    source.skip_block_ws();
+                    if let Some(identifier) = source.read_group_raw() {
+                        attributes.id = identifier.into();
+                    }
+                } else {
+                    break;
+                }
+            }
+            content.clear();
+            while let Some(character) = source.bump() {
+                content.push(character);
+            }
+        }
         if content.trim().is_empty() {
             rule_pending |= leading_rule;
             continue;
@@ -186,6 +233,7 @@ pub(super) fn build_table(parser: &Parser, aligns: &[Alignment], body: &str) -> 
             first_row_ruled = true;
         }
         rule_pending = false;
+        let content = split_top_level(&content, '\n').join(" ");
         rows.push(build_row(parser, &strip_rules(&content), ncols));
     }
     if rows.len() == 1 && rule_pending {
@@ -200,8 +248,8 @@ pub(super) fn build_table(parser: &Parser, aligns: &[Alignment], body: &str) -> 
     };
 
     let table = Table {
-        attr: Attr::default(),
-        caption: Caption::default(),
+        attr: attributes,
+        caption,
         col_specs,
         head: TableHead {
             attr: Attr::default(),
@@ -216,6 +264,34 @@ pub(super) fn build_table(parser: &Parser, aligns: &[Alignment], body: &str) -> 
         foot: TableFoot::default(),
     };
     Block::Table(Box::new(table))
+}
+
+fn split_rows(body: &str) -> Vec<String> {
+    let mut rows = Vec::new();
+    let mut row = String::new();
+    let mut depth = 0usize;
+    let mut characters = body.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character == '\\'
+            && let Some(next) = characters.next()
+        {
+            if next == '\\' && depth == 0 {
+                rows.push(std::mem::take(&mut row));
+            } else {
+                row.push(character);
+                row.push(next);
+            }
+            continue;
+        }
+        match character {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        row.push(character);
+    }
+    rows.push(row);
+    rows
 }
 
 /// Builds a table row from raw cell source, splitting on `&` and padding to `ncols` columns.

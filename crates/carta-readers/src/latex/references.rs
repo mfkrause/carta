@@ -78,6 +78,9 @@ pub(super) fn resolve(document: &mut Document, base_level: i32) {
             Block::Table(table) if !table.caption.long.is_empty() => (&mut table.attr, &mut tables),
             _ => return,
         };
+        if attributes.classes.iter().any(|class| class == "unnumbered") {
+            return;
+        }
         *counter = counter.saturating_add(1);
         if attributes.id.is_empty() {
             return;

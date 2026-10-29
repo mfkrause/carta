@@ -156,6 +156,59 @@ fn reference_commands_keep_raw_source_when_requested() {
     );
 }
 
+#[test]
+fn long_tables_keep_captions_labels_and_caption_line_breaks() {
+    let source = "\\begin{longtable}{ll}\\caption[Short]{First \\\\ \\emph{second}}\\label{table}\\\\ A & B \\\\\\end{longtable}\n\\ref{table}";
+    let blocks = parse(source);
+    let Some(Block::Table(table)) = blocks.first() else {
+        panic!()
+    };
+    assert_eq!(table.attr.id, "table");
+    assert_eq!(table.caption.short, Some(vec![Inline::Str("Short".into())]));
+    assert_eq!(
+        table.caption.long,
+        vec![Block::Plain(vec![
+            Inline::Str("First".into()),
+            Inline::LineBreak,
+            Inline::Emph(vec![Inline::Str("second".into())])
+        ])]
+    );
+    assert_eq!(table.bodies.first().unwrap().body.len(), 1);
+    assert_eq!(reference_texts(blocks), ["1"]);
+}
+
+#[test]
+fn repeated_long_table_captions_keep_each_caption_text() {
+    let source = "\\begin{longtable}{l}\\caption{First}\\\\ A\\\\\\caption{Second}\\\\ B\\\\\\end{longtable}";
+    let blocks = parse(source);
+    let Some(Block::Table(table)) = blocks.first() else {
+        panic!()
+    };
+    assert_eq!(
+        table.caption.long,
+        vec![
+            Block::Plain(vec![Inline::Str("First".into())]),
+            Block::Plain(vec![Inline::Str("Second".into())])
+        ]
+    );
+    assert_eq!(table.bodies.first().unwrap().body.len(), 2);
+}
+
+#[test]
+fn unnumbered_long_table_captions_keep_their_text() {
+    let source = "\\begin{longtable}{l}\\caption*{Caption}\\label{table}\\\\ A\\\\\\end{longtable}\\ref{table}";
+    let blocks = parse(source);
+    let Some(Block::Table(table)) = blocks.first() else {
+        panic!()
+    };
+    assert_eq!(table.attr.classes, ["unnumbered"]);
+    assert_eq!(
+        table.caption.long,
+        vec![Block::Plain(vec![Inline::Str("Caption".into())])]
+    );
+    assert_eq!(reference_texts(blocks), ["[table]"]);
+}
+
 fn attr(attributes: Vec<(String, String)>) -> Attr {
     Attr {
         id: carta_ast::Text::default(),
