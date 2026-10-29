@@ -173,9 +173,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - `\multirow` spans are not modeled.
 - Partial `\cline` rules are not modeled.
 - Nested tables may flatten.
-- `\raisebox` in its optional depth/height form drops the box content; purely visual commands
-  (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner
-  content.
 
 ### `typst` ✅
 ### `org` ✅

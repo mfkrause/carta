@@ -564,6 +564,17 @@ impl Parser {
                 let inner = self.parse_group_inlines();
                 emit_all(out, buf, inner);
             }
+            "raisebox" if !self.ext.contains(Extension::RawTex) => {
+                self.skip_block_ws();
+                let _ = self.read_group_raw();
+                self.skip_block_ws();
+                let _ = self.read_optional_raw();
+                self.skip_block_ws();
+                let _ = self.read_optional_raw();
+                self.skip_block_ws();
+                let inner = self.parse_group_inlines();
+                emit_all(out, buf, inner);
+            }
             "ensuremath" => {
                 let body = self.read_group_raw().unwrap_or_default();
                 emit(

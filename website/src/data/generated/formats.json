@@ -455,8 +455,7 @@
           "Delimited macro parameters, `\\let` bindings, `\\csname`/`\\expandafter`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length.",
           "`\\multirow` spans are not modeled.",
           "Partial `\\cline` rules are not modeled.",
-          "Nested tables may flatten.",
-          "`\\raisebox` in its optional depth/height form drops the box content; purely visual commands (font-size macros, `\\bfseries` scoping, spacing macros) drop styling and keep only the inner content."
+          "Nested tables may flatten."
         ]
       },
       "write": {

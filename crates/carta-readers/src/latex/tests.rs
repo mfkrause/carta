@@ -209,6 +209,39 @@ fn unnumbered_long_table_captions_keep_their_text() {
     assert_eq!(reference_texts(blocks), ["[table]"]);
 }
 
+#[test]
+fn raised_boxes_keep_their_content_with_optional_dimensions() {
+    for dimensions in ["", "[2ex]", "[2ex][0pt]", " [2ex] [0pt] "] {
+        let source = format!("Before \\raisebox{{1ex}}{dimensions}{{\\emph{{kept}}}} after.");
+        assert_eq!(
+            parse(&source),
+            vec![Block::Para(vec![
+                Inline::Str("Before".into()),
+                Inline::Space,
+                Inline::Emph(vec![Inline::Str("kept".into())]),
+                Inline::Space,
+                Inline::Str("after.".into()),
+            ])]
+        );
+    }
+}
+
+#[test]
+fn raised_boxes_keep_images_and_raw_source() {
+    let source = "\\raisebox{1ex}[2ex][0pt]{\\includegraphics{image.png}}";
+    let blocks = parse(source);
+    let Some(Block::Para(inlines)) = blocks.first() else {
+        panic!()
+    };
+    assert!(
+        matches!(inlines.first(), Some(Inline::Image(_, _, target)) if target.url == "image.png")
+    );
+    assert_eq!(
+        parse_ext(source, Extensions::from_list(&[Extension::RawTex])),
+        vec![Block::RawBlock(Format("latex".into()), source.into())]
+    );
+}
+
 fn attr(attributes: Vec<(String, String)>) -> Attr {
     Attr {
         id: carta_ast::Text::default(),
