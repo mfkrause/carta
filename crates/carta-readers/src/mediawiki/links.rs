@@ -2,6 +2,8 @@
 
 use carta_ast::{Attr, Block, Caption, Inline, QuoteType, Target, ToCompactString};
 
+use crate::inline_text::words_to_inlines;
+
 use super::emphasis::coalesce;
 use super::{Parser, at, collect_range, find_char};
 
@@ -66,7 +68,7 @@ impl Parser<'_> {
             if ns == "category" {
                 let text = match &label_content {
                     Some(label) if !label.trim().is_empty() => self.parse_inlines(label),
-                    _ => self.parse_inlines(&target),
+                    _ => words_to_inlines(&target),
                 };
                 let title = title_text(&text);
                 let attr = Attr {
@@ -103,9 +105,9 @@ impl Parser<'_> {
             }
         }
         let mut label = match &label_content {
-            Some(l) if l.trim().is_empty() => self.pipe_trick_label(&target),
+            Some(l) if l.trim().is_empty() => Self::pipe_trick_label(&target),
             Some(l) => self.parse_inlines(l),
-            None => self.parse_inlines(&target),
+            None => words_to_inlines(&target),
         };
         let title = title_text(&label);
         if !trail.is_empty() {
@@ -134,9 +136,15 @@ impl Parser<'_> {
     /// The display text the pipe trick derives from an empty-label link's target: the part after the
     /// first colon when the target is namespaced (so `Help:Contents` shows as `Contents`), otherwise
     /// no text at all.
-    fn pipe_trick_label(&mut self, target: &str) -> Vec<Inline> {
+    fn pipe_trick_label(target: &str) -> Vec<Inline> {
         match target.split_once(':') {
-            Some((_, rest)) => self.parse_inlines(rest),
+            Some((_, rest)) => {
+                let mut label = words_to_inlines(rest);
+                if rest.chars().next().is_some_and(char::is_whitespace) {
+                    label.insert(0, Inline::Space);
+                }
+                label
+            }
             None => Vec::new(),
         }
     }

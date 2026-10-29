@@ -181,6 +181,7 @@ fn apply_smart_quotes_nested(inlines: Vec<Inline>) -> Vec<Inline> {
 
 /// Applies the double-quote fold to the inline children of a container, leaving leaf and opaque
 /// inlines (text, code, math, raw passthrough, notes) untouched.
+/// Link labels use their own text rules and are already parsed.
 fn smart_descend(inline: Inline) -> Inline {
     match inline.into_parts() {
         InlineParts::Emph(v) => Inline::Emph(apply_smart_quotes(v)),
@@ -192,7 +193,6 @@ fn smart_descend(inline: Inline) -> Inline {
         InlineParts::SmallCaps(v) => Inline::SmallCaps(apply_smart_quotes(v)),
         InlineParts::Quoted(quote_type, v) => Inline::Quoted(quote_type, apply_smart_quotes(v)),
         InlineParts::Span(attr, v) => Inline::Span(attr, apply_smart_quotes(v)),
-        InlineParts::Link(attr, v, target) => Inline::Link(attr, apply_smart_quotes(v), target),
         InlineParts::Image(attr, v, target) => Inline::Image(attr, apply_smart_quotes(v), target),
         other => other.into(),
     }

@@ -212,10 +212,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `dokuwiki` ✅
 ### `jira` ✅
-
 ### `mediawiki` ✅
-- The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary
-  wikilinks rather than links to the media file or remote wiki.
 
 ### `man` ✅
 - A single ambiguous list-marker letter (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than

@@ -30,7 +30,8 @@ mod inline_scan;
     feature = "dokuwiki",
     feature = "rst",
     feature = "man",
-    feature = "rtf"
+    feature = "rtf",
+    feature = "mediawiki"
 ))]
 mod inline_text;
 #[cfg(any(feature = "html", feature = "odt", feature = "docbook"))]

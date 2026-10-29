@@ -673,3 +673,25 @@ fn unfinished_references_keep_literal_text_and_inline_markup() {
         ])]
     );
 }
+
+#[test]
+fn derived_link_labels_stay_literal_under_smart_typography() {
+    let mut options = ReaderOptions::default();
+    options.extensions = Extensions::from_list(&[Extension::Smart]);
+    for (source, expected) in [
+        ("[[:File:sample.png|]]", "File:sample.png"),
+        ("[[w:''word''|]]", "''word''"),
+        ("[[w:a&amp;b]]", "w:a&amp;b"),
+        ("[[Help:\"word\"|]]", "\"word\""),
+    ] {
+        let document = MediawikiReader.read(source, &options).unwrap();
+        let Block::Para(inlines) = &document.blocks[0] else {
+            panic!()
+        };
+        let Inline::Link(_, label, target) = &inlines[0] else {
+            panic!()
+        };
+        assert_eq!(label, &vec![Inline::Str(expected.into())]);
+        assert_eq!(target.title.as_str(), expected);
+    }
+}

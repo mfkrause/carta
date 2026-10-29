@@ -792,9 +792,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-mediawiki",
-        "gaps": [
-          "The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary wikilinks rather than links to the media file or remote wiki."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

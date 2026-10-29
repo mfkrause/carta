@@ -3,7 +3,7 @@
 use carta_ast::Inline;
 
 /// Split flat text into inline words separated by single spaces, collapsing every run of whitespace.
-#[cfg(any(feature = "man", feature = "rtf"))]
+#[cfg(any(feature = "man", feature = "rtf", feature = "mediawiki"))]
 pub(crate) fn words_to_inlines(text: &str) -> Vec<Inline> {
     let mut out = Vec::new();
     for word in text.split_whitespace() {
