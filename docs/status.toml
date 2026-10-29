@@ -294,7 +294,6 @@ write = "usable"
 write-feature = "write-asciidoc"
 write-gaps = [
   "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
-  "Lists in table cells are flattened or misplaced.",
 ]
 
 [[format]]

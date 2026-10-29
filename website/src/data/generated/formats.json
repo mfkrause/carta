@@ -555,8 +555,7 @@
         "ships": true,
         "feature": "write-asciidoc",
         "gaps": [
-          "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
-          "Lists in table cells are flattened or misplaced."
+          "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented)."
         ]
       }
     },

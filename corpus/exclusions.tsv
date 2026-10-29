@@ -35,7 +35,6 @@ epub2	common/literal-control-chars
 
 # Block content (a list) inside an otherwise-empty table cell is not yet rendered at parity by these
 # writers, which flatten or misplace the cell's paragraphs and bullets.
-asciidoc	table/table-empty-cell
 dokuwiki	table/table-empty-cell
 jira	table/table-empty-cell
 man	table/table-empty-cell

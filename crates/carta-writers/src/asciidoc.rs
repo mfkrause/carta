@@ -377,8 +377,13 @@ impl State {
         let mut column: usize = 0;
         for (index, (_, cell)) in grid.place(&row.cells).into_iter().enumerate() {
             if index > 0 {
-                line.push(' ');
-                column = column.saturating_add(1);
+                if line.ends_with('\n') {
+                    line.push('\n');
+                    column = 0;
+                } else {
+                    line.push(' ');
+                    column = column.saturating_add(1);
+                }
             }
             let rendered = self.table_cell(cell, column, width);
             column = match rendered.rsplit_once('\n') {
@@ -407,7 +412,12 @@ impl State {
             format!("{prefix}{body}")
         } else {
             let body = self.blocks(&cell.content, width);
-            format!("{marker}a|\n{}\n", body.trim_end_matches('\n'))
+            let body = body.trim_end_matches('\n');
+            if body.is_empty() {
+                format!("{marker}a|")
+            } else {
+                format!("{marker}a|\n{body}\n")
+            }
         }
     }
 
