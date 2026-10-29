@@ -279,7 +279,6 @@ family = "tex"
 read = "usable"
 read-feature = "read-typst"
 read-gaps = [
-  "Content holding several blocks that opens mid-paragraph folds into the surrounding paragraph rather than splitting it.",
 ]
 write = "usable"
 write-feature = "write-typst"

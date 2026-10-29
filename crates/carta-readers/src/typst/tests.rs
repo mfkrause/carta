@@ -33,6 +33,28 @@ fn named_value(name: &str, value: Value) -> Arg {
 }
 
 #[test]
+fn content_paragraphs_join_surrounding_text_at_their_open_edges() {
+    for expression in ["#[one\n\ntwo]", "#([one] + [\n\ntwo])"] {
+        assert_eq!(
+            parse(&format!("Before {expression} after.")),
+            vec![
+                Block::Para(vec![text("Before"), Inline::Space, text("one")]),
+                Block::Para(vec![text("two"), Inline::Space, text("after.")]),
+            ],
+            "{expression}"
+        );
+        assert_eq!(
+            parse(&format!("{expression} after.")),
+            vec![
+                Block::Para(vec![text("one")]),
+                Block::Para(vec![text("two"), Inline::Space, text("after.")]),
+            ],
+            "{expression}"
+        );
+    }
+}
+
+#[test]
 fn content_block_keeps_the_spaces_at_its_edges() {
     assert_eq!(
         inlines("A#emph[ b ]C"),

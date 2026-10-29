@@ -304,6 +304,11 @@ impl Value {
                 }
                 blocks
                     .retain(|block| !matches!(block, Block::Plain(inlines) if inlines.is_empty()));
+                for block in &mut blocks {
+                    if let Block::Plain(inlines) = block {
+                        *block = Block::Para(std::mem::take(inlines));
+                    }
+                }
                 blocks
             }
             Value::Nothing | Value::Group(..) => Vec::new(),
@@ -1420,6 +1425,16 @@ impl Parser {
     /// line reads as once the expression turns out to stand inline.
     fn code_block_line(&mut self, min_indent: usize) -> Vec<Block> {
         let value = self.code_expression();
+        if let Value::Content(blocks) = &value
+            && blocks.len() > 1
+            && (matches!(blocks.first(), Some(Block::Plain(_)))
+                || matches!(blocks.last(), Some(Block::Plain(_))))
+        {
+            if let Value::Content(blocks) = value {
+                self.interrupt = Some(blocks);
+            }
+            return self.paragraph_from(Vec::new(), min_indent);
+        }
         if !value.is_block() && self.line_closed != Some(self.pos) && !self.at_line_start() {
             let mut opening = value.into_inlines();
             if matches!(opening.first(), Some(Inline::Space | Inline::SoftBreak)) {
@@ -1453,6 +1468,40 @@ impl Parser {
         let mut inlines = Vec::new();
         let mut opening = Some(opening);
         loop {
+            if let Some(mut blocks) = self.interrupt.take() {
+                if let Some(Block::Plain(first)) = blocks.first_mut() {
+                    if inlines.is_empty()
+                        && matches!(first.first(), Some(Inline::Space | Inline::SoftBreak))
+                    {
+                        first.remove(0);
+                    }
+                    inlines.append(first);
+                    blocks.remove(0);
+                }
+                trim_trailing_space(&mut inlines);
+                if !inlines.is_empty() {
+                    out.push(Block::Para(std::mem::take(&mut inlines)));
+                }
+                if matches!(blocks.last(), Some(Block::Plain(_)))
+                    && let Some(BlockParts::Plain(mut tail)) = blocks.pop().map(Block::into_parts)
+                {
+                    if matches!(tail.last(), Some(Inline::SoftBreak)) {
+                        trim_trailing_space(&mut tail);
+                        if !tail.is_empty() {
+                            blocks.push(Block::Para(tail));
+                        }
+                    } else {
+                        if matches!(tail.first(), Some(Inline::Space | Inline::SoftBreak)) {
+                            tail.remove(0);
+                        }
+                        opening = Some(tail);
+                    }
+                }
+                out.extend(Value::Content(blocks).into_blocks());
+                if opening.as_ref().is_none_or(Vec::is_empty) {
+                    self.skip_spaces();
+                }
+            }
             let started = opening.take().unwrap_or_default();
             let mut line = self
                 .inline_run_from(started, None, true)
@@ -1463,13 +1512,7 @@ impl Parser {
                 }
                 inlines.append(&mut line);
             }
-            if let Some(blocks) = self.interrupt.take() {
-                trim_trailing_space(&mut inlines);
-                if !inlines.is_empty() {
-                    out.push(Block::Para(std::mem::take(&mut inlines)));
-                }
-                out.extend(blocks);
-                self.skip_spaces();
+            if self.interrupt.is_some() {
                 continue;
             }
             if !self.eat('\n') {
@@ -1720,7 +1763,12 @@ impl Parser {
     ) -> bool {
         self.splice_code_value(out, closer, interruptible);
         let ended = self.interrupt.is_some() || (closer.is_none() && self.at_line_start());
-        if ended {
+        if ended
+            && !matches!(
+                self.interrupt.as_ref().and_then(|blocks| blocks.first()),
+                Some(Block::Plain(_))
+            )
+        {
             trim_trailing_space(out);
         }
         ended
@@ -1732,7 +1780,10 @@ impl Parser {
     fn splice_code_value(&mut self, out: &mut Vec<Inline>, closer: Option<char>, blocks: bool) {
         let value = self.code_expression();
         if blocks && value.is_block() && !matches!(value, Value::Group(..)) {
-            self.interrupt = Some(value.into_blocks());
+            self.interrupt = Some(match value {
+                Value::Content(blocks) => blocks,
+                other => other.into_blocks(),
+            });
             return;
         }
         let mut inlines = value.into_inlines();
@@ -2206,7 +2257,7 @@ impl Parser {
         let value = self.expression();
         // An exit outside an expression cannot catch the rest of the document.
         self.flow = None;
-        value
+        value.materialize()
     }
 
     /// Read a full operator expression that the line end closes, as a `#let` value does.
@@ -4115,7 +4166,11 @@ fn append_content(blocks: &mut Vec<Block>, next: Vec<Block>) {
     };
     let closed = closes_paragraph(blocks);
     match (blocks.last_mut(), &mut first) {
-        (Some(Block::Para(tail)), Block::Para(head)) if !closed => tail.append(head),
+        (Some(Block::Para(tail) | Block::Plain(tail)), Block::Para(head) | Block::Plain(head))
+            if !closed =>
+        {
+            tail.append(head);
+        }
         _ => blocks.extend(without_leading_edge(first)),
     }
     blocks.extend(next);
@@ -4355,8 +4410,7 @@ fn edge_separator(whitespace: &[char]) -> Option<Inline> {
     }
 }
 
-/// Restore the separators the whitespace at the ends of a content block stands for. Block parsing
-/// drops them, yet they still separate the content from whatever surrounds the block inline.
+/// Preserve the open paragraphs and edge separators of inline content.
 fn pad_content_edges(blocks: &mut Vec<Block>, raw: &[char]) {
     let start = raw
         .iter()
@@ -4374,10 +4428,6 @@ fn pad_content_edges(blocks: &mut Vec<Block>, raw: &[char]) {
         }
         return;
     }
-    // Only a lone paragraph joins surrounding text; other content retains block boundaries.
-    if blocks.len() != 1 {
-        return;
-    }
     if let Some(inlines) = first_edge_inlines(blocks) {
         if matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak)) {
             inlines.remove(0);
@@ -4391,6 +4441,17 @@ fn pad_content_edges(blocks: &mut Vec<Block>, raw: &[char]) {
         if let Some(separator) = edge_separator(trail) {
             inlines.push(separator);
         }
+    }
+    let last = blocks.len().saturating_sub(1);
+    for (index, block) in blocks.iter_mut().enumerate() {
+        if (index == 0 || index == last)
+            && let Block::Para(inlines) = block
+        {
+            *block = Block::Plain(std::mem::take(inlines));
+        }
+    }
+    if lead.iter().filter(|character| **character == '\n').count() > 1 {
+        blocks.insert(0, Block::Plain(vec![Inline::SoftBreak]));
     }
 }
 

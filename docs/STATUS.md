@@ -198,8 +198,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   content.
 
 ### `typst` ✅
-- Content holding several blocks that opens mid-paragraph folds into the surrounding paragraph
-  rather than splitting it.
 
 ### `org` ✅
 - A property drawer's `:ID:` is not used as a fallback heading identifier when no `:CUSTOM_ID:` is
