@@ -285,7 +285,6 @@ read-gaps = [
 write = "usable"
 write-feature = "write-typst"
 write-gaps = [
-  "Lists in table cells are flattened or misplaced.",
 ]
 
 [[format]]

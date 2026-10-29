@@ -109,10 +109,17 @@ fn cell_body(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> CellBody
             fragments: fragments(inlines, width, wrap, smart),
             trailing_space: matches!(inlines.last(), Some(Inline::Space)),
         },
-        other => CellBody::Blocks {
-            body: blocks(other, width, wrap, smart),
-            trailing_newline: !matches!(other.last(), Some(Block::Plain(_))),
-        },
+        other => {
+            let body = blocks(other, width, wrap, smart);
+            if body.is_empty() {
+                CellBody::Empty
+            } else {
+                CellBody::Blocks {
+                    body,
+                    trailing_newline: !matches!(other.last(), Some(Block::Plain(_))),
+                }
+            }
+        }
     }
 }
 

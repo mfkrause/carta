@@ -539,9 +539,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-typst",
-        "gaps": [
-          "Lists in table cells are flattened or misplaced."
-        ]
+        "gaps": []
       }
     },
     {

@@ -255,6 +255,9 @@ fn enum_numbering(attrs: &ListAttributes) -> String {
 /// align under the marker's text column.
 fn list_item(marker: &str, item: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
     let body = blocks(item, width, wrap, smart);
+    if body.is_empty() {
+        return marker.trim_end().to_owned();
+    }
     let indent = " ".repeat(marker.len());
     let mut out = String::new();
     for (index, line) in body.lines().enumerate() {

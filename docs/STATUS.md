@@ -313,7 +313,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - The default title block leaves less space before the following content.
 
 ### `typst` ✅
-- Lists in table cells are flattened or misplaced.
 
 ### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).

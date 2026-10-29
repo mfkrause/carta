@@ -219,6 +219,27 @@ fn loose_bullet_list_separates_items() {
 }
 
 #[test]
+fn empty_first_items_keep_the_same_list() {
+    for empty in [
+        Vec::new(),
+        vec![Block::Plain(Vec::new())],
+        vec![Block::Para(Vec::new())],
+    ] {
+        let items = vec![empty, vec![para(vec![str_inline("two")])]];
+        assert_eq!(render(vec![Block::BulletList(items.clone())]), "-\n\n- two");
+        let attributes = ListAttributes {
+            start: 1,
+            style: ListNumberStyle::Decimal,
+            delim: ListNumberDelim::Period,
+        };
+        assert_eq!(
+            render(vec![Block::OrderedList(attributes, items)]),
+            "+\n\n+ two"
+        );
+    }
+}
+
+#[test]
 fn inline_code_uses_backticks() {
     assert_eq!(
         render(vec![para(vec![Inline::Code(
