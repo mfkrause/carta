@@ -373,8 +373,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   collapse to one style rather than one per column per section.
 - With an empty header row the unreferenced heading-parented alignment style is not emitted (only
   the referenced content-parented one is).
-- Table column style names beyond 26 columns use spreadsheet AA/AB naming rather than a raw ASCII
-  offset past Z.
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.

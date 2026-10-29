@@ -601,7 +601,6 @@ read-gaps = [
 write-gaps = [
   "Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment collapse to one style rather than one per column per section.",
   "With an empty header row the unreferenced heading-parented alignment style is not emitted (only the referenced content-parented one is).",
-  "Table column style names beyond 26 columns use spreadsheet AA/AB naming rather than a raw ASCII offset past Z.",
   "Table structural markup is emitted compact with no whitespace between structural tags rather than indented.",
   "List structural markup is emitted compact with no inter-tag whitespace rather than indented.",
   "A non-default ordered or example list reuses the generic `L1` auto-style name rather than a distinct numbering-style name.",

@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 
 use carta_ast::{Attr, Block, Format, Inline, MathType, Row, Table};
+use carta_core::container::xml::is_xml_char;
 
 use super::{STACK_RED_ZONE, STACK_SEGMENT};
 
@@ -107,19 +108,15 @@ pub(super) fn table_column_count(table: &Table) -> usize {
     columns
 }
 
-/// The spreadsheet-style column label for a zero-based index (`A`, `B`, …, `Z`, `AA`, …).
-#[allow(clippy::cast_possible_truncation)]
-pub(super) fn column_letter(mut index: usize) -> String {
-    let mut label = String::new();
-    loop {
-        let remainder = index % 26;
-        label.insert(0, char::from(b'A' + remainder as u8));
-        if index < 26 {
-            break;
-        }
-        index = index / 26 - 1;
-    }
-    label
+/// The column label at the character offset from A.
+/// Invalid XML characters get unique numeric names.
+pub(super) fn column_letter(index: usize) -> String {
+    u32::try_from(index)
+        .ok()
+        .and_then(|column| column.checked_add(u32::from(b'A')))
+        .and_then(char::from_u32)
+        .filter(|character| is_xml_char(*character))
+        .map_or_else(|| format!("Column{index}"), |column| column.to_string())
 }
 
 /// Whether a raw format targets this writer.
@@ -210,14 +207,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn column_letter_counts_in_base_26() {
+    fn column_labels_follow_character_offsets() {
         assert_eq!(column_letter(0), "A");
         assert_eq!(column_letter(25), "Z");
-        assert_eq!(column_letter(26), "AA");
-        assert_eq!(column_letter(27), "AB");
-        assert_eq!(column_letter(51), "AZ");
-        assert_eq!(column_letter(701), "ZZ");
-        assert_eq!(column_letter(702), "AAA");
+        assert_eq!(column_letter(26), "[");
+        assert_eq!(column_letter(27), "\\");
+        assert_eq!(column_letter(51), "t");
+        assert_eq!(column_letter(701), "\u{2fe}");
+        assert_eq!(column_letter(702), "\u{2ff}");
+        assert_ne!(column_letter(0xd7bf), column_letter(0xd7c0));
     }
 
     #[test]
