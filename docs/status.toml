@@ -602,7 +602,6 @@ write-gaps = [
   "Table structural markup is emitted compact with no whitespace between structural tags rather than indented.",
   "List structural markup is emitted compact with no inter-tag whitespace rather than indented.",
   "Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper levels are not progressively indented.",
-  "The first flowing paragraph inside a table cell is not treated as section-opening, so after a `DisplayMath` split its leading text gets `Text_20_body` rather than `First_20_paragraph`.",
   "When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell, definition), the split formula paragraph uses the flowing body style rather than the container style.",
   "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",
   "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",

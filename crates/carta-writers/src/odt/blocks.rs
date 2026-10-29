@@ -40,8 +40,8 @@ impl Builder<'_> {
             Block::Div(attr, inner) => self.div(attr, inner, fixed),
             Block::RawBlock(..) | Block::Figure(..) => self.block_other(block),
             other => {
-                self.block_other(other);
                 self.first_para = true;
+                self.block_other(other);
             }
         }
     }
@@ -713,6 +713,68 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn container_flow_state_starts_before_rendering_its_content() {
+        let options = carta_core::WriterOptions::default();
+        let paragraph = Block::Para(vec![
+            Inline::Str("Before".into()),
+            Inline::Math(carta_ast::MathType::DisplayMath, "x".into()),
+            Inline::Str("After".into()),
+        ]);
+        let table = Table {
+            col_specs: vec![
+                ColSpec {
+                    align: Alignment::AlignDefault,
+                    width: ColWidth::ColWidthDefault
+                };
+                2
+            ],
+            bodies: vec![carta_ast::TableBody {
+                body: vec![Row {
+                    cells: vec![
+                        Cell {
+                            row_span: 1,
+                            col_span: 1,
+                            content: vec![paragraph.clone()],
+                            attr: Attr::default(),
+                            align: Alignment::AlignDefault
+                        };
+                        2
+                    ],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        for block in [
+            Block::Table(Box::new(table)),
+            Block::BlockQuote(vec![paragraph.clone(), paragraph.clone()]),
+            Block::DefinitionList(vec![(
+                vec![Inline::Str("Term".into())],
+                vec![vec![paragraph.clone(), paragraph]],
+            )]),
+        ] {
+            let mut builder = Builder::new(&options);
+            builder.render_blocks(
+                &[block, Block::Para(vec![Inline::Str("Suffix".into())])],
+                None,
+            );
+            assert_eq!(
+                builder
+                    .body
+                    .matches("text:style-name=\"First_20_paragraph\"")
+                    .count(),
+                1
+            );
+            assert!(
+                builder
+                    .body
+                    .ends_with("<text:p text:style-name=\"Text_20_body\">Suffix</text:p>")
+            );
+        }
+    }
 
     #[test]
     fn raw_blocks_and_figures_preserve_the_flowing_paragraph_state() {
