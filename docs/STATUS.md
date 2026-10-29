@@ -172,9 +172,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   multi-optional macros are unsupported. Expansion has a work allowance based on the source length.
 - Cross-reference commands (`\ref`, `\eqref`, `\autoref`, `\cref`, `\pageref`) resolve to a link
   whose visible text is a bracketed `[label]` placeholder rather than the target's counter number.
-- `\includegraphics` keeps only `width` and `height`; `\textwidth`/`\linewidth`/`\textheight`
-  lengths convert to percentages and absolute units pass through, but `\columnwidth`/`\paperwidth`
-  and leading-dot decimal values are omitted.
 - `\multirow` spans are not modeled.
 - Partial `\cline` rules are not modeled.
 - Nested tables may flatten.
