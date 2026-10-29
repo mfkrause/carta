@@ -663,11 +663,17 @@ fn line_block(
     let mut only_empty_so_far = true;
     for (index, line) in lines.iter().enumerate() {
         let is_last = index + 1 == lines.len();
-        let mut breaks = true;
         if !line.is_empty() {
-            let rendered = inlines_to_string(line, width, dialect, wrap, smart, hl);
+            let mut pieces = inline_pieces(line, width, dialect, wrap, smart, hl);
+            if !is_last {
+                if line_needs_strut(line) {
+                    pieces.push(Piece::text("\\strut "));
+                }
+                pieces.push(Piece::text("\\\\"));
+            }
+            let rendered = fill(&pieces, width, wrap);
             // A line opening on a non-breaking space carries no glyph to set its height.
-            if rendered.starts_with('~') {
+            if !only_empty_so_far && rendered.starts_with('~') {
                 out.push_str("\\strut ");
             }
             out.push_str(&rendered);
@@ -675,15 +681,39 @@ fn line_block(
         } else if is_last {
         } else if only_empty_so_far {
             out.push_str("\\hfill\\break");
-            breaks = false;
         } else {
-            out.push_str("\\strut ");
+            out.push_str("\\strut \\\\");
         }
         if !is_last {
-            out.push_str(if breaks { "\\\\\n" } else { "\n" });
+            out.push('\n');
         }
     }
     out
+}
+
+fn line_needs_strut(line: &[Inline]) -> bool {
+    let mut pending = vec![line];
+    while let Some(inlines) = pending.pop() {
+        for inline in inlines {
+            match inline {
+                Inline::Code(..) | Inline::Space | Inline::SoftBreak => {}
+                Inline::Emph(content)
+                | Inline::Strong(content)
+                | Inline::Underline(content)
+                | Inline::Strikeout(content)
+                | Inline::Superscript(content)
+                | Inline::Subscript(content)
+                | Inline::SmallCaps(content)
+                | Inline::Quoted(_, content)
+                | Inline::Cite(_, content)
+                | Inline::Link(_, content, _)
+                | Inline::Span(_, content) => pending.push(content),
+                Inline::RawInline(format, _) if !is_latex_format(&format.0) => {}
+                _ => return false,
+            }
+        }
+    }
+    true
 }
 
 #[allow(clippy::too_many_arguments)]

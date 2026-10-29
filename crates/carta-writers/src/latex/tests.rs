@@ -40,6 +40,39 @@ fn long_paragraph() -> Vec<Block> {
 }
 
 #[test]
+fn line_blocks_keep_code_height_and_trailing_spaces() {
+    let code = Inline::Code(Box::new(Attr::default()), "code".into());
+    assert_eq!(
+        render(vec![Block::LineBlock(vec![
+            vec![Inline::Emph(vec![code.clone()]), Inline::Space],
+            vec![Inline::Str("text".into()), Inline::Space],
+            vec![code],
+        ])]),
+        "\\emph{\\texttt{code}} \\strut \\\\\ntext \\\\\n\\texttt{code}"
+    );
+}
+
+#[test]
+fn line_block_breaks_participate_in_wrapping() {
+    assert_eq!(
+        render_columns(
+            vec![Block::LineBlock(vec![
+                vec![
+                    Inline::Str("abcdef".into()),
+                    Inline::Space,
+                    Inline::Str("abcdef".into()),
+                    Inline::Space,
+                    Inline::Str("abcdef".into()),
+                ],
+                str_inlines("Next"),
+            ])],
+            20
+        ),
+        "abcdef abcdef\nabcdef\\\\\nNext"
+    );
+}
+
+#[test]
 fn custom_columns_change_paragraph_wrapping() {
     let narrow = render_columns(long_paragraph(), 20);
     let wide = render_columns(long_paragraph(), 70);
