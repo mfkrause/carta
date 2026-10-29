@@ -184,6 +184,39 @@ fn input_directory(name: &str) -> PathBuf {
     directory
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-odt"))]
+#[test]
+fn odt_accepts_ascii_and_preserves_unicode_text() {
+    let directory = input_directory("odt-ascii");
+    let output = directory.join("unicode.odt");
+    for target in [None, Some("ODT+native_numbering")] {
+        let mut arguments = vec!["-f", "markdown", "--ascii", "-o", output.to_str().unwrap()];
+        if let Some(target) = target {
+            arguments.extend(["-t", target]);
+        }
+        let result = run(&arguments, "λ café\n");
+        assert!(result.success, "stderr: {}", result.stderr);
+        let bytes = fs::read(&output).unwrap();
+        let parts = carta_core::container::zip::read(&bytes).unwrap();
+        let content = parts
+            .iter()
+            .find(|part| part.name == "content.xml")
+            .unwrap();
+        assert!(
+            std::str::from_utf8(&content.data)
+                .unwrap()
+                .contains("λ café")
+        );
+    }
+    let result = run(&["-t", "html", "--ascii"], "λ café\n");
+    assert_eq!(result.code, Some(2));
+    assert!(
+        result
+            .stderr
+            .contains("--ascii is only supported for ODT output")
+    );
+}
+
 #[test]
 fn no_format_flags_convert_markdown_to_html() {
     let result = run(&[], "*text*");

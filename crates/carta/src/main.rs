@@ -95,6 +95,9 @@ struct Cli {
     /// Column at which `--wrap=auto` reflows text. Defaults to the writer's built-in width.
     #[arg(long = "columns", value_name = "N")]
     columns: Option<usize>,
+    /// Accept the ASCII flag for ODT output, which preserves Unicode text.
+    #[arg(long = "ascii")]
+    ascii: bool,
     /// Column grid a tab in the input advances to (default 4).
     #[arg(long = "tab-stop", value_name = "N", value_parser = parse_tab_stop)]
     tab_stop: Option<usize>,
@@ -340,6 +343,14 @@ fn run(cli: &Cli) -> Result<()> {
     } else {
         to
     };
+    if cli.ascii && to_base != "odt" {
+        Cli::command()
+            .error(
+                clap::error::ErrorKind::ArgumentConflict,
+                "--ascii is only supported for ODT output",
+            )
+            .exit();
+    }
     convert_document(from, to, cli)
 }
 

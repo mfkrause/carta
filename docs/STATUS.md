@@ -372,8 +372,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must
   come from an external reference document.
 - `styles.xml` is authored with a neutral style-name scheme; no reference-document engine ships.
-- Writer options with no ODT analogue (wrap and column width, highlight theme, ascii-only) are
-  silently no-ops.
 
 ### `rtf` ✅
 - A table nested inside another table's cell carries a single `\intbl` on its cell paragraphs
