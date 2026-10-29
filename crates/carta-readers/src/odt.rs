@@ -438,16 +438,7 @@ impl<'a> Converter<'a> {
                         ),
                     ));
                 }
-                // Drop non-rendered markers and generated indexes with stale entries.
-                "soft-page-break" | "sequence-decls" | "forms" | "tracked-changes" | "note"
-                | "numbered-paragraph" | "table-of-content" | "table-of-contents"
-                | "bibliography" | "alphabetical-index" | "illustration-index" | "table-index"
-                | "object-index" | "user-index" => {}
-                _ => {
-                    flush_code(&mut out, &mut code);
-                    flush_quote(&mut out, &mut quote);
-                    out.extend(self.convert_body_blocks(element));
-                }
+                _ => {}
             }
         }
         flush_code(&mut out, &mut code);

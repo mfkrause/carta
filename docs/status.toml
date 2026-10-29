@@ -609,7 +609,6 @@ read-gaps = [
   '''A function-name script base is wrapped in redundant braces (`{\sin}^{2}` rather than `\sin^{2}`).''',
   "MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than ignored.",
   "A cross-reference or other unrecognized inline field degrades to its display text; the dynamic target or number is not resolved.",
-  "An unknown block container is made transparent (its children are lifted); soft page breaks, sequence declarations, forms, and tracked-changes markers are dropped.",
   "An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the like) contributes no spacing.",
 ]
 write-gaps = [
