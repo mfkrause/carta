@@ -605,7 +605,6 @@ write-gaps = [
   "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",
   "Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry order, and attribute order across the manifest, metadata, and formula parts.",
   '''The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.''',
-  "`--number-sections` is a no-op: headings carry no computed section numbers.",
   "Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token styling.",
   "Image intrinsic sizing reads only PNG, GIF, and JPEG pixel dimensions; other formats fall back to attribute-supplied or default sizing under a fixed DPI.",
   "Table relative column widths are approximated as a percentage rel-width plus rounded integer proportions.",
