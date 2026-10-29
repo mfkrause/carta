@@ -349,10 +349,10 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_body_blocks(&mut self, container: &Element) -> Vec<Block> {
-        self.convert_blocks(container, 1, None, false)
+        self.convert_blocks(container.elements(), 1, None, false)
     }
 
-    /// Walks a block container, gathering its children into blocks. `list_depth` and `list_inherited`
+    /// Converts block elements in order. `list_depth` and `list_inherited`
     /// describe the context a direct `<text:list>` child sits in: at body level a list starts at
     /// depth 1 with no inherited style, while inside a list item it starts one level deeper and
     /// inherits the enclosing list's style. `in_list_item` is set when the container is a list item:
@@ -360,9 +360,9 @@ impl<'a> Converter<'a> {
     /// margin heuristic that flags a block quote in body flow is held back. Preformatted classification
     /// and run merging apply uniformly, so a code paragraph reads the same wherever it appears.
     #[allow(clippy::too_many_lines)]
-    fn convert_blocks(
+    fn convert_blocks<'element>(
         &mut self,
-        container: &Element,
+        elements: impl IntoIterator<Item = &'element Element>,
         list_depth: i32,
         list_inherited: Option<&str>,
         in_list_item: bool,
@@ -370,7 +370,7 @@ impl<'a> Converter<'a> {
         let mut out = Vec::new();
         let mut quote: Vec<Block> = Vec::new();
         let mut code: Vec<String> = Vec::new();
-        for element in container.elements() {
+        for element in elements {
             // Drop floating shapes whole so the container fallback cannot extract their text.
             if is_drawing_shape(&element.name) {
                 continue;
@@ -430,7 +430,12 @@ impl<'a> Converter<'a> {
                     flush_quote(&mut out, &mut quote);
                     out.push(Block::Div(
                         Box::default(),
-                        self.convert_blocks(element, list_depth, list_inherited, in_list_item),
+                        self.convert_blocks(
+                            element.elements(),
+                            list_depth,
+                            list_inherited,
+                            in_list_item,
+                        ),
                     ));
                 }
                 // Drop non-rendered markers and generated indexes with stale entries.
@@ -516,7 +521,7 @@ impl<'a> Converter<'a> {
         style_name: Option<&str>,
     ) -> Vec<Block> {
         // List margins are indentation; nested lists inherit the style at the next level.
-        compact(self.convert_blocks(item, depth + 1, style_name, true))
+        compact(self.convert_blocks(item.elements(), depth + 1, style_name, true))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -596,7 +601,16 @@ impl<'a> Converter<'a> {
                 .and_then(|value| value.parse::<i64>().ok())
                 .filter(|span| *span > 0)
                 .unwrap_or(1);
-            let content = compact(self.convert_body_blocks(child));
+            let content = compact(
+                self.convert_blocks(
+                    child
+                        .elements()
+                        .filter(|element| matches!(local_name(&element.name), "p" | "list")),
+                    1,
+                    None,
+                    false,
+                ),
+            );
             cells.push(Cell {
                 attr: Attr::default(),
                 align: Alignment::AlignDefault,

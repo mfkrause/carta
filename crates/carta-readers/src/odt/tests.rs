@@ -36,6 +36,64 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn cells_keep_paragraph_roles_and_lists_without_reserving_hidden_heading_ids() {
+    let body = content(
+        "<table:table><table:table-row><table:table-cell>\
+         <text:p>Keep</text:p>\
+         <text:p text:style-name=\"Preformatted_20_Text\">Code</text:p>\
+         <text:p text:style-name=\"Table\">Caption</text:p>\
+         <text:list><text:list-item><text:p>Item</text:p></text:list-item></text:list>\
+         <text:h text:outline-level=\"1\">Heading</text:h>\
+         <table:table><table:table-row><table:table-cell><text:p>Hidden</text:p>\
+         </table:table-cell></table:table-row></table:table>\
+         <text:section><text:p>Hidden</text:p></text:section>\
+         </table:table-cell></table:table-row></table:table>\
+         <text:h text:outline-level=\"1\">Heading</text:h>",
+    );
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Table\" style:family=\"paragraph\"/>\
+        <style:style style:name=\"Preformatted_20_Text\" style:family=\"paragraph\"/>\
+        </office:styles></office:document-styles>";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("styles.xml", styles.as_bytes()),
+    ]);
+    let document = read(&odt).expect("read cell blocks");
+    let Some(Block::Table(table)) = document.blocks.first() else {
+        panic!("expected a table");
+    };
+    let cell = table
+        .bodies
+        .first()
+        .and_then(|body| body.body.first())
+        .and_then(|row| row.cells.first())
+        .expect("expected a cell");
+    let [
+        Block::Para(keep),
+        Block::CodeBlock(_, code),
+        Block::Div(attr, caption),
+        Block::OrderedList(_, items),
+    ] = cell.content.as_slice()
+    else {
+        panic!("expected paragraph roles and a list");
+    };
+    assert_eq!(keep, &vec![Inline::Str("Keep".into())]);
+    assert_eq!(code, "Code");
+    assert!(matches!(attr.classes.as_slice(), [class] if class == "caption"));
+    assert_eq!(
+        caption,
+        &vec![Block::Para(vec![Inline::Str("Caption".into())])]
+    );
+    assert_eq!(
+        items,
+        &vec![vec![Block::Plain(vec![Inline::Str("Item".into())])]]
+    );
+    assert!(
+        matches!(document.blocks.get(1), Some(Block::Header(_, attr, _)) if attr.id == "heading")
+    );
+}
+
+#[test]
 fn wide_soft_breaks_are_optional_and_hard_breaks_remain() {
     let body = content(
         "<text:p>漢\n字</text:p><text:p>漢<text:line-break/>字</text:p>\
