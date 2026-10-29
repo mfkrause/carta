@@ -151,8 +151,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Narrow per-extension divergences: see [known parity gaps](#known-parity-gaps).
 
 ### `markdown_github` ✅
-- A task-list item followed by an ordinary bullet item splits into two lists rather than staying in
-  one.
 - Shares the `markdown` reader gaps.
 
 ### `markdown_mmd` ✅

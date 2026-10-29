@@ -1,3 +1,4 @@
 - [ ] an open task
 - [x] a done task
+- an ordinary item
 - [ ] another open task

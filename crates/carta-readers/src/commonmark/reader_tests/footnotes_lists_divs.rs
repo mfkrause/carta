@@ -3,6 +3,23 @@
 use super::*;
 
 #[test]
+fn markdown_keeps_task_and_ordinary_items_in_one_list() {
+    let source = "- [ ] First\n- Ordinary\n- [x] Last\n";
+    let document = read_markdown(source, &[Extension::TaskLists]);
+    let [Block::BulletList(items)] = document.blocks.as_slice() else {
+        panic!("expected one list, got {:?}", document.blocks);
+    };
+    assert_eq!(items.len(), 3);
+    for (item, expected) in items.iter().zip(["☐", "Ordinary", "☒"]) {
+        let [Block::Plain(inlines)] = item.as_slice() else {
+            panic!("expected a tight item, got {item:?}");
+        };
+        assert!(matches!(inlines.first(), Some(Inline::Str(text)) if text == expected));
+    }
+    assert_eq!(blocks_with(source, Extension::TaskLists).len(), 3);
+}
+
+#[test]
 fn footnote_reference_resolves_to_a_note_and_lifts_the_definition() {
     let inlines = para_inlines("text[^a]\n\n[^a]: body\n", Extension::Footnotes);
     let note = inlines

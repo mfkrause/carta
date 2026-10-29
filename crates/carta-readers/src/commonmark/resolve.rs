@@ -597,9 +597,8 @@ fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, markdown: bool) -> 
 /// Resolve a bullet list, applying the `task_lists` transform when enabled.
 ///
 /// With `task_lists` on, a leading `[ ]`/`[x]`/`[X]` marker on an item's first leaf block becomes a
-/// checkbox character, and the list is partitioned into maximal runs of consecutive task / non-task
-/// items, each run emitted as its own bullet list. With it off, the items form a single list
-/// unchanged.
+/// checkbox character. `CommonMark` partitions consecutive task and non-task items into separate
+/// lists; the Markdown dialect keeps the original list together.
 fn resolve_bullet_list(
     items: &[Vec<IrBlock>],
     refs: &RefMap,
@@ -619,7 +618,7 @@ fn resolve_bullet_list(
             None
         };
         let is_task = marker.is_some();
-        if run_is_task.is_some_and(|previous| previous != is_task) {
+        if !notes.markdown && run_is_task.is_some_and(|previous| previous != is_task) {
             out.push(Block::BulletList(std::mem::take(&mut run)));
         }
         run_is_task = Some(is_task);
