@@ -598,7 +598,6 @@ read-feature = "read-odt"
 write-feature = "write-odt"
 read-gaps = [
   "A block element misnested in inline context (`text:list`, a nested `text:p`, a nested `text:a`) leaks its text into the surrounding prose rather than being dropped.",
-  "A `text:bibliography-mark` inline citation flattens to its display text rather than becoming a `Cite`.",
   '''`text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts at 1 rather than continuing.''',
   "Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width is taken as the sum of colspans and rows go ragged.",
   "A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.",

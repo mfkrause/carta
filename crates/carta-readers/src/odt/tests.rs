@@ -1,5 +1,5 @@
 use super::{MAX_REPEATED_SPACES, OdtReader, parse_length};
-use carta_ast::{Attr, Block, Inline, Target};
+use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target};
 use carta_core::container::zip::ZipArchive;
 use carta_core::{BytesReader, ReaderOptions};
 
@@ -32,6 +32,45 @@ fn a_well_formed_package_reads_its_body() {
     assert_eq!(
         document.blocks,
         vec![Block::Para(vec![Inline::Str("Hi".into())])]
+    );
+}
+
+#[test]
+fn bibliography_marks_keep_the_identifier_and_only_direct_text() {
+    let mark = "<text:bibliography-mark text:identifier=\"source\">\
+                A<text:span>Hidden</text:span> B</text:bibliography-mark>";
+    let body = content(&format!(
+        "<text:p>{mark}</text:p><text:h text:outline-level=\"1\">{mark}</text:h>"
+    ));
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    let citation = Inline::Cite(
+        vec![Citation {
+            id: "source".into(),
+            prefix: Vec::new(),
+            suffix: Vec::new(),
+            mode: CitationMode::NormalCitation,
+            note_num: 0,
+            hash: 0,
+        }],
+        vec![
+            Inline::Str("A".into()),
+            Inline::Space,
+            Inline::Str("B".into()),
+        ],
+    );
+    assert_eq!(
+        read(&odt).expect("read bibliography mark").blocks,
+        vec![
+            Block::Para(vec![citation.clone()]),
+            Block::Header(
+                1,
+                Box::new(Attr {
+                    id: "a-b".into(),
+                    ..Attr::default()
+                }),
+                vec![citation],
+            )
+        ]
     );
 }
 

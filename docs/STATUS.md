@@ -255,8 +255,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `odt` ✅
 - A block element misnested in inline context (`text:list`, a nested `text:p`, a nested `text:a`)
   leaks its text into the surrounding prose rather than being dropped.
-- A `text:bibliography-mark` inline citation flattens to its display text rather than becoming a
-  `Cite`.
 - `text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts
   at 1 rather than continuing.
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width

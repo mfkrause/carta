@@ -3,9 +3,9 @@
 use std::collections::BTreeMap;
 
 use carta_ast::{
-    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
-    ListNumberDelim, ListNumberStyle, MathType, Row, Table, TableBody, TableFoot, TableHead,
-    Target, Text, slug,
+    Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,
+    Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, Row, Table, TableBody,
+    TableFoot, TableHead, Target, Text, slug,
 };
 use carta_core::container::zip;
 use carta_core::{
@@ -680,6 +680,25 @@ impl<'a> Converter<'a> {
             "bookmark" | "bookmark-start" => self.push_bookmark(element, out),
             "reference-mark-start" => self.push_reference_mark(element, out),
             "bookmark-ref" | "reference-ref" => self.convert_cross_reference(element, out),
+            "bibliography-mark" => {
+                let inner = self.convert_inlines(
+                    element
+                        .children
+                        .iter()
+                        .filter(|node| matches!(node, Node::Text(_))),
+                );
+                out.push(Inline::Cite(
+                    vec![Citation {
+                        id: element.attr("identifier").unwrap_or_default().into(),
+                        prefix: Vec::new(),
+                        suffix: Vec::new(),
+                        mode: CitationMode::NormalCitation,
+                        note_num: 0,
+                        hash: 0,
+                    }],
+                    inner,
+                ));
+            }
             "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
             | "reference-mark" | "reference-mark-end" | "soft-page-break" | "date"
             | "page-number" | "page-count" | "author-name" | "title" | "chapter" | "file-name"

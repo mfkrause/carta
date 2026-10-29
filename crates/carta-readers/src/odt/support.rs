@@ -229,6 +229,7 @@ fn collect_plain(inlines: &[Inline], out: &mut String) {
             | Inline::Subscript(children)
             | Inline::Underline(children)
             | Inline::SmallCaps(children)
+            | Inline::Cite(_, children)
             | Inline::Span(_, children)
             | Inline::Link(_, children, _) => collect_plain(children, out),
             Inline::Image(_, alt, _) => collect_plain(alt, out),
