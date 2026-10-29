@@ -36,6 +36,31 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn inline_containers_do_not_leak_text_or_register_hidden_bookmarks() {
+    let body = content(
+        "<text:p>Before<text:p>Hidden</text:p>\
+         <text:list><text:list-item><text:p>Hidden</text:p></text:list-item></text:list>\
+         <text:unknown><text:bookmark text:name=\"hidden\"/>Hidden</text:unknown>\
+         <text:sequence>A<text:span>Hidden</text:span>B</text:sequence>After</text:p>\
+         <text:p><text:bookmark text:name=\"shown\"/></text:p>",
+    );
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    assert_eq!(
+        read(&odt).expect("read inline containers").blocks,
+        vec![
+            Block::Para(vec![Inline::Str("BeforeABAfter".into())]),
+            Block::Para(vec![Inline::Span(
+                Box::new(Attr {
+                    id: "anchor".into(),
+                    ..Attr::default()
+                }),
+                Vec::new(),
+            )]),
+        ]
+    );
+}
+
+#[test]
 fn cross_references_and_marks_share_forward_targets() {
     for reference in ["bookmark-ref", "reference-ref"] {
         for mark in ["bookmark", "reference-mark-start"] {

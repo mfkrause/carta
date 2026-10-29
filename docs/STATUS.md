@@ -253,8 +253,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-- A block element misnested in inline context (`text:list`, a nested `text:p`, a nested `text:a`)
-  leaks its text into the surrounding prose rather than being dropped.
 - `text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts
   at 1 rather than continuing.
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
@@ -268,8 +266,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A function-name script base is wrapped in redundant braces (`{\sin}^{2}` rather than `\sin^{2}`).
 - MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than
   ignored.
-- A cross-reference or other unrecognized inline field degrades to its display text; the dynamic
-  target or number is not resolved.
 - An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the
   like) contributes no spacing.
 

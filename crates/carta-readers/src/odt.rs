@@ -377,7 +377,7 @@ impl<'a> Converter<'a> {
                         ParaRole::Quote if in_list_item => ParaRole::Normal,
                         role => role,
                     };
-                    let inlines = self.convert_inlines(&element.children);
+                    let inlines = self.convert_paragraph_inlines(&element.children);
                     match role {
                         ParaRole::Code => {
                             flush_quote(&mut out, &mut quote);
@@ -447,7 +447,7 @@ impl<'a> Converter<'a> {
             .and_then(|value| value.parse::<i64>().ok())
             .unwrap_or(1);
         self.heading_anchor = Some(slug(&element.text()));
-        let inlines = self.convert_inlines(&element.children);
+        let inlines = self.convert_paragraph_inlines(&element.children);
         self.heading_anchor = None;
         let id = self
             .ids
@@ -619,6 +619,20 @@ impl<'a> Converter<'a> {
         }
     }
 
+    fn convert_paragraph_inlines(&mut self, children: &[Node]) -> Vec<Inline> {
+        self.convert_inlines(children.iter().flat_map(|node| {
+            let (children, text_only) = match node {
+                Node::Element(element) if local_name(&element.name) == "sequence" => {
+                    (element.children.as_slice(), true)
+                }
+                _ => (std::slice::from_ref(node), false),
+            };
+            children
+                .iter()
+                .filter(move |node| !text_only || matches!(node, Node::Text(_)))
+        }))
+    }
+
     fn convert_inlines<'node>(
         &mut self,
         children: impl IntoIterator<Item = &'node Node>,
@@ -694,16 +708,9 @@ impl<'a> Converter<'a> {
                     inner,
                 ));
             }
-            "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
-            | "reference-mark" | "reference-mark-end" | "soft-page-break" | "date"
-            | "page-number" | "page-count" | "author-name" | "title" | "chapter" | "file-name"
-            | "sequence-ref" | "note-ref" | "number" | "meta" | "ruby" => {}
             "note" => out.push(self.convert_note(element)),
             "frame" => self.convert_frame(element, out),
-            _ => {
-                let inner = self.convert_inlines(&element.children);
-                out.extend(inner);
-            }
+            _ => {}
         }
     }
 
@@ -908,8 +915,9 @@ impl<'a> Converter<'a> {
             if let Some(index) = position
                 && let Some(Node::Element(frame)) = paragraph.children.get(index)
             {
-                let caption =
-                    self.convert_inlines(paragraph.children.get(index + 1..).unwrap_or_default());
+                let caption = self.convert_paragraph_inlines(
+                    paragraph.children.get(index + 1..).unwrap_or_default(),
+                );
                 return Some((frame, caption));
             }
         }
