@@ -106,7 +106,7 @@ pub(crate) fn parse_dimension(value: &str) -> Option<Dimension> {
 /// Parse the numeric part of a dimension: a run of ASCII digits with an optional single fractional
 /// run (`123` or `123.45`), no sign, no leading or trailing dot, no surrounding whitespace. Returns
 /// the magnitude, or `None` for any other shape.
-fn parse_dimension_number(text: &str) -> Option<f64> {
+pub(crate) fn parse_dimension_number(text: &str) -> Option<f64> {
     let (whole, fraction) = match text.split_once('.') {
         Some((whole, fraction)) => (whole, Some(fraction)),
         None => (text, None),

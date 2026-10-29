@@ -38,7 +38,7 @@ pub(super) fn image_metrics(bytes: &[u8]) -> ((i64, i64), (f64, f64)) {
     if let Some(dimensions) = svg_dimensions(bytes) {
         return (dimensions_as_signed(dimensions), (96.0, 96.0));
     }
-    if let Some(dimensions) = eps_dimensions(bytes) {
+    if let Some(dimensions) = eps_dimensions(bytes).or_else(|| pdf_dimensions(bytes)) {
         return (dimensions, (72.0, 72.0));
     }
     ((100, 100), (72.0, 72.0))
@@ -147,6 +147,31 @@ fn eps_dimensions(bytes: &[u8]) -> Option<(i64, i64)> {
     };
     let [_, _, width, height] = [number()?, number()?, number()?, number()?];
     coordinates.next().is_none().then_some((width, height))
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn pdf_dimensions(bytes: &[u8]) -> Option<(i64, i64)> {
+    if !bytes.starts_with(b"%PDF-") {
+        return None;
+    }
+    bytes
+        .split_inclusive(|byte| *byte == b']')
+        .find_map(|part| {
+            let bounds = part.strip_suffix(b"]")?;
+            let marker = bounds.windows(9).rposition(|word| word == b"/MediaBox")?;
+            let bounds = core::str::from_utf8(bounds.get(marker + 9..)?).ok()?;
+            let mut coordinates = bounds
+                .trim_ascii_start()
+                .strip_prefix('[')?
+                .split_ascii_whitespace();
+            let mut number =
+                || common::parse_dimension_number(coordinates.next()?).map(|value| value as i64);
+            let [left, bottom, right, top] = [number()?, number()?, number()?, number()?];
+            coordinates
+                .next()
+                .is_none()
+                .then_some((right - left, top - bottom))
+        })
 }
 
 fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
@@ -500,6 +525,27 @@ mod tests {
         let image = b"%!PS-Adobe-2.0 EPSF-2.0\r\n%%BoundingBox: 0 0 32 16\r\n\xff";
         assert_eq!(image_metrics(image), ((32, 16), (72.0, 72.0)));
         assert_eq!(eps_dimensions(b"%!PS\n%%BoundingBox: 0 0 32 16\n"), None);
+    }
+
+    #[test]
+    fn pdf_dimensions_reads_the_first_valid_media_box() {
+        for (bounds, expected) in [
+            ("0 0 32 16", Some((32, 16))),
+            ("10 20 42 36", Some((32, 16))),
+            ("0.9 0.9 32.1 16.1", Some((32, 16))),
+            ("10 20 4 3", Some((-6, -17))),
+            ("-5 -7 27 9", None),
+            ("0 0 +32 +16", None),
+            ("0 0 32. 16.", None),
+            ("0 0 32 16 extra", None),
+        ] {
+            let image = format!("%PDF-1.4\n/MediaBox [{bounds}]\n");
+            assert_eq!(pdf_dimensions(image.as_bytes()), expected, "{bounds}");
+        }
+        assert_eq!(pdf_dimensions(b"%PDF-1.4\n/MediaBox [0 0 32 16"), None);
+        assert_eq!(pdf_dimensions(b"/MediaBox [0 0 32 16]"), None);
+        let image = b"%PDF-1.4\n/MediaBox [bad] /MediaBox [0 0 32 16] /MediaBox [0 0 64 32]\xff";
+        assert_eq!(image_metrics(image), ((32, 16), (72.0, 72.0)));
     }
 
     #[test]
