@@ -33,8 +33,10 @@ expression: output
 <table:table-column table:style-name="Table1.B" />
 <table:table-header-rows>
 <table:table-row>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string"/>
-<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string"/>
+<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+</table:table-cell>
+<table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+</table:table-cell>
 </table:table-row>
 </table:table-header-rows>
 <table:table-row>

@@ -509,9 +509,8 @@ impl Builder<'_> {
             let _ = write!(self.body, " table:number-rows-spanned=\"{rows_spanned}\"");
         }
         self.body.push('>');
-        let checkpoint = self.body.len();
         self.render_blocks(&cell.content, Some(&para_style));
-        self.close_or_self_close(checkpoint, "</table:table-cell>");
+        self.body.push_str("</table:table-cell>");
     }
 
     fn emit_empty_cell(&mut self, cell_header: bool) {
@@ -522,7 +521,7 @@ impl Builder<'_> {
         };
         let _ = write!(
             self.body,
-            "<table:table-cell table:style-name=\"{cell_style}\" office:value-type=\"string\" />"
+            "<table:table-cell table:style-name=\"{cell_style}\" office:value-type=\"string\"></table:table-cell>"
         );
     }
 

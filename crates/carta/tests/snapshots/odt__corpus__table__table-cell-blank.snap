@@ -45,10 +45,12 @@ expression: output
 <table:table-cell table:style-name="TableRowCell" office:value-type="string">
 <text:p text:style-name="Table_20_Contents">x</text:p>
 </table:table-cell>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string"/>
+<table:table-cell table:style-name="TableRowCell" office:value-type="string">
+</table:table-cell>
 </table:table-row>
 <table:table-row>
-<table:table-cell table:style-name="TableRowCell" office:value-type="string"/>
+<table:table-cell table:style-name="TableRowCell" office:value-type="string">
+</table:table-cell>
 <table:table-cell table:style-name="TableRowCell" office:value-type="string">
 <text:p text:style-name="Table_20_Contents">y</text:p>
 </table:table-cell>
