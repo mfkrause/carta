@@ -273,10 +273,13 @@ impl Builder<'_> {
     fn image(&mut self, attr: &Attr, alt: &[Inline], target: &Target) {
         match self.resolve_image(target.url.as_str()) {
             Some((bytes, mime)) => {
-                let extension = extension_for_mime(&mime).to_string();
                 let index = self.object_index;
                 let ordinal = self.image_ordinal;
-                let file_name = format!("{index}.{extension}");
+                let file_name = if mime.is_empty() {
+                    index.to_string()
+                } else {
+                    format!("{index}.{}", extension_for_mime(&mime))
+                };
                 let ((width, height), density) = image_metrics(&bytes);
                 let size = image_size(attr, width, height, density);
                 let _ = write!(
@@ -305,15 +308,22 @@ impl Builder<'_> {
     /// Resolves an image reference to its bytes and MIME type, from the media bag or an inline data
     /// URI. Returns `None` when neither carries the resource, so the caller degrades to the alt text.
     fn resolve_image(&self, url: &str) -> Option<(Vec<u8>, String)> {
-        if let Some(item) = self.options.media.get(url) {
+        let data_mime = url
+            .strip_prefix("data:")
+            .and_then(|header| header.split([';', ',']).next());
+        let (bytes, mime) = if let Some(item) = self.options.media.get(url) {
             let mime = item
                 .mime
                 .clone()
+                .or_else(|| data_mime.map(str::to_string))
                 .or_else(|| image_mime_for_extension(url).map(str::to_string))
                 .unwrap_or_else(|| "application/octet-stream".to_string());
-            return Some((item.bytes.clone(), mime));
-        }
-        decode_data_uri(url)
+            (item.bytes.clone(), mime)
+        } else {
+            let (bytes, mime) = decode_data_uri(url)?;
+            (bytes, data_mime.map_or(mime, str::to_string))
+        };
+        Some((bytes, mime))
     }
 
     pub(super) fn paragraph(&mut self, style: &str, inlines: &[Inline]) {
@@ -356,6 +366,43 @@ impl Builder<'_> {
             }
             after_tab = ch == '\t' && !at_start;
             at_start = false;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn untyped_data_images_keep_their_bytes_and_package_target() {
+        let source = "data:;base64,YQ==";
+        for cached in [false, true] {
+            let mut options = carta_core::WriterOptions::default();
+            let bytes = if cached {
+                b"cached".as_slice()
+            } else {
+                b"a".as_slice()
+            };
+            if cached {
+                let mut media = carta_core::media::MediaBag::new();
+                media.insert(source, None, bytes.to_vec());
+                options.media = std::sync::Arc::new(media);
+            }
+            let mut builder = Builder::new(&options);
+            builder.image(
+                &Attr::default(),
+                &[],
+                &Target {
+                    url: source.into(),
+                    title: Default::default(),
+                },
+            );
+            let image = builder.images.first().expect("image is retained");
+            assert_eq!(image.file_name, "0");
+            assert_eq!(image.bytes, bytes);
+            assert!(builder.body.contains("xlink:href=\"Pictures/0\""));
+            assert!(!crate::odt::meta::manifest_xml(&builder.images, &[]).contains("Pictures/"));
         }
     }
 }

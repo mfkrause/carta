@@ -158,7 +158,7 @@ struct Formula {
 struct Image {
     /// The name under `Pictures/`, for example `0.png`.
     file_name: String,
-    /// The MIME type, recorded in the manifest.
+    /// The MIME type, or empty when the data URI does not declare one.
     mime: String,
     bytes: Vec<u8>,
 }

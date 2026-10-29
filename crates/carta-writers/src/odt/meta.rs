@@ -119,7 +119,7 @@ pub(super) fn manifest_xml(images: &[Image], formulas: &[Formula]) -> String {
              manifest:media-type=\"{media_type}\" />"
         );
     }
-    for image in images {
+    for image in images.iter().filter(|image| !image.mime.is_empty()) {
         let mut media_type = String::new();
         escape_attribute(&image.mime, &mut media_type);
         let _ = write!(
