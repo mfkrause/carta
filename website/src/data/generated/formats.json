@@ -1126,8 +1126,7 @@
         "feature": "read-odt",
         "gaps": [
           "Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width is taken as the sum of colspans and rows go ragged.",
-          "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically).",
-          "MathML `math:mfenced` loses its visible open/close delimiters (no `\\left`/`\\right`)."
+          "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically)."
         ]
       },
       "write": {

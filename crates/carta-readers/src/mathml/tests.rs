@@ -112,6 +112,26 @@ fn takes_limits_recognizes_operators_but_not_symbols() {
 #[test]
 fn fenced_separators_cycle_and_repeat_the_last() {
     assert_eq!(
+        tex("<math><mfenced separators=' |'><mi>x</mi><mi>y</mi></mfenced></math>"),
+        "\\left( {x\\operatorname{}y} \\right)"
+    );
+    assert_eq!(
+        tex(
+            "<math><msup><mi>a</mi><mfenced separators='∕'><mi>x</mi><mi>y</mi></mfenced></msup></math>"
+        ),
+        "a^{({x \\slash y})}"
+    );
+    assert_eq!(
+        tex("<math><mfenced separators=';|'><mi>x</mi><mi>y</mi><mi>z</mi></mfenced></math>"),
+        "\\left( x;y \\middle| z \\right)"
+    );
+    assert_eq!(
+        tex(
+            "<math><msup><mi>a</mi><mfenced open='' close='' separators=';'><mi>x</mi><mi>y</mi></mfenced></msup></math>"
+        ),
+        "a^{x;y}"
+    );
+    assert_eq!(
         tex("<math><mfenced separators=';,'><mi>a</mi><mi>b</mi><mi>c</mi></mfenced></math>"),
         "\\left( {a;b,c} \\right)"
     );

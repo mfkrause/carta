@@ -213,6 +213,30 @@ struct Level {
     next: usize,
 }
 
+/// An authored row element or a separator inserted between fenced children.
+enum RowItem<'a, T> {
+    Element(&'a T),
+    Separator(char),
+}
+
+impl<T: MathTree> RowItem<'_, T> {
+    fn render(&self, context: Context<'_>) -> Piece {
+        match self {
+            Self::Element(element) => render(*element, context),
+            Self::Separator(character) => {
+                render_operator(trim_token(&character.to_string()), context.faces)
+            }
+        }
+    }
+
+    fn delimiter(&self) -> Option<Delimiter> {
+        match self {
+            Self::Element(element) => delimiter_of(*element),
+            Self::Separator(character) => delimiter_text(&character.to_string()),
+        }
+    }
+}
+
 /// How a token joins to the one that follows it.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum Join {
@@ -308,7 +332,8 @@ fn trim_row(row: &str) -> String {
 /// Assemble a sequence of elements into one piece: a lone piece stands for the row, and anything
 /// else reads as a group, holding no spacing of its own at either edge.
 fn wrap<T: MathTree>(elements: &[&T], ctx: Context<'_>) -> Piece {
-    let mut pieces = assemble(elements, 0, ctx, false).pieces;
+    let elements: Vec<_> = elements.iter().copied().map(RowItem::Element).collect();
+    let mut pieces = assemble(&elements, 0, ctx, false).pieces;
     if pieces.len() == 1 {
         return pieces.remove(0);
     }
@@ -341,7 +366,12 @@ fn flatten(pieces: &[Piece], tokens: &mut Tokens) {
 
 /// Assemble the elements from `start` into one level of delimiter nesting. `enclosed` marks a level
 /// that is the content of an open delimiter, and so ends at the first delimiter that closes it.
-fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclosed: bool) -> Level {
+fn assemble<T: MathTree>(
+    elements: &[RowItem<'_, T>],
+    start: usize,
+    ctx: Context<'_>,
+    enclosed: bool,
+) -> Level {
     let mut pieces: Vec<Piece> = Vec::new();
     let mut barrier = 0;
     let mut spanning = false;
@@ -350,7 +380,11 @@ fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclos
     while index < elements.len() {
         // a fence pair around an <mtable> reads as one delimited matrix, not three loose tokens
         if !ctx.script
-            && let (Some(open), Some(table), Some(close)) = (
+            && let (
+                Some(RowItem::Element(open)),
+                Some(RowItem::Element(table)),
+                Some(RowItem::Element(close)),
+            ) = (
                 elements.get(index),
                 elements.get(index + 1),
                 elements.get(index + 2),
@@ -366,7 +400,7 @@ fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclos
             break;
         };
         if !ctx.script
-            && let Some(delimiter) = delimiter_of(*element)
+            && let Some(delimiter) = element.delimiter()
         {
             let leads = !enclosed && index == start;
             let last = index + 1 == elements.len();
@@ -412,7 +446,7 @@ fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclos
                 continue;
             }
         }
-        pieces.push(render(*element, ctx));
+        pieces.push(element.render(ctx));
         index += 1;
         spans = spans || (spanning && pieces.len() > barrier + 1);
     }
@@ -431,7 +465,7 @@ fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclos
 
 /// A level spanning one delimiter renders that delimiter as written, with no inferred pair.
 fn lone_element<T: MathTree>(
-    elements: &[&T],
+    elements: &[RowItem<'_, T>],
     start: usize,
     end: usize,
     pieces: Vec<Piece>,
@@ -441,7 +475,7 @@ fn lone_element<T: MathTree>(
         return pieces;
     }
     match elements.get(start) {
-        Some(element) if delimiter_of(*element).is_some() => vec![render(*element, ctx)],
+        Some(element) if element.delimiter().is_some() => vec![element.render(ctx)],
         _ => pieces,
     }
 }
@@ -504,7 +538,11 @@ fn delimiter_of<T: MathTree>(e: &T) -> Option<Delimiter> {
         return None;
     }
     let text = e.inner_text();
-    let text = trim_token(&text);
+    delimiter_text(&text)
+}
+
+fn delimiter_text(text: &str) -> Option<Delimiter> {
+    let text = trim_token(text);
     let mut characters = text.chars();
     let character = characters.next()?;
     if characters.next().is_some() {
@@ -816,7 +854,7 @@ fn covers_base<T: MathTree>(script: &T) -> bool {
 }
 
 /// `<mfenced>`: children wrapped in delimiters, defaulting to parentheses with comma separators. The
-/// `separators` attribute lists one character per gap between children (whitespace ignored); when the
+/// `separators` attribute lists one character per gap between children; when the
 /// children outnumber the listed separators the last one repeats, and an explicitly empty list places
 /// no separators at all. A delimiter that names no bracket is written as an operator beside the
 /// content, and a pair of empty delimiters leaves the content bare.
@@ -835,20 +873,18 @@ fn render_fenced<T: MathTree>(e: &T, ctx: Context<'_>) -> Piece {
         .attribute("separators")
         .unwrap_or_else(|| ",".to_string())
         .chars()
-        .filter(|c| !c.is_whitespace())
         .collect();
-    let mut content: Vec<Piece> = Vec::new();
+    let mut elements = Vec::new();
     for (index, child) in children.iter().enumerate() {
         if index > 0
             && let Some(separator) = separators.get(index - 1).or_else(|| separators.last())
         {
-            content.push(render_operator(&separator.to_string(), ctx.faces));
+            elements.push(RowItem::Separator(*separator));
         }
-        let rendered = render(*child, ctx);
-        if !rendered.tex.is_empty() {
-            content.push(rendered);
-        }
+        elements.push(RowItem::Element(*child));
     }
+    let mut content = assemble(&elements, 0, ctx, false).pieces;
+    content.retain(|piece| !piece.tex.is_empty());
     let content = match content.len() {
         0 => None,
         1 => Some(content.remove(0)),
@@ -856,6 +892,9 @@ fn render_fenced<T: MathTree>(e: &T, ctx: Context<'_>) -> Piece {
     };
     let open_fence = fence_attribute(&open, opens_fence, ctx.faces);
     let close_fence = fence_attribute(&close, closes_fence, ctx.faces);
+    if matches!(open_fence, Fence::None) && matches!(close_fence, Fence::None) {
+        return content.unwrap_or_default();
+    }
     if ctx.script {
         return scripted_fence(open_fence, content, close_fence);
     }
@@ -1470,7 +1509,7 @@ fn render_operator(op: &str, faces: Faces) -> Piece {
         let (tex, role) = character_tex(character, faces);
         return Piece {
             tex,
-            spaced: role == Role::Spaced,
+            spaced: role == Role::Spaced || matches!(character, '\u{2044}' | '\u{2215}'),
             join: join_after(role),
             simple: role != Role::Infix,
             limits: takes_limits(character),

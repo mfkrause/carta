@@ -257,7 +257,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   is taken as the sum of colspans and rows go ragged.
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
-- MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
 
 ### `rtf` ✅
 - A `\mac`, `\pc`, or `\pca` document's `\'xx` bytes decode as Windows-1252 rather than the declared
