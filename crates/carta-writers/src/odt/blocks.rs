@@ -15,7 +15,7 @@ use super::helpers::{
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
-use super::{AlignKind, Builder, ParaStyleKey, STACK_RED_ZONE, STACK_SEGMENT};
+use super::{AlignKind, Builder, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT};
 
 impl Builder<'_> {
     /// Renders a block sequence. `fixed` names a paragraph style imposed on the sequence's direct
@@ -329,6 +329,19 @@ impl Builder<'_> {
             .iter()
             .any(|spec| matches!(spec.width, ColWidth::ColWidth(_)));
         self.push_table_style(n, columns, &table.col_specs, has_widths);
+        let headings: Vec<_> = (0..columns)
+            .map(|column| self.column_paragraph_style(true, column, &table.col_specs))
+            .collect();
+        let styles: Vec<_> = headings
+            .into_iter()
+            .enumerate()
+            .map(|(column, heading)| {
+                (
+                    heading,
+                    self.column_paragraph_style(false, column, &table.col_specs),
+                )
+            })
+            .collect();
 
         let _ = write!(
             self.body,
@@ -350,7 +363,7 @@ impl Builder<'_> {
                 true,
                 columns,
                 columns,
-                &table.col_specs,
+                &styles,
                 &mut covered,
             );
             self.body.push_str("</table:table-header-rows>");
@@ -362,7 +375,7 @@ impl Builder<'_> {
                 false,
                 columns,
                 columns,
-                &table.col_specs,
+                &styles,
                 &mut covered,
             );
             self.table_rows(
@@ -370,18 +383,11 @@ impl Builder<'_> {
                 false,
                 head_columns,
                 columns,
-                &table.col_specs,
+                &styles,
                 &mut covered,
             );
         }
-        self.table_rows(
-            &table.foot.rows,
-            false,
-            0,
-            columns,
-            &table.col_specs,
-            &mut covered,
-        );
+        self.table_rows(&table.foot.rows, false, 0, columns, &styles, &mut covered);
         self.body.push_str("</table:table>");
     }
 
@@ -434,7 +440,7 @@ impl Builder<'_> {
         cell_header: bool,
         head_columns: usize,
         columns: usize,
-        specs: &[ColSpec],
+        styles: &[(String, String)],
         covered: &mut [usize],
     ) {
         for (row_index, row) in rows.iter().enumerate() {
@@ -462,7 +468,7 @@ impl Builder<'_> {
                         cell_header,
                         para_header,
                         column,
-                        specs,
+                        styles,
                         span,
                         rows_spanned,
                     );
@@ -490,11 +496,11 @@ impl Builder<'_> {
         cell_header: bool,
         para_header: bool,
         column: usize,
-        specs: &[ColSpec],
+        styles: &[(String, String)],
         span: usize,
         rows_spanned: usize,
     ) {
-        let para_style = self.cell_paragraph_style(para_header, column, specs, &cell.align);
+        let para_style = self.cell_paragraph_style(para_header, column, styles, &cell.align);
         let cell_style = if cell_header {
             "TableHeaderRowCell"
         } else {
@@ -527,49 +533,51 @@ impl Builder<'_> {
         );
     }
 
-    /// The paragraph style a cell's content takes, folding the cell's own alignment over the
-    /// column's default and mapping centered and trailing alignment to automatic styles.
+    /// The column's paragraph style, with a fresh child style for an explicit cell alignment.
     fn cell_paragraph_style(
         &mut self,
         para_header: bool,
         column: usize,
-        specs: &[ColSpec],
+        styles: &[(String, String)],
         cell_align: &Alignment,
     ) -> String {
-        let column_default = Alignment::AlignDefault;
-        let effective = match cell_align {
-            Alignment::AlignDefault => specs
-                .get(column)
-                .map_or(&column_default, |spec| &spec.align),
-            other => other,
-        };
-        let base = if para_header {
+        let default = if para_header {
             "Table_20_Heading"
         } else {
             "Table_20_Contents"
         };
-        match effective {
-            Alignment::AlignCenter => self.align_style(para_header, AlignKind::Center),
-            Alignment::AlignRight => self.align_style(para_header, AlignKind::Right),
+        let base = styles.get(column).map_or(default, |(heading, contents)| {
+            if para_header {
+                heading.as_str()
+            } else {
+                contents.as_str()
+            }
+        });
+        match cell_align {
+            Alignment::AlignCenter => self.align_style(base, AlignKind::Center),
+            Alignment::AlignRight => self.align_style(base, AlignKind::Right),
             _ => base.to_string(),
         }
     }
 
-    /// The name of the automatic paragraph style realizing an alignment over a table base style,
-    /// registering it on first use.
-    fn align_style(&mut self, para_header: bool, kind: AlignKind) -> String {
-        let key = ParaStyleKey {
-            header: para_header,
-            align: kind,
+    fn column_paragraph_style(&mut self, header: bool, column: usize, specs: &[ColSpec]) -> String {
+        let base = if header {
+            "Table_20_Heading"
+        } else {
+            "Table_20_Contents"
         };
-        if let Some(index) = self
-            .para_styles
-            .iter()
-            .position(|existing| *existing == key)
-        {
-            return format!("P{}", index + 1);
+        match specs.get(column).map(|spec| &spec.align) {
+            Some(Alignment::AlignCenter) => self.align_style(base, AlignKind::Center),
+            Some(Alignment::AlignRight) => self.align_style(base, AlignKind::Right),
+            _ => base.to_owned(),
         }
-        self.para_styles.push(key);
+    }
+
+    fn align_style(&mut self, parent: &str, kind: AlignKind) -> String {
+        self.para_styles.push(ParaStyle {
+            parent: parent.to_owned(),
+            align: kind,
+        });
         format!("P{}", self.para_styles.len())
     }
 
@@ -675,6 +683,66 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aligned_columns_keep_distinct_styles_without_header_content() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let table = Table {
+            col_specs: vec![
+                ColSpec {
+                    align: Alignment::AlignCenter,
+                    width: ColWidth::ColWidthDefault
+                };
+                2
+            ],
+            head: carta_ast::TableHead {
+                rows: vec![Row::default()],
+                ..Default::default()
+            },
+            bodies: vec![carta_ast::TableBody {
+                body: vec![Row {
+                    cells: ["A", "B"]
+                        .into_iter()
+                        .map(|label| Cell {
+                            attr: Attr::default(),
+                            align: Alignment::AlignDefault,
+                            row_span: 1,
+                            col_span: 1,
+                            content: vec![Block::Plain(vec![Inline::Str(label.into())])],
+                        })
+                        .collect(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        builder.table(&table);
+        assert_eq!(
+            builder
+                .para_styles
+                .iter()
+                .map(|style| style.parent.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "Table_20_Heading",
+                "Table_20_Heading",
+                "Table_20_Contents",
+                "Table_20_Contents"
+            ]
+        );
+        assert!(
+            builder
+                .body
+                .contains("<text:p text:style-name=\"P3\">A</text:p>")
+        );
+        assert!(
+            builder
+                .body
+                .contains("<text:p text:style-name=\"P4\">B</text:p>")
+        );
+    }
 
     #[test]
     fn row_spans_stop_at_the_last_row() {

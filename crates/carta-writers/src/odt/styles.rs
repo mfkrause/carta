@@ -28,12 +28,7 @@ pub(super) fn deco_style_xml(index: usize, key: &[Deco]) -> String {
     )
 }
 
-pub(super) fn para_style_xml(index: usize, header: bool, kind: AlignKind) -> String {
-    let parent = if header {
-        "Table_20_Heading"
-    } else {
-        "Table_20_Contents"
-    };
+pub(super) fn para_style_xml(index: usize, parent: &str, kind: AlignKind) -> String {
     let align = match kind {
         AlignKind::Center => "center",
         AlignKind::Right => "end",

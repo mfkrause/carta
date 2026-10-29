@@ -220,12 +220,9 @@ enum AlignKind {
     Right,
 }
 
-/// The identity of an automatic table-cell paragraph style: the base style it inherits (a heading
-/// cell when `header`, a contents cell otherwise) folded with the alignment it imposes. Two cells
-/// asking for the same pair share one registered style.
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct ParaStyleKey {
-    header: bool,
+/// An automatic paragraph style and its parent.
+struct ParaStyle {
+    parent: String,
     align: AlignKind,
 }
 
@@ -240,7 +237,7 @@ struct Builder<'a> {
     /// Whether empty paragraphs are preserved rather than dropped.
     keep_empty: bool,
     text_styles: Vec<Vec<Deco>>,
-    para_styles: Vec<ParaStyleKey>,
+    para_styles: Vec<ParaStyle>,
     list_styles: String,
     table_styles: String,
     note_id: usize,
@@ -303,7 +300,7 @@ impl<'a> Builder<'a> {
             out.push_str(&deco_style_xml(index + 1, key));
         }
         for (index, key) in self.para_styles.iter().enumerate() {
-            out.push_str(&para_style_xml(index + 1, key.header, key.align));
+            out.push_str(&para_style_xml(index + 1, &key.parent, key.align));
         }
         if self.table_index != 0 {
             out.push_str(CELL_STYLES);
