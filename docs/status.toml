@@ -602,7 +602,6 @@ read-gaps = [
   "Nested `text:span` character styles are not normalized: identical nested styles are not coalesced and ancestor styles are not re-applied to inner spans (renders identically).",
   "An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.",
   '''MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).''',
-  "MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than ignored.",
   "An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the like) contributes no spacing.",
 ]
 write-gaps = [

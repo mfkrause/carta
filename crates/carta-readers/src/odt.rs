@@ -924,12 +924,8 @@ impl<'a> Converter<'a> {
         None
     }
 
-    /// The TeX rendering of a formula object's MathML, taken from MathML embedded directly in the
-    /// object or, failing that, from the `content.xml` of the sub-object the frame references.
+    /// The TeX rendering of MathML in the referenced formula object's `content.xml` part.
     fn resolve_formula(&self, object: &Element) -> Option<String> {
-        if let Some(math) = object.descendant("math") {
-            return Some(crate::mathml::to_tex(math));
-        }
         let path = formula_part_path(object.attr("href")?);
         let root = xml::parse(self.parts.get(&path)?, MAX_XML_DEPTH)?;
         let math = if local_name(&root.name) == "math" {

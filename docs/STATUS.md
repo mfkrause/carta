@@ -261,8 +261,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   and ancestor styles are not re-applied to inner spans (renders identically).
 - An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
 - MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
-- MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than
-  ignored.
 - An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the
   like) contributes no spacing.
 

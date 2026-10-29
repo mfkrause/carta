@@ -1,5 +1,5 @@
 use super::{MAX_REPEATED_SPACES, OdtReader, parse_length};
-use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target};
+use carta_ast::{Attr, Block, Citation, CitationMode, Inline, MathType, Target};
 use carta_core::container::zip::ZipArchive;
 use carta_core::{BytesReader, ReaderOptions};
 
@@ -33,6 +33,43 @@ fn a_well_formed_package_reads_its_body() {
         document.blocks,
         vec![Block::Para(vec![Inline::Str("Hi".into())])]
     );
+}
+
+#[test]
+fn formula_objects_use_referenced_math_or_the_preview_image() {
+    for referenced in [false, true] {
+        let target = if referenced {
+            "xlink:href=\"./Formula\""
+        } else {
+            ""
+        };
+        let body = content(&format!(
+            "<text:p><draw:frame><draw:object {target}><math><mi>x</mi></math></draw:object>\
+             <draw:image xlink:href=\"Pictures/preview.png\"/></draw:frame></text:p>"
+        ));
+        let odt = package(&[
+            ("content.xml", body.as_bytes()),
+            ("Formula/content.xml", b"<math><mi>y</mi></math>"),
+            ("Pictures/preview.png", b"preview"),
+        ]);
+        let (document, media) = OdtReader
+            .read_media(&odt, &ReaderOptions::default())
+            .expect("read formula and preview");
+        let expected = if referenced {
+            Inline::Math(MathType::DisplayMath, "y".into())
+        } else {
+            Inline::Image(
+                Box::default(),
+                Vec::new(),
+                Box::new(Target {
+                    url: "Pictures/preview.png".into(),
+                    title: "".into(),
+                }),
+            )
+        };
+        assert_eq!(document.blocks, vec![Block::Para(vec![expected])]);
+        assert_eq!(media.get("Pictures/preview.png").is_some(), !referenced);
+    }
 }
 
 #[test]
