@@ -227,7 +227,6 @@ read-feature = "read-latex"
 write-feature = "write-latex"
 read-gaps = [
   '''Delimited macro parameters, `\let` bindings, `\csname`/`\expandafter`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length.''',
-  "Nested tables may flatten.",
 ]
 write-gaps = [
   "A table nested in a cell cannot split across pages.",

@@ -5,8 +5,8 @@ use carta_ast::{
     TableFoot, TableHead,
 };
 
-use super::support::trim_inlines;
-use super::{InlineStop, Parser};
+use super::support::{group_span, trim_inlines};
+use super::{InlineStop, Parser, Stop};
 
 /// Parses a `key=value, key, …` option list into ordered attribute pairs. A bare key gets an empty
 /// value.
@@ -73,28 +73,81 @@ pub(super) fn latex_length_to_percent(value: &str) -> Option<String> {
     })
 }
 
-/// Splits `text` on `sep`, ignoring separators nested inside `{…}`.
-pub(super) fn split_top_level(text: &str, sep: char) -> Vec<String> {
+/// Splits source outside braced groups, comments, and nested environments.
+pub(super) fn split_top_level(text: &str, separator: char) -> Vec<String> {
     let mut parts = Vec::new();
-    let mut depth = 0i32;
+    let mut depth = 0usize;
+    let mut environments = 0usize;
     let mut current = String::new();
-    for c in text.chars() {
-        match c {
-            '{' => {
-                depth += 1;
-                current.push(c);
-            }
-            '}' => {
-                if depth > 0 {
-                    depth -= 1;
+    let mut characters = text.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character == '%' {
+            current.push(character);
+            for character in characters.by_ref() {
+                current.push(character);
+                if character == '\n' {
+                    break;
                 }
-                current.push(c);
             }
-            _ if c == sep && depth == 0 => {
-                parts.push(std::mem::take(&mut current));
-            }
-            _ => current.push(c),
+            continue;
         }
+        if character == '\\'
+            && let Some(next) = characters.next()
+        {
+            if next == '\\' && separator == '\\' && depth == 0 && environments == 0 {
+                parts.push(std::mem::take(&mut current));
+                continue;
+            }
+            current.push(character);
+            current.push(next);
+            if next.is_ascii_alphabetic() {
+                let mut command = String::from(next);
+                while let Some(&character) = characters.peek() {
+                    if !character.is_ascii_alphabetic() {
+                        break;
+                    }
+                    command.push(character);
+                    current.push(character);
+                    characters.next();
+                }
+                if command == "verb" {
+                    if characters.peek() == Some(&'*') {
+                        characters.next();
+                        current.push('*');
+                    }
+                    if let Some(delimiter) = characters.next() {
+                        current.push(delimiter);
+                        for character in characters.by_ref() {
+                            current.push(character);
+                            if character == delimiter || character == '\n' {
+                                break;
+                            }
+                        }
+                    }
+                }
+                if depth == 0 && matches!(command.as_str(), "begin" | "end") {
+                    let mut argument = characters.clone().skip_while(|c| c.is_whitespace());
+                    if argument.next() == Some('{') {
+                        environments = if command == "begin" {
+                            environments + 1
+                        } else {
+                            environments.saturating_sub(1)
+                        };
+                    }
+                }
+            }
+            continue;
+        }
+        match character {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            _ if character == separator && depth == 0 && environments == 0 => {
+                parts.push(std::mem::take(&mut current));
+                continue;
+            }
+            _ => {}
+        }
+        current.push(character);
     }
     parts.push(current);
     parts
@@ -182,7 +235,7 @@ pub(super) fn build_table(
     let mut attributes = Attr::default();
     let mut rule_pending = false;
     let mut first_row_ruled = false;
-    for chunk in split_rows(body) {
+    for chunk in split_top_level(body, '\\') {
         let (leading_rule, mut content) = strip_leading_rules(&chunk);
         if captions && (content.starts_with("\\caption") || content.starts_with("\\label")) {
             let mut source = parser.child(&content, false);
@@ -224,7 +277,10 @@ pub(super) fn build_table(
                 content.push(character);
             }
         }
-        if content.trim().is_empty() {
+        if content
+            .lines()
+            .all(|line| line.trim().is_empty() || line.trim_start().starts_with('%'))
+        {
             rule_pending |= leading_rule;
             continue;
         }
@@ -233,8 +289,7 @@ pub(super) fn build_table(
             first_row_ruled = true;
         }
         rule_pending = false;
-        let content = split_top_level(&content, '\n').join(" ");
-        rows.push(build_row(parser, &strip_rules(&content), ncols));
+        rows.push(build_row(parser, &content, ncols));
     }
     if rows.len() == 1 && rule_pending {
         first_row_ruled = true;
@@ -268,34 +323,6 @@ pub(super) fn build_table(
     Block::Table(Box::new(table))
 }
 
-fn split_rows(body: &str) -> Vec<String> {
-    let mut rows = Vec::new();
-    let mut row = String::new();
-    let mut depth = 0usize;
-    let mut characters = body.chars().peekable();
-    while let Some(character) = characters.next() {
-        if character == '\\'
-            && let Some(next) = characters.next()
-        {
-            if next == '\\' && depth == 0 {
-                rows.push(std::mem::take(&mut row));
-            } else {
-                row.push(character);
-                row.push(next);
-            }
-            continue;
-        }
-        match character {
-            '{' => depth += 1,
-            '}' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-        row.push(character);
-    }
-    rows.push(row);
-    rows
-}
-
 /// Builds a table row from raw cell source, splitting on `&` and padding to `ncols` columns.
 /// A `\multicolumn{n}{align}{content}` field yields a single cell spanning `n` columns.
 pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
@@ -309,11 +336,15 @@ pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
         };
         let (row_span, content_src) =
             parse_multirow(parser, content_src.trim()).unwrap_or((1, content_src));
-        let inlines = parse_cell_inlines(parser, content_src.trim());
-        let content = if inlines.is_empty() {
-            Vec::new()
+        let content = if content_src.contains("\\begin") {
+            parse_cell_blocks(parser, content_src.trim())
         } else {
-            vec![Block::Plain(inlines)]
+            let inlines = parse_cell_inlines(parser, content_src.trim());
+            if inlines.is_empty() {
+                Vec::new()
+            } else {
+                vec![Block::Plain(inlines)]
+            }
         };
         cells.push(Cell {
             attr: Attr::default(),
@@ -337,6 +368,35 @@ pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
     Row {
         attr: Attr::default(),
         cells,
+    }
+}
+
+fn parse_cell_blocks(parser: &Parser, source: &str) -> Vec<Block> {
+    let mut source = std::borrow::Cow::Borrowed(source);
+    let mut grouped = false;
+    loop {
+        let mut cell = parser.child(&source, false);
+        if cell.cur() == Some('{')
+            && let Some(inner) = cell.read_group_raw()
+        {
+            cell.skip_block_ws();
+            if cell.eof() {
+                source = std::borrow::Cow::Owned(inner);
+                grouped = true;
+                continue;
+            }
+            cell.set_source(&source);
+        }
+        let mut blocks = cell.parse_blocks(&Stop::Eof);
+        if let [Block::Para(inlines)] = blocks.as_mut_slice() {
+            let inlines = std::mem::take(inlines);
+            blocks = vec![Block::Plain(if grouped {
+                group_span(inlines).into_iter().collect()
+            } else {
+                inlines
+            })];
+        }
+        return blocks;
     }
 }
 
@@ -595,20 +655,4 @@ pub(super) fn skip_rule_argument(chars: &[char], start: usize) -> usize {
 pub(super) fn parse_cell_inlines(parser: &Parser, source: &str) -> Vec<Inline> {
     let mut sub = parser.child(source, false);
     trim_inlines(sub.parse_inlines(InlineStop::Paragraph))
-}
-
-/// Removes horizontal-rule commands (`\hline`, `\toprule`, …, `\cline{…}`) from a table row source.
-pub(super) fn strip_rules(row: &str) -> String {
-    let mut out = String::new();
-    let chars: Vec<char> = row.chars().collect();
-    let mut i = 0;
-    while let Some(&c) = chars.get(i) {
-        if let Some((end, _)) = rule_command_at(&chars, i) {
-            i = end;
-            continue;
-        }
-        out.push(c);
-        i += 1;
-    }
-    out
 }

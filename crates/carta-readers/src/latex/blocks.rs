@@ -480,14 +480,55 @@ impl Parser {
 
     /// Reads the raw source of an environment body up to (but not consuming) its `\end{env}`.
     pub(super) fn read_environment_source(&mut self, env: &str) -> String {
-        let closing = format!("\\end{{{env}}}");
         let mut out = String::new();
-        while !self.eof() {
-            if self.looking_at(&closing) {
-                break;
+        let mut depth = 0usize;
+        while let Some(character) = self.cur() {
+            if self.at_control_word("verb") {
+                for _ in 0..5 {
+                    if let Some(character) = self.bump() {
+                        out.push(character);
+                    }
+                }
+                if self.cur() == Some('*')
+                    && let Some(character) = self.bump()
+                {
+                    out.push(character);
+                }
+                if let Some(delimiter) = self.bump() {
+                    out.push(delimiter);
+                    while let Some(character) = self.bump() {
+                        out.push(character);
+                        if character == delimiter || character == '\n' {
+                            break;
+                        }
+                    }
+                }
+                continue;
             }
-            if let Some(c) = self.bump() {
-                out.push(c);
+            if character == '\\' {
+                if self.peek_env_after("\\end").as_deref() == Some(env) {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth -= 1;
+                } else if self.peek_env_after("\\begin").as_deref() == Some(env) {
+                    depth += 1;
+                }
+                if let Some(character) = self.bump() {
+                    out.push(character);
+                }
+                if let Some(character) = self.bump() {
+                    out.push(character);
+                }
+            } else if character == '%' {
+                while let Some(character) = self.bump() {
+                    out.push(character);
+                    if character == '\n' {
+                        break;
+                    }
+                }
+            } else if let Some(character) = self.bump() {
+                out.push(character);
             }
         }
         out

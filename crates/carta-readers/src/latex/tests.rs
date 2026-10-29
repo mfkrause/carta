@@ -210,6 +210,69 @@ fn unnumbered_long_table_captions_keep_their_text() {
 }
 
 #[test]
+fn table_verbatim_text_keeps_separators_and_environment_markers() {
+    for code in ["% & \\\\", "\\end{tabular}", "\\begin{tabular}", "{ } &"] {
+        let source = format!("\\begin{{tabular}}{{ll}}\\verb|{code}|&Other\\end{{tabular}}");
+        let blocks = parse(&source);
+        let Some(Block::Table(table)) = blocks.first() else {
+            panic!()
+        };
+        assert_eq!(blocks.len(), 1);
+        let cells = &table.bodies.first().unwrap().body.first().unwrap().cells;
+        assert_eq!(cells.len(), 2);
+        assert_eq!(
+            cells.first().unwrap().content,
+            [Block::Plain(vec![Inline::Code(
+                Box::default(),
+                code.into()
+            )])]
+        );
+    }
+}
+
+#[test]
+fn nested_tables_keep_inner_rows_and_outer_cells() {
+    for (open, close) in [("", ""), ("{", "}"), ("{{", "}}")] {
+        let source = format!(
+            "\\begin{{tabular}}{{ll}}{open}\\begin{{tabular}}{{c}}Inner\\\\Next\\end{{tabular}}{close}&Outer\\\\Last&Tail\\end{{tabular}}"
+        );
+        let blocks = parse(&source);
+        let Some(Block::Table(outer)) = blocks.first() else {
+            panic!()
+        };
+        assert_eq!(blocks.len(), 1);
+        let rows = &outer.bodies.first().unwrap().body;
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.first().unwrap().cells.len(), 2);
+        let content = &rows.first().unwrap().cells.first().unwrap().content;
+        let Some(Block::Table(inner)) = content.first() else {
+            panic!()
+        };
+        assert_eq!(inner.bodies.first().unwrap().body.len(), 2);
+    }
+}
+
+#[test]
+fn table_comments_and_escaped_separators_keep_cell_content() {
+    let blocks = parse(
+        "\\begin{tabular}{ll}A\\&B% ignored & \\\\\nC&D\\\\% \\end{tabular}\nE&F\\end{tabular}",
+    );
+    let Some(Block::Table(table)) = blocks.first() else {
+        panic!()
+    };
+    let rows = &table.bodies.first().unwrap().body;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(
+        rows.first().unwrap().cells.first().unwrap().content,
+        [Block::Plain(vec![
+            Inline::Str("A&B".into()),
+            Inline::SoftBreak,
+            Inline::Str("C".into()),
+        ])]
+    );
+}
+
+#[test]
 fn multirow_cells_keep_text_after_the_command() {
     let blocks = parse("\\begin{tabular}{ll}\\multirow{2}{*}{Name} suffix&A\\\\&B\\end{tabular}");
     let Some(Block::Table(table)) = blocks.first() else {
