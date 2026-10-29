@@ -175,9 +175,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   multi-optional macros are unsupported. Expansion has a work allowance based on the source length.
 - Cross-reference commands (`\ref`, `\eqref`, `\autoref`, `\cref`, `\pageref`) resolve to a link
   whose visible text is a bracketed `[label]` placeholder rather than the target's counter number.
-- Multi-line math environments (`align`, `gather`, `multline`, `eqnarray`, `alignat`, `flalign`, …)
-  are kept as a single display-math inline holding the whole `\begin…\end` text rather than split
-  into rows and cells.
 - `\includegraphics` keeps only `width` and `height`; `\textwidth`/`\linewidth`/`\textheight`
   lengths convert to percentages and absolute units pass through, but `\columnwidth`/`\paperwidth`
   and leading-dot decimal values are omitted.
