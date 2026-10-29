@@ -137,7 +137,7 @@ Colorize code blocks with this style: a built-in name (`--list-highlight-styles`
 Leave code blocks unhighlighted (equivalent to `--syntax-highlighting=none`)
 
 **--syntax-highlighting** *\<none\|default\|idiomatic\|STYLE\|FILE\>*  
-How code blocks are presented: `default` colorizes them, `none` leaves them plain, `idiomatic` uses the target format's own listing construct, and any other value names a built-in style or a JSON theme file to colorize with
+How code blocks are presented: `default` uses the target's default, `none` leaves them plain, `idiomatic` uses the target format's own listing construct, and any other value names a built-in style or a JSON theme file to colorize with
 
 **--syntax-definition** *\<FILE\>*  
 Load an additional syntax definition (a KDE-syntax XML file) whose language joins the catalog, overriding a built-in of the same name. Repeatable

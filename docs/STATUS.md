@@ -374,8 +374,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
-- Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token
-  styling.
 - Image intrinsic sizing reads only PNG, GIF, and JPEG pixel dimensions; other formats fall back to
   attribute-supplied or default sizing under a fixed DPI.
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must

@@ -185,7 +185,7 @@ impl Builder<'_> {
     fn block_other(&mut self, block: &Block, fixed: Option<&str>) {
         match block {
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
-            Block::CodeBlock(_, text) => self.code_block(text),
+            Block::CodeBlock(attr, text) => self.code_block(attr, text),
             Block::BlockQuote(blocks) => {
                 self.first_para = true;
                 let indentation = if matches!(
@@ -248,8 +248,13 @@ impl Builder<'_> {
         self.body.push_str("</text:h>");
     }
 
-    fn code_block(&mut self, text: &str) {
+    #[cfg_attr(not(feature = "highlight"), allow(unused_variables))]
+    fn code_block(&mut self, attr: &Attr, text: &str) {
         if text.is_empty() {
+            return;
+        }
+        #[cfg(feature = "highlight")]
+        if self.highlighted_code(attr, text) {
             return;
         }
         let trimmed = text.strip_suffix('\n').unwrap_or(text);

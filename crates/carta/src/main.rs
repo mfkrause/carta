@@ -189,7 +189,7 @@ struct Cli {
     #[cfg(feature = "highlight")]
     #[arg(long = "no-highlight")]
     no_highlight: bool,
-    /// How code blocks are presented: `default` colorizes them, `none` leaves them plain, `idiomatic`
+    /// How code blocks are presented: `default` uses the target's default, `none` leaves them plain, `idiomatic`
     /// uses the target format's own listing construct, and any other value names a built-in style or a
     /// JSON theme file to colorize with.
     #[cfg(feature = "highlight")]
@@ -380,7 +380,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.math_method = math_method(cli);
     #[cfg(feature = "highlight")]
     {
-        writer_options.highlight = highlight_options(cli, data_dir.as_deref())?;
+        writer_options.highlight = highlight_options(cli, data_dir.as_deref(), &to_base)?;
     }
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);

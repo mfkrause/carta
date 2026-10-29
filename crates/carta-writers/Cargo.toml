@@ -24,7 +24,7 @@ workspace = true
 [features]
 default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb", "epub", "docx", "odt", "highlight", "rtf", "docbook"]
 html = ["carta-core/xml"]
-# Syntax highlighting for code blocks in the writers that colorize them (HTML family, LaTeX, DOCX).
+# Syntax highlighting for code blocks in the writers that colorize them (HTML family, LaTeX, DOCX, ODT).
 highlight = ["dep:carta-highlight", "carta-core/highlight"]
 # The layout of the body depends on whether a template will wrap it.
 docbook = ["dep:carta-highlight", "carta-core/template"]

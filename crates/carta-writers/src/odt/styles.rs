@@ -76,7 +76,11 @@ pub(super) fn delim_fixes(delim: ListNumberDelim) -> (Option<&'static str>, &'st
 
 /// Builds the `styles.xml` part: the named paragraph, text, and list styles the body references,
 /// plus the page layout and its master page.
-pub(super) fn styles_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
+#[cfg_attr(not(feature = "highlight"), allow(unused_variables))]
+pub(super) fn styles_xml(
+    meta: &BTreeMap<Text, MetaValue>,
+    options: &carta_core::WriterOptions,
+) -> String {
     let lang = meta_text(meta, "lang");
     let (language, country) = if lang.is_empty() {
         ("en".to_string(), "US".to_string())
@@ -103,6 +107,12 @@ pub(super) fn styles_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
 
     out.push_str("<office:styles>");
     push_named_styles(&mut out, &language, &country);
+    #[cfg(feature = "highlight")]
+    if options.highlight.highlighter.is_some()
+        && let Some(theme) = &options.highlight.theme
+    {
+        out.push_str(&super::highlight::styles(theme));
+    }
     out.push_str("</office:styles>");
 
     out.push_str(

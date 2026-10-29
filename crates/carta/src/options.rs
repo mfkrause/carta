@@ -82,6 +82,7 @@ const DEFAULT_HIGHLIGHT_STYLE: &str = "pygments";
 pub(super) fn highlight_options(
     cli: &Cli,
     data_dir: Option<&Path>,
+    target: &str,
 ) -> Result<carta::HighlightOptions> {
     let mode = cli.syntax_highlighting.as_deref();
     if cli.no_highlight || mode == Some("none") {
@@ -111,6 +112,9 @@ pub(super) fn highlight_options(
         load_syntax_directory(&mut highlighter, &directory);
     }
 
+    if target == "odt" && style.is_none() {
+        return Ok(carta::HighlightOptions::default());
+    }
     Ok(carta::HighlightOptions {
         highlighter: Some(Arc::new(highlighter)),
         theme: Some(theme),

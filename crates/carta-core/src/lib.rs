@@ -277,17 +277,17 @@ pub struct DocxOptions {
 }
 
 /// Syntax-highlighting configuration for the writers that colorize code blocks (the HTML family,
-/// LaTeX, and DOCX). The default leaves code blocks unhighlighted.
+/// LaTeX, DOCX, and ODT). The default leaves code blocks unhighlighted.
 #[cfg(feature = "highlight")]
 #[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
 #[derive(Debug, Clone, Default)]
 pub struct HighlightOptions {
-    /// The tokenizer catalog. `None` leaves code blocks as a plain `<pre><code>`, with no color
-    /// spans and no line-number scaffolding.
+    /// The tokenizer catalog. `None` leaves code blocks plain, with no color spans or line-number
+    /// scaffolding.
     pub highlighter: Option<std::sync::Arc<carta_highlight::Highlighter>>,
 
-    /// The active color theme, consulted by the writers that inline colors (LaTeX, DOCX) and to
-    /// build the HTML family's stylesheet. `None` when highlighting is off.
+    /// The active color theme, used to style tokens and build standalone stylesheets.
+    /// `None` when highlighting is off.
     pub theme: Option<carta_highlight::Theme>,
 
     /// Present code blocks in the target format's own listing construct rather than colorizing them.

@@ -8,6 +8,8 @@ use carta_core::{BytesWriter, Error, Extension, Result, WriterOptions};
 
 mod blocks;
 mod helpers;
+#[cfg(feature = "highlight")]
+mod highlight;
 mod inlines;
 mod language;
 mod media;
@@ -123,7 +125,7 @@ fn write_odt(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
             return Err(Error::OutputTooLarge);
         }
         let content = builder.finish_content();
-        let styles = styles_xml(&document.meta);
+        let styles = styles_xml(&document.meta, options);
         let meta = meta_xml(&document.meta);
         let manifest = manifest_xml(&builder.images, &builder.formulas);
 

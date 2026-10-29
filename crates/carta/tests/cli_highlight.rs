@@ -324,3 +324,48 @@ fn unknown_highlight_style_is_reported() {
     assert!(!result.success);
     assert!(!result.stderr.is_empty());
 }
+
+#[cfg(feature = "write-odt")]
+#[test]
+fn odt_highlighting_uses_an_explicit_theme_and_validates_definitions() {
+    let directory =
+        std::env::temp_dir().join(format!("carta_odt_highlight_{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("code.odt");
+    for mode in [None, Some("default"), Some("tango"), Some("none")] {
+        let mut args = vec!["-f", "markdown", "-o", path.to_str().unwrap()];
+        if let Some(mode) = mode {
+            args.extend(["--syntax-highlighting", mode]);
+        }
+        let result = run_with_pack(&args, PY_BLOCK);
+        assert!(result.success, "stderr: {}", result.stderr);
+        let bytes = std::fs::read(&path).unwrap();
+        let parts = carta_core::container::zip::read(&bytes).unwrap();
+        for (name, token) in [
+            ("content.xml", "text:style-name=\"DecValTok\""),
+            ("styles.xml", "style:name=\"KeywordTok\""),
+        ] {
+            let part = parts.iter().find(|part| part.name == name).unwrap();
+            let xml = std::str::from_utf8(&part.data).unwrap();
+            assert_eq!(
+                xml.contains(token),
+                mode == Some("tango"),
+                "{name}, mode {mode:?}"
+            );
+        }
+    }
+    let missing = directory.join("missing.xml");
+    let invalid = run(
+        &[
+            "-f",
+            "markdown",
+            "-t",
+            "odt",
+            "--syntax-definition",
+            missing.to_str().unwrap(),
+        ],
+        PY_BLOCK,
+    );
+    assert!(!invalid.success);
+    std::fs::remove_dir_all(directory).unwrap();
+}
