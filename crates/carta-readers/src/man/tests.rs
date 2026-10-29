@@ -342,6 +342,72 @@ fn numbered_indented_paragraphs_become_an_ordered_list() {
 }
 
 #[test]
+fn manual_citations_keep_links_and_trailing_punctuation() {
+    let document = read(".MR printf 3 ,\n");
+    assert_eq!(
+        document.blocks,
+        [Block::Para(vec![
+            Inline::Link(
+                Box::default(),
+                vec![
+                    Inline::Emph(vec![Inline::Str("printf".into())]),
+                    Inline::Str("(3)".into()),
+                ],
+                Box::new(Target {
+                    url: "man:printf(3)".into(),
+                    title: "".into(),
+                }),
+            ),
+            Inline::Str(",".into()),
+        ])]
+    );
+    assert_eq!(
+        read(".ds MF B\n.MR topic\n").blocks,
+        [Block::Para(vec![Inline::Strong(vec![Inline::Str(
+            "topic".into()
+        )])])]
+    );
+    assert_eq!(
+        read(".MR topic \"\" .\n").blocks,
+        [Block::Para(vec![
+            Inline::Emph(vec![Inline::Str("topic".into())]),
+            Inline::Str(".".into()),
+        ])]
+    );
+}
+
+#[test]
+fn small_font_macros_keep_text_and_nested_styles() {
+    assert_eq!(
+        read(".SM \"small text\"\n").blocks,
+        read("small text\n").blocks
+    );
+    assert_eq!(
+        read(".SB \"bold text\"\n").blocks,
+        read(".B \"bold text\"\n").blocks
+    );
+    assert_eq!(read(".SM\n.B nested\n").blocks, read(".B nested\n").blocks);
+    let document = read(".TP\n.SB\n.SM\n.I Term\nBody\n");
+    assert!(matches!(
+        document.blocks.as_slice(),
+        [Block::DefinitionList(items)]
+            if items.first().unwrap().0
+                == [Inline::Strong(vec![Inline::Emph(vec![Inline::Str("Term".into())])])]
+    ));
+}
+
+#[test]
+fn manual_citations_and_small_text_survive_verbatim_regions() {
+    assert_eq!(
+        read(".EX\n.SM Small\n.SB Bold\n.MR printf 3 .\n.EE\n").blocks,
+        [Block::CodeBlock(
+            Box::default(),
+            "Small\nBold\nprintf(3).".into()
+        )]
+    );
+}
+
+#[test]
 fn ordered_lists_split_when_marker_styles_change() {
     for (first, second) in [("i.", "j."), ("v.", "vi."), ("c.", "d)")] {
         let document = read(&format!(".IP {first}\nFirst\n.IP {second}\nSecond\n"));

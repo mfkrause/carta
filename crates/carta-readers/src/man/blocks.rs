@@ -4,7 +4,9 @@ use carta_ast::{Block, Inline, MetaValue, Target};
 
 use crate::inline_text::{trim_inline_ends, words_to_inlines};
 
-use super::inline::{Font, alternating, flatten, font_macro, fonts_for, single_font, tokenize};
+use super::inline::{
+    Font, alternating, flatten, font_macro, fonts_for, manual_reference, single_font, tokenize,
+};
 use super::lists::{
     Mark, Pending, classify_mark, flush_pending, push_bullet, push_definition, push_ordered,
 };
@@ -76,6 +78,17 @@ impl Parser {
                     "B" | "I" | "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
                         self.advance();
                         text_lines.push(flatten(&split_args(rest).join(" "), &self.strings));
+                    }
+                    "SM" | "SB" | "MR" => {
+                        self.advance();
+                        let text = if name == "MR" {
+                            carta_ast::to_plain_text(&manual_reference(rest, &self.strings))
+                        } else {
+                            flatten(&split_args(rest).join(" "), &self.strings)
+                        };
+                        if !text.is_empty() {
+                            text_lines.push(text);
+                        }
                     }
                     _ => self.advance(),
                 }
@@ -213,26 +226,37 @@ impl Parser {
     }
 
     /// The term of a `.TP` item: the next line, which is either a font macro or plain text.
-    fn read_term(&mut self) -> Vec<Inline> {
-        let Some(line) = self.take_line() else {
-            return Vec::new();
-        };
-        if let Some((name, rest)) = control_parts(&line) {
+    pub(super) fn read_term(&mut self) -> Vec<Inline> {
+        let mut fonts = Vec::new();
+        while let Some(line) = self.take_line() {
             if is_comment(&line) {
-                return self.read_term();
+                continue;
             }
-            match name {
-                "B" | "I" => {
-                    let font = single_font(name);
-                    return font_macro(font, &split_args(rest).join(" "), &self.strings);
+            let mut inlines = if let Some((name, rest)) = control_parts(&line) {
+                match name {
+                    "B" | "I" | "SM" | "SB" => {
+                        let font = single_font(name);
+                        if rest.is_empty() {
+                            fonts.push(font);
+                            continue;
+                        }
+                        font_macro(font, &split_args(rest).join(" "), &self.strings)
+                    }
+                    "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
+                        alternating(rest, fonts_for(name), &self.strings)
+                    }
+                    "MR" => manual_reference(rest, &self.strings),
+                    _ => tokenize(rest, Font::Regular, &self.strings),
                 }
-                "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
-                    return alternating(rest, fonts_for(name), &self.strings);
-                }
-                _ => return tokenize(rest, Font::Regular, &self.strings),
+            } else {
+                tokenize(&line, Font::Regular, &self.strings)
+            };
+            for font in fonts.into_iter().rev() {
+                inlines = font.wrap(inlines);
             }
+            return inlines;
         }
-        tokenize(&line, Font::Regular, &self.strings)
+        Vec::new()
     }
 
     /// Whether the label that opens at the current position is plain: only text lines (and comments)
@@ -315,12 +339,11 @@ impl Parser {
                     self.advance();
                     fill.push(Inline::LineBreak);
                 }
-                "B" | "I" => {
+                "B" | "I" | "SM" | "SB" => {
                     self.advance();
                     let font = single_font(name);
                     let inlines = if rest.is_empty() {
-                        let text = self.take_line().unwrap_or_default();
-                        font.wrap(tokenize(&text, Font::Regular, &self.strings))
+                        font.wrap(self.read_term())
                     } else {
                         let text = split_args(rest).join(" ");
                         font.wrap_forced(tokenize(&text, Font::Regular, &self.strings))
@@ -338,6 +361,10 @@ impl Parser {
                         &mut fill,
                         alternating(&rest, fonts_for(name), &self.strings),
                     );
+                }
+                "MR" => {
+                    self.advance();
+                    append_text(&mut fill, manual_reference(rest, &self.strings));
                 }
                 _ => break,
             }

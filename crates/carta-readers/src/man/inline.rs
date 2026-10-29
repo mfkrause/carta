@@ -1,6 +1,6 @@
 //! Font handling, inline tokenizing, and escape-sequence scanning for `man` text.
 
-use carta_ast::Inline;
+use carta_ast::{Inline, Target};
 
 use crate::inline_text::trim_inline_ends;
 
@@ -65,13 +65,46 @@ fn collect_code_text(inlines: &[Inline], out: &mut String) {
     }
 }
 
-/// The font a single-font macro selects: `.B` is bold, every other (`.I`) is italic.
+/// The font selected by a single-style macro, ignoring visual size changes.
 pub(super) fn single_font(name: &str) -> Font {
-    if name == "B" {
-        Font::Bold
-    } else {
-        Font::Italic
+    match name {
+        "B" | "SB" => Font::Bold,
+        "I" => Font::Italic,
+        _ => Font::Regular,
     }
+}
+
+/// Renders a manual-page citation, linking its topic and section when both are present.
+pub(super) fn manual_reference(rest: &str, strings: &Strings) -> Vec<Inline> {
+    let arguments = split_args(rest);
+    let Some(topic) = arguments.first().filter(|topic| !topic.is_empty()) else {
+        return Vec::new();
+    };
+    let mut font = Font::Italic;
+    if let Some(name) = strings.get("MF") {
+        apply_font(name, &mut font, &mut Font::Regular);
+    }
+    let mut label = font_macro(font, topic, strings);
+    if let Some(section) = arguments.get(1).filter(|section| !section.is_empty()) {
+        label.extend(tokenize(&format!("({section})"), Font::Regular, strings));
+        label = vec![Inline::Link(
+            Box::default(),
+            label,
+            Box::new(Target {
+                url: format!(
+                    "man:{}({})",
+                    flatten(topic, strings),
+                    flatten(section, strings)
+                )
+                .into(),
+                title: carta_ast::Text::default(),
+            }),
+        )];
+    }
+    if let Some(trailing) = arguments.get(2) {
+        label.extend(tokenize(trailing, Font::Regular, strings));
+    }
+    label
 }
 
 /// The two alternating fonts of an alternating font macro, applied to arguments in turn.

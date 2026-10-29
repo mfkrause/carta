@@ -16,7 +16,10 @@ mod lists;
 mod requests;
 mod tables;
 
-use inline::{Font, alternating, font_macro, fonts_for, option_synopsis, single_font, tokenize};
+use inline::{
+    Font, alternating, font_macro, fonts_for, manual_reference, option_synopsis, single_font,
+    tokenize,
+};
 use requests::{
     condition_true, control_parts, is_comment, is_noop_request, reduce_copy_mode, split_args,
     split_condition, substitute_macro_args,
@@ -459,12 +462,11 @@ impl Parser {
                     self.advance();
                     self.parse_title(rest);
                 }
-                "B" | "I" => {
+                "B" | "I" | "SM" | "SB" => {
                     self.advance();
                     let font = single_font(name);
                     let inlines = if rest.is_empty() {
-                        let text = self.take_line().unwrap_or_default();
-                        font.wrap(tokenize(&text, Font::Regular, &self.strings))
+                        font.wrap(self.read_term())
                     } else {
                         let text = split_args(rest).join(" ");
                         font.wrap_forced(tokenize(&text, Font::Regular, &self.strings))
@@ -499,6 +501,11 @@ impl Parser {
                     self.advance();
                     append_text(&mut fill, option_synopsis(rest, &self.strings));
                     started = true;
+                }
+                "MR" => {
+                    self.advance();
+                    append_text(&mut fill, manual_reference(rest, &self.strings));
+                    started |= !fill.is_empty();
                 }
                 "YS" => {
                     self.advance();

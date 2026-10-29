@@ -1,0 +1,14 @@
+.TH HELP 1
+See
+.MR printf 3 ,
+then continue.
+.PP
+.SM "Small text"
+.SB "Bold text"
+.PP
+.TP
+.MR open 2
+Open a file.
+.PP
+.SM
+.B "Nested style"

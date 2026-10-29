@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"section":{"t":"MetaInlines","c":[{"t":"Str","c":"1"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"HELP"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"See"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Emph","c":[{"t":"Str","c":"printf"}]},{"t":"Str","c":"(3)"}],["man:printf(3)",""]]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"then"},{"t":"Space"},{"t":"Str","c":"continue."}]},{"t":"Para","c":[{"t":"Str","c":"Small"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"Bold"},{"t":"Space"},{"t":"Str","c":"text"}]}]},{"t":"DefinitionList","c":[[[{"t":"Link","c":[["",[],[]],[{"t":"Emph","c":[{"t":"Str","c":"open"}]},{"t":"Str","c":"(2)"}],["man:open(2)",""]]}],[[{"t":"Para","c":[{"t":"Str","c":"Open"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"file."}]}]]]]},{"t":"Para","c":[{"t":"Strong","c":[{"t":"Str","c":"Nested"},{"t":"Space"},{"t":"Str","c":"style"}]}]}]}
