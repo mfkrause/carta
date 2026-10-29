@@ -32,6 +32,10 @@ const MAX_TABLE_COLUMNS: i64 = 10_000;
 /// pathological repeat count cannot exhaust memory. Set well above any run real prose contains.
 const MAX_REPEATED_SPACES: usize = 100_000;
 
+// List preprocessing revisits content; bound repeated conversion by source size.
+const BASE_WORK: usize = 1 << 20;
+const WORK_PER_BYTE: usize = 64;
+
 /// Parses an `OpenDocument` Text package into the document model.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OdtReader;
@@ -165,6 +169,8 @@ struct Converter<'a> {
     /// The identifier of the heading currently being converted, so a bookmark that merely repeats it
     /// is recognized as the heading's own anchor rather than a distinct one.
     heading_anchor: Option<String>,
+    next_list_number: i64,
+    work: Option<usize>,
 }
 
 impl<'a> Converter<'a> {
@@ -178,6 +184,19 @@ impl<'a> Converter<'a> {
             ids: IdRegistry::default(),
             anchors: BTreeMap::new(),
             heading_anchor: None,
+            next_list_number: 0,
+            work: Some(
+                BASE_WORK.saturating_add(
+                    parts
+                        .iter()
+                        .filter(|(name, _)| {
+                            name.rsplit_once('.')
+                                .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("xml"))
+                        })
+                        .fold(0usize, |size, (_, bytes)| size.saturating_add(bytes.len()))
+                        .saturating_mul(WORK_PER_BYTE),
+                ),
+            ),
         }
     }
 
@@ -201,6 +220,9 @@ impl<'a> Converter<'a> {
             Some(text) => self.convert_body_blocks(text),
             None => Vec::new(),
         };
+        if self.work.is_none() {
+            return Err(Error::OutputTooLarge);
+        }
         let mut remaining = blocks.into_iter();
         let mut output = Vec::new();
         while let Some(mut block) = remaining.next() {
@@ -228,6 +250,13 @@ impl<'a> Converter<'a> {
         }
         convert_figures(&mut output);
         Ok(output)
+    }
+
+    fn spend_work(&mut self, amount: usize) -> bool {
+        self.work = self
+            .work
+            .and_then(|remaining| remaining.checked_sub(amount));
+        self.work.is_some()
     }
 
     fn index_styles(&mut self, root: &Element) {
@@ -366,6 +395,9 @@ impl<'a> Converter<'a> {
         let mut quote: Vec<Block> = Vec::new();
         let mut code: Vec<String> = Vec::new();
         for element in elements {
+            if !self.spend_work(1) {
+                break;
+            }
             // Drop floating shapes whole so the container fallback cannot extract their text.
             if is_drawing_shape(&element.name) {
                 continue;
@@ -473,15 +505,31 @@ impl<'a> Converter<'a> {
             .and_then(|name| self.list_styles.get(name))
             .and_then(|style| style.level_for(depth))
             .cloned();
+        let start = if list.attr("continue-numbering") == Some("true") {
+            self.next_list_number
+        } else if let Some(LevelStyle::Number(_, _, start)) = &level_style {
+            *start
+        } else {
+            1
+        };
+        self.next_list_number = 0;
         let mut items = Vec::new();
-        for child in list.elements() {
-            if matches!(local_name(&child.name), "list-item" | "list-header") {
-                items.push(self.convert_list_item(child, depth, style_name.as_deref()));
+        // Preprocess item content to reserve identifiers and nested numbering state.
+        for _ in 0..2 {
+            items.clear();
+            for child in list.elements() {
+                if self.work.is_none() {
+                    break;
+                }
+                if matches!(local_name(&child.name), "list-item" | "list-header") {
+                    items.push(self.convert_list_item(child, depth, style_name.as_deref()));
+                }
             }
         }
+        self.next_list_number = start.wrapping_add(i64::try_from(items.len()).unwrap_or(i64::MAX));
         match level_style {
             Some(LevelStyle::Bullet) => Block::BulletList(items),
-            Some(LevelStyle::Number(style, delim, start)) => Block::OrderedList(
+            Some(LevelStyle::Number(style, delim, _)) => Block::OrderedList(
                 ListAttributes {
                     start,
                     style,
@@ -491,7 +539,7 @@ impl<'a> Converter<'a> {
             ),
             None => Block::OrderedList(
                 ListAttributes {
-                    start: 1,
+                    start,
                     style: ListNumberStyle::DefaultStyle,
                     delim: ListNumberDelim::DefaultDelim,
                 },
@@ -639,6 +687,13 @@ impl<'a> Converter<'a> {
     ) -> Vec<Inline> {
         let mut out = Vec::new();
         for node in children {
+            let cost = match node {
+                Node::Text(text) => text.len().saturating_add(1),
+                Node::Element(_) => 1,
+            };
+            if !self.spend_work(cost) {
+                break;
+            }
             let boundary = out.len();
             match node {
                 Node::Text(text) => push_text(&mut out, text),
@@ -925,9 +980,13 @@ impl<'a> Converter<'a> {
     }
 
     /// The TeX rendering of MathML in the referenced formula object's `content.xml` part.
-    fn resolve_formula(&self, object: &Element) -> Option<String> {
+    fn resolve_formula(&mut self, object: &Element) -> Option<String> {
         let path = formula_part_path(object.attr("href")?);
-        let root = xml::parse(self.parts.get(&path)?, MAX_XML_DEPTH)?;
+        let bytes = self.parts.get(&path)?;
+        if !self.spend_work(bytes.len()) {
+            return None;
+        }
+        let root = xml::parse(bytes, MAX_XML_DEPTH)?;
         let math = if local_name(&root.name) == "math" {
             &root
         } else {

@@ -36,6 +36,55 @@ fn a_well_formed_package_reads_its_body() {
 }
 
 #[test]
+fn list_preprocessing_reserves_heading_ids_and_nested_continuation_numbers() {
+    let body = content(
+        "<text:list><text:list-item><text:h text:outline-level=\"1\">Title</text:h>\
+         <text:list text:continue-numbering=\"true\">\
+         <text:list-item><text:p>A</text:p></text:list-item>\
+         <text:list-item><text:p>B</text:p></text:list-item>\
+         <text:list-item><text:p>C</text:p></text:list-item>\
+         </text:list></text:list-item></text:list>\
+         <text:list text:continue-numbering=\"true\"><text:list-item><text:p>Last</text:p>\
+         </text:list-item></text:list><text:h text:outline-level=\"1\">Title</text:h>",
+    );
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    let document = read(&odt).expect("read nested list state");
+    let [
+        Block::OrderedList(first, items),
+        Block::OrderedList(second, _),
+        Block::Header(_, last, _),
+    ] = document.blocks.as_slice()
+    else {
+        panic!("expected two lists and a heading");
+    };
+    assert_eq!(first.start, 1);
+    assert_eq!(second.start, 2);
+    assert_eq!(last.id, "title-2");
+    let [Block::Header(_, heading, _), Block::OrderedList(nested, _)] = items[0].as_slice() else {
+        panic!("expected an item heading and nested list");
+    };
+    assert_eq!(heading.id, "title-1");
+    assert_eq!(nested.start, 3);
+}
+
+#[test]
+fn repeated_list_processing_stops_at_the_work_limit() {
+    let mut body = "<text:p>Text</text:p>".to_owned();
+    for _ in 0..10 {
+        body = format!("<text:list><text:list-item>{body}</text:list-item></text:list>");
+    }
+    let parts =
+        std::collections::BTreeMap::from([("content.xml".to_owned(), content(&body).into_bytes())]);
+    let mut media = carta_core::MediaBag::new();
+    let mut converter = super::Converter::new(&parts, &mut media);
+    converter.work = Some(32);
+    assert!(matches!(
+        converter.run(),
+        Err(carta_core::Error::OutputTooLarge)
+    ));
+}
+
+#[test]
 fn formula_objects_use_referenced_math_or_the_preview_image() {
     for referenced in [false, true] {
         let target = if referenced {

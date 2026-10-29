@@ -253,13 +253,10 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-- `text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts
-  at 1 rather than continuing.
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
   is taken as the sum of colspans and rows go ragged.
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
-- An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
 - MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
 
 ### `rtf` ✅
