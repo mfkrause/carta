@@ -122,6 +122,13 @@ impl<'a> InlineParser<'a> {
         self.bracket_stack.pop();
         self.literalize_bracket(opener_index);
         self.push_text(']');
+        if self.notes.markdown
+            && self.ext.contains(Extension::LinkAttributes)
+            && !self.ext.contains(Extension::BracketedSpans)
+            && let Some((_, next)) = attr::parse_attributes_bytes(self.text, self.pos)
+        {
+            self.pos = next;
+        }
     }
 
     /// If the bracket opener encloses a well-formed citation list `[ ... @key ... ]`, emit a `Cite`

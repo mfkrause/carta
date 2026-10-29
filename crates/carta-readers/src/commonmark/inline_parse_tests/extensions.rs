@@ -63,6 +63,17 @@ fn markdown_keeps_empty_scripts_and_pairs_adjacent_delimiters() {
 // Markdown-dialect inline rules
 
 #[test]
+fn undefined_brackets_consume_one_link_attribute_block() {
+    let extensions = exts(&[Extension::LinkAttributes]);
+    assert_eq!(pm("[text]{}", extensions), vec![str("[text]")]);
+    assert_eq!(
+        pm("[*text*]{.first}{.second}", extensions),
+        vec![str("["), Inline::Emph(vec![str("text")]), str("]{.second}")]
+    );
+    assert_eq!(pm("[text]{.class}", no_ext()), vec![str("[text]{.class}")]);
+}
+
+#[test]
 fn markdown_escaped_space_becomes_non_breaking() {
     // Broad escapes treat `\ ` as a non-breaking space; the strict engine keeps the backslash.
     assert_eq!(

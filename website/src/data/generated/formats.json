@@ -189,7 +189,6 @@
         "ships": true,
         "feature": "read-commonmark",
         "gaps": [
-          "An inline attribute block that trails a bracketed group which is not a link (`[text]{.class}`) is kept as literal text; the dialect consumes and discards it.",
           "Shares the `markdown` reader gaps."
         ]
       },

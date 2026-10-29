@@ -157,8 +157,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Shares the `markdown` reader gaps.
 
 ### `markdown_phpextra` ✅
-- An inline attribute block that trails a bracketed group which is not a link (`[text]{.class}`) is
-  kept as literal text; the dialect consumes and discards it.
 - Shares the `markdown` reader gaps.
 
 ### `markdown_strict` ✅
