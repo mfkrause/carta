@@ -261,7 +261,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   at 1 rather than continuing.
 - Block content (a list, table, or heading) inside a footnote/endnote body is kept rather than
   reduced to paragraph flow.
-- A `table:table` nested directly in a `text:list-item` is lifted into the item rather than dropped.
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
   is taken as the sum of colspans and rows go ragged.
 - A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.

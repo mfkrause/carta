@@ -94,6 +94,36 @@ fn cells_keep_paragraph_roles_and_lists_without_reserving_hidden_heading_ids() {
 }
 
 #[test]
+fn direct_tables_in_list_items_do_not_split_code_runs() {
+    let body = content(
+        "<text:list><text:list-item>\
+         <text:p text:style-name=\"Preformatted_20_Text\">Before</text:p>\
+         <table:table><table:table-row><table:table-cell><text:p>Hidden</text:p>\
+         </table:table-cell></table:table-row></table:table>\
+         <text:p text:style-name=\"Preformatted_20_Text\">After</text:p>\
+         </text:list-item></text:list>",
+    );
+    let styles = "<office:document-styles><office:styles>\
+        <style:style style:name=\"Preformatted_20_Text\" style:family=\"paragraph\"/>\
+        </office:styles></office:document-styles>";
+    let odt = package(&[
+        ("content.xml", body.as_bytes()),
+        ("styles.xml", styles.as_bytes()),
+    ]);
+    let document = read(&odt).expect("read list with a direct table");
+    let [Block::OrderedList(_, items)] = document.blocks.as_slice() else {
+        panic!("expected a list");
+    };
+    assert_eq!(
+        items,
+        &vec![vec![Block::CodeBlock(
+            Box::default(),
+            "Before\nAfter".into()
+        )]]
+    );
+}
+
+#[test]
 fn wide_soft_breaks_are_optional_and_hard_breaks_remain() {
     let body = content(
         "<text:p>漢\n字</text:p><text:p>漢<text:line-break/>字</text:p>\

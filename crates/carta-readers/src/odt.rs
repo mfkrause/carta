@@ -521,7 +521,15 @@ impl<'a> Converter<'a> {
         style_name: Option<&str>,
     ) -> Vec<Block> {
         // List margins are indentation; nested lists inherit the style at the next level.
-        compact(self.convert_blocks(item.elements(), depth + 1, style_name, true))
+        compact(
+            self.convert_blocks(
+                item.elements()
+                    .filter(|element| local_name(&element.name) != "table"),
+                depth + 1,
+                style_name,
+                true,
+            ),
+        )
     }
 
     #[allow(clippy::too_many_lines)]
