@@ -314,7 +314,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `dokuwiki` ✅
 
 ### `jira` ✅
-- Lists in table cells are flattened or misplaced.
 - Bullet lists inside definition-list items have incorrect spacing.
 
 ### `mediawiki` ✅

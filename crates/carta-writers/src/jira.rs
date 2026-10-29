@@ -86,7 +86,7 @@ impl State {
             Block::BlockQuote(blocks) => self.block_quote(blocks),
             Block::BulletList(items) => self.list('*', items),
             Block::OrderedList(_, items) => self.list('#', items),
-            Block::DefinitionList(items) => self.definition_list(items),
+            Block::DefinitionList(items) => self.definition_list(items, ""),
             Block::HorizontalRule => "----".to_owned(),
             Block::Table(table) => self.table(table),
             Block::Figure(_, _, blocks) => self.blocks(blocks),
@@ -133,40 +133,87 @@ impl State {
     /// levels; this level appends its own marker to it on every line.
     fn list_levels(&mut self, marker: char, items: &[Vec<Block>], parent: &str) -> String {
         let prefix = format!("{parent}{marker}");
-        let mut lines: Vec<String> = Vec::new();
+        let mut lines = Vec::new();
         for item in items {
-            // An item opening with a sublist has no text line; its marker moves into the sublist.
-            let mut item_has_marker = false;
-            for inner in item {
-                match inner {
-                    Block::Plain(inlines) | Block::Para(inlines) => {
-                        let text = self.inlines(inlines);
-                        if item_has_marker {
-                            lines.push(text);
-                        } else {
-                            lines.push(format!("{prefix} {text}"));
-                            item_has_marker = true;
-                        }
-                    }
-                    Block::BulletList(sub) => {
-                        lines.push(self.list_levels('*', sub, &prefix));
-                        item_has_marker = true;
-                    }
-                    Block::OrderedList(_, sub) => {
-                        lines.push(self.list_levels('#', sub, &prefix));
-                        item_has_marker = true;
-                    }
-                    other => lines.push(self.block(other)),
-                }
-            }
+            self.list_item(item, &prefix, &mut false, &mut lines);
         }
         lines.join("\n")
     }
 
-    fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
+    fn list_item(
+        &mut self,
+        blocks: &[Block],
+        prefix: &str,
+        marked: &mut bool,
+        lines: &mut Vec<String>,
+    ) {
+        carta_core::with_stack(|| {
+            if blocks.is_empty() {
+                Self::list_part(String::new(), prefix, marked, lines);
+            }
+            for block in blocks {
+                match block {
+                    Block::BulletList(items) => {
+                        lines.push(self.list_levels('*', items, prefix));
+                        *marked = true;
+                    }
+                    Block::OrderedList(_, items) => {
+                        lines.push(self.list_levels('#', items, prefix));
+                        *marked = true;
+                    }
+                    Block::DefinitionList(items) => {
+                        lines.push(self.definition_list(items, prefix));
+                        *marked = true;
+                    }
+                    Block::Div(attr, inner) if !attr.id.is_empty() => {
+                        let start = lines.len();
+                        Self::list_part(format!("{{anchor:{}}}", attr.id), prefix, marked, lines);
+                        if !inner.is_empty() {
+                            self.list_item(inner, prefix, marked, lines);
+                            if starts_with_text(inner) && lines.get(start + 1).is_some() {
+                                let first = lines.remove(start + 1);
+                                if let Some(anchor) = lines.get_mut(start) {
+                                    anchor.push_str(&first);
+                                }
+                            }
+                        }
+                    }
+                    Block::Div(_, inner) | Block::Figure(_, _, inner) => {
+                        if !inner.is_empty() || !*marked {
+                            self.list_item(inner, prefix, marked, lines);
+                        }
+                    }
+                    Block::Plain(_) | Block::Para(_) => {
+                        Self::list_part(self.block(block), prefix, marked, lines);
+                    }
+                    _ => {
+                        let text = self.block(block);
+                        if !text.is_empty() || !*marked {
+                            Self::list_part(text, prefix, marked, lines);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    fn list_part(text: String, prefix: &str, marked: &mut bool, lines: &mut Vec<String>) {
+        if *marked {
+            lines.push(text);
+        } else {
+            lines.push(format!("{prefix} {text}"));
+            *marked = true;
+        }
+    }
+
+    fn definition_list(
+        &mut self,
+        items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+        parent: &str,
+    ) -> String {
         let mut lines: Vec<String> = Vec::new();
         for (term, definitions) in items {
-            lines.push(format!("* *{}*", self.inlines(term)));
+            lines.push(format!("{parent}* *{}*", self.inlines(term)));
             for definition in definitions {
                 lines.push(self.cell_blocks(definition));
             }
@@ -374,6 +421,24 @@ impl State {
             ends_single_newline,
         });
         format!("[{}]", self.notes.len())
+    }
+}
+
+fn starts_with_text(mut blocks: &[Block]) -> bool {
+    loop {
+        match blocks.first() {
+            Some(Block::Div(attr, inner)) if attr.id.is_empty() => blocks = inner,
+            Some(Block::Figure(_, _, inner)) => blocks = inner,
+            Some(
+                Block::Plain(_)
+                | Block::Para(_)
+                | Block::LineBlock(_)
+                | Block::RawBlock(..)
+                | Block::Div(..),
+            )
+            | None => return true,
+            _ => return false,
+        }
     }
 }
 

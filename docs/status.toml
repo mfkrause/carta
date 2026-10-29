@@ -408,7 +408,6 @@ write-feature = "write-jira"
 read-gaps = [
 ]
 write-gaps = [
-  "Lists in table cells are flattened or misplaced.",
   "Bullet lists inside definition-list items have incorrect spacing.",
 ]
 

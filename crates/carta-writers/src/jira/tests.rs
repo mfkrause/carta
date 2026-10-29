@@ -372,3 +372,43 @@ fn inline_code_handles_backslashes_like_running_text() {
     assert_eq!(code("a\\b"), "{{a\\b}}");
     assert_eq!(code("a\\"), "{{a&bsol;}}");
 }
+
+#[test]
+fn list_items_keep_empty_items_and_leading_code() {
+    let items = vec![
+        Vec::new(),
+        vec![Block::CodeBlock(Box::default(), "code".into())],
+        vec![para(vec![str_inline("text")])],
+    ];
+    assert_eq!(
+        render(vec![Block::BulletList(items)]),
+        "* \n* {noformat}\ncode{noformat}\n* text"
+    );
+}
+
+#[test]
+fn list_containers_keep_nested_markers_and_anchors() {
+    for (child, expected) in [
+        (para(vec![str_inline("text")]), "* {anchor:section}text"),
+        (
+            Block::BulletList(vec![vec![para(vec![str_inline("inner")])]]),
+            "* {anchor:section}\n** inner",
+        ),
+        (
+            Block::CodeBlock(Box::default(), "code".into()),
+            "* {anchor:section}\n{noformat}\ncode{noformat}",
+        ),
+    ] {
+        let container = Block::Div(
+            Box::new(Attr {
+                id: "section".into(),
+                ..Attr::default()
+            }),
+            vec![child],
+        );
+        assert_eq!(
+            render(vec![Block::BulletList(vec![vec![container]])]),
+            expected
+        );
+    }
+}
