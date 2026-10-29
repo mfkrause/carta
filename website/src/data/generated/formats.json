@@ -780,9 +780,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-jira",
-        "gaps": [
-          "Bullet lists inside definition-list items have incorrect spacing."
-        ]
+        "gaps": []
       }
     },
     {

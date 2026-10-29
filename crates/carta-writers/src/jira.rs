@@ -214,8 +214,11 @@ impl State {
         let mut lines: Vec<String> = Vec::new();
         for (term, definitions) in items {
             lines.push(format!("{parent}* *{}*", self.inlines(term)));
-            for definition in definitions {
-                lines.push(self.cell_blocks(definition));
+            for definition in definitions
+                .iter()
+                .filter(|definition| !definition.is_empty())
+            {
+                self.list_item(definition, &format!("{parent}*"), &mut true, &mut lines);
             }
         }
         lines.join("\n")
@@ -254,7 +257,7 @@ impl State {
         out
     }
 
-    /// Render a cell's (or definition's) blocks: inline content with paragraph breaks flattened to a
+    /// Render a cell's blocks: inline content with paragraph breaks flattened to a
     /// single newline, since Jira cells carry no inter-block spacing.
     fn cell_blocks(&mut self, blocks: &[Block]) -> String {
         let rendered: Vec<String> = blocks.iter().map(|block| self.block(block)).collect();

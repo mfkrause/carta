@@ -57,7 +57,6 @@ man	common/list-nested-first-block
 # a missing tightness marker, list-continuation glue, or definition-term prefix leaves the inner
 # bullets on their own lines — so the case is skipped.
 beamer	common/list-bullet-in-definition
-jira	common/list-bullet-in-definition
 latex	common/list-bullet-in-definition
 mediawiki	common/list-bullet-in-definition
 

@@ -312,9 +312,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `org` ✅
 ### `rst` ✅
 ### `dokuwiki` ✅
-
 ### `jira` ✅
-- Bullet lists inside definition-list items have incorrect spacing.
 
 ### `mediawiki` ✅
 - Bullet lists inside definition-list items have incorrect spacing.

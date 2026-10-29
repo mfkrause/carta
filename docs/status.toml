@@ -408,7 +408,6 @@ write-feature = "write-jira"
 read-gaps = [
 ]
 write-gaps = [
-  "Bullet lists inside definition-list items have incorrect spacing.",
 ]
 
 [[format]]

@@ -412,3 +412,19 @@ fn list_containers_keep_nested_markers_and_anchors() {
         );
     }
 }
+
+#[test]
+fn empty_definitions_do_not_add_paragraph_breaks() {
+    for (definition, expected) in [
+        (Vec::new(), "* *term*"),
+        (vec![para(Vec::new())], "* *term*\n"),
+    ] {
+        assert_eq!(
+            render(vec![Block::DefinitionList(vec![(
+                vec![str_inline("term")],
+                vec![definition],
+            )])]),
+            expected
+        );
+    }
+}
