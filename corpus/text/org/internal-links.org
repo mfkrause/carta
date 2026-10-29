@@ -1,0 +1,17 @@
+#+TITLE: Links to [[later]]
+
+[[later][*Forward link*]] and [[file:later]].
+
+<<later>> A named target.
+
+[[later]] and [[missing][Missing target]].
+
+<<a/b>> and <<a+b>>.
+
+[[a/b]] and [[a+b]].
+
+| Link | [[later]] |
+
+Text with a note.[fn:1]
+
+[fn:1] See [[later]].

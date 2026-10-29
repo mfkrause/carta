@@ -640,9 +640,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-org",
-        "gaps": [
-          "An internal `[[target]]` radio link resolves to a bare destination rather than an anchor."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

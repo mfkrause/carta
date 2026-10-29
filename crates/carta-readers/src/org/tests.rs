@@ -321,3 +321,67 @@ fn heading_properties_keep_classes_and_raw_attributes() {
         ]
     );
 }
+
+#[test]
+fn named_links_resolve_forward_without_changing_file_links() {
+    let mut document = doc("[[target][*label*]] [[file:target]]\n\n<<target>>\n");
+    let mut destinations = Vec::new();
+    carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+        if let Inline::Link(_, _, target) = inline {
+            destinations.push(target.url.to_string());
+        }
+    });
+    assert_eq!(destinations, ["#target", "target"]);
+    let Block::Para(inlines) = &document.blocks[0] else {
+        panic!()
+    };
+    let Inline::Link(_, label, _) = &inlines[0] else {
+        panic!()
+    };
+    assert_eq!(
+        label,
+        &vec![Inline::Strong(vec![Inline::Str("label".into())])]
+    );
+}
+
+#[test]
+fn normalized_targets_keep_distinct_working_links() {
+    let mut document = doc("<<a/b>> <<a+b>>\n\n[[a/b]] [[a+b]]\n");
+    let mut identifiers = Vec::new();
+    let mut destinations = Vec::new();
+    carta_core::walk::for_each_document_inline(&mut document, &mut |inline| match inline {
+        Inline::Span(attributes, _) if !attributes.id.is_empty() => {
+            identifiers.push(attributes.id.to_string());
+        }
+        Inline::Link(_, _, target) => destinations.push(target.url.to_string()),
+        _ => {}
+    });
+    assert_eq!(identifiers, ["a-b", "a-b-1"]);
+    assert_eq!(destinations, ["#a-b", "#a-b-1"]);
+}
+
+#[test]
+fn unresolved_links_keep_their_labels() {
+    let paragraph = blocks("[[missing][*label*]]");
+    let Block::Para(inlines) = &paragraph[0] else {
+        panic!()
+    };
+    let Inline::Span(attributes, children) = &inlines[0] else {
+        panic!()
+    };
+    assert_eq!(attributes.classes, ["spurious-link"]);
+    assert_eq!(
+        attributes.attributes,
+        vec![("target".into(), "missing".into())]
+    );
+    assert_eq!(
+        children,
+        &vec![Inline::Emph(vec![Inline::Strong(vec![Inline::Str(
+            "label".into()
+        )])])]
+    );
+    assert_eq!(
+        blocks("[[missing][]]"),
+        vec![Block::Para(vec![Inline::Str("[[missing][]]".into())])]
+    );
+}

@@ -20,6 +20,7 @@ mod greater;
 mod inline;
 mod inline_helpers;
 mod keyword;
+mod links;
 mod lists;
 mod tables;
 
@@ -76,11 +77,13 @@ impl Reader for OrgReader {
         let blocks = parse_blocks(&body_lines, ext, &notes, &mut ids, &mut meta);
         meta.extend(property_meta);
 
-        Ok(Document {
+        let mut document = Document {
             meta,
             blocks,
             ..Document::default()
-        })
+        };
+        links::resolve_links(&mut document);
+        Ok(document)
     }
 }
 

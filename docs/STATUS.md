@@ -198,10 +198,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   content.
 
 ### `typst` ✅
-
 ### `org` ✅
-- An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
-
 ### `rst` ✅
 ### `dokuwiki` ✅
 ### `jira` ✅

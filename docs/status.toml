@@ -333,7 +333,6 @@ write = "usable"
 read-feature = "read-org"
 write-feature = "write-org"
 read-gaps = [
-  "An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.",
 ]
 write-gaps = [
 ]

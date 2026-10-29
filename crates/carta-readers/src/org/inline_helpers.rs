@@ -74,6 +74,18 @@ pub(super) fn process_target(raw: &str) -> String {
     raw.to_owned()
 }
 
+pub(super) fn is_internal_target(raw: &str) -> bool {
+    if raw.starts_with(['#', '/']) || raw.starts_with("./") || raw.starts_with("../") {
+        return false;
+    }
+    !raw.split_once(':').is_some_and(|(scheme, _)| {
+        !scheme.is_empty()
+            && scheme
+                .chars()
+                .all(|character| character.is_alphanumeric() || matches!(character, '.' | '-'))
+    })
+}
+
 pub(super) fn is_image_target(target: &str) -> bool {
     const EXTS: [&str; 8] = [
         ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".tiff",

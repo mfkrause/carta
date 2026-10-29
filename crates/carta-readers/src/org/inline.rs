@@ -9,8 +9,8 @@ use carta_core::{Extension, Extensions};
 use super::citations::parse_citation_items;
 use super::entities::entity;
 use super::inline_helpers::{
-    collect_str, image, is_image_target, is_uri, is_url_boundary, link, plain_words, post_ok,
-    pre_ok, process_target, verbatim_code, wrap_markup,
+    collect_str, image, is_image_target, is_internal_target, is_uri, is_url_boundary, link,
+    plain_words, post_ok, pre_ok, process_target, verbatim_code, wrap_markup,
 };
 
 pub(super) fn parse_inlines(
@@ -430,21 +430,25 @@ impl Inlines<'_> {
             ),
             None => (inner.as_str(), None),
         };
+        if target_raw.is_empty() || desc_raw.is_some_and(str::is_empty) {
+            return None;
+        }
         let target = process_target(target_raw);
         let end = close + 2;
-        match desc_raw {
-            Some(desc) => Some((
-                link(&target, parse_inlines(desc, self.ext, self.notes)),
-                end,
-            )),
-            None => {
-                if is_image_target(&target) {
-                    Some((image(&target, Vec::new()), end))
-                } else {
-                    Some((link(&target, vec![Inline::Str(target_raw.into())]), end))
-                }
-            }
+        let internal = is_internal_target(target_raw);
+        if !internal && desc_raw.is_none() && is_image_target(&target) {
+            return Some((image(&target, Vec::new()), end));
         }
+        let target = if internal {
+            format!("{}{target_raw}", super::links::INTERNAL_TARGET)
+        } else {
+            target
+        };
+        let label = match desc_raw {
+            Some(description) => parse_inlines(description, self.ext, self.notes),
+            None => vec![Inline::Str(target_raw.into())],
+        };
+        Some((link(&target, label), end))
     }
 
     fn scan_footnote(&self, i: usize) -> Option<(Inline, usize)> {
@@ -501,6 +505,12 @@ impl Inlines<'_> {
                     .unwrap_or(&[])
                     .iter()
                     .collect();
+                if name
+                    .chars()
+                    .any(|character| matches!(character, ' ' | '\t' | '\n' | '\'' | '"'))
+                {
+                    return None;
+                }
                 let attr = Attr {
                     id: name.into(),
                     ..Attr::default()
