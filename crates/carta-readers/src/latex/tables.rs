@@ -240,12 +240,14 @@ pub(super) fn build_table(
         first_row_ruled = true;
     }
 
-    let (head_rows, body_rows) = if first_row_ruled && !rows.is_empty() {
+    let (mut head_rows, mut body_rows) = if first_row_ruled && !rows.is_empty() {
         let body = rows.split_off(1);
         (rows, body)
     } else {
         (Vec::new(), rows)
     };
+    apply_row_spans(&mut head_rows, ncols);
+    apply_row_spans(&mut body_rows, ncols);
 
     let table = Table {
         attr: attributes,
@@ -305,6 +307,8 @@ pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
             Some((n, align, content)) => (align, n, content),
             None => (Alignment::AlignDefault, 1, trimmed.to_owned()),
         };
+        let (row_span, content_src) =
+            parse_multirow(parser, content_src.trim()).unwrap_or((1, content_src));
         let inlines = parse_cell_inlines(parser, content_src.trim());
         let content = if inlines.is_empty() {
             Vec::new()
@@ -314,11 +318,11 @@ pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
         cells.push(Cell {
             attr: Attr::default(),
             align,
-            row_span: 1,
+            row_span,
             col_span: i64::from(col_span),
             content,
         });
-        span_total += col_span.max(1);
+        span_total = span_total.saturating_add(col_span.max(1));
     }
     while span_total < i32::try_from(ncols).unwrap_or(i32::MAX) {
         cells.push(Cell {
@@ -334,6 +338,120 @@ pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
         attr: Attr::default(),
         cells,
     }
+}
+
+fn parse_multirow(parser: &Parser, source: &str) -> Option<(i64, String)> {
+    if !source.starts_with("\\multirow") {
+        return None;
+    }
+    let mut cell = parser.child(source, false);
+    if !cell.at_control_word("multirow") {
+        return None;
+    }
+    cell.consume_control_word();
+    cell.skip_block_ws();
+    let _ = cell.read_optional_raw();
+    cell.skip_block_ws();
+    let span = cell.read_group_raw()?.trim().parse().unwrap_or(1);
+    cell.skip_block_ws();
+    let _ = cell.read_optional_raw();
+    cell.skip_block_ws();
+    let _ = cell.read_group_raw()?;
+    cell.skip_block_ws();
+    let _ = cell.read_optional_raw();
+    cell.skip_block_ws();
+    let mut content = cell.read_group_raw()?;
+    while let Some(character) = cell.bump() {
+        content.push(character);
+    }
+    Some((span, content))
+}
+
+fn apply_row_spans(rows: &mut [Row], columns: usize) {
+    if !rows
+        .iter()
+        .flat_map(|row| &row.cells)
+        .any(|cell| cell.row_span != 1)
+    {
+        return;
+    }
+    for index in 0..rows.len() {
+        let (earlier, current) = rows.split_at_mut(index);
+        let Some(row) = current.first_mut() else {
+            continue;
+        };
+        let mut column = 0usize;
+        for cell in &mut row.cells {
+            let width = usize::try_from(cell.col_span).unwrap_or(usize::MAX).max(1);
+            if cell.row_span < 0 {
+                let height = usize::try_from(cell.row_span.unsigned_abs())
+                    .unwrap_or(usize::MAX)
+                    .min(index.saturating_add(1));
+                let target = index.saturating_add(1).saturating_sub(height);
+                if let Some(row) = earlier.get_mut(target)
+                    && place_upward_cell(row, column, width, height, cell)
+                {
+                    cell.content.clear();
+                }
+                cell.row_span = 1;
+            }
+            column = column.saturating_add(width);
+        }
+    }
+    let mut occupied = vec![0i64; columns];
+    let count = rows.len();
+    for (index, row) in rows.iter_mut().enumerate() {
+        let remaining = i64::try_from(count - index).unwrap_or(i64::MAX);
+        let mut column = 0usize;
+        row.cells.retain_mut(|cell| {
+            let width = usize::try_from(cell.col_span).unwrap_or(usize::MAX).max(1);
+            let covered = occupied.get(column).is_some_and(|&left| left > 0);
+            cell.row_span = cell.row_span.max(1).min(remaining);
+            if !covered {
+                for left in occupied.iter_mut().skip(column).take(width) {
+                    *left = cell.row_span;
+                }
+            }
+            column = column.saturating_add(width);
+            !covered || !cell.content.is_empty()
+        });
+        for left in &mut occupied {
+            *left = left.saturating_sub(1);
+        }
+    }
+}
+
+fn place_upward_cell(
+    row: &mut Row,
+    column: usize,
+    width: usize,
+    height: usize,
+    source: &Cell,
+) -> bool {
+    let mut position = 0usize;
+    let mut start = None;
+    for (index, cell) in row.cells.iter().enumerate() {
+        if position == column {
+            start = Some(index);
+        }
+        if start.is_some() && (!cell.content.is_empty() || cell.row_span != 1) {
+            return false;
+        }
+        position =
+            position.saturating_add(usize::try_from(cell.col_span).unwrap_or(usize::MAX).max(1));
+        if position == column.saturating_add(width)
+            && let Some(start) = start
+        {
+            let mut cell = source.clone();
+            cell.row_span = i64::try_from(height).unwrap_or(i64::MAX);
+            row.cells.splice(start..=index, [cell]);
+            return true;
+        }
+        if position > column.saturating_add(width) {
+            break;
+        }
+    }
+    false
 }
 
 /// Parses a `\multicolumn{n}{align}{content}` cell, returning the span, cell alignment, and the

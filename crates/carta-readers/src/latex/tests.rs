@@ -210,6 +210,57 @@ fn unnumbered_long_table_captions_keep_their_text() {
 }
 
 #[test]
+fn multirow_cells_keep_text_after_the_command() {
+    let blocks = parse("\\begin{tabular}{ll}\\multirow{2}{*}{Name} suffix&A\\\\&B\\end{tabular}");
+    let Some(Block::Table(table)) = blocks.first() else {
+        panic!()
+    };
+    let cell = table
+        .bodies
+        .first()
+        .unwrap()
+        .body
+        .first()
+        .unwrap()
+        .cells
+        .first()
+        .unwrap();
+    assert_eq!(cell.row_span, 2);
+    assert_eq!(
+        cell.content,
+        [Block::Plain(vec![
+            Inline::Str("Name".into()),
+            Inline::Space,
+            Inline::Str("suffix".into()),
+        ])]
+    );
+}
+
+#[test]
+fn table_cells_span_rows_without_losing_their_content() {
+    for source in [
+        "\\begin{tabular}{ll}\\multirow{2}{*}{\\emph{Name}}&One\\\\&Two\\end{tabular}",
+        "\\begin{tabular}{ll}\\multirow[t]{2}[1]{2cm}[1ex]{\\emph{Name}}&One\\\\&Two\\end{tabular}",
+        "\\begin{tabular}{ll}&One\\\\\\multirow{-2}{*}{\\emph{Name}}&Two\\end{tabular}",
+    ] {
+        let blocks = parse(source);
+        let Some(Block::Table(table)) = blocks.first() else {
+            panic!()
+        };
+        let rows = &table.bodies.first().unwrap().body;
+        let first = rows.first().unwrap().cells.first().unwrap();
+        assert_eq!(first.row_span, 2);
+        assert_eq!(
+            first.content,
+            [Block::Plain(vec![Inline::Emph(vec![Inline::Str(
+                "Name".into()
+            )])])]
+        );
+        assert_eq!(rows.get(1).unwrap().cells.len(), 1);
+    }
+}
+
+#[test]
 fn preamble_content_is_kept_before_the_document_body() {
     let source = "\\title{Title}Before\\begin{document}After\\end{document}Ignored";
     assert_eq!(
