@@ -79,14 +79,14 @@ pub(super) fn push_text(out: &mut Vec<Inline>, text: &str) {
     let mut word = String::new();
     let mut chars = text.chars().peekable();
     while let Some(&ch) = chars.peek() {
-        // Only ASCII whitespace collapses; NBSP, em space, separators, etc. are content.
-        if ch.is_ascii_whitespace() {
+        // Only XML whitespace collapses; other spacing characters are content.
+        if matches!(ch, ' ' | '\t' | '\n' | '\r') {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word).into()));
             }
             let mut line_ending = false;
             while let Some(&ws) = chars.peek() {
-                if ws.is_ascii_whitespace() {
+                if matches!(ws, ' ' | '\t' | '\n' | '\r') {
                     line_ending = line_ending || ws == '\n' || ws == '\r';
                     chars.next();
                 } else {

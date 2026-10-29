@@ -569,6 +569,22 @@ fn space_counts_follow_integer_reading_rules() {
 }
 
 #[test]
+fn form_feeds_stay_in_text_between_words_and_spaces() {
+    let body = content("<text:p>A\u{c}B \u{c} C</text:p>");
+    let odt = package(&[("content.xml", body.as_bytes())]);
+    assert_eq!(
+        read(&odt).expect("read form feeds").blocks,
+        vec![Block::Para(vec![
+            Inline::Str("A\u{c}B".into()),
+            Inline::Space,
+            Inline::Str("\u{c}".into()),
+            Inline::Space,
+            Inline::Str("C".into()),
+        ])]
+    );
+}
+
+#[test]
 fn inline_boundaries_merge_breaks_but_keep_explicit_spaces() {
     for (markup, whitespace) in [
         (" <text:soft-page-break/> ", vec![Inline::Space]),

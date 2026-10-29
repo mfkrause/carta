@@ -257,7 +257,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   at 1 rather than continuing.
 - Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
   is taken as the sum of colspans and rows go ragged.
-- A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.
 - Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
   and ancestor styles are not re-applied to inner spans (renders identically).
 - An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
