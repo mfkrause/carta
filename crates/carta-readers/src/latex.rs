@@ -57,13 +57,15 @@ impl Reader for LatexReader {
             last_ws_had_newline: false,
         };
 
-        if let Some(preamble) = preamble {
+        let mut blocks = if let Some(preamble) = preamble {
             parser.set_source(preamble);
-            let _ = parser.parse_blocks(&Stop::Eof);
-        }
+            parser.parse_blocks(&Stop::Begin("document"))
+        } else {
+            Vec::new()
+        };
 
         parser.set_source(body);
-        let blocks = parser.parse_blocks(&Stop::Env("document"));
+        blocks.extend(parser.parse_blocks(&Stop::Env("document")));
 
         let mut document = Document {
             meta: parser
@@ -105,9 +107,7 @@ fn expand_tabs(input: &str) -> Cow<'_, str> {
     Cow::Owned(output)
 }
 
-/// Splits the source into an optional preamble and the body to render. With a `\begin{document}`,
-/// the preamble is everything before it and the body is the text up to a matching `\end{document}`;
-/// without one, the whole source is the body and there is no preamble.
+/// Splits the source at the document environment, retaining its opening marker with the preamble.
 fn split_document(input: &str) -> (Option<&str>, &str) {
     if let Some(begin) = input.find("\\begin{document}") {
         let after = &input[begin + "\\begin{document}".len()..];
@@ -115,7 +115,7 @@ fn split_document(input: &str) -> (Option<&str>, &str) {
             Some(end) => &after[..end],
             None => after,
         };
-        (Some(&input[..begin]), body)
+        (Some(&input[..begin + "\\begin{document}".len()]), body)
     } else {
         (None, input)
     }
@@ -154,6 +154,8 @@ fn has_command(text: &str, name: &str) -> bool {
 enum Stop<'a> {
     /// End of input.
     Eof,
+    /// A matching opening environment marker (or end of input).
+    Begin(&'a str),
     /// A matching `\end{name}` (or end of input).
     Env(&'a str),
     /// A `\item`, a matching `\end{name}`, or end of input; used inside a list environment.
@@ -412,6 +414,9 @@ impl Parser {
     fn at_stop(&self, stop: &Stop) -> bool {
         match stop {
             Stop::Eof => self.eof(),
+            Stop::Begin(name) => {
+                self.eof() || self.peek_env_after("\\begin").as_deref() == Some(name)
+            }
             Stop::Env(name) => self.eof() || self.at_end_env(name),
             Stop::Item(name) => self.eof() || self.at_end_env(name) || self.at_control_word("item"),
         }

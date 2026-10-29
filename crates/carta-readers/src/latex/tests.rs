@@ -210,6 +210,42 @@ fn unnumbered_long_table_captions_keep_their_text() {
 }
 
 #[test]
+fn preamble_content_is_kept_before_the_document_body() {
+    let source = "\\title{Title}Before\\begin{document}After\\end{document}Ignored";
+    assert_eq!(
+        parse(source),
+        vec![
+            Block::Para(vec![Inline::Str("Before".into())]),
+            Block::Para(vec![Inline::Str("After".into())]),
+        ]
+    );
+}
+
+#[test]
+fn preamble_raw_commands_keep_their_block_boundaries() {
+    for (separator, block) in [
+        (
+            "",
+            Block::Para(vec![Inline::RawInline(
+                Format("latex".into()),
+                "\\institute{Example}".into(),
+            )]),
+        ),
+        (
+            "\n",
+            Block::RawBlock(Format("latex".into()), "\\institute{Example}".into()),
+        ),
+    ] {
+        let source =
+            format!("\\institute{{Example}}{separator}\\begin{{document}}Body\\end{{document}}");
+        assert_eq!(
+            parse_ext(&source, Extensions::from_list(&[Extension::RawTex])),
+            vec![block, Block::Para(vec![Inline::Str("Body".into())])]
+        );
+    }
+}
+
+#[test]
 fn raised_boxes_keep_their_content_with_optional_dimensions() {
     for dimensions in ["", "[2ex]", "[2ex][0pt]", " [2ex] [0pt] "] {
         let source = format!("Before \\raisebox{{1ex}}{dimensions}{{\\emph{{kept}}}} after.");
