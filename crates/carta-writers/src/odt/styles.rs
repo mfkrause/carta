@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use carta_ast::{ListNumberDelim, ListNumberStyle, MetaValue, Text};
-use carta_core::container::xml::escape_attribute;
+use carta_core::container::xml::{Element, escape_attribute};
 
 use super::meta::meta_text;
 use super::{AlignKind, DECL, Deco, NS, language_country};
@@ -12,19 +12,21 @@ use super::{AlignKind, DECL, Deco, NS, language_country};
 pub(super) fn deco_style_xml(index: usize, key: &[Deco]) -> String {
     // Super- and subscript share one text-position property; a run carrying both keeps superscript.
     let drops_subscript = key.contains(&Deco::Superscript) && key.contains(&Deco::Subscript);
-    let mut properties = String::new();
+    let mut attributes = BTreeMap::new();
     for deco in key {
         if drops_subscript && *deco == Deco::Subscript {
             continue;
         }
-        if !properties.is_empty() {
-            properties.push(' ');
-        }
-        properties.push_str(deco.properties());
+        attributes.extend(deco.attributes().iter().copied());
+    }
+    let mut properties = Element::new("style:text-properties");
+    for (name, value) in attributes {
+        properties = properties.attr(name, value);
     }
     format!(
         "<style:style style:name=\"T{index}\" style:family=\"text\">\
-         <style:text-properties {properties} /></style:style>"
+         {}</style:style>",
+        properties.render(),
     )
 }
 

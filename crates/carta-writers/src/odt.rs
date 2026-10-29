@@ -191,24 +191,27 @@ impl Deco {
     }
 
     /// The text-properties attributes this decoration contributes to an automatic style.
-    fn properties(self) -> &'static str {
+    fn attributes(self) -> &'static [(&'static str, &'static str)] {
         match self {
-            Deco::Emph => {
-                "fo:font-style=\"italic\" style:font-style-asian=\"italic\" \
-                 style:font-style-complex=\"italic\""
-            }
-            Deco::Strong => {
-                "fo:font-weight=\"bold\" style:font-weight-asian=\"bold\" \
-                 style:font-weight-complex=\"bold\""
-            }
-            Deco::Underline => {
-                "style:text-underline-color=\"font-color\" style:text-underline-style=\"solid\" \
-                 style:text-underline-width=\"auto\""
-            }
-            Deco::SmallCaps => "fo:font-variant=\"small-caps\"",
-            Deco::Strikeout => "style:text-line-through-style=\"solid\"",
-            Deco::Superscript => "style:text-position=\"super 58%\"",
-            Deco::Subscript => "style:text-position=\"sub 58%\"",
+            Deco::Emph => &[
+                ("fo:font-style", "italic"),
+                ("style:font-style-asian", "italic"),
+                ("style:font-style-complex", "italic"),
+            ],
+            Deco::Strong => &[
+                ("fo:font-weight", "bold"),
+                ("style:font-weight-asian", "bold"),
+                ("style:font-weight-complex", "bold"),
+            ],
+            Deco::Underline => &[
+                ("style:text-underline-color", "font-color"),
+                ("style:text-underline-style", "solid"),
+                ("style:text-underline-width", "auto"),
+            ],
+            Deco::SmallCaps => &[("fo:font-variant", "small-caps")],
+            Deco::Strikeout => &[("style:text-line-through-style", "solid")],
+            Deco::Superscript => &[("style:text-position", "super 58%")],
+            Deco::Subscript => &[("style:text-position", "sub 58%")],
         }
     }
 }

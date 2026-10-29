@@ -389,8 +389,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   plain.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
-- Attribute ordering inside a combined-decoration text style groups per decoration rather than all
-  `fo:*` attributes first.
 - The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.
 - `--number-sections` is a no-op: headings carry no computed section numbers.
 - Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token
