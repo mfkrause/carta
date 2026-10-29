@@ -680,7 +680,6 @@
         "ships": true,
         "feature": "read-rst",
         "gaps": [
-          "The `contents` (table-of-contents) directive emits nothing.",
           "The `table` directive's `:widths:` is not applied to the built table.",
           "A definition-list classifier (`term : classifier`) stays part of the term.",
           "Doctest blocks (`>>>`) read as ordinary paragraphs."
