@@ -16,6 +16,7 @@ mod media;
 mod meta;
 mod references;
 mod styles;
+mod tiff;
 
 use language::{Language, caption_labels};
 use meta::{formula_content_xml, manifest_xml, meta_xml, plain_meta};

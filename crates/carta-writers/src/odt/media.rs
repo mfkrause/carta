@@ -10,6 +10,7 @@ use crate::image_size::{
 };
 
 use super::helpers::attr_value;
+use super::tiff::Tiff;
 
 /// The intrinsic pixel dimensions of an encoded image paired with the pixel density (horizontal,
 /// vertical dots per inch) that maps those pixels to a physical size. Unrecognized data resolves to
@@ -37,6 +38,11 @@ pub(super) fn image_metrics(bytes: &[u8]) -> ((i64, i64), (f64, f64)) {
     }
     if let Some(dimensions) = svg_dimensions(bytes) {
         return (dimensions_as_signed(dimensions), (96.0, 96.0));
+    }
+    if let Some(image) = Tiff::new(bytes)
+        && let Some(dimensions) = image.dimensions()
+    {
+        return (dimensions_as_signed(dimensions), image.density());
     }
     if let Some(dimensions) = eps_dimensions(bytes).or_else(|| pdf_dimensions(bytes)) {
         return (dimensions, (72.0, 72.0));
