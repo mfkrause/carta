@@ -654,3 +654,22 @@ fn repeated_unterminated_open_stays_literal() {
     let blocks = parse(&input);
     assert_eq!(blocks, vec![Block::Para(vec![Inline::Str(input.into())])]);
 }
+
+#[test]
+fn unfinished_references_keep_literal_text_and_inline_markup() {
+    assert_eq!(
+        parse("before <ref>unfinished"),
+        vec![Block::Para(vec![
+            Inline::Str("before".into()),
+            Inline::Space,
+            Inline::Str("<ref>unfinished".into()),
+        ])]
+    );
+    assert_eq!(
+        parse("<ref>''unfinished''"),
+        vec![Block::Para(vec![
+            Inline::Str("<ref>".into()),
+            Inline::Emph(vec![Inline::Str("unfinished".into())]),
+        ])]
+    );
+}

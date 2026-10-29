@@ -212,7 +212,7 @@ impl Parser<'_> {
                         let inner = chars.get(after_open..inner_end).unwrap_or(&[]);
                         Some((vec![Inline::Note(self.note_blocks(inner))], after))
                     }
-                    None => Some((vec![raw_html(raw_open)], after_open)),
+                    None => None,
                 }
             }
             "nowiki" => {

@@ -793,8 +793,7 @@
         "ships": true,
         "feature": "read-mediawiki",
         "gaps": [
-          "The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary wikilinks rather than links to the media file or remote wiki.",
-          "An unterminated `<ref>` is read as raw HTML rather than literal text."
+          "The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary wikilinks rather than links to the media file or remote wiki."
         ]
       },
       "write": {

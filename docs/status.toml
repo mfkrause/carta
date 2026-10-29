@@ -420,7 +420,6 @@ read-feature = "read-mediawiki"
 write-feature = "write-mediawiki"
 read-gaps = [
   "The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary wikilinks rather than links to the media file or remote wiki.",
-  "An unterminated `<ref>` is read as raw HTML rather than literal text.",
 ]
 write-gaps = [
   "Bullet lists inside definition-list items have incorrect spacing.",
