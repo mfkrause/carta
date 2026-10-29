@@ -3,13 +3,14 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use carta_ast::{Block, Document, MetaValue, Text, slug, slug_gfm};
+use carta_ast::{Block, Document, MetaValue, slug, slug_gfm};
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::transliterate::fold_to_ascii;
 
-use blocks::{headline_level, parse_blocks};
+use blocks::{headline_level, is_comment, parse_blocks};
+use drawers::property_drawer;
 
 mod blocks;
 mod citations;
@@ -39,7 +40,20 @@ impl Reader for OrgReader {
         let normalized = normalize(input);
         let lines: Vec<&str> = normalized.split('\n').collect();
 
-        let (body_lines, defs) = collect_footnotes(&lines);
+        let mut property_meta = BTreeMap::new();
+        let property_start = lines.iter().take_while(|line| is_comment(line)).count();
+        let body_start =
+            if let Some((properties, consumed)) = property_drawer(&lines, property_start) {
+                for (key, value) in properties {
+                    property_meta
+                        .entry(key.to_lowercase().into())
+                        .or_insert_with(|| MetaValue::MetaString(value.into()));
+                }
+                property_start + consumed
+            } else {
+                0
+            };
+        let (body_lines, defs) = collect_footnotes(lines.get(body_start..).unwrap_or(&[]));
 
         let empty_notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
         let mut notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
@@ -58,8 +72,9 @@ impl Reader for OrgReader {
         }
 
         let mut ids = new_id_registry();
-        let mut meta: BTreeMap<Text, MetaValue> = BTreeMap::new();
+        let mut meta = BTreeMap::new();
         let blocks = parse_blocks(&body_lines, ext, &notes, &mut ids, &mut meta);
+        meta.extend(property_meta);
 
         Ok(Document {
             meta,

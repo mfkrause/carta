@@ -11,6 +11,7 @@ use crate::heading_ids::IdRegistry;
 use super::assign_id;
 use super::drawers::{
     collect_drawer, collect_fixed_width, drawer_open, is_fixed_width, is_horizontal_rule,
+    property_drawer,
 };
 use super::greater::{greater_block_open, parse_greater_block};
 use super::inline::parse_inlines;
@@ -41,6 +42,9 @@ pub(super) fn parse_blocks(
 ) -> Vec<Block> {
     let mut out = Vec::new();
     let mut pending = Affiliated::default();
+    let last_drawer_end = lines
+        .iter()
+        .rposition(|line| line.trim_matches([' ', '\t']).eq_ignore_ascii_case(":END:"));
     let mut i = 0;
     while let Some(&line) = lines.get(i) {
         if line.trim().is_empty() {
@@ -49,12 +53,14 @@ pub(super) fn parse_blocks(
         }
         if let Some(level) = headline_level(line) {
             i += 1;
-            let mut id_override = None;
-            if let Some((custom_id, skip)) = read_property_drawer(lines, i) {
-                id_override = custom_id;
+            let mut properties = Vec::new();
+            if last_drawer_end.is_some_and(|end| i < end)
+                && let Some((values, skip)) = property_drawer(lines, i)
+            {
+                properties = values;
                 i += skip;
             }
-            out.push(build_headline(line, level, id_override, ext, notes, ids));
+            out.push(build_headline(line, level, &properties, ext, notes, ids));
             pending = Affiliated::default();
             continue;
         }
@@ -71,7 +77,7 @@ pub(super) fn parse_blocks(
             i += 1;
             continue;
         }
-        if line.trim_start() == "#" || line.trim_start().starts_with("# ") {
+        if is_comment(line) {
             i += 1;
             continue;
         }
@@ -88,7 +94,9 @@ pub(super) fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        if let Some(name) = drawer_open(line) {
+        if last_drawer_end.is_some_and(|end| i < end)
+            && let Some(name) = drawer_open(line)
+        {
             let (inner, consumed) = collect_drawer(lines, i);
             i += consumed;
             // Metadata drawers are bookkeeping and elided; other named drawers become divs.
@@ -147,8 +155,7 @@ fn opens_block(line: &str) -> bool {
     headline_level(line).is_some()
         || greater_block_open(line).is_some()
         || keyword_line(line).is_some()
-        || line.trim_start() == "#"
-        || line.trim_start().starts_with("# ")
+        || is_comment(line)
         || is_horizontal_rule(line)
         || is_fixed_width(line)
         || drawer_open(line).is_some()
@@ -203,12 +210,11 @@ pub(super) fn headline_level(line: &str) -> Option<usize> {
     }
 }
 
-/// Builds a `Header`, splitting off a leading todo keyword and trailing tags and deriving an
-/// identifier from the remaining title text (or the property drawer's custom id).
+/// Build a heading with its property identifier, classes, attributes, TODO keyword, and tags.
 fn build_headline(
     line: &str,
     level: usize,
-    id_override: Option<String>,
+    properties: &[(&str, &str)],
     ext: Extensions,
     notes: &BTreeMap<String, Vec<Block>>,
     ids: &mut IdRegistry,
@@ -220,6 +226,16 @@ fn build_headline(
 
     let title_inlines = parse_inlines(title_text, ext, notes);
 
+    let property = |name: &str| {
+        properties
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| *value)
+    };
+    let id_override = property("CUSTOM_ID")
+        .or_else(|| property("ID"))
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
     let id = if let Some(custom) = id_override {
         ids.reserve_native(&custom);
         custom
@@ -243,9 +259,26 @@ fn build_headline(
         }
     }
 
+    let mut classes: Vec<_> = property("CLASS")
+        .unwrap_or("")
+        .split_whitespace()
+        .map(Into::into)
+        .collect();
+    if property("UNNUMBERED").is_some_and(|value| !value.eq_ignore_ascii_case("nil")) {
+        classes.push("unnumbered".into());
+    }
     let attr = Attr {
         id: id.into(),
-        ..Attr::default()
+        classes,
+        attributes: properties
+            .iter()
+            .filter(|(key, _)| {
+                !["ID", "CUSTOM_ID", "CLASS", "UNNUMBERED"]
+                    .iter()
+                    .any(|name| key.eq_ignore_ascii_case(name))
+            })
+            .map(|(key, value)| (key.to_lowercase().into(), (*value).into()))
+            .collect(),
     };
     let level = i32::try_from(level).unwrap_or(6).clamp(1, 6);
     Block::Header(i64::from(level), Box::new(attr), inlines)
@@ -317,28 +350,9 @@ fn split_tags(rest: &str) -> (&str, Vec<String>) {
     (trimmed.get(..space).unwrap_or("").trim_end(), tags)
 }
 
-/// Reads a `:PROPERTIES:`…`:END:` drawer immediately following a headline, returning the custom
-/// identifier (if any) and the number of lines consumed. Returns `None` when no drawer follows.
-fn read_property_drawer(lines: &[&str], start: usize) -> Option<(Option<String>, usize)> {
-    let first = lines.get(start)?;
-    if !first.trim().eq_ignore_ascii_case(":PROPERTIES:") {
-        return None;
-    }
-    let mut custom = None;
-    let mut i = start + 1;
-    while let Some(line) = lines.get(i) {
-        let trimmed = line.trim();
-        if trimmed.eq_ignore_ascii_case(":END:") {
-            return Some((custom, i + 1 - start));
-        }
-        if let Some(rest) = trimmed.strip_prefix(':')
-            && let Some((key, value)) = rest.split_once(':')
-            && key.eq_ignore_ascii_case("CUSTOM_ID")
-        {
-            custom = Some(value.trim().to_owned());
-        }
-        i += 1;
-    }
-    // Unterminated drawer: leave the lines to the block parser.
-    None
+/// Whether a line starts an Org comment.
+pub(super) fn is_comment(line: &str) -> bool {
+    line.trim_start_matches([' ', '\t'])
+        .strip_prefix('#')
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with([' ', '\t']))
 }

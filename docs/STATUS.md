@@ -200,8 +200,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `typst` ✅
 
 ### `org` ✅
-- A property drawer's `:ID:` is not used as a fallback heading identifier when no `:CUSTOM_ID:` is
-  present, and a file-level property drawer's keys are not promoted to document metadata.
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
 ### `rst` ✅

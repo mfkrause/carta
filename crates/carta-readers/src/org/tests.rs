@@ -235,3 +235,89 @@ fn entity_replacement() {
         other => panic!("expected paragraph, got {other:?}"),
     }
 }
+
+#[test]
+fn heading_properties_choose_custom_ids_before_fallback_ids() {
+    for (properties, expected) in [
+        (":ID: stable", "stable"),
+        (":ID: first\n:ID: second", "first"),
+        (":ID: stable\n:CUSTOM_ID: custom", "custom"),
+        (":ID: stable\n:CUSTOM_ID: ", "heading"),
+    ] {
+        let source = format!("* Heading\n:PROPERTIES:\n{properties}\n:END:\n");
+        let Block::Header(_, attributes, _) = &blocks(&source)[0] else {
+            panic!()
+        };
+        assert_eq!(attributes.id.as_str(), expected);
+    }
+}
+
+#[test]
+fn file_properties_keep_literal_metadata_and_first_values() {
+    let document = doc(
+        "# Comment\n:PROPERTIES:\n:ID: file-id\n:FOO: **first**\n:FOO: second\n:TITLE: Original\n:SPACE: value\u{a0}\n:FOO\u{a0}BAR: nonbreaking key\n:END:\n#+TITLE: Replacement\n\nText.\n",
+    );
+    assert_eq!(
+        document.meta.get("id"),
+        Some(&MetaValue::MetaString("file-id".into()))
+    );
+    assert_eq!(
+        document.meta.get("foo"),
+        Some(&MetaValue::MetaString("**first**".into()))
+    );
+    assert_eq!(
+        document.meta.get("title"),
+        Some(&MetaValue::MetaString("Original".into()))
+    );
+    assert_eq!(
+        document.meta.get("space"),
+        Some(&MetaValue::MetaString("value\u{a0}".into()))
+    );
+    assert_eq!(
+        document.meta.get("foo\u{a0}bar"),
+        Some(&MetaValue::MetaString("nonbreaking key".into()))
+    );
+    assert_eq!(
+        document.blocks,
+        vec![Block::Para(vec![Inline::Str("Text.".into())])]
+    );
+}
+
+#[test]
+fn unfinished_drawers_keep_following_headlines() {
+    assert_eq!(
+        blocks(":DRAWER:\ntext\n"),
+        vec![Block::Para(vec![
+            Inline::Str(":DRAWER:".into()),
+            Inline::SoftBreak,
+            Inline::Str("text".into()),
+        ])]
+    );
+    let source = "* Heading\n:PROPERTIES:\n:ID: unfinished\n".repeat(1000);
+    let document = doc(&source);
+    assert_eq!(
+        document
+            .blocks
+            .iter()
+            .filter(|block| matches!(block, Block::Header(..)))
+            .count(),
+        1000
+    );
+    assert_eq!(document.blocks.len(), 2000);
+}
+
+#[test]
+fn heading_properties_keep_classes_and_raw_attributes() {
+    let source = "* Heading\n:PROPERTIES:\n:ID: stable\n:CLASS: primary secondary\n:UNNUMBERED: t\n:FOO: *value*\n:FOO: second\n:END:\n";
+    let Block::Header(_, attributes, _) = &blocks(source)[0] else {
+        panic!()
+    };
+    assert_eq!(attributes.classes, ["primary", "secondary", "unnumbered"]);
+    assert_eq!(
+        attributes.attributes,
+        vec![
+            ("foo".into(), "*value*".into()),
+            ("foo".into(), "second".into())
+        ]
+    );
+}

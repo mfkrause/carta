@@ -1,0 +1,23 @@
+:PROPERTIES:
+:TITLE: Property title
+:PROJECT: carta
+:END:
+#+TITLE: Keyword title
+
+* Stable heading
+:PROPERTIES:
+:ID: stable-id
+:OWNER: Ada
+:END:
+
+Body.
+
+* Custom heading
+:PROPERTIES:
+:ID: fallback-id
+:CUSTOM_ID: custom-id
+:CLASS: marked heading
+:UNNUMBERED: t
+:END:
+
+More body.
