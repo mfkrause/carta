@@ -387,8 +387,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   than rewriting the internal link to a reference field.
 - A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted
   plain.
-- A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted
-  plain.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
 - Attribute ordering inside a combined-decoration text style groups per decoration rather than all

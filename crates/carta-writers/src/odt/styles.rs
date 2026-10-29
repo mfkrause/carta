@@ -324,6 +324,11 @@ fn push_named_styles(out: &mut String, language: &str, country: &str) {
     push_text_style(out, "Definition", "");
     push_text_style(
         out,
+        "Highlighted",
+        "<style:text-properties fo:background-color=\"#ffff38\" />",
+    );
+    push_text_style(
+        out,
         "Internet_20_link",
         "<style:text-properties fo:color=\"#000080\" style:text-underline-color=\"font-color\" \
          style:text-underline-style=\"solid\" style:text-underline-width=\"auto\" />",

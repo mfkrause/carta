@@ -170,9 +170,7 @@ impl Builder<'_> {
         format!("T{}", self.text_styles.len())
     }
 
-    /// A span: an `id` becomes a bookmark bracketing the content, and a `custom-style` wraps the
-    /// content in a named text span. When both are present the bookmark encloses the styled span, so
-    /// the anchor survives alongside the styling rather than being dropped for it.
+    /// Render bookmarks, custom character styles, and bare `mark` spans with active decorations.
     fn span(&mut self, attr: &Attr, inner: &[Inline], decos: &[Deco]) {
         let anchored = !attr.id.is_empty();
         if anchored {
@@ -180,7 +178,15 @@ impl Builder<'_> {
             escape_attribute(attr.id.as_str(), &mut self.body);
             self.body.push_str("\" />");
         }
-        match custom_style(attr) {
+        let style = if !anchored
+            && attr.attributes.is_empty()
+            && matches!(attr.classes.as_slice(), [class] if class.as_str() == "mark")
+        {
+            Some("Highlighted")
+        } else {
+            custom_style(attr)
+        };
+        match style {
             Some(name) => {
                 self.body.push_str("<text:span text:style-name=\"");
                 escape_attribute(name, &mut self.body);
@@ -404,5 +410,20 @@ mod tests {
             assert!(builder.body.contains("xlink:href=\"Pictures/0\""));
             assert!(!crate::odt::meta::manifest_xml(&builder.images, &[]).contains("Pictures/"));
         }
+    }
+
+    #[test]
+    fn marked_spans_keep_outer_decorations() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let attr = Attr {
+            classes: vec!["mark".into()],
+            ..Attr::default()
+        };
+        builder.span(&attr, &[Inline::Str("Text".into())], &[Deco::Emph]);
+        assert_eq!(
+            builder.body,
+            "<text:span text:style-name=\"Highlighted\"><text:span text:style-name=\"Emphasis\">Text</text:span></text:span>"
+        );
     }
 }
