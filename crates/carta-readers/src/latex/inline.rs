@@ -495,6 +495,15 @@ impl Parser {
                 );
             }
             "label" => {
+                if self.ext.contains(Extension::RawTex) {
+                    let raw = self.reconstruct_command(name, whitespace);
+                    emit(
+                        out,
+                        buf,
+                        Inline::RawInline(Format("latex".into()), raw.into()),
+                    );
+                    return;
+                }
                 if let Some(id) = self.read_group_raw() {
                     emit(
                         out,
@@ -510,8 +519,30 @@ impl Parser {
                     );
                 }
             }
-            "ref" | "eqref" | "autoref" | "cref" | "Cref" => {
-                if let Some(target) = self.read_group_raw() {
+            "ref" | "eqref" | "autoref" | "cref" | "Cref" | "pageref" => {
+                if self.ext.contains(Extension::RawTex) {
+                    let raw = self.reconstruct_command(name, whitespace);
+                    let format = if name == "pageref" {
+                        RAW_COMMAND
+                    } else {
+                        "latex"
+                    };
+                    emit(
+                        out,
+                        buf,
+                        Inline::RawInline(Format(format.into()), raw.into()),
+                    );
+                    return;
+                }
+                if self.cur() == Some('*') {
+                    self.bump();
+                    while matches!(self.cur(), Some(' ' | '\t')) {
+                        self.bump();
+                    }
+                }
+                if let Some(target) = self.read_group_raw()
+                    && name != "pageref"
+                {
                     emit(out, buf, reference_link(name, &target));
                 }
             }

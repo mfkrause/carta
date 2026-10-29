@@ -15,10 +15,12 @@ use self::support::{math_env, section_intrinsic};
 mod blocks;
 mod expand;
 mod inline;
+mod references;
 mod support;
 mod tables;
 
 const RAW_COMMAND: &str = "\0latex-command";
+const LABEL_ATTRIBUTE: &str = "\0latex-label";
 
 #[cfg(test)]
 mod tests;
@@ -79,6 +81,7 @@ impl Reader for LatexReader {
                 format.0 = "latex".into();
             }
         });
+        references::resolve(&mut document, base_level);
         Ok(document)
     }
 }

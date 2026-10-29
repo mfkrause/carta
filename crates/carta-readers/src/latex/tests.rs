@@ -92,6 +92,70 @@ fn ignored_commands_keep_the_next_paragraph_intact() {
     );
 }
 
+fn reference_texts(blocks: Vec<Block>) -> Vec<String> {
+    let mut document = Document {
+        blocks,
+        ..Document::default()
+    };
+    let mut labels = Vec::new();
+    carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+        if let Inline::Link(_, label, _) = inline {
+            labels.push(to_plain_text(label));
+        }
+    });
+    labels
+}
+
+#[test]
+fn references_resolve_forward_to_explicit_heading_labels() {
+    let source = "\\ref{second} \\ref{auto}\n\n\\section{Auto}\n\\section{First}\\label{first}\n\\subsection{Second}\\label{second}\n\\ref{first} \\eqref{second} \\autoref{second} \\Cref{second}";
+    assert_eq!(
+        reference_texts(parse(source)),
+        ["2.1", "[auto]", "2", "[second]", "2.1", "2.1"]
+    );
+}
+
+#[test]
+fn captions_advance_separate_counters_and_chapters_reset_them() {
+    let source = "\\begin{figure}\\caption{Anonymous}\\end{figure}\n\\begin{figure}\\caption{Named}\\label{figure}\\end{figure}\n\\begin{figure}\\label{bare}\\end{figure}\n\\begin{table}\\caption{Table}\\label{table}\\begin{tabular}{l}Cell\\\\\\end{tabular}\\end{table}\n\\ref{figure} \\ref{bare} \\ref{table}\n\\chapter{Chapter}\n\\begin{figure}\\caption{Chapter figure}\\label{chapter-figure}\\end{figure}\n\\ref{chapter-figure}";
+    assert_eq!(reference_texts(parse(source)), ["2", "[bare]", "1", "1.1"]);
+}
+
+#[test]
+fn part_references_keep_roman_numbers() {
+    let source = "\\part{One}\\label{one}\\part{Two}\\part{Three}\\part{Four}\\label{four}\\ref{one} \\ref{four}";
+    assert_eq!(reference_texts(parse(source)), ["I", "IV"]);
+}
+
+#[test]
+fn reference_commands_keep_raw_source_when_requested() {
+    let source = "\\ref{x} \\eqref{x} \\autoref{x} \\cref{x} \\Cref{x} \\pageref{x} \\ref*{x}";
+    let blocks = parse_ext(source, Extensions::from_list(&[Extension::RawTex]));
+    let mut document = Document {
+        blocks,
+        ..Document::default()
+    };
+    let mut commands = Vec::new();
+    carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+        if let Inline::RawInline(format, command) = inline {
+            assert_eq!(format.0, "latex");
+            commands.push(command.to_string());
+        }
+    });
+    assert_eq!(
+        commands,
+        [
+            "\\ref{x}",
+            "\\eqref{x}",
+            "\\autoref{x}",
+            "\\cref{x}",
+            "\\Cref{x}",
+            "\\pageref{x}",
+            "\\ref*{x}"
+        ]
+    );
+}
+
 fn attr(attributes: Vec<(String, String)>) -> Attr {
     Attr {
         id: carta_ast::Text::default(),

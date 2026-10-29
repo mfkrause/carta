@@ -12,7 +12,7 @@ use crate::heading_ids::IdScheme;
 
 use super::support::demote_image_para;
 use super::tables::{build_table, parse_column_spec, parse_key_values};
-use super::{InlineStop, Parser, Stop};
+use super::{InlineStop, LABEL_ATTRIBUTE, Parser, Stop};
 
 impl Parser {
     // Sectioning
@@ -36,6 +36,7 @@ impl Parser {
         }
 
         let level = (intrinsic - self.base_level + 1).max(1);
+        let labelled = label.is_some();
         let id = match label {
             Some(id) => {
                 self.ids.reserve_native(&id);
@@ -52,7 +53,11 @@ impl Parser {
             Box::new(Attr {
                 id: id.into(),
                 classes,
-                attributes: Vec::new(),
+                attributes: if labelled {
+                    vec![(LABEL_ATTRIBUTE.into(), "".into())]
+                } else {
+                    Vec::new()
+                },
             }),
             title,
         )
