@@ -48,6 +48,16 @@ fn function_application_tracks_scripts_and_following_atoms() {
             false,
             "<mi mathvariant=\"normal\">sin</mi>",
         ),
+        (
+            r"\operatorname{foo} x",
+            false,
+            "<mrow><mrow><mi mathvariant=\"normal\">foo</mi><mo>⁡</mo></mrow><mi>x</mi></mrow>",
+        ),
+        (
+            r"\operatorname*{foo}_x",
+            true,
+            "<munder><mi mathvariant=\"normal\">foo</mi><mi>x</mi></munder>",
+        ),
     ] {
         let mode = if display { "block" } else { "inline" };
         assert_eq!(

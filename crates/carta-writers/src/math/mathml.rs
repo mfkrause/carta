@@ -163,11 +163,12 @@ fn lower_atom(atom: &Atom, following: bool, display: bool, depth: usize) -> Vec<
     let scripted = atom.sub.is_some() || atom.sup.is_some() || !atom.siblings.is_empty();
     let stack = stacks(atom, display);
     let mut base = nucleus(&atom.body, display, depth);
-    if let Body::Command(name) = &atom.body
-        && symbols::named_function(name).is_some()
-        && (following || scripted)
-        && !(scripted && stack)
-    {
+    let function = match &atom.body {
+        Body::Command(name) => symbols::named_function(name).is_some(),
+        Body::Text(name, _) => matches!(name.as_str(), "operatorname" | "operatorname*"),
+        _ => false,
+    };
+    if function && (following || scripted) && !(scripted && stack) {
         base.push(leaf("mo", "\u{2061}"));
     }
     let base = group(base);
@@ -198,6 +199,7 @@ fn stacks(atom: &Atom, display: bool) -> bool {
 
 fn is_under_over(body: &Body) -> bool {
     match body {
+        Body::Text(name, _) => name == "operatorname*",
         Body::Command(name) => {
             matches!(
                 name.as_str(),
@@ -689,6 +691,11 @@ fn bold_greek(ch: char) -> Option<String> {
 }
 
 fn text(name: &str, pieces: &[TextPiece], depth: usize) -> Node {
+    let tag = if matches!(name, "operatorname" | "operatorname*") {
+        "mi"
+    } else {
+        "mtext"
+    };
     let variant = name != "textit" && name != "emph";
     let mut nodes = Vec::new();
     let mut run = String::new();
@@ -699,21 +706,21 @@ fn text(name: &str, pieces: &[TextPiece], depth: usize) -> Node {
             // An embedded `$…$` renders as math, splicing between the literal runs on either side.
             TextPiece::Math(atoms) => {
                 if !run.is_empty() {
-                    nodes.push(mtext(std::mem::take(&mut run), variant));
+                    nodes.push(text_run(tag, std::mem::take(&mut run), variant));
                 }
                 nodes.append(&mut lower_seq(atoms, false, depth + 1));
             }
         }
     }
     if nodes.is_empty() || !run.is_empty() {
-        nodes.push(mtext(run, variant));
+        nodes.push(text_run(tag, run, variant));
     }
     group(nodes)
 }
 
-/// An `<mtext>` node carrying the wrapper's literal run, marked upright unless the wrapper italicizes.
-fn mtext(content: String, variant: bool) -> Node {
-    let mut element = Element::new("mtext").text(content);
+/// A literal text run, marked upright unless the wrapper italicizes.
+fn text_run(tag: &'static str, content: String, variant: bool) -> Node {
+    let mut element = Element::new(tag).text(content);
     if variant {
         element = element.attr("mathvariant", "normal");
     }
