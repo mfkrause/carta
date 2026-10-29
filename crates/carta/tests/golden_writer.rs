@@ -208,6 +208,7 @@ writer_golden! {
     writer_ext_output_snapshots_mediawiki => "mediawiki",
     writer_ext_output_snapshots_odt => "odt",
     writer_ext_output_snapshots_odt_empty_paragraphs => "odt+empty_paragraphs",
+    writer_ext_output_snapshots_odt_numbered_references => "odt+native_numbering+xrefs_name+xrefs_number",
     writer_ext_output_snapshots_plain_smart => "plain+smart",
     writer_ext_output_snapshots_rst_smart => "rst+smart",
     writer_ext_output_snapshots_typst_smart => "typst-smart",
