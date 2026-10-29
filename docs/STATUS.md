@@ -374,9 +374,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
 - Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper
   levels are not progressively indented.
-- When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell,
-  definition), the split formula paragraph uses the flowing body style rather than the container
-  style.
 - `native_numbering` is not implemented, so figure and table captions emit no `text:sequence`
   numbering field.
 - `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather
