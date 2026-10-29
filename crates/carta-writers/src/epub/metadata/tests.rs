@@ -1,8 +1,9 @@
 use super::{
-    BookMeta, DEFAULT_LANGUAGE, Inline, MetaValue, QuoteType, Text, collect_contributors,
-    collect_creators, collect_identifiers, collect_texts, identifier_from_value,
-    language_from_locale, meta_plain_text, onix_code,
+    BookMeta, DEFAULT_LANGUAGE, Inline, MetaValue, Text, collect_contributors, collect_creators,
+    collect_identifiers, collect_texts, identifier_from_value, language_from_locale, metadata_text,
+    onix_code,
 };
+use carta_ast::QuoteType;
 use std::collections::BTreeMap;
 
 fn meta_string(value: &str) -> MetaValue {
@@ -172,7 +173,7 @@ fn smart_quotes_render_as_glyphs() {
         Inline::Quoted(QuoteType::SingleQuote, vec![Inline::Str(Text::from("x"))]),
     ];
     assert_eq!(
-        meta_plain_text(&inlines),
+        metadata_text(&inlines),
         "\u{201c}Hi\u{201d} \u{2018}x\u{2019}"
     );
 }
@@ -194,13 +195,13 @@ fn meta_inlines_renders_each_value_shape() {
         Block::Para(vec![Inline::Str(Text::from("para"))]),
         Block::HorizontalRule,
     ]);
-    assert_eq!(meta_plain_text(&meta_inlines(&blocks)), "para");
+    assert_eq!(metadata_text(&meta_inlines(&blocks)), "para");
     assert_eq!(
-        meta_plain_text(&meta_inlines(&MetaValue::MetaBool(true))),
+        metadata_text(&meta_inlines(&MetaValue::MetaBool(true))),
         "true"
     );
     let list = MetaValue::MetaList(vec![meta_string("a"), meta_string("b")]);
-    assert_eq!(meta_plain_text(&meta_inlines(&list)), "ab");
+    assert_eq!(metadata_text(&meta_inlines(&list)), "ab");
     assert!(meta_inlines(&meta_map(&[("k", meta_string("v"))])).is_empty());
 }
 
@@ -219,7 +220,7 @@ fn plain_text_flattens_formatting_and_drops_opaque_inlines() {
         Inline::RawInline(Format(Text::from("html")), Text::from("<x>")),
         Inline::Note(Vec::new()),
     ];
-    assert_eq!(meta_plain_text(&inlines), "abcd");
+    assert_eq!(metadata_text(&inlines), "abcd");
 }
 
 #[test]

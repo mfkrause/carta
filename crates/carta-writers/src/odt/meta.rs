@@ -3,10 +3,11 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
-use carta_ast::{Block, Inline, MetaValue, Text};
+use carta_ast::{Block, Caption, Inline, MetaValue, Text};
 use carta_core::container::xml::{escape_attribute, escape_text_with_quotes};
 
 use super::{DATE_EPOCH, DECL, Formula, Image, MIMETYPE, NS, meta_keywords};
+use crate::common::metadata_text;
 
 /// The `meta.xml` part: the producer, the document's title and creators, and reproducible
 /// timestamps.
@@ -77,10 +78,8 @@ fn is_standard_meta(key: &str) -> bool {
 fn user_defined_value(value: &MetaValue) -> String {
     match value {
         MetaValue::MetaString(text) => text.to_string(),
-        MetaValue::MetaInlines(inlines) => carta_ast::to_plain_text(inlines),
-        MetaValue::MetaBlocks(blocks) => {
-            carta_ast::to_plain_text(carta_ast::single_block_inlines(blocks))
-        }
+        MetaValue::MetaInlines(inlines) => metadata_text(inlines),
+        MetaValue::MetaBlocks(blocks) => blocks_text(blocks),
         MetaValue::MetaBool(flag) => if *flag { "True" } else { "False" }.to_string(),
         MetaValue::MetaList(_) | MetaValue::MetaMap(_) => String::new(),
     }
@@ -154,14 +153,80 @@ pub(super) fn meta_text(meta: &BTreeMap<Text, MetaValue>, key: &str) -> String {
 pub(super) fn plain_meta(value: &MetaValue) -> String {
     match value {
         MetaValue::MetaString(text) => text.to_string(),
-        MetaValue::MetaInlines(inlines) => carta_ast::to_plain_text(inlines),
-        MetaValue::MetaBlocks(blocks) => {
-            carta_ast::to_plain_text(carta_ast::single_block_inlines(blocks))
-        }
+        MetaValue::MetaInlines(inlines) => metadata_text(inlines),
+        MetaValue::MetaBlocks(blocks) => blocks_text(blocks),
         MetaValue::MetaBool(flag) => flag.to_string(),
         MetaValue::MetaList(items) => items.iter().map(plain_meta).collect::<Vec<_>>().join("; "),
         MetaValue::MetaMap(_) => String::new(),
     }
+}
+
+fn blocks_text(blocks: &[Block]) -> String {
+    let mut output = String::new();
+    push_blocks_text(blocks, &mut output);
+    output
+}
+
+fn push_blocks_text(blocks: &[Block], output: &mut String) {
+    carta_core::with_stack(|| {
+        for block in blocks {
+            match block {
+                Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
+                    output.push_str(&metadata_text(inlines));
+                }
+                Block::LineBlock(lines) => {
+                    for line in lines {
+                        output.push_str(&metadata_text(line));
+                    }
+                }
+                Block::BlockQuote(inner) | Block::Div(_, inner) => push_blocks_text(inner, output),
+                Block::BulletList(items) | Block::OrderedList(_, items) => {
+                    for item in items {
+                        push_blocks_text(item, output);
+                    }
+                }
+                Block::DefinitionList(items) => {
+                    for (term, definitions) in items {
+                        output.push_str(&metadata_text(term));
+                        for definition in definitions {
+                            push_blocks_text(definition, output);
+                        }
+                    }
+                }
+                Block::Figure(_, caption, inner) => {
+                    push_caption_text(caption, output);
+                    push_blocks_text(inner, output);
+                }
+                Block::Table(table) => {
+                    push_caption_text(&table.caption, output);
+                    let rows = table
+                        .head
+                        .rows
+                        .iter()
+                        .chain(
+                            table
+                                .bodies
+                                .iter()
+                                .flat_map(|body| body.head.iter().chain(&body.body)),
+                        )
+                        .chain(&table.foot.rows);
+                    for row in rows {
+                        for cell in &row.cells {
+                            push_blocks_text(&cell.content, output);
+                        }
+                    }
+                }
+                Block::CodeBlock(..) | Block::RawBlock(..) | Block::HorizontalRule => {}
+            }
+        }
+    });
+}
+
+fn push_caption_text(caption: &Caption, output: &mut String) {
+    if let Some(short) = &caption.short {
+        output.push_str(&metadata_text(short));
+    }
+    push_blocks_text(&caption.long, output);
 }
 
 /// The inline content of a metadata field, or `None` when it is absent or empty.
@@ -261,4 +326,22 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     };
     let year = if month <= 2 { year + 1 } else { year };
     (year, month, day)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use carta_ast::QuoteType;
+
+    #[test]
+    fn custom_metadata_keeps_nested_block_text_and_quotes() {
+        let value = MetaValue::MetaBlocks(vec![
+            Block::Para(vec![Inline::Str("First".into())]),
+            Block::BlockQuote(vec![Block::Para(vec![Inline::Quoted(
+                QuoteType::DoubleQuote,
+                vec![Inline::Str("Second".into())],
+            )])]),
+        ]);
+        assert_eq!(user_defined_value(&value), "First“Second”");
+    }
 }

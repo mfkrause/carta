@@ -1,6 +1,7 @@
 //! Project document metadata into Dublin Core fields with deterministic defaults.
 
-use carta_ast::{Inline, MetaValue, QuoteType, Text};
+use crate::common::metadata_text;
+use carta_ast::{Inline, MetaValue, Text};
 use carta_core::media::sha1_hex;
 use std::collections::BTreeMap;
 
@@ -99,7 +100,7 @@ impl BookMeta {
         fallback_language: &str,
     ) -> Self {
         let title_inlines = meta.get("title").map(meta_inlines).unwrap_or_default();
-        let title_text = meta_plain_text(&title_inlines);
+        let title_text = metadata_text(&title_inlines);
 
         let creators = collect_creators(meta);
         let contributors = collect_contributors(meta);
@@ -113,7 +114,7 @@ impl BookMeta {
         let identifiers = collect_identifiers(meta, content_seed);
 
         let rights_inlines = meta.get("rights").map(meta_inlines);
-        let rights_text = rights_inlines.as_deref().map(meta_plain_text);
+        let rights_text = rights_inlines.as_deref().map(metadata_text);
 
         Self {
             title_inlines,
@@ -165,7 +166,7 @@ fn collect_creators(meta: &BTreeMap<Text, MetaValue>) -> Vec<Creator> {
     let mut creators = Vec::new();
     for value in meta.get("author").into_iter().flat_map(meta_items) {
         let inlines = meta_inlines(value);
-        let text = meta_plain_text(&inlines);
+        let text = metadata_text(&inlines);
         if text.is_empty() {
             continue;
         }
@@ -201,7 +202,7 @@ fn collect_contributors(meta: &BTreeMap<Text, MetaValue>) -> Vec<Creator> {
 fn agent_from_value(value: &MetaValue, default_role: Option<&str>) -> Option<Creator> {
     if let MetaValue::MetaMap(map) = value {
         let inlines = map.get("text").map(meta_inlines).unwrap_or_default();
-        let text = meta_plain_text(&inlines);
+        let text = metadata_text(&inlines);
         if text.is_empty() {
             return None;
         }
@@ -222,7 +223,7 @@ fn agent_from_value(value: &MetaValue, default_role: Option<&str>) -> Option<Cre
         });
     }
     let inlines = meta_inlines(value);
-    let text = meta_plain_text(&inlines);
+    let text = metadata_text(&inlines);
     if text.is_empty() {
         return None;
     }
@@ -335,47 +336,7 @@ fn block_inlines(block: &carta_ast::Block) -> Vec<Inline> {
 
 /// A metadata value rendered as plain text.
 fn meta_text(value: &MetaValue) -> String {
-    meta_plain_text(&meta_inlines(value))
-}
-
-/// Render inlines to plain text, spelling smart quotes out as their glyphs: a double-quoted span as
-/// `\u{201c}…\u{201d}`, a single-quoted span as `\u{2018}…\u{2019}`. A title, name, or other metadata
-/// value carries its punctuation into the package document, where the quote characters must appear
-/// literally rather than being dropped with the quotation node.
-fn meta_plain_text(inlines: &[Inline]) -> String {
-    let mut out = String::new();
-    push_meta_plain_text(inlines, &mut out);
-    out
-}
-
-fn push_meta_plain_text(inlines: &[Inline], out: &mut String) {
-    for inline in inlines {
-        match inline {
-            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => out.push_str(text),
-            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
-            Inline::Quoted(quote, xs) => {
-                let (open, close) = match quote {
-                    QuoteType::DoubleQuote => ('\u{201c}', '\u{201d}'),
-                    QuoteType::SingleQuote => ('\u{2018}', '\u{2019}'),
-                };
-                out.push(open);
-                push_meta_plain_text(xs, out);
-                out.push(close);
-            }
-            Inline::Emph(xs)
-            | Inline::Underline(xs)
-            | Inline::Strong(xs)
-            | Inline::Strikeout(xs)
-            | Inline::Superscript(xs)
-            | Inline::Subscript(xs)
-            | Inline::SmallCaps(xs)
-            | Inline::Cite(_, xs)
-            | Inline::Link(_, xs, _)
-            | Inline::Image(_, xs, _)
-            | Inline::Span(_, xs) => push_meta_plain_text(xs, out),
-            Inline::RawInline(..) | Inline::Note(_) => {}
-        }
-    }
+    metadata_text(&meta_inlines(value))
 }
 
 impl BookMeta {

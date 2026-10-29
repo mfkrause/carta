@@ -5,6 +5,8 @@ mod dimensions;
 mod fill;
 mod html_attr;
 mod lists;
+#[cfg(any(feature = "odt", feature = "epub"))]
+mod metadata;
 mod notes;
 #[cfg(any(feature = "plain", feature = "markdown", feature = "gfm"))]
 mod table_layout;
@@ -16,6 +18,8 @@ pub(crate) use dimensions::*;
 pub(crate) use fill::*;
 pub(crate) use html_attr::*;
 pub(crate) use lists::*;
+#[cfg(any(feature = "odt", feature = "epub"))]
+pub(crate) use metadata::*;
 pub(crate) use notes::*;
 #[cfg(any(feature = "plain", feature = "markdown", feature = "gfm"))]
 pub(crate) use table_layout::*;
