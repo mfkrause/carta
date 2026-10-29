@@ -309,6 +309,16 @@ impl Reader<'_> {
 
     fn parse_f64(&mut self) -> Parsed<f64> {
         self.skip_whitespace();
+        if self.try_literal(b"null") {
+            return Ok(f64::NAN);
+        }
+        if self.peek() == Some(b'"') {
+            return match self.parse_text()?.as_str() {
+                "+inf" => Ok(f64::INFINITY),
+                "-inf" => Ok(f64::NEG_INFINITY),
+                _ => self.fail("invalid floating-point value"),
+            };
+        }
         let (number, _is_float) = self.scan_number()?;
         number
             .parse::<f64>()

@@ -151,3 +151,39 @@ impl<'de> Visitor<'de> for DocumentVisitor {
         })
     }
 }
+
+pub(crate) mod column_width {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    // Serde field adapters require a borrowed value.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub(crate) fn serialize<S: Serializer>(value: &f64, serializer: S) -> Result<S::Ok, S::Error> {
+        if value.is_infinite() {
+            serializer.serialize_str(if value.is_sign_negative() {
+                "-inf"
+            } else {
+                "+inf"
+            })
+        } else {
+            serializer.serialize_f64(*value)
+        }
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f64, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Number {
+            Value(f64),
+            Infinity(String),
+        }
+        match Option::<Number>::deserialize(deserializer)? {
+            None => Ok(f64::NAN),
+            Some(Number::Value(value)) => Ok(value),
+            Some(Number::Infinity(value)) => match value.as_str() {
+                "+inf" => Ok(f64::INFINITY),
+                "-inf" => Ok(f64::NEG_INFINITY),
+                _ => Err(serde::de::Error::custom("invalid floating-point value")),
+            },
+        }
+    }
+}

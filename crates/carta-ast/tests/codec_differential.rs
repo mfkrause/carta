@@ -366,13 +366,17 @@ fn parity_documents() -> Vec<(String, Document, bool)> {
     for (label, value) in widths {
         docs.push((format!("colwidth_{label}"), colwidth_document(value), true));
     }
-    // Non-finite floats serialize (as null) but do not round-trip to an equal value.
+    // NaN cannot compare equal to its decoded value.
     for (label, value) in [
         ("nan", f64::NAN),
         ("inf", f64::INFINITY),
         ("neg_inf", f64::NEG_INFINITY),
     ] {
-        docs.push((format!("colwidth_{label}"), colwidth_document(value), false));
+        docs.push((
+            format!("colwidth_{label}"),
+            colwidth_document(value),
+            !value.is_nan(),
+        ));
     }
 
     docs.push((
@@ -587,4 +591,31 @@ fn citation_reordered() -> String {
     inline_block(
         r#"{"t":"Para","c":[{"t":"Cite","c":[[{"citationHash":1,"citationMode":{"t":"AuthorInText"},"citationId":"k","citationNoteNum":2,"citationSuffix":[],"citationPrefix":[]}],[]]}]}"#,
     )
+}
+
+#[test]
+fn nonfinite_column_widths_keep_their_json_values() {
+    for (value, encoded) in [
+        (f64::INFINITY, r#""+inf""#),
+        (f64::NEG_INFINITY, r#""-inf""#),
+        (f64::NAN, "null"),
+    ] {
+        let expected = colwidth_input(encoded);
+        assert_eq!(to_json(&colwidth_document(value)).unwrap(), expected);
+        assert_eq!(
+            serde_json::to_string(&colwidth_document(value)).unwrap(),
+            expected
+        );
+        for decoded in [
+            from_json(expected.as_bytes()).unwrap(),
+            serde_decode(expected.as_bytes()).unwrap(),
+        ] {
+            assert_eq!(to_json(&decoded).unwrap(), expected);
+        }
+    }
+    for encoded in [r#""NaN""#, r#""inf""#, r#""Infinity""#] {
+        let json = colwidth_input(encoded);
+        assert!(from_json(json.as_bytes()).is_err());
+        assert!(serde_decode(json.as_bytes()).is_err());
+    }
 }

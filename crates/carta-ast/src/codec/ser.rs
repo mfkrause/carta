@@ -47,6 +47,15 @@ fn write_f64(out: &mut String, value: f64) {
     if value.is_finite() {
         let mut buffer = ryu::Buffer::new();
         out.push_str(buffer.format_finite(value));
+    } else if value.is_infinite() {
+        write_string(
+            out,
+            if value.is_sign_negative() {
+                "-inf"
+            } else {
+                "+inf"
+            },
+        );
     } else {
         out.push_str("null");
     }

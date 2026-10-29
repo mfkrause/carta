@@ -375,7 +375,7 @@ pub enum Alignment {
 #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
 pub enum ColWidth {
     /// An explicit fraction of the available width.
-    ColWidth(f64),
+    ColWidth(#[cfg_attr(feature = "serde", serde(with = "crate::serde_impls::column_width"))] f64),
     /// The renderer's default width.
     ColWidthDefault,
 }
