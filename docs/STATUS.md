@@ -369,8 +369,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 
 ### `odt` ✅
-- Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
-  order, and attribute order across the manifest, metadata, and formula parts.
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must
   come from an external reference document.
 - `styles.xml` is authored with a neutral style-name scheme; no reference-document engine ships.

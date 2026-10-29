@@ -7,7 +7,7 @@ use carta_ast::{ListNumberDelim, ListNumberStyle, MetaValue, Text};
 use carta_core::container::xml::{Element, escape_attribute};
 
 use super::meta::meta_text;
-use super::{AlignKind, DECL, Deco, NS, ParaKind, ParaStyle, language_country};
+use super::{AlignKind, Deco, NS, ParaKind, ParaStyle, language_country};
 
 pub(super) fn deco_style_xml(index: usize, key: &[Deco]) -> String {
     // Super- and subscript share one text-position property; a run carrying both keeps superscript.
@@ -89,7 +89,7 @@ pub(super) fn styles_xml(
     };
 
     let mut out = String::with_capacity(16 * 1024);
-    out.push_str(DECL);
+    out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     out.push_str("<office:document-styles");
     out.push_str(NS);
     out.push_str(" office:version=\"1.3\">");

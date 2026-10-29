@@ -51,7 +51,7 @@ const NS: &str = concat!(
     " xmlns:math=\"http://www.w3.org/1998/Math/MathML\"",
 );
 
-const DECL: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+const DECL: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
 
 /// The two table-cell styles a table references; emitted once when the document contains any table.
 const CELL_STYLES: &str = concat!(
@@ -97,13 +97,14 @@ const FORMULA_STYLES: &str = concat!(
 /// display mode.
 fn formula_settings_xml(text_mode: bool) -> String {
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-         <office:document-settings \
+        "{DECL}<office:document-settings \
          xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" \
-         xmlns:config=\"urn:oasis:names:tc:opendocument:xmlns:config:1.0\" office:version=\"1.3\">\
+         xmlns:xlink=\"http://www.w3.org/1999/xlink\" \
+         xmlns:config=\"urn:oasis:names:tc:opendocument:xmlns:config:1.0\" \
+         xmlns:ooo=\"http://openoffice.org/2004/office\" office:version=\"1.3\">\n  \
          <office:settings><config:config-item-set config:name=\"ooo:configuration-settings\">\
          <config:config-item config:name=\"IsTextMode\" config:type=\"boolean\">{text_mode}\
-         </config:config-item></config:config-item-set></office:settings></office:document-settings>"
+         </config:config-item></config:config-item-set></office:settings>\n</office:document-settings>"
     )
 }
 
@@ -168,6 +169,7 @@ struct Formula {
 
 /// An embedded raster or vector image collected while rendering the body.
 struct Image {
+    index: usize,
     /// The name under `Pictures/`, for example `0.png`.
     file_name: String,
     /// The MIME type, or empty when the data URI does not declare one.
@@ -365,7 +367,7 @@ impl<'a> Builder<'a> {
 
     fn finish_content(&self) -> String {
         let mut out = String::with_capacity(self.body.len() + 4096);
-        out.push_str(DECL);
+        out.push_str("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n");
         out.push_str("<office:document-content");
         out.push_str(NS);
         if self.figure_number > 0 || self.table_number > 0 {

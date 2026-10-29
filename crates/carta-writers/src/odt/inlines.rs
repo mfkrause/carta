@@ -390,6 +390,7 @@ impl Builder<'_> {
                     ordinal + 1
                 );
                 self.images.push(Image {
+                    index,
                     file_name,
                     mime,
                     bytes,

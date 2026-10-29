@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use carta_ast::{Block, Caption, Inline, MetaValue, Text};
 use carta_core::container::xml::{escape_attribute, escape_text_with_quotes};
 
-use super::{DATE_EPOCH, DECL, Formula, Image, MIMETYPE, NS, meta_keywords};
+use super::{DATE_EPOCH, DECL, Formula, Image, MIMETYPE, meta_keywords};
 use crate::common::metadata_text;
 
 /// The `meta.xml` part: the producer, the document's title and creators, and reproducible
@@ -28,24 +28,30 @@ pub(super) fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
 
     let mut out = String::new();
     out.push_str(DECL);
-    out.push_str("<office:document-meta");
-    out.push_str(NS);
-    out.push_str(" office:version=\"1.3\"><office:meta>");
-    out.push_str("<meta:generator>carta</meta:generator>");
-    let _ = write!(out, "<dc:title>{title}</dc:title>");
-    let _ = write!(out, "<dc:description>{description}</dc:description>");
-    let _ = write!(out, "<dc:subject>{subject}</dc:subject>");
-    let _ = write!(out, "<meta:keyword>{keywords}</meta:keyword>");
+    out.push_str(concat!(
+        "<office:document-meta xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" ",
+        "xmlns:xlink=\"http://www.w3.org/1999/xlink\" ",
+        "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" ",
+        "xmlns:meta=\"urn:oasis:names:tc:opendocument:xmlns:meta:1.0\" ",
+        "xmlns:ooo=\"http://openoffice.org/2004/office\" ",
+        "xmlns:grddl=\"http://www.w3.org/2003/g/data-view#\" office:version=\"1.3\">\n  <office:meta>\n",
+    ));
+    let content_start = out.len();
+    out.push_str("<meta:generator>carta</meta:generator>\n");
+    let _ = writeln!(out, "<dc:title>{title}</dc:title>");
+    let _ = writeln!(out, "<dc:description>{description}</dc:description>");
+    let _ = writeln!(out, "<dc:subject>{subject}</dc:subject>");
+    let _ = writeln!(out, "<meta:keyword>{keywords}</meta:keyword>");
     if !language.is_empty() {
-        let _ = write!(out, "<dc:language>{language}</dc:language>");
+        let _ = writeln!(out, "<dc:language>{language}</dc:language>");
     }
-    let _ = write!(
+    let _ = writeln!(
         out,
         "<meta:initial-creator>{creator}</meta:initial-creator>"
     );
-    let _ = write!(out, "<dc:creator>{creator}</dc:creator>");
-    let _ = write!(out, "<meta:creation-date>{stamp}</meta:creation-date>");
-    let _ = write!(out, "<dc:date>{stamp}</dc:date>");
+    let _ = writeln!(out, "<dc:creator>{creator}</dc:creator>");
+    let _ = writeln!(out, "<meta:creation-date>{stamp}</meta:creation-date>");
+    let _ = writeln!(out, "<dc:date>{stamp}</dc:date>");
     for (key, value) in meta {
         if is_standard_meta(key.as_str()) {
             continue;
@@ -54,13 +60,17 @@ pub(super) fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
         escape_attribute(key.as_str(), &mut name);
         let mut text = String::new();
         escape_text_with_quotes(&user_defined_value(value), &mut text);
-        let _ = write!(
+        let _ = writeln!(
             out,
             "<meta:user-defined meta:name=\"{name}\" meta:value-type=\"string\">{text}\
              </meta:user-defined>"
         );
     }
-    out.push_str("</office:meta></office:document-meta>");
+    let content =
+        crate::common::indent_block(out.get(content_start..).unwrap_or_default(), "    ", "    ");
+    out.truncate(content_start);
+    out.push_str(&content);
+    out.push_str("  </office:meta>\n</office:document-meta>");
     out
 }
 
@@ -88,8 +98,26 @@ fn user_defined_value(value: &MetaValue) -> String {
 /// The `Formula-N/content.xml` part wrapping a Presentation MathML document.
 pub(super) fn formula_content_xml(mathml: &str) -> String {
     let mut out = String::with_capacity(mathml.len() + DECL.len());
-    out.push_str(DECL);
-    out.push_str(mathml);
+    out.push_str("<?xml version='1.0' ?>\n");
+    if let Some(root) =
+        mathml.strip_prefix("<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"")
+        && let Some((display, body)) = root.split_once('"')
+    {
+        let body = if body == "></math>" {
+            "><mrow></mrow></math>"
+        } else {
+            body
+        };
+        let _ = write!(
+            out,
+            "<math display=\"{display}\" xmlns=\"http://www.w3.org/1998/Math/MathML\"{body}"
+        );
+    } else {
+        out.push_str(mathml);
+    }
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
     out
 }
 
@@ -99,46 +127,52 @@ pub(super) fn manifest_xml(images: &[Image], formulas: &[Formula]) -> String {
     out.push_str(DECL);
     out.push_str(
         "<manifest:manifest xmlns:manifest=\"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" \
-         manifest:version=\"1.3\">",
+         manifest:version=\"1.3\">\n",
     );
-    let _ = write!(
+    let _ = writeln!(
         out,
-        "<manifest:file-entry manifest:full-path=\"/\" manifest:version=\"1.3\" \
-         manifest:media-type=\"{MIMETYPE}\" />"
+        "  <manifest:file-entry manifest:media-type=\"{MIMETYPE}\" manifest:full-path=\"/\" manifest:version=\"1.3\" />"
     );
-    for (path, media_type) in [
-        ("content.xml", "application/xml"),
-        ("styles.xml", "application/xml"),
-        ("meta.xml", "application/xml"),
-        ("manifest.rdf", "application/rdf+xml"),
-    ] {
-        let _ = write!(
-            out,
-            "<manifest:file-entry manifest:full-path=\"{path}\" \
-             manifest:media-type=\"{media_type}\" />"
-        );
-    }
+    let mut entry = |path: &str, media_type: &str| {
+        out.push_str("  <manifest:file-entry manifest:media-type=\"");
+        escape_attribute(media_type, &mut out);
+        out.push_str("\" manifest:full-path=\"");
+        escape_attribute(path, &mut out);
+        out.push_str("\" />\n");
+    };
+    entry("content.xml", "application/xml");
+    let mut objects = Vec::new();
     for image in images.iter().filter(|image| !image.mime.is_empty()) {
-        let mut media_type = String::new();
-        escape_attribute(&image.mime, &mut media_type);
-        let _ = write!(
-            out,
-            "<manifest:file-entry manifest:full-path=\"Pictures/{}\" \
-             manifest:media-type=\"{media_type}\" />",
-            image.file_name
-        );
+        objects.push((
+            image.index,
+            format!("Pictures/{}", image.file_name),
+            image.mime.as_str(),
+        ));
     }
     for formula in formulas {
-        let _ = write!(
-            out,
-            "<manifest:file-entry \
-             manifest:media-type=\"application/vnd.oasis.opendocument.formula\" \
-             manifest:full-path=\"Formula-{index}/\" manifest:version=\"1.3\" />\
-             <manifest:file-entry manifest:full-path=\"Formula-{index}/content.xml\" \
-             manifest:media-type=\"text/xml\" />\
-             <manifest:file-entry manifest:full-path=\"Formula-{index}/settings.xml\" \
-             manifest:media-type=\"text/xml\" />",
-            index = formula.index
+        for part in ["settings.xml", "content.xml"] {
+            objects.push((
+                formula.index,
+                format!("Formula-{}/{part}", formula.index),
+                "application/xml",
+            ));
+        }
+    }
+    objects.sort_by_key(|(index, _, _)| std::cmp::Reverse(*index));
+    for (_, path, media_type) in objects {
+        entry(&path, media_type);
+    }
+    for (path, media_type) in [
+        ("manifest.rdf", "application/rdf+xml"),
+        ("styles.xml", "application/xml"),
+        ("meta.xml", "application/xml"),
+    ] {
+        entry(path, media_type);
+    }
+    for formula in formulas.iter().rev() {
+        entry(
+            &format!("Formula-{}/", formula.index),
+            "application/vnd.oasis.opendocument.formula",
         );
     }
     out.push_str("</manifest:manifest>");
@@ -340,6 +374,78 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
 mod tests {
     use super::*;
     use carta_ast::QuoteType;
+
+    #[test]
+    fn metadata_indents_multiline_values_without_removing_blank_lines() {
+        let meta = BTreeMap::from([("title".into(), MetaValue::MetaString("A\n\nB\n".into()))]);
+        let xml = meta_xml(&meta);
+        assert!(xml.contains("<dc:title>A\n\n    B\n    </dc:title>"));
+    }
+
+    #[test]
+    fn manifest_orders_mixed_objects_and_lists_formula_directories_once() {
+        let images = [Image {
+            index: 2,
+            file_name: "2.png".into(),
+            mime: "image/png".into(),
+            bytes: Vec::new(),
+        }];
+        let formulas: Vec<_> = [0, 3]
+            .into_iter()
+            .map(|index| Formula {
+                index,
+                mathml: String::new(),
+                text_mode: true,
+            })
+            .collect();
+        let xml = manifest_xml(&images, &formulas);
+        let paths: Vec<_> = xml
+            .split("manifest:full-path=\"")
+            .skip(1)
+            .map(|tail| tail.split('"').next().unwrap())
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                "/",
+                "content.xml",
+                "Formula-3/settings.xml",
+                "Formula-3/content.xml",
+                "Pictures/2.png",
+                "Formula-0/settings.xml",
+                "Formula-0/content.xml",
+                "manifest.rdf",
+                "styles.xml",
+                "meta.xml",
+                "Formula-3/",
+                "Formula-0/",
+            ]
+        );
+        assert!(xml.contains(
+            "manifest:media-type=\"application/xml\" manifest:full-path=\"Formula-3/content.xml\""
+        ));
+        assert!(!xml.contains("text/xml"));
+    }
+
+    #[test]
+    fn formula_parts_keep_math_content_and_serialize_empty_roots() {
+        let math = crate::math::to_mathml("x", false).unwrap();
+        assert_eq!(
+            formula_content_xml(&math),
+            concat!(
+                "<?xml version='1.0' ?>\n",
+                "<math display=\"inline\" xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi></math>\n",
+            )
+        );
+        let math = crate::math::to_mathml("", true).unwrap();
+        assert_eq!(
+            formula_content_xml(&math),
+            concat!(
+                "<?xml version='1.0' ?>\n",
+                "<math display=\"block\" xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow></mrow></math>\n",
+            )
+        );
+    }
 
     #[test]
     fn custom_metadata_keeps_nested_block_text_and_quotes() {
