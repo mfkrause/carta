@@ -186,7 +186,7 @@ pub(crate) fn jpeg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
 }
 
 /// A big-endian `u32` at `offset`, or `None` when the slice is too short.
-fn read_be_u32(bytes: &[u8], offset: usize) -> Option<u32> {
+pub(crate) fn read_be_u32(bytes: &[u8], offset: usize) -> Option<u32> {
     let array: [u8; 4] = bytes.get(offset..offset + 4)?.try_into().ok()?;
     Some(u32::from_be_bytes(array))
 }

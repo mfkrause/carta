@@ -389,7 +389,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   plain.
 - A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted
   plain.
-- A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.
 - A title-block author given as a YAML map is dropped rather than stringified into an author
   paragraph.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry

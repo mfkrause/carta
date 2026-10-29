@@ -324,12 +324,13 @@ const CRC_TABLE: [u32; 256] = {
     table
 };
 
-/// The CRC-32 (IEEE 802.3) of `data`, folded one byte at a time through [`CRC_TABLE`].
+/// Return the CRC-32 (IEEE 802.3) checksum of the input bytes.
+#[must_use]
 #[allow(
     clippy::indexing_slicing,
     reason = "the slot is masked to the low byte, so it always indexes within the 256-entry table"
 )]
-fn crc32(data: &[u8]) -> u32 {
+pub fn crc32(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFF_FFFF;
     for &byte in data {
         let slot = ((crc ^ u32::from(byte)) & 0xff) as usize;

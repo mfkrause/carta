@@ -1,10 +1,12 @@
 //! Image dimension probing and frame sizing for the ODT writer.
 
 use carta_ast::Attr;
+use carta_core::container::zip::crc32;
 
 use crate::common;
 use crate::image_size::{
-    gif_dimensions, image_dpi, jpeg_dimensions, png_dimensions, read_be_u16, webp_dimensions,
+    gif_dimensions, image_dpi, jpeg_dimensions, png_dimensions as png_header_dimensions,
+    read_be_u16, read_be_u32, webp_dimensions,
 };
 
 use super::helpers::attr_value;
@@ -30,6 +32,45 @@ pub(super) fn image_metrics(bytes: &[u8]) -> ((u32, u32), (f64, f64)) {
         return (dimensions, (96.0, 96.0));
     }
     ((100, 100), (72.0, 72.0))
+}
+
+fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    let dimensions = png_header_dimensions(bytes)?;
+    let color_type = *bytes.get(25)?;
+    if bytes.get(12..16)? != b"IHDR"
+        || !matches!(color_type, 0 | 2 | 3 | 4 | 6)
+        || !matches!(*bytes.get(28)?, 0 | 1)
+    {
+        return None;
+    }
+    let mut offset = 33usize;
+    let mut data_length = 0usize;
+    let mut palette = false;
+    loop {
+        let length = read_be_u32(bytes, offset)? as usize;
+        let start = offset.checked_add(4)?;
+        let data = start.checked_add(4)?;
+        let end = data.checked_add(length)?;
+        let kind = bytes.get(start..data)?;
+        if crc32(bytes.get(start..end)?) != read_be_u32(bytes, end)? {
+            return None;
+        }
+        if kind == b"IDAT" {
+            data_length = data_length.checked_add(length)?;
+        }
+        if kind == b"PLTE" && color_type == 3 {
+            if !length.is_multiple_of(3) {
+                return None;
+            }
+            palette = true;
+        }
+        if kind == b"IEND" {
+            // Zlib framing uses six bytes besides the compressed data.
+            return (length == 0 && data_length > 6 && (color_type != 3 || palette))
+                .then_some(dimensions);
+        }
+        offset = end.checked_add(4)?;
+    }
 }
 
 /// The pixel dimensions declared by an SVG document's `<svg>` element: its `width` and `height`
@@ -333,11 +374,24 @@ mod tests {
     fn image_metrics_reads_png_dimensions() {
         let png = [
             0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
-            0x44, 0x52, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x00, 0x50,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x08, 0x02, 0x00, 0x00,
+            0x00, 0x36, 0x88, 0x49, 0xd6, 0x00, 0x00, 0x00, 0x10, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x44, 0x0c, 0x28, 0x14, 0x00, 0x44, 0xd0, 0x05,
+            0xfb, 0xa4, 0xcf, 0xde, 0x80, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+            0x42, 0x60, 0x82,
         ];
         let ((width, height), (dpi_x, dpi_y)) = image_metrics(&png);
-        assert_eq!((width, height), (120, 80));
+        assert_eq!((width, height), (2, 3));
         assert!(approx(dpi_x, 72.0) && approx(dpi_y, 72.0));
+        for length in 24..png.len() {
+            assert_eq!(image_metrics(&png[..length]).0, (100, 100));
+        }
+        let mut damaged = png;
+        damaged[45] ^= 1;
+        assert_eq!(image_metrics(&damaged).0, (100, 100));
+        let mut indexed = png;
+        indexed[25] = 3;
+        assert_eq!(image_metrics(&indexed).0, (100, 100));
     }
 
     #[test]
