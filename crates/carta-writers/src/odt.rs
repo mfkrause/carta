@@ -1,18 +1,20 @@
 //! Render `OpenDocument` Text packages from the document model.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{Document, ListNumberDelim, ListNumberStyle, MetaValue, Text};
 use carta_core::container::zip::ZipArchive;
-use carta_core::{BytesWriter, Extension, Result, WriterOptions};
+use carta_core::{BytesWriter, Error, Extension, Result, WriterOptions};
 
 mod blocks;
 mod helpers;
 mod inlines;
+mod language;
 mod media;
 mod meta;
 mod styles;
 
+use language::Language;
 use meta::{formula_content_xml, manifest_xml, meta_xml, plain_meta};
 use styles::{deco_style_xml, para_style_xml, styles_xml};
 
@@ -111,35 +113,40 @@ impl BytesWriter for OdtWriter {
 }
 
 fn write_odt(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
-    let mut builder = Builder::new(options);
-    builder.document(document);
+    carta_core::budget::scope(document, || {
+        let mut builder = Builder::new(options);
+        builder.document(document);
 
-    let content = builder.finish_content();
-    let styles = styles_xml(&document.meta);
-    let meta = meta_xml(&document.meta);
-    let manifest = manifest_xml(&builder.images, &builder.formulas);
+        if carta_core::budget::exhausted() {
+            return Err(Error::OutputTooLarge);
+        }
+        let content = builder.finish_content();
+        let styles = styles_xml(&document.meta);
+        let meta = meta_xml(&document.meta);
+        let manifest = manifest_xml(&builder.images, &builder.formulas);
 
-    let mut archive = ZipArchive::new();
-    archive.store("mimetype", MIMETYPE.as_bytes())?;
-    archive.deflate("content.xml", content.as_bytes())?;
-    archive.deflate("styles.xml", styles.as_bytes())?;
-    archive.deflate("meta.xml", meta.as_bytes())?;
-    archive.deflate("manifest.rdf", MANIFEST_RDF.as_bytes())?;
-    archive.deflate("META-INF/manifest.xml", manifest.as_bytes())?;
-    for image in &builder.images {
-        archive.store(&format!("Pictures/{}", image.file_name), &image.bytes)?;
-    }
-    for formula in &builder.formulas {
-        archive.deflate(
-            &format!("Formula-{}/content.xml", formula.index),
-            formula_content_xml(&formula.mathml).as_bytes(),
-        )?;
-        archive.deflate(
-            &format!("Formula-{}/settings.xml", formula.index),
-            formula_settings_xml(formula.text_mode).as_bytes(),
-        )?;
-    }
-    archive.finish()
+        let mut archive = ZipArchive::new();
+        archive.store("mimetype", MIMETYPE.as_bytes())?;
+        archive.deflate("content.xml", content.as_bytes())?;
+        archive.deflate("styles.xml", styles.as_bytes())?;
+        archive.deflate("meta.xml", meta.as_bytes())?;
+        archive.deflate("manifest.rdf", MANIFEST_RDF.as_bytes())?;
+        archive.deflate("META-INF/manifest.xml", manifest.as_bytes())?;
+        for image in &builder.images {
+            archive.store(&format!("Pictures/{}", image.file_name), &image.bytes)?;
+        }
+        for formula in &builder.formulas {
+            archive.deflate(
+                &format!("Formula-{}/content.xml", formula.index),
+                formula_content_xml(&formula.mathml).as_bytes(),
+            )?;
+            archive.deflate(
+                &format!("Formula-{}/settings.xml", formula.index),
+                formula_settings_xml(formula.text_mode).as_bytes(),
+            )?;
+        }
+        archive.finish()
+    })
 }
 
 /// An embedded formula sub-object collected while rendering the body. Each becomes a `Formula-N/`
@@ -165,7 +172,7 @@ struct Image {
 
 /// A character-level decoration contributing font properties to a text run. Ordered so a set of
 /// decorations always serializes its properties the same way.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Deco {
     Emph,
     Strong,
@@ -174,25 +181,26 @@ enum Deco {
     Strikeout,
     Superscript,
     Subscript,
+    Language(Language),
 }
 
 impl Deco {
     /// The fixed named style that renders this decoration on its own, when one exists. Decorations
     /// without a named style, and every combination of decorations, use an automatic style instead.
-    fn named_style(self) -> Option<&'static str> {
+    fn named_style(&self) -> Option<&'static str> {
         match self {
             Deco::Emph => Some("Emphasis"),
             Deco::Strong => Some("Strong_20_Emphasis"),
             Deco::Strikeout => Some("Strikeout"),
             Deco::Superscript => Some("Superscript"),
             Deco::Subscript => Some("Subscript"),
-            Deco::Underline | Deco::SmallCaps => None,
+            Deco::Underline | Deco::SmallCaps | Deco::Language(_) => None,
         }
     }
 
     /// The text-properties attributes this decoration contributes to an automatic style.
-    fn attributes(self) -> &'static [(&'static str, &'static str)] {
-        match self {
+    fn attributes(&self) -> Vec<(&'static str, &str)> {
+        let attributes: &[(&str, &str)] = match self {
             Deco::Emph => &[
                 ("fo:font-style", "italic"),
                 ("style:font-style-asian", "italic"),
@@ -212,8 +220,31 @@ impl Deco {
             Deco::Strikeout => &[("style:text-line-through-style", "solid")],
             Deco::Superscript => &[("style:text-position", "super 58%")],
             Deco::Subscript => &[("style:text-position", "sub 58%")],
-        }
+            Deco::Language(language) => {
+                let mut attributes = vec![("fo:language", language.code.as_str())];
+                if let Some(country) = &language.country {
+                    attributes.push(("fo:country", country.as_str()));
+                }
+                return attributes;
+            }
+        };
+        attributes.to_vec()
     }
+
+    fn clone_size(&self) -> usize {
+        let dynamic = match self {
+            Deco::Language(language) => language.clone_size(),
+            _ => 0,
+        };
+        std::mem::size_of::<Self>().saturating_add(dynamic)
+    }
+}
+
+fn clone_decorations(decorations: &[Deco]) -> Option<Vec<Deco>> {
+    carta_core::budget::charge(decorations.iter().fold(0usize, |total, decoration| {
+        total.saturating_add(decoration.clone_size())
+    }));
+    (!carta_core::budget::exhausted()).then(|| decorations.to_vec())
 }
 
 /// A horizontal alignment that a table cell realizes through an automatic paragraph style.
@@ -245,7 +276,8 @@ struct Builder<'a> {
     first_para: bool,
     /// Whether empty paragraphs are preserved rather than dropped.
     keep_empty: bool,
-    text_styles: Vec<Vec<Deco>>,
+    text_styles: BTreeMap<Vec<Deco>, usize>,
+    languages: BTreeSet<Language>,
     para_styles: Vec<ParaStyle>,
     list_styles: Vec<ListStyle>,
     table_styles: String,
@@ -267,7 +299,8 @@ impl<'a> Builder<'a> {
             body: String::new(),
             first_para: false,
             keep_empty: options.extensions.contains(Extension::EmptyParagraphs),
-            text_styles: Vec::new(),
+            text_styles: BTreeMap::new(),
+            languages: BTreeSet::new(),
             para_styles: Vec::new(),
             list_styles: Vec::new(),
             table_styles: String::new(),
@@ -303,8 +336,10 @@ impl<'a> Builder<'a> {
         out.push_str("</office:font-face-decls>");
 
         out.push_str("<office:automatic-styles>");
-        for (index, key) in self.text_styles.iter().enumerate() {
-            out.push_str(&deco_style_xml(index + 1, key));
+        let mut text_styles: Vec<_> = self.text_styles.iter().collect();
+        text_styles.sort_unstable_by_key(|(_, index)| **index);
+        for (key, index) in text_styles {
+            out.push_str(&deco_style_xml(*index, key));
         }
         for (index, key) in self.para_styles.iter().enumerate() {
             out.push_str(&para_style_xml(index + 1, &key.parent, key.align));

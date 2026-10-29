@@ -6,13 +6,25 @@ use carta_ast::{Attr, Block, Inline, MathType, QuoteType, Target};
 use carta_core::container::xml::{escape_attribute, is_xml_char};
 use carta_core::media::{decode_data_uri, extension_for_mime, image_mime_for_extension};
 
-use super::helpers::{custom_style, is_opendocument, parent_prefix_index};
+use super::helpers::{attr_value, custom_style, is_opendocument, parent_prefix_index};
 use super::media::{image_metrics, image_size};
-use super::{Builder, Deco, Formula, Image, STACK_RED_ZONE, STACK_SEGMENT};
+use super::{
+    Builder, Deco, Formula, Image, Language, STACK_RED_ZONE, STACK_SEGMENT, clone_decorations,
+};
 
 impl Builder<'_> {
     pub(super) fn inlines(&mut self, inlines: &[Inline]) {
-        self.walk(inlines, &[]);
+        let mut decorations = Vec::new();
+        for language in &self.languages {
+            carta_core::budget::charge(
+                std::mem::size_of::<Deco>().saturating_add(language.clone_size()),
+            );
+            if carta_core::budget::exhausted() {
+                return;
+            }
+            decorations.push(Deco::Language(language.clone()));
+        }
+        self.walk(inlines, &decorations);
     }
 
     /// Renders an inline sequence under a set of active decorations. Plain content accumulates into a
@@ -23,13 +35,21 @@ impl Builder<'_> {
         stacker::maybe_grow(STACK_RED_ZONE, STACK_SEGMENT, || {
             let mut run: Vec<&'i Inline> = Vec::new();
             for inline in inlines {
+                if carta_core::budget::exhausted() {
+                    break;
+                }
                 match inline {
-                    Inline::Str(_)
-                    | Inline::Space
-                    | Inline::SoftBreak
-                    | Inline::LineBreak
-                    | Inline::Math(..) => run.push(inline),
-                    Inline::RawInline(format, _) if is_opendocument(format) => run.push(inline),
+                    Inline::Str(_) | Inline::Space | Inline::SoftBreak | Inline::LineBreak => {
+                        run.push(inline);
+                    }
+                    Inline::Math(kind, text) => {
+                        self.flush_run(&mut run, decos);
+                        self.math(kind, text, decos);
+                    }
+                    Inline::RawInline(format, text) if is_opendocument(format) => {
+                        self.flush_run(&mut run, decos);
+                        self.body.push_str(text);
+                    }
                     Inline::RawInline(..) => {}
                     Inline::Emph(inner) => self.nested(&mut run, decos, Deco::Emph, inner),
                     Inline::Strong(inner) => self.nested(&mut run, decos, Deco::Strong, inner),
@@ -99,9 +119,12 @@ impl Builder<'_> {
         inner: &'i [Inline],
     ) {
         self.flush_run(run, decos);
-        let mut extended = decos.to_vec();
-        extended.push(add);
-        self.walk(inner, &extended);
+        if decos.contains(&add) {
+            self.walk(inner, decos);
+        } else if let Some(mut extended) = clone_decorations(decos) {
+            extended.push(add);
+            self.walk(inner, &extended);
+        }
     }
 
     /// Emits the accumulated run wrapped in one styled span (bare, when no decoration is active) and
@@ -116,7 +139,10 @@ impl Builder<'_> {
         if self.body.len() == start || decos.is_empty() {
             return;
         }
-        let style = self.run_style(decos);
+        let Some(style) = self.run_style(decos) else {
+            self.body.truncate(start);
+            return;
+        };
         self.body
             .insert_str(start, &format!("<text:span text:style-name=\"{style}\">"));
         self.body.push_str("</text:span>");
@@ -138,8 +164,6 @@ impl Builder<'_> {
             match inline {
                 Inline::Str(text) => self.push_verbatim(text),
                 Inline::LineBreak => self.body.push_str("<text:line-break />"),
-                Inline::Math(kind, tex) => self.math(kind, tex),
-                Inline::RawInline(_, text) => self.body.push_str(text),
                 _ => {}
             }
         }
@@ -150,28 +174,39 @@ impl Builder<'_> {
 
     /// The style name a text run carries under an active set of decorations: a fixed named style for
     /// a lone named decoration, otherwise an automatic style registered on first use.
-    fn run_style(&mut self, decos: &[Deco]) -> String {
-        let mut key = decos.to_vec();
+    fn run_style(&mut self, decos: &[Deco]) -> Option<String> {
+        let mut key = clone_decorations(decos)?;
         key.sort_unstable();
         key.dedup();
         if let [only] = key.as_slice()
             && let Some(named) = only.named_style()
         {
-            return named.to_string();
+            return Some(named.to_string());
         }
-        if let Some(index) = self
-            .text_styles
-            .iter()
-            .position(|existing| *existing == key)
-        {
-            return format!("T{}", index + 1);
+        if let Some(index) = self.text_styles.get(&key) {
+            return Some(format!("T{index}"));
         }
-        self.text_styles.push(key);
-        format!("T{}", self.text_styles.len())
+        let index = self.text_styles.len() + 1;
+        self.text_styles.insert(key, index);
+        Some(format!("T{index}"))
     }
 
     /// Render bookmarks, custom character styles, and bare `mark` spans with active decorations.
     fn span(&mut self, attr: &Attr, inner: &[Inline], decos: &[Deco]) {
+        let language = attr_value(attr, "lang")
+            .and_then(Language::parse)
+            .map(Deco::Language);
+        let extended = if let Some(language) = language.filter(|language| !decos.contains(language))
+        {
+            let Some(mut extended) = clone_decorations(decos) else {
+                return;
+            };
+            extended.push(language);
+            Some(extended)
+        } else {
+            None
+        };
+        let decos = extended.as_deref().unwrap_or(decos);
         let anchored = !attr.id.is_empty();
         if anchored {
             self.body.push_str("<text:bookmark-start text:name=\"");
@@ -233,7 +268,9 @@ impl Builder<'_> {
             id + 1
         );
         let checkpoint = self.body.len();
+        let languages = std::mem::take(&mut self.languages);
         self.render_blocks(blocks, Some("Footnote"));
+        self.languages = languages;
         // Reserve the outer note's number before rendering nested notes.
         self.note_id += 1;
         if self.body.len() == checkpoint {
@@ -249,11 +286,14 @@ impl Builder<'_> {
     /// a `Formula-N/` sub-object holding the Presentation MathML. The inline form anchors as a
     /// character in the text flow; the display form anchors to its paragraph. Math that cannot be
     /// parsed degrades to its verbatim source set as text.
-    fn math(&mut self, kind: &MathType, tex: &str) {
+    fn math(&mut self, kind: &MathType, tex: &str, decos: &[Deco]) {
         let display = matches!(kind, MathType::DisplayMath);
         let Some(mathml) = crate::math::to_mathml(tex, display) else {
             let delimiter = if display { "$$" } else { "$" };
-            self.push_verbatim(&format!("{delimiter}{tex}{delimiter}"));
+            self.walk(
+                &[Inline::Str(format!("{delimiter}{tex}{delimiter}").into())],
+                decos,
+            );
             return;
         };
         let index = self.object_index;
@@ -379,6 +419,112 @@ impl Builder<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn language_attr(tag: &str) -> Box<Attr> {
+        Box::new(Attr {
+            attributes: vec![("lang".into(), tag.into())],
+            ..Attr::default()
+        })
+    }
+
+    #[test]
+    fn languages_share_run_styles_and_stop_at_note_bodies() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        let content = vec![
+            Inline::Strong(vec![Inline::Span(
+                language_attr("FR_ca"),
+                vec![Inline::Str("Text".into())],
+            )]),
+            Inline::Note(vec![Block::Para(vec![Inline::Str("Note".into())])]),
+            Inline::Str("After".into()),
+        ];
+        builder.render_blocks(
+            &[
+                Block::Div(language_attr("fr-CA"), vec![Block::Para(content)]),
+                Block::Para(vec![Inline::Str("Outside".into())]),
+            ],
+            None,
+        );
+        let xml = builder.finish_content();
+        assert_eq!(builder.text_styles.len(), 2);
+        assert!(xml.contains("fo:country=\"CA\" fo:font-weight=\"bold\" fo:language=\"fr\""));
+        assert!(xml.contains("<text:p text:style-name=\"Footnote\">Note</text:p>"));
+        assert!(xml.contains("<text:span text:style-name=\"T2\">After</text:span>"));
+        assert!(xml.contains(">Outside</text:p>"));
+    }
+
+    #[test]
+    fn raw_markup_keeps_its_own_style_inside_language_runs() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        builder.span(
+            &language_attr("fr"),
+            &[
+                Inline::Str("Before".into()),
+                Inline::RawInline(
+                    carta_ast::Format("opendocument".into()),
+                    "<text:span>Raw</text:span>".into(),
+                ),
+                Inline::Str("After".into()),
+            ],
+            &[],
+        );
+        assert_eq!(
+            builder.body,
+            "<text:span text:style-name=\"T1\">Before</text:span><text:span>Raw</text:span><text:span text:style-name=\"T1\">After</text:span>"
+        );
+    }
+
+    #[test]
+    fn formulas_keep_their_object_style_and_failed_math_keeps_the_language() {
+        let options = carta_core::WriterOptions::default();
+        let mut builder = Builder::new(&options);
+        builder.span(
+            &language_attr("fr"),
+            &[
+                Inline::Math(MathType::InlineMath, "x".into()),
+                Inline::Math(MathType::InlineMath, "\\frac{".into()),
+            ],
+            &[],
+        );
+        assert_eq!(builder.formulas.len(), 1);
+        assert!(builder.body.starts_with("<draw:frame"));
+        assert!(
+            builder
+                .body
+                .ends_with("<text:span text:style-name=\"T1\">$\\frac{$</text:span>")
+        );
+    }
+
+    #[test]
+    fn deep_repeated_decoration_does_not_exhaust_the_budget() {
+        let mut inline = Inline::Str("Text".into());
+        for _ in 0..10_000 {
+            inline = Inline::Emph(vec![inline]);
+        }
+        let document = carta_ast::Document {
+            blocks: vec![Block::Para(vec![inline])],
+            ..Default::default()
+        };
+        assert!(super::super::write_odt(&document, &carta_core::WriterOptions::default()).is_ok());
+    }
+
+    #[test]
+    fn excessive_language_combinations_return_a_resource_error() {
+        let mut inline = Inline::Str("Text".into());
+        for index in 0..1_000 {
+            inline = Inline::Span(language_attr(&format!("en-x-{index}")), vec![inline]);
+        }
+        let document = carta_ast::Document {
+            blocks: vec![Block::Para(vec![inline])],
+            ..Default::default()
+        };
+        assert!(matches!(
+            super::super::write_odt(&document, &carta_core::WriterOptions::default()),
+            Err(carta_core::Error::OutputTooLarge)
+        ));
+    }
 
     #[test]
     fn untyped_data_images_keep_their_bytes_and_package_target() {

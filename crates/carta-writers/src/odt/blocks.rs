@@ -10,12 +10,13 @@ use carta_ast::{
 use carta_core::container::xml::escape_attribute;
 
 use super::helpers::{
-    caption_inlines, collect_caption_runs, column_letter, custom_style, inlines_are_empty,
-    is_block_math, is_opendocument, is_tight, table_column_count, trim_flanking_spacing,
+    attr_value, caption_inlines, collect_caption_runs, column_letter, custom_style,
+    inlines_are_empty, is_block_math, is_opendocument, is_tight, table_column_count,
+    trim_flanking_spacing,
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
 use super::styles::{delim_fixes, num_format};
-use super::{AlignKind, Builder, ListStyle, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT};
+use super::{AlignKind, Builder, Language, ListStyle, ParaStyle, STACK_RED_ZONE, STACK_SEGMENT};
 
 impl Builder<'_> {
     /// Renders a block sequence. `fixed` names a paragraph style imposed on the sequence's direct
@@ -23,6 +24,9 @@ impl Builder<'_> {
     pub(super) fn render_blocks(&mut self, blocks: &[Block], fixed: Option<&str>) {
         stacker::maybe_grow(STACK_RED_ZONE, STACK_SEGMENT, || {
             for block in blocks {
+                if carta_core::budget::exhausted() {
+                    break;
+                }
                 self.render_block(block, fixed);
             }
         });
@@ -131,6 +135,18 @@ impl Builder<'_> {
     /// A generic container: transparent to the flow, wrapped in a section when it carries an id, and
     /// re-styling its direct paragraphs when it carries a recognized `custom-style`.
     fn div(&mut self, attr: &Attr, inner: &[Block], fixed: Option<&str>) {
+        let language = attr_value(attr, "lang")
+            .and_then(Language::parse)
+            .filter(|language| !self.languages.contains(language));
+        if let Some(language) = &language {
+            carta_core::budget::charge(
+                std::mem::size_of::<Language>().saturating_add(language.clone_size()),
+            );
+            if carta_core::budget::exhausted() {
+                return;
+            }
+            self.languages.insert(language.clone());
+        }
         let section = !attr.id.is_empty();
         if section {
             self.body.push_str("<text:section text:name=\"");
@@ -143,6 +159,9 @@ impl Builder<'_> {
         }
         if section {
             self.body.push_str("</text:section>");
+        }
+        if let Some(language) = &language {
+            self.languages.remove(language);
         }
     }
 

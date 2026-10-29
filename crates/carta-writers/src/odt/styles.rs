@@ -17,7 +17,7 @@ pub(super) fn deco_style_xml(index: usize, key: &[Deco]) -> String {
         if drops_subscript && *deco == Deco::Subscript {
             continue;
         }
-        attributes.extend(deco.attributes().iter().copied());
+        attributes.extend(deco.attributes());
     }
     let mut properties = Element::new("style:text-properties");
     for (name, value) in attributes {

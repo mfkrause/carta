@@ -607,7 +607,6 @@ write-gaps = [
   "When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell, definition), the split formula paragraph uses the flowing body style rather than the container style.",
   "`native_numbering` is not implemented, so figure and table captions emit no `text:sequence` numbering field.",
   "`xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than rewriting the internal link to a reference field.",
-  "A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted plain.",
   "Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry order, and attribute order across the manifest, metadata, and formula parts.",
   '''The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.''',
   "`--number-sections` is a no-op: headings carry no computed section numbers.",

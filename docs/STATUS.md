@@ -385,8 +385,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   numbering field.
 - `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather
   than rewriting the internal link to a reference field.
-- A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted
-  plain.
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
 - The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.
