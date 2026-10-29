@@ -27,11 +27,10 @@ pub(super) fn image_metrics(bytes: &[u8]) -> ((i64, i64), (f64, f64)) {
     if let Some(dimensions) = gif_dimensions(bytes) {
         return (dimensions_as_signed(dimensions), (72.0, 72.0));
     }
-    if let Some(dimensions) = jpeg_dimensions(bytes) {
-        return (
-            dimensions_as_signed(dimensions),
-            jpeg_density(bytes).unwrap_or((72.0, 72.0)),
-        );
+    if let Some(dimensions) = jpeg_dimensions(bytes)
+        && let Some(density) = jpeg_density(bytes)
+    {
+        return (dimensions_as_signed(dimensions), density);
     }
     if let Some(dimensions) = webp_dimensions(bytes) {
         return (dimensions_as_signed(dimensions), (96.0, 96.0));
@@ -181,42 +180,57 @@ fn pdf_dimensions(bytes: &[u8]) -> Option<(i64, i64)> {
 }
 
 fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
-    let start: [u8; 2] = bytes.get(0..2)?.try_into().ok()?;
-    if start != [0xFF, 0xD8] {
+    if bytes.get(..2)? != [0xFF, 0xD8] {
         return None;
     }
-    let mut pos = 2usize;
+    let mut position = 2usize;
+    let mut application_header = false;
+    let mut jfif = (None, None);
+    let mut exif = (None, None);
     for _ in 0..8192 {
-        if *bytes.get(pos)? != 0xFF {
+        if bytes.get(position) != Some(&0xFF) {
+            break;
+        }
+        let mut marker_position = position + 1;
+        while bytes.get(marker_position) == Some(&0xFF) {
+            marker_position += 1;
+        }
+        let marker = *bytes.get(marker_position)?;
+        if matches!(marker, 0xD8..=0xDA) {
+            break;
+        }
+        let segment = marker_position + 1;
+        let length = usize::from(read_be_u16(bytes, segment)?);
+        if length < 2 {
             return None;
         }
-        let mut marker_pos = pos + 1;
-        while *bytes.get(marker_pos)? == 0xFF {
-            marker_pos += 1;
-        }
-        let marker = *bytes.get(marker_pos)?;
-        let segment = marker_pos + 1;
-        let length = read_be_u16(bytes, segment)? as usize;
-        match marker {
-            // The JFIF application header records a density in dots per inch or per centimetre.
-            0xE0 if bytes.get(segment + 2..segment + 7)? == b"JFIF\0" => {
-                let units = *bytes.get(segment + 9)?;
-                let x = f64::from(read_be_u16(bytes, segment + 10)?);
-                let y = f64::from(read_be_u16(bytes, segment + 12)?);
-                if x > 0.0 && y > 0.0 {
-                    return match units {
-                        1 => Some((x, y)),
-                        2 => Some((x * 2.54, y * 2.54)),
-                        _ => None,
-                    };
-                }
-                pos = segment + length;
+        let end = segment.checked_add(length)?;
+        let data = bytes.get(segment + 2..end)?;
+        application_header |= matches!(marker, 0xE0..=0xEF);
+        if marker == 0xE0 && data.starts_with(b"JFIF\0") {
+            let factor = match data.get(7) {
+                Some(1) => Some(1.0),
+                Some(2) => Some(2.54),
+                _ => None,
+            };
+            if let Some(factor) = factor {
+                jfif = (
+                    Some((f64::from(read_be_u16(data, 8)?) * factor).floor()),
+                    Some((f64::from(read_be_u16(data, 10)?) * factor).floor()),
+                );
             }
-            0xD8..=0xDA => return None,
-            _ => pos = segment + length,
         }
+        if marker == 0xE1
+            && let Some(data) = data.strip_prefix(b"Exif\0\0")
+            && let Some(image) = Tiff::new(data)
+        {
+            let (horizontal, vertical) = image.resolutions();
+            exif = (horizontal.or(exif.0), vertical.or(exif.1));
+        }
+        position = end;
     }
-    None
+    let positive = |value: Option<f64>| value.filter(|value| *value > 0.0).unwrap_or(72.0);
+    application_header.then(|| (positive(exif.0.or(jfif.0)), positive(exif.1.or(jfif.1))))
 }
 
 /// A parsed image dimension: a percentage of the available width, or an absolute length already
@@ -425,11 +439,14 @@ mod tests {
         let jpeg = [
             0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01,
             0x01, 0x2c, 0x01, 0x2c, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x50, 0x00,
-            0x78, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x78, 0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
         ];
         let ((width, height), (dpi_x, dpi_y)) = image_metrics(&jpeg);
         assert_eq!((width, height), (120, 80));
         assert!(approx(dpi_x, 300.0) && approx(dpi_y, 300.0));
+        for length in 0..jpeg.len() {
+            assert_eq!(image_metrics(&jpeg[..length]).0, (100, 100), "{length}");
+        }
     }
 
     #[test]
@@ -555,14 +572,14 @@ mod tests {
     }
 
     #[test]
-    fn jpeg_density_reads_units_and_rejects_others() {
+    fn jpeg_density_reads_units_and_defaults_invalid_values() {
         let (dpi_x, dpi_y) = jpeg_density(&jfif(0x01)).unwrap();
         assert!(approx(dpi_x, 300.0) && approx(dpi_y, 300.0));
 
         let (cm_x, cm_y) = jpeg_density(&jfif(0x02)).unwrap();
         assert!(approx(cm_x, 300.0 * 2.54) && approx(cm_y, 300.0 * 2.54));
 
-        assert_eq!(jpeg_density(&jfif(0x00)), None);
+        assert_eq!(jpeg_density(&jfif(0x00)), Some((72.0, 72.0)));
         assert_eq!(jpeg_density(b"not a jpeg"), None);
     }
 

@@ -36,19 +36,19 @@ impl<'a> Tiff<'a> {
     }
 
     pub(super) fn density(&self) -> (f64, f64) {
+        let (horizontal, vertical) = self.resolutions();
+        let positive = |value: Option<f64>| value.filter(|value| *value > 0.0).unwrap_or(72.0);
+        (positive(horizontal), positive(vertical))
+    }
+
+    pub(super) fn resolutions(&self) -> (Option<f64>, Option<f64>) {
         let factor = match self.integer(296) {
             Some(2) => 1.0,
             Some(3) => 2.54,
-            _ => return (72.0, 72.0),
+            _ => return (None, None),
         };
-        let resolution = |tag| {
-            let value = (self.rational(tag)?.floor() * factor).floor();
-            (value > 0.0).then_some(value)
-        };
-        (
-            resolution(282).unwrap_or(72.0),
-            resolution(283).unwrap_or(72.0),
-        )
+        let resolution = |tag| Some((self.rational(tag)?.floor() * factor).floor());
+        (resolution(282), resolution(283))
     }
 
     fn field(&self, tag: u16) -> Option<(u16, &'a [u8])> {
@@ -206,5 +206,33 @@ mod tests {
         let mut bytes = image(true, 2);
         bytes[54..56].copy_from_slice(&8u16.to_le_bytes());
         assert_eq!(Tiff::new(&bytes).unwrap().dimensions(), None);
+    }
+
+    #[test]
+    fn jpeg_exif_resolution_overrides_jfif_and_keeps_frame_dimensions() {
+        let mut metadata = image(true, 2);
+        metadata[18..22].copy_from_slice(&64u32.to_le_bytes());
+        let mut exif = b"\xff\xe1".to_vec();
+        exif.extend(u16::try_from(metadata.len() + 8).unwrap().to_be_bytes());
+        exif.extend(b"Exif\0\0");
+        exif.extend(metadata);
+        let jfif = b"\xff\xe0\0\x10JFIF\0\x01\x01\x01\x01\x2c\0\x96\0\0";
+        let frame = b"\xff\xc0\0\x11\x08\0\x10\0\x20\x03\x01\x11\0\x02\x11\0\x03\x11\0\xff\xd9";
+        for headers in [
+            exif.clone(),
+            [jfif.as_slice(), &exif].concat(),
+            [&exif, jfif.as_slice()].concat(),
+        ] {
+            let jpeg = [b"\xff\xd8", headers.as_slice(), frame].concat();
+            assert_eq!(
+                super::super::media::image_metrics(&jpeg),
+                ((32, 16), (149.0, 59.0))
+            );
+        }
+        let jpeg = [b"\xff\xd8".as_slice(), frame].concat();
+        assert_eq!(
+            super::super::media::image_metrics(&jpeg),
+            ((100, 100), (72.0, 72.0))
+        );
     }
 }
