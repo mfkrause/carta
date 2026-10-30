@@ -7,11 +7,13 @@ use carta_ast::{
 
 use super::inline::read_delimited;
 
-/// Build a table from tbl region lines between `.TS` and `.TE`.
-///
-/// The first format line sets columns and alignment. A rule after the first row promotes it
-/// to the head. `T{`/`T}` blocks form one filled cell. Horizontal spans become placeholders;
-/// missing format lines return `None`.
+enum ColumnFormat {
+    Aligned(Alignment),
+    HorizontalSpan,
+    VerticalSpan,
+}
+
+/// Builds a table from its format descriptions and data rows.
 pub(super) fn build_tbl(region: &[String]) -> Option<Block> {
     let mut index = 0;
     let mut separator = "\t".to_owned();
@@ -23,73 +25,141 @@ pub(super) fn build_tbl(region: &[String]) -> Option<Block> {
         }
         index = 1;
     }
-
-    let aligns = parse_col_aligns(region.get(index)?);
-    if aligns.is_empty() {
-        return None;
-    }
-    let columns = aligns.len();
-    let mut data_start = None;
-    for (offset, line) in region.iter().enumerate().skip(index) {
-        if line.trim_end().ends_with('.') {
-            data_start = Some(offset + 1);
-            break;
-        }
-    }
-    let data_start = data_start?;
-
-    // Horizontal column spans are unrepresentable; such regions render as a placeholder paragraph.
-    if region
-        .get(index..data_start)
-        .unwrap_or(&[])
-        .iter()
-        .any(|line| format_has_span(line))
-    {
-        return Some(Block::Para(vec![Inline::Str("TABLE".into())]));
-    }
-
-    let data = collapse_text_blocks(region.get(data_start..).unwrap_or(&[]), &separator);
-
-    let (head_lines, body_lines): (&[String], &[String]) =
-        if data.get(1).is_some_and(|line| is_rule(line)) {
-            (data.get(..1).unwrap_or(&[]), data.get(2..).unwrap_or(&[]))
-        } else {
-            (&[], &data)
-        };
-
-    let col_specs = aligns
-        .into_iter()
-        .map(|align| ColSpec {
-            align,
+    let formats = read_formats(region, &mut index)?;
+    let columns = formats.iter().map(Vec::len).max()?;
+    let col_specs: Vec<_> = (0..columns)
+        .map(|column| ColSpec {
+            align: formats
+                .iter()
+                .find_map(|format| match format.get(column) {
+                    Some(ColumnFormat::Aligned(alignment)) => Some(alignment.clone()),
+                    _ => None,
+                })
+                .unwrap_or(Alignment::AlignDefault),
             width: ColWidth::ColWidthDefault,
         })
         .collect();
-    let head = TableHead {
-        attr: Attr::default(),
-        rows: head_lines
-            .iter()
-            .map(|line| tbl_row(line, &separator, columns))
-            .collect(),
+    let data = collapse_text_blocks(region.get(index..).unwrap_or(&[]), &separator);
+    let (mut rows, header) = build_rows(&data, &separator, formats, &col_specs);
+    let (head_rows, body_rows) = if header && !rows.is_empty() {
+        let body = rows.split_off(1);
+        (rows, body)
+    } else {
+        (Vec::new(), rows)
     };
-    let body = TableBody {
-        attr: Attr::default(),
-        row_head_columns: 0,
-        head: Vec::new(),
-        body: body_lines
-            .iter()
-            .filter(|line| !is_rule(line))
-            .map(|line| tbl_row(line, &separator, columns))
-            .collect(),
-    };
-
     Some(Block::Table(Box::new(Table {
         attr: Attr::default(),
         caption: Caption::default(),
         col_specs,
-        head,
-        bodies: vec![body],
+        head: TableHead {
+            attr: Attr::default(),
+            rows: head_rows,
+        },
+        bodies: vec![TableBody {
+            attr: Attr::default(),
+            row_head_columns: 0,
+            head: Vec::new(),
+            body: body_rows,
+        }],
         foot: TableFoot::default(),
     })))
+}
+
+fn read_formats(lines: &[String], index: &mut usize) -> Option<Vec<Vec<ColumnFormat>>> {
+    let mut formats = Vec::new();
+    while let Some(line) = lines.get(*index) {
+        *index += 1;
+        formats.extend(parse_column_formats(line));
+        if line.trim_end().ends_with('.') {
+            return (!formats.is_empty()).then_some(formats);
+        }
+    }
+    None
+}
+
+fn build_rows(
+    data: &[String],
+    separator: &str,
+    mut formats: Vec<Vec<ColumnFormat>>,
+    columns: &[ColSpec],
+) -> (Vec<Row>, bool) {
+    let mut rows: Vec<Row> = Vec::new();
+    let mut anchors: Vec<Option<(usize, usize)>> = vec![None; columns.len()];
+    let mut header = false;
+    let mut index = 0;
+    let mut format_index = 0;
+    while let Some(line) = data.get(index) {
+        index += 1;
+        if line.trim() == ".T&" {
+            if let Some(next) = read_formats(data, &mut index) {
+                formats = next;
+                format_index = 0;
+            }
+            continue;
+        }
+        if is_rule(line) {
+            if rows.len() == 1 {
+                header = true;
+                anchors.fill(None);
+            }
+            continue;
+        }
+        if line.starts_with('.') {
+            continue;
+        }
+        let format = formats.get(format_index).or_else(|| formats.last());
+        format_index += 1;
+        let fields: Vec<_> = line.split(separator).collect();
+        let row_index = rows.len();
+        let mut row = Row {
+            attr: Attr::default(),
+            cells: Vec::new(),
+        };
+        for (column, specification) in columns.iter().enumerate() {
+            let field = fields.get(column).copied().unwrap_or_default();
+            let descriptor = format.and_then(|format| format.get(column));
+            if matches!(descriptor, Some(ColumnFormat::HorizontalSpan))
+                && let Some(anchor) = column
+                    .checked_sub(1)
+                    .and_then(|left| anchors.get(left))
+                    .copied()
+                    .flatten()
+            {
+                if anchor.0 == row_index
+                    && let Some(cell) = row.cells.get_mut(anchor.1)
+                {
+                    cell.col_span = cell.col_span.saturating_add(1);
+                }
+                if let Some(slot) = anchors.get_mut(column) {
+                    *slot = Some(anchor);
+                }
+                continue;
+            }
+            if (matches!(descriptor, Some(ColumnFormat::VerticalSpan)) || field.trim() == "\\^")
+                && let Some((above_row, above_cell)) = anchors.get(column).copied().flatten()
+                && let Some(cell) = rows
+                    .get_mut(above_row)
+                    .and_then(|row| row.cells.get_mut(above_cell))
+            {
+                cell.row_span = i64::try_from(row_index.saturating_sub(above_row))
+                    .unwrap_or(i64::MAX)
+                    .saturating_add(1);
+                continue;
+            }
+            let mut cell = tbl_cell(field);
+            if let Some(ColumnFormat::Aligned(alignment)) = descriptor
+                && *alignment != specification.align
+            {
+                cell.align = alignment.clone();
+            }
+            if let Some(slot) = anchors.get_mut(column) {
+                *slot = Some((row_index, row.cells.len()));
+            }
+            row.cells.push(cell);
+        }
+        rows.push(row);
+    }
+    (rows, header)
 }
 
 /// Reads the cell separator from a tbl options line's `tab(X)` option, if it carries one.
@@ -98,92 +168,60 @@ fn tab_option(options: &str) -> Option<String> {
     (!inside.is_empty()).then(|| inside.to_owned())
 }
 
-/// Parses the alignment of each column from a tbl format line. Each key letter (`l`/`a` left, `r`/`n`
-/// right, `c` center) opens a column; `s` continues a horizontal span; a font modifier (`f` and its
-/// name) and a width modifier (`w`/`p`/`v`/`m` and its parenthesized or numeric argument) are skipped.
-fn parse_col_aligns(spec: &str) -> Vec<Alignment> {
-    let mut aligns = Vec::new();
-    let mut chars = spec.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c.to_ascii_lowercase() {
-            'l' | 'a' => aligns.push(Alignment::AlignLeft),
-            'r' | 'n' => aligns.push(Alignment::AlignRight),
-            'c' => aligns.push(Alignment::AlignCenter),
-            'f' => match chars.peek() {
+/// Parses column classifiers and spans, skipping modifier arguments.
+fn parse_column_formats(specification: &str) -> Vec<Vec<ColumnFormat>> {
+    let mut formats = Vec::new();
+    let mut columns = Vec::new();
+    let mut characters = specification.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character.to_ascii_lowercase() {
+            'l' | 'a' => columns.push(ColumnFormat::Aligned(Alignment::AlignLeft)),
+            'r' | 'n' => columns.push(ColumnFormat::Aligned(Alignment::AlignRight)),
+            'c' => columns.push(ColumnFormat::Aligned(Alignment::AlignCenter)),
+            's' => columns.push(ColumnFormat::HorizontalSpan),
+            '^' => columns.push(ColumnFormat::VerticalSpan),
+            ',' => {
+                if !columns.is_empty() {
+                    formats.push(std::mem::take(&mut columns));
+                }
+            }
+            'f' | 'm' => match characters.peek() {
                 Some('(') => {
-                    chars.next();
-                    chars.next();
-                    chars.next();
+                    characters.next();
+                    read_delimited(&mut characters, ')');
                 }
                 Some('[') => {
-                    chars.next();
-                    read_delimited(&mut chars, ']');
+                    characters.next();
+                    read_delimited(&mut characters, ']');
                 }
-                Some(_) => {
-                    chars.next();
-                }
-                None => {}
-            },
-            'w' | 'p' | 'v' | 'm' => {
-                if chars.peek() == Some(&'(') {
-                    chars.next();
-                    for d in chars.by_ref() {
-                        if d == ')' {
+                _ => {
+                    for _ in 0..2 {
+                        if characters.peek().is_some_and(char::is_ascii_alphanumeric) {
+                            characters.next();
+                        } else {
                             break;
                         }
                     }
+                }
+            },
+            'w' | 'p' | 'v' => {
+                if characters.peek() == Some(&'(') {
+                    characters.next();
+                    read_delimited(&mut characters, ')');
                 } else {
-                    while matches!(chars.peek(), Some(d) if d.is_ascii_digit()) {
-                        chars.next();
+                    while matches!(characters.peek(), Some(character) if character.is_ascii_digit())
+                    {
+                        characters.next();
                     }
                 }
             }
             _ => {}
         }
     }
-    aligns
-}
-
-/// Whether a tbl format line declares a horizontal span (an `s`/`S` key), skipping the font and width
-/// modifiers whose own arguments could otherwise contain that letter.
-fn format_has_span(spec: &str) -> bool {
-    let mut chars = spec.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c.to_ascii_lowercase() {
-            's' => return true,
-            'f' => match chars.peek() {
-                Some('(') => {
-                    chars.next();
-                    chars.next();
-                    chars.next();
-                }
-                Some('[') => {
-                    chars.next();
-                    read_delimited(&mut chars, ']');
-                }
-                Some(_) => {
-                    chars.next();
-                }
-                None => {}
-            },
-            'w' | 'p' | 'v' | 'm' => {
-                if chars.peek() == Some(&'(') {
-                    chars.next();
-                    for d in chars.by_ref() {
-                        if d == ')' {
-                            break;
-                        }
-                    }
-                } else {
-                    while matches!(chars.peek(), Some(d) if d.is_ascii_digit()) {
-                        chars.next();
-                    }
-                }
-            }
-            _ => {}
-        }
+    if !columns.is_empty() {
+        formats.push(columns);
     }
-    false
+    formats
 }
 
 /// Collapses tbl text blocks into single data lines. A field of `T{` begins a block whose content is
@@ -231,19 +269,6 @@ fn collapse_text_blocks(data: &[String], separator: &str) -> Vec<String> {
 fn is_rule(line: &str) -> bool {
     let trimmed = line.trim();
     !trimmed.is_empty() && trimmed.chars().all(|c| c == '_' || c == '=')
-}
-
-/// Builds one table row of exactly `columns` cells from a tbl data line: fields past the column count
-/// are dropped and missing fields are filled with empty cells.
-fn tbl_row(line: &str, separator: &str, columns: usize) -> Row {
-    let mut cells: Vec<Cell> = line.split(separator).take(columns).map(tbl_cell).collect();
-    while cells.len() < columns {
-        cells.push(tbl_cell(""));
-    }
-    Row {
-        attr: Attr::default(),
-        cells,
-    }
 }
 
 /// Builds a table cell from raw field text: surviving backslash escapes are stripped and the

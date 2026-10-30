@@ -33,3 +33,20 @@ l s l.
 Wide span		End
 one	two	three
 .TE
+.PP
+A table with a vertical span follows.
+.TS
+l l
+^ l.
+Name	One
+	Two
+.TE
+.PP
+A table with combined spans follows.
+.TS
+l s l.
+Wide		First
+.T&
+^ s l.
+		Second
+.TE

@@ -872,9 +872,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-man",
-        "gaps": [
-          "A `tbl` table using row or column spans degrades to a placeholder paragraph."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

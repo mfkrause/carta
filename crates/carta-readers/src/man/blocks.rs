@@ -109,11 +109,8 @@ impl Parser {
         Block::CodeBlock(Box::default(), text_lines.join("\n").into())
     }
 
-    /// Parses a tbl table region (`.TS`/`.TE`) into a [`Block::Table`]. The region's structure is the
-    /// preprocessor's: an optional options line ending in `;` (from which the cell separator is read),
-    /// one or more format lines ending in `.` (the first fixes the column count and alignments), then
-    /// the data rows. A malformed region (no format line) yields no block. The region ends at `.TE`,
-    /// or at a section heading or end of input (both left unconsumed).
+    /// Parses a tbl table through `.TE`, a heading, or end of input.
+    /// An invalid initial format description yields no block.
     pub(super) fn parse_tbl(&mut self) -> Vec<Block> {
         let mut region: Vec<String> = Vec::new();
         while let Some(line) = self.peek().map(str::to_owned) {

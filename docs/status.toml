@@ -441,7 +441,6 @@ write = "usable"
 read-feature = "read-man"
 write-feature = "write-man"
 read-gaps = [
-  "A `tbl` table using row or column spans degrades to a placeholder paragraph.",
 ]
 write-gaps = [
   "Code-block language attributes are ignored.",

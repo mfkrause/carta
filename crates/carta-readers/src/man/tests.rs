@@ -996,12 +996,58 @@ fn option_synopsis_brackets_a_bold_option_name() {
 }
 
 #[test]
-fn table_with_a_horizontal_span_degrades_to_a_placeholder() {
+fn table_with_a_horizontal_span_keeps_its_cells() {
     let doc = read(".TH T 1\n.TS\nl s l.\nWide\t\tEnd\none\ttwo\tthree\n.TE\n");
+    let Some(Block::Table(table)) = doc.blocks.first() else {
+        panic!("expected a table");
+    };
+    assert_eq!(table.col_specs.len(), 3);
+    let rows = &table.bodies.first().unwrap().body;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.first().unwrap().cells.len(), 2);
+    let first = rows.first().unwrap().cells.first().unwrap();
+    assert_eq!(first.col_span, 2);
     assert_eq!(
-        doc.blocks.first(),
-        Some(&Block::Para(vec![Inline::Str("TABLE".into())]))
+        first.content,
+        [Block::Plain(vec![Inline::Str("Wide".into())])]
     );
+}
+
+#[test]
+fn table_modifier_names_do_not_create_spans_or_columns() {
+    for modifier in ["f(Sr)", "m(Sr)", "w(2i)"] {
+        let document = read(&format!(".TS\nl{modifier} s r.\nWide\t\tEnd\n.TE\n"));
+        let Some(Block::Table(table)) = document.blocks.first() else {
+            panic!("expected a table");
+        };
+        assert_eq!(table.col_specs.len(), 3);
+        let cells = &table.bodies.first().unwrap().body.first().unwrap().cells;
+        assert_eq!(cells.len(), 2);
+        assert_eq!(cells.first().unwrap().col_span, 2);
+    }
+}
+
+#[test]
+fn table_cells_span_downward_using_formats_or_data_markers() {
+    for source in [
+        ".TS\nl l\n^ l.\nName\tOne\n\tTwo\n.TE\n",
+        ".TS\nl l.\nName\tOne\n\\^\tTwo\n.TE\n",
+        ".TS\nl l.\nName\tOne\n.T&\n^ l.\n\tTwo\n.TE\n",
+    ] {
+        let document = read(source);
+        let Some(Block::Table(table)) = document.blocks.first() else {
+            panic!("expected a table");
+        };
+        let rows = &table.bodies.first().unwrap().body;
+        assert_eq!(rows.len(), 2);
+        let first = rows.first().unwrap().cells.first().unwrap();
+        assert_eq!(first.row_span, 2);
+        assert_eq!(
+            first.content,
+            [Block::Plain(vec![Inline::Str("Name".into())])]
+        );
+        assert_eq!(rows.get(1).unwrap().cells.len(), 1);
+    }
 }
 
 #[test]

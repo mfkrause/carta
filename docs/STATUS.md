@@ -174,9 +174,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `dokuwiki` ✅
 ### `jira` ✅
 ### `mediawiki` ✅
-
 ### `man` ✅
-- A `tbl` table using row or column spans degrades to a placeholder paragraph.
 
 ### `docx` ✅
 - Page and column breaks are dropped rather than converted to line breaks, and a VML textbox's text
