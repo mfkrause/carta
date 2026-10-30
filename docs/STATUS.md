@@ -235,7 +235,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `man` ✅
 
 ### `docx` ✅
-- `\phantom` renders as its raw dollar-delimited text rather than an invisible phantom spacing box.
 - `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
   group-character parenthesis set over or under the base.
 - The `\limits` and `\nolimits` modifiers on a big operator or integral are ignored, so limit

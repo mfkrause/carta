@@ -466,6 +466,15 @@ fn nucleus(body: &Body, style: Style, depth: usize, display: bool) -> Option<Vec
                 Some(vec![cancel(strike, argument, style, depth)?])
             } else if name == "boxed" {
                 Some(vec![border_box(argument, style, depth)?])
+            } else if name == "phantom" {
+                Some(vec![
+                    Element::new("m:phant")
+                        .child(
+                            Element::new("m:phantPr")
+                                .child(Element::new("m:show").attr("m:val", "off")),
+                        )
+                        .child(wrap("m:e", script_slot(argument, style, depth)?)),
+                ])
             } else {
                 match styled_style(name, style) {
                     Some(inner) => lower_seq(argument, inner, depth + 1, false),

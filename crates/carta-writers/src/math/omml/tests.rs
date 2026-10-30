@@ -6,6 +6,10 @@ use super::to_omml;
 /// `(source, expected `<m:oMath>` fragment)` pairs. The zero-width space (`\u{200B}`) fills empty
 /// slots; `\u{2009}` is a thin inter-atom space.
 const INLINE: &[(&str, &str)] = &[
+    (
+        "\\phantom{x}",
+        "<m:oMath><m:phant><m:phantPr><m:show m:val=\"off\" /></m:phantPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phant></m:oMath>",
+    ),
     ("x", "<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>"),
     ("1", "<m:oMath><m:r><m:t>1</m:t></m:r></m:oMath>"),
     (
@@ -223,7 +227,7 @@ fn display_wraps_in_para() {
 #[test]
 fn unconvertible_constructs_degrade_to_none() {
     assert_eq!(to_omml("\\thiscommanddoesnotexist", false), None);
-    assert_eq!(to_omml("\\phantom{x}", false), None);
+    assert_eq!(to_omml("\\phantom{\\unknown}", false), None);
     assert_eq!(to_omml("\\not\\mid", false), None);
 }
 

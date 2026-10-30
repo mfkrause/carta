@@ -5,7 +5,7 @@ use super::{Element, Ink, ItalicAxis, Style, leaf, lower_seq, properties, run, s
 
 /// The style a styled-alphabet or math-class wrapper imposes on its argument. A class wrapper sets
 /// its argument upright; an alphabet wrapper selects a script variant and bold/italic axes. An
-/// unsupported presentation wrapper (`\phantom`, …) reports the expression unconvertible.
+/// unsupported wrapper reports the expression unconvertible.
 pub(super) fn styled_style(name: &str, current: Style) -> Option<Style> {
     let base = Style::WRAPPER;
     Some(match name {
