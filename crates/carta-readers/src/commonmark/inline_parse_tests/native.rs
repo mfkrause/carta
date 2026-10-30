@@ -259,3 +259,23 @@ fn html_end_checks_keep_closed_tokens_before_unclosed_ones() {
     );
     assert_eq!(out.last(), Some(&str("<!--")));
 }
+
+#[test]
+fn unmatched_span_tags_keep_their_original_text_across_emphasis() {
+    let opening = "<SPAN data-x='a &amp; &quot;b&quot;' id=x class=y>";
+    let source = format!("*before {opening}inside*</span>");
+    let extensions = exts(&[Extension::NativeSpans, Extension::RawHtml]);
+    assert_eq!(
+        pm(&source, extensions),
+        vec![
+            Inline::Emph(vec![
+                str("before"),
+                Inline::Space,
+                raw("html", opening),
+                str("inside")
+            ]),
+            raw("html", "</span>")
+        ]
+    );
+    assert_eq!(pm(opening, extensions), vec![raw("html", opening)]);
+}

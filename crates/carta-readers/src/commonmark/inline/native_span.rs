@@ -27,7 +27,7 @@ fn pair_spans_level(
         {
             match classify_span_tag(text) {
                 SpanTag::Open(attr) => {
-                    let _ = input.next();
+                    let opening = input.next();
                     let inner = pair_spans_level(input, true);
                     if matches!(input.peek(), Some(Inline::RawInline(f, t))
                         if f.0 == "html" && matches!(classify_span_tag(t), SpanTag::Close))
@@ -36,10 +36,7 @@ fn pair_spans_level(
                         out.push(Inline::Span(Box::new(attr), inner));
                     } else {
                         // No close at this level: opener reverts to raw, inner content rejoins.
-                        out.push(Inline::RawInline(
-                            carta_ast::Format("html".into()),
-                            open_tag_raw(&attr).into(),
-                        ));
+                        out.extend(opening);
                         out.extend(inner);
                     }
                     continue;
@@ -258,30 +255,4 @@ fn read_attr_value(text: &str, start: usize) -> Option<(String, usize)> {
         return None;
     }
     Some((out, i))
-}
-
-/// Reconstruct the raw `<span …>` opener for an opener that found no matching close, so it falls
-/// back to literal raw inline HTML. The exact original spelling is not recovered; a normalized form
-/// carrying the same attributes is emitted.
-fn open_tag_raw(attr: &Attr) -> String {
-    let mut s = String::from("<span");
-    if !attr.id.is_empty() {
-        s.push_str(" id=\"");
-        s.push_str(&attr.id);
-        s.push('"');
-    }
-    if !attr.classes.is_empty() {
-        s.push_str(" class=\"");
-        s.push_str(&attr.classes.join(" "));
-        s.push('"');
-    }
-    for (k, v) in &attr.attributes {
-        s.push(' ');
-        s.push_str(k);
-        s.push_str("=\"");
-        s.push_str(v);
-        s.push('"');
-    }
-    s.push('>');
-    s
 }
