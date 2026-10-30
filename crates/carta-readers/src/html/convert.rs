@@ -521,7 +521,12 @@ impl Converter {
             self.used_ids.insert(attr.id.to_string());
         } else if self.ext.contains(Extension::AutoIdentifiers) {
             let plain = to_plain_text(inlines);
-            let base = if self.ext.contains(Extension::GfmAutoIdentifiers) {
+            let base = if self.ext.contains(Extension::AsciiIdentifiers) {
+                crate::transliterate::ascii_slug(
+                    &plain,
+                    self.ext.contains(Extension::GfmAutoIdentifiers),
+                )
+            } else if self.ext.contains(Extension::GfmAutoIdentifiers) {
                 slug_gfm(&plain)
             } else {
                 slug(&plain)

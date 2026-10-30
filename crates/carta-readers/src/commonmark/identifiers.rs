@@ -1,9 +1,10 @@
 //! Generate heading identifiers from text and disambiguate repeated identifiers.
 
 use carta_ast::{Block, Inline, Table, to_plain_text};
-use carta_core::Extensions;
+use carta_core::{Extension, Extensions};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
+use crate::transliterate::ascii_slug;
 
 /// Fill in empty header identifiers across the document in reading order. `markdown` selects the
 /// broad Markdown dialect, where `auto_identifiers` is the master switch over numbering.
@@ -23,6 +24,7 @@ pub(crate) struct HeaderNumbering {
     scheme: Option<IdScheme>,
     /// The broad Markdown dialect, which disambiguates every slug shape with the native strategy.
     markdown: bool,
+    ascii: bool,
     registry: IdRegistry,
 }
 
@@ -31,6 +33,7 @@ impl HeaderNumbering {
         Self {
             scheme: IdScheme::select(ext, markdown),
             markdown,
+            ascii: ext.contains(Extension::AsciiIdentifiers),
             registry: IdRegistry::default(),
         }
     }
@@ -43,7 +46,12 @@ impl HeaderNumbering {
             return explicit_id.to_owned();
         };
         if explicit_id.is_empty() {
-            let text = to_plain_text(inlines);
+            let plain = to_plain_text(inlines);
+            let text = if self.ascii {
+                ascii_slug(&plain, matches!(scheme, IdScheme::Gfm))
+            } else {
+                plain
+            };
             if self.markdown {
                 self.registry.assign_markdown(scheme, &text)
             } else {

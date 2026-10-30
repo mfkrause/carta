@@ -272,8 +272,10 @@ pub(crate) fn lookup(name: &str) -> Option<&'static str> {
 /// The shortname for the emoji that begins `text`, with the number of bytes it spans, or `None`
 /// when no table entry is a prefix of `text`. Longer emoji sequences take precedence; when several
 /// names share one emoji, the one appearing last in the table is chosen.
-#[cfg(feature = "mediawiki")]
 pub(crate) fn alias_at(text: &str) -> Option<(&'static str, usize)> {
+    if text.as_bytes().first().is_none_or(u8::is_ascii) {
+        return None;
+    }
     let mut best: Option<(&'static str, usize)> = None;
     for (name, value) in TABLE {
         if text.starts_with(value) {
@@ -285,4 +287,22 @@ pub(crate) fn alias_at(text: &str) -> Option<(&'static str, usize)> {
         }
     }
     best
+}
+
+/// Replace recognized emoji sequences with their shortnames.
+pub(crate) fn to_aliases(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while !rest.is_empty() {
+        if let Some((alias, len)) = alias_at(rest) {
+            out.push_str(alias);
+            rest = rest.get(len..).unwrap_or("");
+        } else if let Some(ch) = rest.chars().next() {
+            out.push(ch);
+            rest = rest.get(ch.len_utf8()..).unwrap_or("");
+        } else {
+            break;
+        }
+    }
+    out
 }

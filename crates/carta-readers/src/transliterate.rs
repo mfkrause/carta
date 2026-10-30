@@ -234,11 +234,13 @@ pub(crate) fn dokuwiki_asciify(text: &str) -> String {
     text.nfd().filter(char::is_ascii).collect()
 }
 
-/// Transliterates text to ASCII for `ascii_identifiers`: an ASCII character is kept as is, a
-/// character whose canonical decomposition begins with an ASCII letter or digit folds to that
-/// character (so `é` becomes `e`), and any other non-ASCII character is dropped (so `Œ`, `ß`, and
-/// `½` vanish). The result is then slugged like any other identifier.
-#[cfg(feature = "mediawiki")]
+/// Fold accented Latin letters and dotless i to ASCII, retaining existing ASCII characters.
+#[cfg(any(
+    feature = "commonmark",
+    feature = "html",
+    feature = "latex",
+    feature = "mediawiki"
+))]
 pub(crate) fn transliterate_ascii(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
@@ -253,10 +255,33 @@ pub(crate) fn transliterate_ascii(text: &str) -> String {
     out
 }
 
+/// Derive an ASCII heading identifier, retaining separators left by omitted characters.
+#[cfg(any(feature = "commonmark", feature = "html", feature = "latex"))]
+pub(crate) fn ascii_slug(text: &str, gfm: bool) -> String {
+    let text = crate::emoji::to_aliases(text);
+    let base = if gfm {
+        carta_ast::slug_gfm(&text)
+    } else {
+        carta_ast::slug(&text)
+    };
+    let folded = transliterate_ascii(&base);
+    if gfm {
+        folded
+    } else {
+        folded
+            .trim_start_matches(|ch: char| !ch.is_ascii_alphabetic())
+            .to_owned()
+    }
+}
+
 /// The ASCII fold for `ascii_identifiers`, keyed by Unicode code point and kept sorted for binary
-/// search. Each entry maps a precomposed character to the ASCII letter or digit its canonical
-/// decomposition begins with; characters with no ASCII base are absent and are dropped instead.
-#[cfg(feature = "mediawiki")]
+/// search. Entries use canonical decomposition, with dotless i mapped to its ASCII letterform.
+#[cfg(any(
+    feature = "commonmark",
+    feature = "html",
+    feature = "latex",
+    feature = "mediawiki"
+))]
 const ASCII_FOLD: &[(u32, u8)] = &[
     (0x00C0, b'a'),
     (0x00C1, b'a'),
@@ -356,6 +381,7 @@ const ASCII_FOLD: &[(u32, u8)] = &[
     (0x012E, b'i'),
     (0x012F, b'i'),
     (0x0130, b'i'),
+    (0x0131, b'i'),
     (0x0134, b'j'),
     (0x0135, b'j'),
     (0x0136, b'k'),

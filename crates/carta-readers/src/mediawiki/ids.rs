@@ -12,7 +12,7 @@ impl Parser<'_> {
     pub(super) fn make_id(&mut self, inlines: &[Inline]) -> String {
         let plain = to_plain_text(inlines);
         if self.extensions.contains(Extension::GfmAutoIdentifiers) {
-            let base = self.finish_id(slug_gfm, &emoji_to_aliases(&plain));
+            let base = self.finish_id(slug_gfm, &emoji::to_aliases(&plain));
             self.ids.assign_with_separator(base, '-')
         } else if self.extensions.contains(Extension::AutoIdentifiers) {
             let base = self.finish_id(mediawiki_slug, &plain);
@@ -33,26 +33,6 @@ impl Parser<'_> {
         }
         base
     }
-}
-
-/// Under the `gfm_auto_identifiers` scheme each emoji that has a known shortname contributes that
-/// name to the identifier in place of the raw character. Spans of text with no emoji pass through
-/// unchanged; the shortname is spliced in directly, without inserting word boundaries.
-fn emoji_to_aliases(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = text;
-    while !rest.is_empty() {
-        if let Some((alias, len)) = emoji::alias_at(rest) {
-            out.push_str(alias);
-            rest = rest.get(len..).unwrap_or("");
-        } else if let Some(ch) = rest.chars().next() {
-            out.push(ch);
-            rest = rest.get(ch.len_utf8()..).unwrap_or("");
-        } else {
-            break;
-        }
-    }
-    out
 }
 
 /// Builds a heading identifier under the `auto_identifiers` scheme: lowercase, keep alphanumerics

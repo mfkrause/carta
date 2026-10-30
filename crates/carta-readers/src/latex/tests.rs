@@ -29,6 +29,24 @@ fn parse_ext(input: &str, extensions: Extensions) -> Vec<Block> {
 }
 
 #[test]
+fn ascii_heading_ids_fold_titles_and_keep_explicit_labels() {
+    let mut extensions = latex_defaults();
+    extensions.insert(Extension::AsciiIdentifiers);
+    let blocks = parse_ext(
+        r"\section{Café Über}\section{Cafe Uber}\section{Café}\label{Café}\section{ı Å K}",
+        extensions,
+    );
+    let ids: Vec<&str> = blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Header(_, attributes, _) => Some(attributes.id.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ids, ["cafe-uber", "cafe-uber-1", "Café", "i-a-k"]);
+}
+
+#[test]
 fn tab_stops_apply_to_verbatim_regions() {
     for (width, text) in [(0, "a\tb"), (3, "a  b"), (4, "a   b"), (8, "a       b")] {
         let mut options = ReaderOptions::default();

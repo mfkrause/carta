@@ -107,9 +107,13 @@ impl Parser {
         let Some(scheme) = IdScheme::select(self.ext, false) else {
             return String::new();
         };
-        let base = match scheme {
-            IdScheme::Plain => slug(text),
-            IdScheme::Gfm => slug_gfm(text),
+        let base = if self.ext.contains(Extension::AsciiIdentifiers) {
+            crate::transliterate::ascii_slug(text, matches!(scheme, IdScheme::Gfm))
+        } else {
+            match scheme {
+                IdScheme::Plain => slug(text),
+                IdScheme::Gfm => slug_gfm(text),
+            }
         };
         self.ids.assign_native(base)
     }

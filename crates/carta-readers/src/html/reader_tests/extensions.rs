@@ -5,6 +5,24 @@ use carta_ast::{Block, Inline, MathType};
 use carta_core::{Extension, Extensions};
 
 #[test]
+fn ascii_heading_ids_keep_explicit_ids_and_disambiguate_folded_titles() {
+    let extensions =
+        Extensions::from_list(&[Extension::AutoIdentifiers, Extension::AsciiIdentifiers]);
+    let blocks = read_with(
+        "<h1>Café Über</h1><h1>Cafe Uber</h1><h1 id=\"Café\">Café</h1><h1>ı Å K</h1>",
+        extensions,
+    );
+    let ids: Vec<&str> = blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Header(_, attributes, _) => Some(attributes.id.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ids, ["cafe-uber", "cafe-uber-1", "Café", "i-a-k"]);
+}
+
+#[test]
 fn line_block_div_becomes_line_block() {
     let Block::LineBlock(lines) = &first_block(r#"<div class="line-block">a<br>b</div>"#) else {
         panic!("expected line block");

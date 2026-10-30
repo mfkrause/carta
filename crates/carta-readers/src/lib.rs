@@ -2,7 +2,12 @@
 //! Input-format readers. Each module parses a source format's text into the document model
 //! ([`carta_ast::Document`]) via the [`carta_core::Reader`] trait.
 
-#[cfg(any(feature = "commonmark", feature = "mediawiki"))]
+#[cfg(any(
+    feature = "commonmark",
+    feature = "html",
+    feature = "latex",
+    feature = "mediawiki"
+))]
 mod emoji;
 #[cfg(any(
     feature = "commonmark",
@@ -65,6 +70,9 @@ mod smart_fold;
 ))]
 mod tabs;
 #[cfg(any(
+    feature = "commonmark",
+    feature = "html",
+    feature = "latex",
     feature = "man",
     feature = "org",
     feature = "mediawiki",

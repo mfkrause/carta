@@ -3,6 +3,42 @@
 use super::*;
 
 #[test]
+fn ascii_identifiers_share_collisions_and_implicit_link_targets() {
+    let document = read_markdown(
+        "# Café Über\n\n[Café Über]\n\n# Cafe Uber\n\n# 東京\n\n# Café {#Café}\n\n# ı Å K\n",
+        &[
+            Extension::AutoIdentifiers,
+            Extension::AsciiIdentifiers,
+            Extension::ImplicitHeaderReferences,
+            Extension::HeaderAttributes,
+        ],
+    );
+    assert_eq!(
+        header_ids(&document.blocks),
+        ["cafe-uber", "cafe-uber-1", "section", "Café", "i-a-k"]
+    );
+    assert_eq!(reference_targets(&document.blocks), ["#cafe-uber"]);
+    let document = read_markdown(
+        "# 東京 abc\n\n# a 東京 b\n",
+        &[
+            Extension::AutoIdentifiers,
+            Extension::GfmAutoIdentifiers,
+            Extension::AsciiIdentifiers,
+        ],
+    );
+    assert_eq!(header_ids(&document.blocks), ["-abc", "a--b"]);
+    let document = read_markdown(
+        "# Ǖ Ấ 🙂\n",
+        &[
+            Extension::AutoIdentifiers,
+            Extension::GfmAutoIdentifiers,
+            Extension::AsciiIdentifiers,
+        ],
+    );
+    assert_eq!(header_ids(&document.blocks), ["u-a-slightly_smiling_face"]);
+}
+
+#[test]
 fn gfm_auto_identifiers_slug_headers_and_count_duplicates() {
     let result = blocks_with(
         "# Foo & Bar\n\n# 1.2 Section\n\n# Foo & Bar\n",
