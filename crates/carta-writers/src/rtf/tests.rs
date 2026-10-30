@@ -118,6 +118,82 @@ fn ordered_list_numbers() {
 }
 
 #[test]
+fn nested_default_numbering_alternates() {
+    let attributes = ListAttributes {
+        start: 2,
+        style: ListNumberStyle::DefaultStyle,
+        delim: ListNumberDelim::DefaultDelim,
+    };
+    for (style, delim, marker) in [
+        (
+            ListNumberStyle::DefaultStyle,
+            ListNumberDelim::DefaultDelim,
+            "b.",
+        ),
+        (ListNumberStyle::DefaultStyle, ListNumberDelim::Period, "2."),
+        (
+            ListNumberStyle::DefaultStyle,
+            ListNumberDelim::OneParen,
+            "2)",
+        ),
+        (
+            ListNumberStyle::Decimal,
+            ListNumberDelim::DefaultDelim,
+            "2.",
+        ),
+        (
+            ListNumberStyle::LowerRoman,
+            ListNumberDelim::DefaultDelim,
+            "ii.",
+        ),
+    ] {
+        let inner = Block::OrderedList(attributes.clone(), vec![vec![para(vec![s("inner")])]]);
+        let middle = Block::OrderedList(
+            ListAttributes {
+                style,
+                delim,
+                ..attributes.clone()
+            },
+            vec![vec![para(vec![s("middle")]), inner]],
+        );
+        let outer = Block::OrderedList(
+            attributes.clone(),
+            vec![vec![para(vec![s("outer")]), middle]],
+        );
+        let after = Block::OrderedList(attributes.clone(), vec![vec![para(vec![s("after")])]]);
+        let output = render(vec![outer, after]);
+        for (marker, label) in [
+            ("2.", "outer"),
+            (marker, "middle"),
+            ("2.", "inner"),
+            ("2.", "after"),
+        ] {
+            assert!(
+                output.contains(&format!("{marker}\\tx360\\tab {label}")),
+                "{output}"
+            );
+        }
+    }
+}
+
+#[test]
+fn default_letters_continue_past_z() {
+    let list = Block::OrderedList(
+        ListAttributes {
+            start: 27,
+            style: ListNumberStyle::DefaultStyle,
+            delim: ListNumberDelim::DefaultDelim,
+        },
+        vec![vec![para(vec![s("later")])]],
+    );
+    let output = render(vec![Block::BulletList(vec![vec![
+        para(vec![s("outer")]),
+        list,
+    ]])]);
+    assert!(output.contains("aa.\\tx360\\tab later"), "{output}");
+}
+
+#[test]
 fn definition_list_term_and_definition() {
     assert_eq!(
         render(vec![Block::DefinitionList(vec![(

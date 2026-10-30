@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
-    MathType, QuoteType, Row, Table, Target,
+    ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, Target,
 };
 use carta_core::{MediaBag, Result, Writer, WriterOptions};
 
@@ -191,10 +191,18 @@ impl State {
 
     fn ordered_list(&mut self, attrs: &ListAttributes, items: &[Vec<Block>]) -> String {
         self.list_depth = self.list_depth.saturating_add(1);
+        let style = match (attrs.style, attrs.delim) {
+            (ListNumberStyle::DefaultStyle, ListNumberDelim::DefaultDelim)
+                if self.list_depth.is_multiple_of(2) =>
+            {
+                ListNumberStyle::LowerAlpha
+            }
+            (style, _) => style,
+        };
         let mut out = String::new();
         for (offset, item) in items.iter().enumerate() {
             let number = attrs.start.saturating_add(offset_as_i64(offset));
-            let marker = ordered_marker(number, attrs.style, attrs.delim);
+            let marker = ordered_marker(number, style, attrs.delim);
             out.push_str(&self.list_item(&marker, item));
         }
         self.list_depth = self.list_depth.saturating_sub(1);

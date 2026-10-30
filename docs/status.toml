@@ -571,7 +571,6 @@ read-gaps = [
 ]
 write-gaps = [
   '''A table nested inside another table's cell carries a single `\intbl` on its cell paragraphs regardless of nesting depth, so the inner table is not set off from its container.''',
-  "A nested ordered list with default style is numbered with decimal markers at every level rather than cycling the marker style by depth.",
 ]
 
 [[format]]
