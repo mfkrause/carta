@@ -6,6 +6,20 @@ set -uo pipefail
 # Pin SOURCE_DATE_EPOCH so both tools stamp the same reproducible timestamp (carta defaults to 1).
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
+# The shared AST cases name pic.png without carrying the image bytes.
+RESOURCE_DIR="$WORK/epub-resources"
+mkdir -p "$RESOURCE_DIR"
+python3 - "$CORPUS/ast/image-dimensions/image-embedded-png.json" "$RESOURCE_DIR/pic.png" <<'PY'
+import base64
+import json
+from pathlib import Path
+import sys
+
+document = json.loads(Path(sys.argv[1]).read_text())
+source = document['blocks'][0]['c'][-1]['c'][2][0]
+Path(sys.argv[2]).write_bytes(base64.b64decode(source.split(',', 1)[1]))
+PY
+
 # Normalize free values and spec-valid placeholders; see docs/STATUS.md.
 epub_norm() {
   sed -e 's/content="pandoc"/content="carta"/' \
@@ -55,11 +69,11 @@ run_dialect() {
     mkdir -p "$work/o" "$work/x"
     repro="repro: $OX -f json -t $dialect $input -o out.epub  (then unzip)"
     # shellcheck disable=SC2086
-    if ! "$ORACLE" -f json -t "$dialect" "$input" -o "$work/o.epub" 2>/dev/null; then
+    if ! "$ORACLE" -f json -t "$dialect" --resource-path="$RESOURCE_DIR" "$input" -o "$work/o.epub" 2>/dev/null; then
       SKIP=$((SKIP + 1))
       continue
     fi
-    if ! "$OX" -f json -t "$dialect" "$input" -o "$work/x.epub" 2>"$work/err"; then
+    if ! "$OX" -f json -t "$dialect" --resource-path="$RESOURCE_DIR" "$input" -o "$work/x.epub" 2>"$work/err"; then
       note_err "$label" "$repro
 $(head -n 3 "$work/err")"
       continue
