@@ -836,7 +836,6 @@ status = "usable"
 [[feature]]
 name = "Multiple inputs / defaults files (`--defaults`)"
 status = "in-development"
-notes = "defaults files are not supported."
 
 [[feature]]
 name = "CLI introspection (`--list-input-formats`, `--list-extensions`, …)"

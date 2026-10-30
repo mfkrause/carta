@@ -1920,3 +1920,196 @@ fn later_options_replace_values_and_disable_boolean_flags() {
     assert!(!output.success);
     assert!(output.stderr.contains("invalid value 'invalid'"));
 }
+
+#[test]
+fn defaults_keep_typed_literal_metadata_and_input_order() {
+    let directory = input_directory("defaults-metadata");
+    fs::create_dir_all(directory.join("settings")).unwrap();
+    fs::write(directory.join("first.md"), "first").unwrap();
+    fs::write(directory.join("second.md"), "second").unwrap();
+    fs::write(directory.join("last.md"), "last").unwrap();
+    fs::write(
+        directory.join("settings/base.yaml"),
+        "input-files: [\"${.}/../first.md\"]\nmetadata: {title: base}\n",
+    )
+    .unwrap();
+    fs::write(directory.join("settings/child.yaml"), "defaults: \"${.}/base\"\nreader: markdown\nwriter: json\ninput-files: [\n  \"${.}/../second.md\"\n]\nmetadata:\n  title: '*literal*'\n  first: &shared\n    enabled: false\n    items: [one, two]\n  second: *shared\n  quoted: 'true'\n  empty: null\n  number: 1.234567890123456789\n  block: |\n    one\n    two\n").unwrap();
+    let output = run_in(
+        &directory,
+        &[
+            "-M",
+            "title:before",
+            "last.md",
+            "-d",
+            "settings/child",
+            "-M",
+            "title:after",
+        ],
+        "",
+    );
+    assert!(output.success, "{}", output.stderr);
+    let document: serde_json::Value = serde_json::from_str(&output.stdout).unwrap();
+    assert_eq!(
+        document["meta"]["title"],
+        serde_json::json!({"t":"MetaList","c":[{"t":"MetaString","c":"*literal*"},{"t":"MetaString","c":"after"}]})
+    );
+    assert_eq!(document["meta"]["first"], document["meta"]["second"]);
+    assert_eq!(document["meta"]["first"]["c"]["enabled"]["c"], false);
+    assert_eq!(document["meta"]["quoted"]["c"], "true");
+    assert_eq!(document["meta"]["empty"]["c"], "");
+    assert_eq!(document["meta"]["number"]["c"], "1.234567890123456789");
+    assert_eq!(document["meta"]["block"]["c"], "one\ntwo\n");
+    let paragraphs: Vec<_> = document["blocks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|block| block["c"][0]["c"].as_str().unwrap())
+        .collect();
+    assert_eq!(paragraphs, ["first", "second", "last"]);
+}
+
+#[test]
+fn defaults_variables_and_cli_values_follow_source_order() {
+    let directory = input_directory("defaults-variables");
+    fs::write(
+        directory.join("view.tpl"),
+        "$if(flag)$yes$else$no$endif$|$object.name$|$for(value)$$value$$sep$,$endfor$",
+    )
+    .unwrap();
+    fs::write(directory.join("settings.yaml"), "to: plain\ntemplate: '${.}/view.tpl'\nvariables: {flag: false, object: {name: ok}, value: [2, 3]}\n").unwrap();
+    for (arguments, expected) in [
+        (
+            vec!["-V", "value:before", "-dsettings", "-V", "value:after"],
+            "no|ok|2,3,after",
+        ),
+        (
+            vec!["--defaults=settings", "--variable-json", "value:[4,5]"],
+            "no|ok|4,5",
+        ),
+        (vec!["-sd=settings", "-Vflag:true"], "yes|ok|2,3"),
+    ] {
+        let output = run_in(&directory, &arguments, "");
+        assert!(output.success, "{}", output.stderr);
+        assert_eq!(output.stdout, expected);
+    }
+}
+
+#[test]
+fn defaults_search_files_and_reject_invalid_configuration() {
+    let directory = input_directory("defaults-validation");
+    fs::create_dir_all(directory.join("data/defaults")).unwrap();
+    fs::write(
+        directory.join("data/defaults/found.yaml"),
+        "to: html\nstandalone: false\n",
+    )
+    .unwrap();
+    fs::write(
+        directory.join("with-data.yaml"),
+        "data-dir: data\ndefaults: found\n",
+    )
+    .unwrap();
+    for arguments in [
+        vec!["-s", "--data-dir=data", "-d", "found"],
+        vec!["-s", "-dwith-data"],
+    ] {
+        let output = run_in(&directory, &arguments, "# Title");
+        assert!(output.success, "{}", output.stderr);
+        assert_eq!(output.stdout, "<h1 id=\"title\">Title</h1>\n");
+    }
+    for (source, error) in [
+        ("defaults: bad\n", "circular defaults file reference"),
+        ("unknown-option: true\n", "unknown option 'unknown-option'"),
+        ("standalone: 'false'\n", "expected a boolean"),
+        ("input-files: [missing\n", "invalid defaults file"),
+        ("- item\n", "must contain a mapping"),
+    ] {
+        fs::write(directory.join("bad.yaml"), source).unwrap();
+        let output = run_in(&directory, &["-dbad"], "");
+        assert!(!output.success, "{source}");
+        assert_eq!(
+            output.code,
+            Some(if source.starts_with("defaults:") {
+                63
+            } else {
+                64
+            })
+        );
+        assert!(output.stderr.contains(error), "{}", output.stderr);
+    }
+    let missing = run_in(&directory, &["-dmissing"], "");
+    assert_eq!(missing.code, Some(1));
+    fs::write(directory.join("--defaults"), "literal file").unwrap();
+    let output = run_in(&directory, &["-tplain", "--", "--defaults"], "");
+    assert!(output.success, "{}", output.stderr);
+    assert_eq!(output.stdout, "literal file\n");
+    let output = run_in(
+        &directory,
+        &["--pdf-engine-opt", "-dmissing", "-tplain"],
+        "text",
+    );
+    assert!(output.success, "{}", output.stderr);
+    assert_eq!(output.stdout, "text\n");
+}
+
+#[test]
+fn later_math_methods_replace_earlier_methods() {
+    for (flags, expected, absent) in [
+        (
+            vec![
+                "--mathjax=https://test.invalid/jax",
+                "--katex=https://test.invalid/katex",
+            ],
+            "https://test.invalid/katex",
+            "https://test.invalid/jax",
+        ),
+        (
+            vec![
+                "--katex=https://test.invalid/katex",
+                "--mathjax=https://test.invalid/jax",
+            ],
+            "https://test.invalid/jax",
+            "https://test.invalid/katex",
+        ),
+    ] {
+        let mut arguments = vec!["-s", "-t", "html"];
+        arguments.extend(flags);
+        let output = run(&arguments, "$x$");
+        assert!(output.success, "{}", output.stderr);
+        assert!(output.stdout.contains(expected));
+        assert!(!output.stdout.contains(absent));
+    }
+}
+
+#[test]
+fn resource_path_uses_the_last_cli_or_defaults_value() {
+    let directory = input_directory("resource-path-order");
+    for name in ["first", "second"] {
+        fs::create_dir_all(directory.join(name)).unwrap();
+        fs::write(directory.join(name).join("image.png"), name).unwrap();
+    }
+    fs::write(directory.join("settings.yaml"), "resource-path: [second]\n").unwrap();
+    for (flags, expected, absent) in [
+        (
+            vec!["--resource-path=first", "--resource-path=second"],
+            "c2Vjb25k",
+            "Zmlyc3Q=",
+        ),
+        (
+            vec!["--resource-path=first", "-dsettings"],
+            "c2Vjb25k",
+            "Zmlyc3Q=",
+        ),
+        (
+            vec!["-dsettings", "--resource-path=first"],
+            "Zmlyc3Q=",
+            "c2Vjb25k",
+        ),
+    ] {
+        let mut arguments = vec!["-thtml", "--embed-resources"];
+        arguments.extend(flags);
+        let output = run_in(&directory, &arguments, "![x](image.png)");
+        assert!(output.success, "{}", output.stderr);
+        assert!(output.stdout.contains(expected), "{}", output.stdout);
+        assert!(!output.stdout.contains(absent), "{}", output.stdout);
+    }
+}

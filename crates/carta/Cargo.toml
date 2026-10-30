@@ -39,6 +39,7 @@ cli = [
     "dep:clap",
     "dep:clap_complete",
     "dep:clap_mangen",
+    "carta-readers/yaml",
     "standalone",
     "metadata-file",
     "carta-ast/serde",

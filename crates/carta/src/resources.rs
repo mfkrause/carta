@@ -11,7 +11,7 @@ use carta::{Document, MediaBag, Result, media};
 use super::Cli;
 
 /// The directories a referenced resource is looked for in, in search order: those named by
-/// `--resource-path` (each entry split on the platform path separator), then the working directory as
+/// `--resource-path` (split on the platform path separator), then the working directory as
 /// a final fallback.
 pub(super) fn resource_search_path(cli: &Cli) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = cli

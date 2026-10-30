@@ -1,5 +1,8 @@
 //! Parse YAML document metadata with bounded nesting.
 
+#[cfg(feature = "yaml")]
+pub(crate) mod config;
+
 /// A parsed YAML value.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Yaml {
@@ -630,6 +633,25 @@ fn flow_plain_len(s: &str) -> usize {
 
 fn whitespace(s: &str) -> usize {
     s.bytes().take_while(|&b| b == b' ' || b == b'\t').count()
+}
+
+#[cfg(feature = "commonmark")]
+pub(crate) fn is_null(text: &str) -> bool {
+    matches!(text, "null" | "Null" | "NULL" | "~")
+}
+
+/// The unquoted YAML 1.1 boolean tokens.
+#[cfg(feature = "commonmark")]
+pub(crate) fn as_bool(text: &str) -> Option<bool> {
+    match text {
+        "y" | "Y" | "yes" | "Yes" | "YES" | "true" | "True" | "TRUE" | "on" | "On" | "ON" => {
+            Some(true)
+        }
+        "n" | "N" | "no" | "No" | "NO" | "false" | "False" | "FALSE" | "off" | "Off" | "OFF" => {
+            Some(false)
+        }
+        _ => None,
+    }
 }
 
 /// Canonicalize a numeric scalar the way the metadata resolver does, or `None` if the text is not

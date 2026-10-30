@@ -220,10 +220,10 @@ fn plain_scalar_to_meta(
     options: &ReaderOptions,
     macros: Option<&Context<'_>>,
 ) -> MetaValue {
-    if text.is_empty() || is_null(text) {
+    if text.is_empty() || yaml::is_null(text) {
         return MetaValue::MetaString(carta_ast::Text::default());
     }
-    if let Some(value) = as_bool(text) {
+    if let Some(value) = yaml::as_bool(text) {
         return MetaValue::MetaBool(value);
     }
     if let Some(canonical) = yaml::canonicalize_number(text) {
@@ -239,23 +239,6 @@ fn text_to_meta(text: &str, options: &ReaderOptions, macros: Option<&Context<'_>
         MetaValue::MetaBlocks(parse_meta_blocks(text, options, macros))
     } else {
         MetaValue::MetaInlines(parse_meta_inlines(text, options, macros))
-    }
-}
-
-fn is_null(text: &str) -> bool {
-    matches!(text, "null" | "Null" | "NULL" | "~")
-}
-
-/// The unquoted YAML 1.1 boolean tokens.
-fn as_bool(text: &str) -> Option<bool> {
-    match text {
-        "y" | "Y" | "yes" | "Yes" | "YES" | "true" | "True" | "TRUE" | "on" | "On" | "ON" => {
-            Some(true)
-        }
-        "n" | "N" | "no" | "No" | "NO" | "false" | "False" | "FALSE" | "off" | "Off" | "OFF" => {
-            Some(false)
-        }
-        _ => None,
     }
 }
 

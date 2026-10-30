@@ -109,6 +109,8 @@ mod xml;
 mod xml_entities;
 #[cfg(any(feature = "commonmark", feature = "typst"))]
 mod yaml;
+#[cfg(feature = "yaml")]
+pub use yaml::config::parse as parse_yaml_value;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;

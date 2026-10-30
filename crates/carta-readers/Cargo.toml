@@ -22,6 +22,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [features]
+yaml = ["commonmark", "dep:granit-parser"]
 default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org", "rtf", "docx", "epub", "odt", "typst", "docbook"]
 commonmark = ["latex", "dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = ["carta-ast/serde", "carta-core/serde"]
@@ -55,6 +56,7 @@ unicode-normalization = { workspace = true, optional = true }
 caseless = { workspace = true, optional = true }
 # Parses JSON metadata files; YAML files go through the in-crate parser.
 serde_json = { workspace = true, optional = true }
+granit-parser = { version = "2", default-features = false, features = ["std", "error_messages"], optional = true }
 # Backs the pattern selectors of Typst show rules.
 regex-automata = { workspace = true, optional = true }
 regex-syntax = { workspace = true, optional = true }

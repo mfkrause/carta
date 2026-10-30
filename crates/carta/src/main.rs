@@ -15,9 +15,10 @@ use carta::{
     WriterOptions, render_document,
 };
 use carta_core::template::Value;
-use clap::{ArgAction, CommandFactory, FromArgMatches, Parser};
+use clap::{ArgAction, CommandFactory, Parser};
 
 mod datadir;
+mod defaults;
 mod file_scope;
 mod filters;
 mod input;
@@ -69,9 +70,9 @@ struct Cli {
     extract_media: Option<PathBuf>,
     /// Search these directories, in order, for a document's images and other resources before falling
     /// back to the working directory, when a container format embeds them. Directories are separated
-    /// by the platform's path separator (`:` on Unix, `;` on Windows); repeatable.
+    /// by the platform's path separator (`:` on Unix, `;` on Windows). Later values replace earlier ones.
     #[arg(long = "resource-path", value_name = "SEARCHPATH")]
-    resource_path: Vec<String>,
+    resource_path: Option<String>,
     /// Inline a document's referenced media into HTML output as `data:` URIs, producing a
     /// self-contained file with no external resource dependencies. Local resources are read from disk
     /// (honoring `--resource-path`); references that cannot be read are left as written. Ignored for
@@ -261,10 +262,22 @@ struct Cli {
     version: Option<bool>,
     /// Read these files in order, with blank lines between text inputs. Use - for stdin.
     input: Vec<PathBuf>,
+    /// Read conversion options from a YAML defaults file. Repeatable; later options take priority.
+    #[arg(short = 'd', long = "defaults", value_name = "FILE")]
+    defaults: Vec<PathBuf>,
+    #[arg(skip)]
+    metadata_values: BTreeMap<String, MetaValue>,
 }
 
 fn cli_command() -> clap::Command {
-    let command = Cli::command();
+    let command = ["mathjax", "katex", "mathml", "webtex"].into_iter().fold(
+        Cli::command(),
+        |command, name| {
+            command.mut_arg(name, |argument| {
+                argument.overrides_with_all(["mathjax", "katex", "mathml", "webtex"])
+            })
+        },
+    );
     let flags: Vec<_> = command
         .get_arguments()
         .filter(|argument| matches!(argument.get_action(), ArgAction::SetTrue))
@@ -283,9 +296,7 @@ fn cli_command() -> clap::Command {
 }
 
 fn main() -> ExitCode {
-    let matches = cli_command().get_matches();
-    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
-    cli.template_variables = template_variables(&cli, &matches);
+    let cli = defaults::parse().unwrap_or_else(|error| error.exit());
     match run(&cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) if is_broken_pipe(&error) => ExitCode::SUCCESS,
@@ -431,7 +442,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options
         .variable_values
         .clone_from(&cli.template_variables);
-    writer_options.metadata = parse_metadata(&cli.metadata);
+    writer_options.metadata.clone_from(&cli.metadata_values);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file, from)?;
     writer_options.source_name = Some(source_name(cli.input.first().map(PathBuf::as_path)));
     if is_docx(to) {
@@ -794,8 +805,7 @@ fn template_variables(cli: &Cli, matches: &clap::ArgMatches) -> BTreeMap<String,
 /// Parse `-M` specifiers into metadata values: `true`/`false` become booleans, a bare `KEY` becomes
 /// `true`, and anything else is a string. A repeated key accumulates its values into a list in order.
 /// A specifier splits on its first `:` or `=`, whichever comes first.
-fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
-    let mut map: BTreeMap<String, MetaValue> = BTreeMap::new();
+fn parse_metadata_into(map: &mut BTreeMap<String, MetaValue>, specs: &[String]) {
     for spec in specs {
         let (key, value) = match spec.split_once([':', '=']) {
             Some((key, "true")) => (key, MetaValue::MetaBool(true)),
@@ -813,7 +823,6 @@ fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
         };
         map.insert(key.to_owned(), next);
     }
-    map
 }
 
 /// Read and merge every `--metadata-file`, later files overriding earlier ones at the key level. A
