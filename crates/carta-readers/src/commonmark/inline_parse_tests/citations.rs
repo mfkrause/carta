@@ -397,3 +397,52 @@ fn adversarially_nested_citations_stay_within_the_reparse_budget() {
     let blocks = read_citations(&source);
     assert_eq!(blocks.len(), 1);
 }
+
+#[test]
+fn smart_citation_affixes_bind_abbreviations_but_keep_literal_fallback() {
+    let extensions = exts(&[Extension::Citations, Extension::Smart]);
+    let parsed = pm("[p. 5 @x, chap. 2]", extensions);
+    let [Inline::Cite(citations, fallback)] = parsed.as_slice() else {
+        panic!("expected one citation: {parsed:?}");
+    };
+    assert_eq!(citations[0].prefix, vec![str("p.\u{a0}5")]);
+    assert_eq!(
+        citations[0].suffix,
+        vec![str(","), Inline::Space, str("chap.\u{a0}2")]
+    );
+    assert_eq!(
+        fallback,
+        &vec![
+            str("[p."),
+            Inline::Space,
+            str("5"),
+            Inline::Space,
+            str("@x,"),
+            Inline::Space,
+            str("chap."),
+            Inline::Space,
+            str("2]")
+        ]
+    );
+}
+
+#[test]
+fn smart_abbreviations_keep_code_case_and_line_boundaries() {
+    let smart = exts(&[Extension::Smart]);
+    assert_eq!(pm("p.  5", smart), vec![str("p.\u{a0}5")]);
+    assert_eq!(
+        pm("(Dr. *Name*)", smart),
+        vec![str("(Dr.\u{a0}"), Inline::Emph(vec![str("Name")]), str(")")]
+    );
+    assert_eq!(
+        pm("p.\n5", smart),
+        vec![str("p."), Inline::SoftBreak, str("5")]
+    );
+    assert_eq!(pm("P. 5", smart), vec![str("P."), Inline::Space, str("5")]);
+    assert_eq!(
+        pm("p. 5", Extensions::empty()),
+        vec![str("p."), Inline::Space, str("5")]
+    );
+    assert_eq!(pe("p. 5", smart), vec![str("p."), Inline::Space, str("5")]);
+    assert_eq!(pm("`p. 5`", smart), vec![code("p. 5")]);
+}

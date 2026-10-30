@@ -91,12 +91,6 @@
         "raw_tex"
       ],
       "description": "Inline `\\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\\begin{env}…\\end{env}` is recognized only as a whole paragraph (block level); inline, each `\\begin`/`\\end` is an ordinary command."
-    },
-    {
-      "names": [
-        "citations"
-      ],
-      "description": "An abbreviation-led citation suffix such as `p. 5` is a single string in the dialect (a non-breaking space follows the period); carta splits it into separate tokens."
     }
   ],
   "byFormat": {

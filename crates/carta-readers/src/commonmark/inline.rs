@@ -284,7 +284,7 @@ impl InlineParser<'_> {
                 ':' if self.ext.contains(Extension::Emoji) && self.try_emoji() => {}
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
-                '.' if self.ext.contains(Extension::Smart) => self.smart_ellipsis(),
+                '.' if self.ext.contains(Extension::Smart) => self.smart_period(),
                 '[' => {
                     self.pos += 1;
                     self.push_open_bracket(false);

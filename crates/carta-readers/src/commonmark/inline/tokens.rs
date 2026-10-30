@@ -674,9 +674,8 @@ impl InlineParser<'_> {
         self.push_str(&out);
     }
 
-    /// Replace each run of three dots with an ellipsis (`…`), leaving any remaining one or two dots
-    /// literal. Dots separated by other characters are never joined.
-    pub(super) fn smart_ellipsis(&mut self) {
+    /// Fold ellipses and bind recognized Markdown abbreviations to the next word.
+    pub(super) fn smart_period(&mut self) {
         let mut len = 0;
         while self.peek() == Some('.') {
             self.pos += 1;
@@ -684,5 +683,38 @@ impl InlineParser<'_> {
         }
         let out = fold_ellipsis_run(len);
         self.push_str(&out);
+        if len != 1 || !self.notes.markdown || !matches!(self.peek(), Some(' ' | '\t')) {
+            return;
+        }
+        let Some(Node::Text(text)) = self.nodes.last() else {
+            return;
+        };
+        // Bound lookback so repeated periods cannot rescan the whole text run.
+        let tail = text
+            .get(text.floor_char_boundary(text.len().saturating_sub(8))..)
+            .unwrap_or("");
+        let word = tail
+            .rsplit(|ch: char| !ch.is_alphanumeric() && ch != '.')
+            .next()
+            .unwrap_or("");
+        if ![
+            "p.", "pp.", "ch.", "chap.", "sec.", "fig.", "vol.", "n.", "nn.", "pt.", "ed.", "eds.",
+            "cf.", "vs.", "al.", "e.g.", "i.e.", "viz.", "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.",
+            "Rev.", "St.", "Jr.", "Sr.", "Jan.", "Feb.", "Mar.", "Apr.", "Aug.", "Sept.", "Sep.",
+            "Oct.", "Nov.", "Dec.", "Ph.D.", "Inc.", "Ltd.", "No.",
+        ]
+        .contains(&word)
+        {
+            return;
+        }
+        let start = self.pos;
+        while matches!(self.peek(), Some(' ' | '\t')) {
+            self.pos += 1;
+        }
+        if matches!(self.peek(), Some('\n' | '\r')) {
+            self.pos = start;
+        } else if self.pos > start {
+            self.push_text('\u{a0}');
+        }
     }
 }
