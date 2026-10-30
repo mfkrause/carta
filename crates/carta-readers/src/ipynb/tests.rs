@@ -19,6 +19,48 @@ fn read_media(input: &str) -> (Document, MediaBag) {
         .expect("notebook input parses")
 }
 
+#[test]
+fn raw_markdown_keeps_source_bytes_and_attachment_data() {
+    let source = "**Bold**  text\n\n![image](attachment:a.png)\n\n";
+    let input = serde_json::json!({"nbformat": 4, "nbformat_minor": 5, "metadata": {}, "cells": [{"cell_type": "markdown", "id": "cell9", "metadata": {"tags": ["draft"]}, "source": source, "attachments": {"a.png": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="}}}]});
+    let mut options = ReaderOptions::default();
+    options.extensions.insert(Extension::RawMarkdown);
+    let (document, media) = IpynbReader
+        .read_media(&input.to_string(), &options)
+        .unwrap();
+    let [Block::Div(attributes, blocks)] = document.blocks.as_slice() else {
+        panic!("{document:?}");
+    };
+    assert_eq!(attributes.id, "cell9");
+    assert_eq!(
+        attributes.attributes,
+        [("tags".into(), "[\"draft\"]".into())]
+    );
+    assert_eq!(
+        blocks,
+        &[Block::RawBlock(Format("markdown".into()), source.into())]
+    );
+    assert_eq!(
+        media.get("cell9-a.png").unwrap().bytes,
+        b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"
+    );
+}
+
+#[test]
+fn raw_markdown_does_not_change_legacy_heading_cells() {
+    let input = serde_json::json!({"nbformat": 3, "nbformat_minor": 0, "metadata": {}, "worksheets": [{"metadata": {}, "cells": [{"cell_type": "heading", "level": 3, "source": "Title", "metadata": {}}]}]});
+    let document = read_with(
+        &input.to_string(),
+        carta_core::Extensions::from_list(&[Extension::RawMarkdown]),
+    );
+    let [Block::Div(_, blocks)] = document.blocks.as_slice() else {
+        panic!("{document:?}");
+    };
+    assert!(
+        matches!(blocks.as_slice(), [Block::Header(3, _, content)] if content == &[Inline::Str("Title".into())])
+    );
+}
+
 fn jupyter(document: &Document) -> &BTreeMap<carta_ast::Text, MetaValue> {
     match document.meta.get("jupyter") {
         Some(MetaValue::MetaMap(map)) => map,

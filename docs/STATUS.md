@@ -293,7 +293,7 @@ Constructs the supported extensions read, each with one narrow case that still d
 These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but
 the reader does not yet branch on the construct (notable, non-exhaustive): `latex_macros`,
 `east_asian_line_breaks`, `four_space_rule`, `literate_haskell`, `rebase_relative_paths`,
-`gutenberg`, `raw_markdown`.
+`gutenberg`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
 
 ---

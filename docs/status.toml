@@ -781,7 +781,6 @@ recognized-not-modeled = [
   "literate_haskell",
   "rebase_relative_paths",
   "gutenberg",
-  "raw_markdown",
 ]
 
 [[feature]]

@@ -6,7 +6,7 @@ use carta_ast::{
     ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target, ToCompactString,
 };
 use carta_core::media::{base64_decode, content_addressed_name};
-use carta_core::{Error, MediaBag, Reader, ReaderOptions, Result};
+use carta_core::{Error, Extension, MediaBag, Reader, ReaderOptions, Result};
 use serde_json::{Map, Value};
 
 use crate::commonmark::CommonmarkReader;
@@ -478,24 +478,31 @@ fn is_integer_literal(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
 }
 
-/// A markdown cell's blocks: its source parsed as Markdown with the reader's extensions, then with
-/// `attachment:` image references rewritten to the cell-scoped name `<cell id>-<reference>`. A cell
-/// that carries no `id` field leaves the bare reference in place.
+/// Retain Markdown source or parse it, keeping cell-scoped attachments in the media bag.
+/// Parsed image targets use `<cell id>-<reference>` when the cell has an id.
 fn markdown_cell_blocks(
     cell: &Value,
     options: &ReaderOptions,
     media: &mut MediaBag,
 ) -> Result<Vec<Block>> {
     let source = multiline_text(cell.get("source"));
+    let prefix = cell
+        .get("id")
+        .map(|id| format!("{}-", id.as_str().unwrap_or_default()));
+    capture_attachments(cell, prefix.as_deref(), media);
+    if options.extensions.contains(Extension::RawMarkdown)
+        && cell.get("cell_type").and_then(Value::as_str) == Some("markdown")
+    {
+        return Ok(vec![Block::RawBlock(
+            Format("markdown".into()),
+            source.into(),
+        )]);
+    }
     let mut markdown_options = ReaderOptions::default();
     markdown_options.extensions = options.extensions;
     // Markdown cells use the broad dialect (greedy paragraphs), not strict CommonMark.
     markdown_options.greedy_paragraphs = true;
     let mut blocks = CommonmarkReader.read(&source, &markdown_options)?.blocks;
-    let prefix = cell
-        .get("id")
-        .map(|id| format!("{}-", id.as_str().unwrap_or_default()));
-    capture_attachments(cell, prefix.as_deref(), media);
     let prefix = prefix.as_deref().unwrap_or_default();
     carta_core::walk::for_each_image_target(&mut blocks, &mut |target| {
         if let Some(bare) = target.url.strip_prefix("attachment:") {
