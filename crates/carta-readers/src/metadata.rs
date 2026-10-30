@@ -20,7 +20,7 @@ fn scalar_options() -> ReaderOptions {
 /// # Errors
 /// [`carta_core::Error::InvalidMetadata`] if the content is not a valid JSON object.
 pub fn parse_json(content: &str) -> Result<BTreeMap<String, MetaValue>> {
-    crate::commonmark::parse_metadata_json(content, &scalar_options())
+    parse_file(content, true, &scalar_options())
 }
 
 /// Parse a YAML metadata file (which also accepts single-line JSON) into a metadata map. A file that
@@ -29,7 +29,25 @@ pub fn parse_json(content: &str) -> Result<BTreeMap<String, MetaValue>> {
 /// # Errors
 /// [`carta_core::Error::InvalidMetadata`] if the content is not valid YAML.
 pub fn parse_yaml(content: &str) -> Result<BTreeMap<String, MetaValue>> {
-    crate::commonmark::parse_metadata_yaml(content, &scalar_options())
+    parse_file(content, false, &scalar_options())
+}
+
+/// Parse a metadata file with the selected Markdown reader options.
+///
+/// `json` selects JSON; otherwise the content is read as YAML.
+///
+/// # Errors
+/// [`carta_core::Error::InvalidMetadata`] if the content is not valid metadata.
+pub fn parse_file(
+    content: &str,
+    json: bool,
+    options: &ReaderOptions,
+) -> Result<BTreeMap<String, MetaValue>> {
+    if json {
+        crate::commonmark::parse_metadata_json(content, options)
+    } else {
+        crate::commonmark::parse_metadata_yaml(content, options)
+    }
 }
 
 #[cfg(test)]

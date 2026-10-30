@@ -722,18 +722,9 @@ fn read_metadata_files(paths: &[PathBuf], from: &str) -> Result<BTreeMap<String,
     for path in paths {
         let content = fs::read_to_string(path)?;
         let json = path.extension().and_then(|ext| ext.to_str()) == Some("json");
-        for (key, value) in carta::parse_metadata_file(&content, json)? {
+        for (key, value) in carta::parse_metadata_file_for_format(&content, json, from)? {
             defaults.insert(key, value);
         }
-    }
-    if !defaults.is_empty()
-        && carta::format_extensions(Some(from))?
-            .into_iter()
-            .any(|(extension, enabled)| {
-                enabled && extension == carta_core::Extension::EastAsianLineBreaks
-            })
-    {
-        carta_core::drop_metadata_wide_breaks(defaults.values_mut());
     }
     Ok(defaults)
 }

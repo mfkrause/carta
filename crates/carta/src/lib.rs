@@ -274,6 +274,38 @@ pub fn parse_metadata_file(
     }
 }
 
+/// Parse a metadata file using the document's Markdown variant and extension toggles.
+///
+/// Non-Markdown input formats use the default Markdown dialect. East Asian line-break handling
+/// applies to parsed metadata for every input format.
+///
+/// # Errors
+/// Propagates format-specifier errors and [`Error::InvalidMetadata`] for invalid metadata.
+#[cfg(feature = "metadata-file")]
+#[cfg_attr(docsrs, doc(cfg(feature = "metadata-file")))]
+pub fn parse_metadata_file_for_format(
+    content: &str,
+    json: bool,
+    format: &str,
+) -> Result<std::collections::BTreeMap<String, ast::MetaValue>> {
+    let (base, extensions) = format_spec::parse_reader_format_spec(format)?;
+    let mut options = ReaderOptions::default();
+    if base.starts_with("markdown")
+        || matches!(base.as_str(), "commonmark" | "commonmark_x" | "gfm")
+    {
+        options.extensions = extensions;
+        options.greedy_paragraphs = base.starts_with("markdown");
+    } else {
+        options.extensions = presets::MARKDOWN;
+        options.greedy_paragraphs = true;
+    }
+    let mut metadata = carta_readers::metadata::parse_file(content, json, &options)?;
+    if extensions.contains(Extension::EastAsianLineBreaks) {
+        carta_core::drop_metadata_wide_breaks(metadata.values_mut());
+    }
+    Ok(metadata)
+}
+
 /// Lists the extensions a `format` admits, each paired with whether it is enabled by default.
 ///
 /// The default state reflects the format's reading defaults, or its writing defaults where it only

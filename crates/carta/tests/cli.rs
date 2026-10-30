@@ -1218,6 +1218,14 @@ fn metadata_file_honors_east_asian_breaks_and_keeps_literal_overrides() {
             "markdown-east_asian_line_breaks",
             serde_json::json!([{"t":"Str","c":"中"},{"t":"SoftBreak"},{"t":"Str","c":"文"}]),
         ),
+        (
+            "markdown+east_asian_line_breaks+hard_line_breaks",
+            serde_json::json!([{"t":"Str","c":"中"},{"t":"LineBreak"},{"t":"Str","c":"文"}]),
+        ),
+        (
+            "markdown+east_asian_line_breaks+ignore_line_breaks",
+            serde_json::json!([{"t":"Str","c":"中文"}]),
+        ),
     ] {
         let result = run(
             &[
@@ -1236,6 +1244,52 @@ fn metadata_file_honors_east_asian_breaks_and_keeps_literal_overrides() {
         let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
         assert_eq!(document["meta"]["title"]["c"][0]["c"], expected);
         assert_eq!(document["meta"]["literal"]["c"], "中\n文");
+    }
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-json",
+    feature = "metadata-file"
+))]
+#[test]
+fn metadata_files_use_the_selected_markdown_variant() {
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    for (extension, source) in [
+        ("yaml", "script: 'x^2^'\ncode: '`  code  `'\n"),
+        ("json", r#"{"script":"x^2^","code":"`  code  `"}"#),
+    ] {
+        let path = directory.join(format!("variant-metadata.{extension}"));
+        fs::write(&path, source).unwrap();
+        for (format, superscript, code) in [
+            ("markdown", true, "code"),
+            ("markdown-superscript", false, "code"),
+            ("markdown_mmd", true, "code"),
+            ("commonmark", false, " code "),
+            ("commonmark_x", true, " code "),
+            ("gfm", false, " code "),
+        ] {
+            let result = run(
+                &[
+                    "-f",
+                    format,
+                    "-t",
+                    "json",
+                    "--metadata-file",
+                    path.to_str().unwrap(),
+                ],
+                "body\n",
+            );
+            assert!(result.success, "{}", result.stderr);
+            let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+            let script = if superscript {
+                serde_json::json!([{"t":"Str","c":"x"},{"t":"Superscript","c":[{"t":"Str","c":"2"}]}])
+            } else {
+                serde_json::json!([{"t":"Str","c":"x^2^"}])
+            };
+            assert_eq!(document["meta"]["script"]["c"], script, "{format}");
+            assert_eq!(document["meta"]["code"]["c"][0]["c"][1], code, "{format}");
+        }
     }
 }
 
