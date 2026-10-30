@@ -252,7 +252,8 @@ impl Parser {
                 {
                     IrBlock::RawBlock(Format(format.into()), text)
                 } else {
-                    IrBlock::CodeBlock(fence_attr(&fence.info, self.extensions), text)
+                    let attr = fence_attr(&fence.info, self.extensions, self.greedy_paragraphs)?;
+                    IrBlock::CodeBlock(attr, text)
                 }
             }
             Kind::HtmlBlock(kind) => IrBlock::RawHtml(self.finalize_html_block(node, *kind)),

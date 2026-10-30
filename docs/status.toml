@@ -830,10 +830,6 @@ description = '''Inline `\command{…}[…]` consumes every group that follows i
 names = ["citations"]
 description = "An abbreviation-led citation suffix such as `p. 5` is a single string in the dialect (a non-breaking space follows the period); carta splits it into separate tokens."
 
-[[extensions.gap]]
-names = ["attributes"]
-description = "An attribute spec `{…}` containing a backslash escape is void in the dialect (it stays literal text) whereas carta accepts the backslash into the id, class, or value."
-
 [[feature]]
 name = "Standalone output + templates (`-s`, `--template`)"
 status = "usable"

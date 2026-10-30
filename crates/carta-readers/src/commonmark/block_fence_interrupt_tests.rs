@@ -33,6 +33,44 @@ fn a_backtick_fence_still_interrupts_a_paragraph() {
 }
 
 #[test]
+fn fenced_attributes_validate_before_decoding_escapes() {
+    let extensions = Extensions::from_list(&[
+        Extension::BacktickCodeBlocks,
+        Extension::FencedCodeAttributes,
+        Extension::Attributes,
+    ]);
+    let source = "```{#a\\_b}\nword\n```\n";
+    let markdown = parse(source, extensions, true).0;
+    assert!(matches!(markdown.as_slice(), [IrBlock::Para(_)]));
+    let commonmark = parse(source, extensions, false).0;
+    assert!(
+        matches!(commonmark.as_slice(), [IrBlock::CodeBlock(attr, text)]
+        if attr.id == "a_b" && text == "word")
+    );
+    for markdown in [false, true] {
+        let source = "```{key=\"a\\\\b\"}\nword\n```\n";
+        let out = parse(source, extensions, markdown).0;
+        assert!(matches!(out.as_slice(), [IrBlock::CodeBlock(attr, _)]
+            if attr.attributes == [("key".into(), "a\\b".into())]));
+    }
+    for (markdown, language) in [(true, "py\\+x"), (false, "py+x")] {
+        let out = parse("```py\\+x\nword\n```\n", extensions, markdown).0;
+        assert!(matches!(out.as_slice(), [IrBlock::CodeBlock(attr, _)]
+            if attr.classes == [language]));
+    }
+    for (markdown, classes) in [(true, ["python", "valid"]), (false, ["valid", "python"])] {
+        let out = parse("```python {.valid}\nword\n```\n", extensions, markdown).0;
+        assert!(matches!(out.as_slice(), [IrBlock::CodeBlock(attr, _)]
+            if attr.classes == classes));
+    }
+    for info in ["python {#a\\b}", "\\{#name\\}", "python extra"] {
+        let source = format!("```{info}\nword\n```\n");
+        let out = parse(&source, extensions, true).0;
+        assert!(matches!(out.as_slice(), [IrBlock::Para(_)]), "{info}");
+    }
+}
+
+#[test]
 fn an_opener_after_a_non_interrupting_tilde_still_fires() {
     let out = md(
         "text\n~~~\n# h\n~~~\nmore\n",

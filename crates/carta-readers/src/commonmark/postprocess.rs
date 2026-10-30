@@ -2,12 +2,14 @@
 //! environment scanning, list-marker classification, fenced div and alert recognition, and
 //! leaf-text cleanup.
 
+use std::borrow::Cow;
+
 use carta_ast::{Attr, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::block::ListInfo;
 use super::cursor::ListMarkerParse;
-use super::{ExampleMap, IrBlock, attr, texttable};
+use super::{ExampleMap, IrBlock, attr, scan, texttable};
 
 /// Tighten an HTML element's final content block from `Para` to `Plain` when no blank line
 /// separated it from the close tag.
@@ -340,28 +342,64 @@ pub(super) fn is_format_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
 }
 
-pub(super) fn fence_attr(info: &str, extensions: Extensions) -> Attr {
+/// Parse a fence's language and attributes, rejecting malformed Markdown info strings.
+pub(super) fn fence_attr(info: &str, extensions: Extensions, markdown: bool) -> Option<Attr> {
+    let info = if markdown {
+        Cow::Borrowed(info)
+    } else {
+        Cow::Owned(scan::unescape_string(info))
+    };
     let info = info.trim();
     if info.is_empty() {
-        return Attr::default();
+        return Some(Attr::default());
     }
-    // The whole info string must be the `{…}` attribute block, else bare-language reading applies.
-    if (extensions.contains(Extension::FencedCodeAttributes)
-        || extensions.contains(Extension::Attributes))
-        && info.starts_with('{')
-        && let Some((parsed, consumed)) = attr::parse_attributes(info)
-        && info
-            .get(consumed..)
-            .is_some_and(|rest| rest.trim().is_empty())
+    let fallback = || {
+        (!markdown
+            || !info
+                .chars()
+                .any(|ch| ch.is_whitespace() || matches!(ch, '{' | '}')))
+        .then(|| Attr {
+            classes: info
+                .split_whitespace()
+                .next()
+                .map(Into::into)
+                .into_iter()
+                .collect(),
+            ..Attr::default()
+        })
+    };
+    if !extensions.contains(Extension::FencedCodeAttributes)
+        && !extensions.contains(Extension::Attributes)
     {
-        return parsed;
+        return fallback();
     }
-    let language = info.split_whitespace().next().unwrap_or("");
-    Attr {
-        id: carta_ast::Text::default(),
-        classes: vec![language.into()],
-        attributes: Vec::new(),
+    let split = info
+        .find(|ch: char| ch.is_whitespace() || ch == '{')
+        .unwrap_or(info.len());
+    let (language, tail) = info.split_at_checked(split)?;
+    let mut rest = tail.trim_start();
+    if rest.is_empty() || language.contains('}') {
+        return fallback();
     }
+    let mut attributes = Attr::default();
+    while !rest.is_empty() {
+        let Some((parsed, end)) = attr::parse_attributes_bytes(rest, 0, markdown) else {
+            return fallback();
+        };
+        attr::merge(&mut attributes, parsed);
+        rest = rest.get(end..)?.trim_start();
+        if markdown && !rest.is_empty() {
+            return None;
+        }
+    }
+    if !language.is_empty() {
+        if markdown {
+            attributes.classes.insert(0, language.into());
+        } else {
+            attributes.classes.push(language.into());
+        }
+    }
+    Some(attributes)
 }
 
 /// If `line` (already past any container markers and leading indent) opens a fenced div (a run of

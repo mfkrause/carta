@@ -4,7 +4,7 @@
 
 use carta_ast::Attr;
 
-use super::scan::char_at;
+use super::scan::{char_at, is_ascii_punctuation};
 
 /// Which identifier survives when an attribute block carries more than one `#id` token.
 #[derive(Clone, Copy)]
@@ -19,25 +19,31 @@ pub(crate) enum IdPolicy {
 /// [`Attr`] and the number of bytes consumed (both braces included), or `None` when `s` does not open
 /// a well-formed block (a bare-word token, or no closing brace). A repeated `#id` keeps the last.
 pub(crate) fn parse_attributes(s: &str) -> Option<(Attr, usize)> {
-    parse_attributes_bytes_with(s, 0, IdPolicy::Last)
+    parse_attributes_bytes_with(s, 0, IdPolicy::Last, true)
 }
 
 /// Like [`parse_attributes`], but a repeated `#id` keeps the first.
 pub(crate) fn parse_attributes_first_id(s: &str) -> Option<(Attr, usize)> {
-    parse_attributes_bytes_with(s, 0, IdPolicy::First)
+    parse_attributes_bytes_with(s, 0, IdPolicy::First, true)
 }
 
 /// Parse an attribute block at byte offset `start` in `text`, which must begin with `{`. Returns the
 /// parsed [`Attr`] and the byte offset just past the closing brace, or `None` when the block is not
 /// well-formed (a bare-word token, or no closing brace). A repeated `#id` keeps the last.
-pub(crate) fn parse_attributes_bytes(text: &str, start: usize) -> Option<(Attr, usize)> {
-    parse_attributes_bytes_with(text, start, IdPolicy::Last)
+/// `unescape_values` removes backslashes before ASCII punctuation in attribute values.
+pub(crate) fn parse_attributes_bytes(
+    text: &str,
+    start: usize,
+    unescape_values: bool,
+) -> Option<(Attr, usize)> {
+    parse_attributes_bytes_with(text, start, IdPolicy::Last, unescape_values)
 }
 
 fn parse_attributes_bytes_with(
     text: &str,
     start: usize,
     policy: IdPolicy,
+    unescape_values: bool,
 ) -> Option<(Attr, usize)> {
     if char_at(text, start) != Some('{') {
         return None;
@@ -55,7 +61,7 @@ fn parse_attributes_bytes_with(
             Some('#') => {
                 index += 1;
                 let id = read_token(text, &mut index);
-                if id.is_empty() {
+                if id.is_empty() || id.contains('\\') {
                     return None;
                 }
                 if matches!(policy, IdPolicy::Last) || attr.id.is_empty() {
@@ -65,18 +71,18 @@ fn parse_attributes_bytes_with(
             Some('.') => {
                 index += 1;
                 let class = read_token(text, &mut index);
-                if class.is_empty() {
+                if class.is_empty() || class.contains('\\') {
                     return None;
                 }
                 attr.classes.push(class.into());
             }
             Some(_) => {
                 let key = read_key(text, &mut index);
-                if key.is_empty() || char_at(text, index) != Some('=') {
+                if key.is_empty() || key.contains('\\') || char_at(text, index) != Some('=') {
                     return None;
                 }
                 index += 1;
-                let value = read_value(text, &mut index);
+                let value = read_value(text, &mut index, unescape_values);
                 attr.attributes.push((key.into(), value.into()));
             }
         }
@@ -136,30 +142,34 @@ fn read_key(text: &str, index: &mut usize) -> String {
     out
 }
 
-/// Read a value: a quoted string (with backslash escapes) or a bare run up to whitespace/`}`.
-fn read_value(text: &str, index: &mut usize) -> String {
-    match char_at(text, *index) {
-        Some(quote @ ('"' | '\'')) => {
-            *index += 1;
-            let mut out = String::new();
-            while let Some(ch) = char_at(text, *index) {
-                if ch == '\\'
-                    && let Some(escaped) = char_at(text, *index + 1)
-                {
-                    out.push(escaped);
-                    *index += 1 + escaped.len_utf8();
-                    continue;
-                }
-                *index += ch.len_utf8();
-                if ch == quote {
-                    break;
-                }
-                out.push(ch);
-            }
-            out
-        }
-        _ => read_token(text, index),
+/// Read a quoted or bare value, optionally removing backslashes before ASCII punctuation.
+fn read_value(text: &str, index: &mut usize, unescape_values: bool) -> String {
+    let quote = char_at(text, *index).filter(|ch| matches!(ch, '"' | '\''));
+    if quote.is_some() {
+        *index += 1;
     }
+    let mut out = String::new();
+    while let Some(ch) = char_at(text, *index) {
+        if Some(ch) == quote {
+            *index += ch.len_utf8();
+            break;
+        }
+        if quote.is_none() && is_token_end(ch) {
+            break;
+        }
+        if unescape_values
+            && ch == '\\'
+            && let Some(escaped) = char_at(text, *index + 1)
+            && is_ascii_punctuation(escaped)
+        {
+            out.push(escaped);
+            *index += 1 + escaped.len_utf8();
+            continue;
+        }
+        out.push(ch);
+        *index += ch.len_utf8();
+    }
+    out
 }
 
 #[cfg(test)]
@@ -241,6 +251,32 @@ mod tests {
         assert!(parse_attributes("{foo}").is_none());
         assert!(parse_attributes("{#x foo}").is_none());
         assert!(parse_attributes("{.a !!}").is_none());
+    }
+
+    #[test]
+    fn backslashes_in_names_invalidate_attributes() {
+        for source in [r"{#a\b}", r"{.a\b}", r"{k\b=v}", r"{.valid #a\_b}"] {
+            assert!(parse_attributes(source).is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn quoted_values_keep_backslashes_before_letters() {
+        assert_eq!(
+            attr(r#"{title="a\qb\_c"}"#).0.attributes,
+            [("title".into(), "a\\qb_c".into())]
+        );
+    }
+
+    #[test]
+    fn value_escapes_depend_on_the_dialect() {
+        for source in [r"{key=a\*b}", r#"{key="a\*b"}"#] {
+            let (escaped, _) = super::parse_attributes_bytes(source, 0, true).unwrap();
+            let (literal, _) = super::parse_attributes_bytes(source, 0, false).unwrap();
+            assert_eq!(escaped.attributes, [("key".into(), "a*b".into())]);
+            assert_eq!(literal.attributes, [("key".into(), "a\\*b".into())]);
+        }
+        assert!(super::parse_attributes_bytes(r#"{key="a\"b"}"#, 0, false).is_none());
     }
 
     #[test]

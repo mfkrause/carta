@@ -125,7 +125,8 @@ impl<'a> InlineParser<'a> {
         if self.notes.markdown
             && self.ext.contains(Extension::LinkAttributes)
             && !self.ext.contains(Extension::BracketedSpans)
-            && let Some((_, next)) = attr::parse_attributes_bytes(self.text, self.pos)
+            && let Some((_, next)) =
+                attr::parse_attributes_bytes(self.text, self.pos, self.notes.markdown)
         {
             self.pos = next;
         }
@@ -299,8 +300,11 @@ impl<'a> InlineParser<'a> {
     /// [`Attr`], with the position past the last block. An empty block (`{}`) alone is not consumed;
     /// a space between blocks ends the run.
     fn scan_attr_block(&self) -> Option<(Attr, usize)> {
-        let (mut merged, mut next) = attr::parse_attributes_bytes(self.text, self.pos)?;
-        while let Some((more, after)) = attr::parse_attributes_bytes(self.text, next) {
+        let (mut merged, mut next) =
+            attr::parse_attributes_bytes(self.text, self.pos, self.notes.markdown)?;
+        while let Some((more, after)) =
+            attr::parse_attributes_bytes(self.text, next, self.notes.markdown)
+        {
             attr::merge(&mut merged, more);
             next = after;
         }

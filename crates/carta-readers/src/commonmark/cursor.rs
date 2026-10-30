@@ -2,11 +2,11 @@
 
 use carta_ast::{ListNumberDelim, ListNumberStyle};
 
-use super::{TAB_STOP, scan};
+use super::TAB_STOP;
 use crate::roman::roman_value_strict;
 
 /// A parsed fenced-code opener: its marker byte, the run length, the opener's indentation, and the
-/// trimmed (and unescaped) info string.
+/// trimmed info string.
 #[derive(Debug, Clone)]
 pub(super) struct FenceInfo {
     pub(super) marker: u8,
@@ -334,7 +334,7 @@ impl<'a> Cursor<'a> {
             marker,
             length,
             indent,
-            info: scan::unescape_string(info.trim()),
+            info: info.trim().to_owned(),
         })
     }
 

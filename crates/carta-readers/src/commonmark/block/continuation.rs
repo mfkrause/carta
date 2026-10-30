@@ -2,6 +2,7 @@
 
 use super::{
     Continue, Cursor, Extension, FenceInfo, GreedyGates, ItemInfo, Kind, Parser, TAB_STOP,
+    fence_attr, raw_block_format,
 };
 
 impl Parser {
@@ -163,12 +164,8 @@ impl Parser {
         }
     }
 
-    /// Whether a scanned code fence actually opens a fenced code block. Pure `CommonMark` always
-    /// recognizes a fence. The Markdown dialect instead gates each fence character on its own
-    /// extension (a backtick fence on `backtick_code_blocks`, a tilde fence on `fenced_code_blocks`)
-    /// and, lacking any extension that gives a richer info string meaning, requires the info string
-    /// to be a single bare language token: an info string carrying inner whitespace or a brace then
-    /// names no language and the fence is left to fold into a paragraph.
+    /// Check the fence marker and info string for the active dialect.
+    /// `CommonMark` accepts any info string; Markdown requires a valid language or attributes.
     pub(super) fn fence_opener_accepted(&self, fence: &FenceInfo) -> bool {
         if !self.greedy_paragraphs {
             return true;
@@ -181,18 +178,9 @@ impl Parser {
         if !marker_allowed {
             return false;
         }
-        // Only attribute or raw-output extensions permit non-bare info strings.
-        if self.extensions.contains(Extension::FencedCodeAttributes)
-            || self.extensions.contains(Extension::Attributes)
-            || self.extensions.contains(Extension::RawAttribute)
-        {
-            return true;
-        }
-        !fence
-            .info
-            .trim()
-            .chars()
-            .any(|ch| ch.is_whitespace() || ch == '{' || ch == '}')
+        (self.extensions.contains(Extension::RawAttribute)
+            && raw_block_format(&fence.info).is_some())
+            || fence_attr(&fence.info, self.extensions, true).is_some()
     }
 
     /// Check for a closing code fence within the same container.

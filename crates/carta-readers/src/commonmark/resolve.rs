@@ -703,7 +703,11 @@ pub(super) fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
                 let preceded_by_space =
                     start == 0 || char_before(trimmed, start).is_some_and(is_unicode_whitespace);
                 if preceded_by_space
-                    && let Some((attr, end)) = attr::parse_attributes_bytes(trimmed, start)
+                    && let Some((attr, end)) = attr::parse_attributes_bytes(
+                        trimmed,
+                        start,
+                        !ext.contains(Extension::Attributes),
+                    )
                     && end == trimmed.len()
                     && attr::is_non_empty(&attr)
                 {
