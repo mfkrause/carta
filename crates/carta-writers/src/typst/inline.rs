@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use carta_ast::{Attr, Block, Inline, Target, to_plain_text};
 use carta_core::WrapMode;
 
-use crate::common::display_width;
+use crate::common::{display_width, word_line_metrics};
 
 use super::escape::{
     escape_string, escape_text, image_call, inline_code, math, quote_marks, raw_inline_passthrough,
@@ -18,8 +18,7 @@ pub(super) fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode, smart
 }
 
 /// Render inline content without wrapping, single-spacing the breakable units (nested markup
-/// context, where the surrounding construct controls layout). A nested footnote's body still
-/// reflows per the document `wrap`.
+/// context, where the surrounding construct controls layout).
 pub(super) fn inline_run(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
     let mut out = String::new();
     for fragment in fragments(items, width, wrap, smart) {
@@ -108,6 +107,12 @@ pub(super) fn fragments(
                 )));
                 first_inline = false;
             }
+            Inline::Note(items) => {
+                out.push(Fragment::Atom("#footnote[".to_owned()));
+                out.extend(block_fragments(items, width, wrap, smart));
+                out.push(Fragment::Atom("]".to_owned()));
+                first_inline = false;
+            }
             other => {
                 let rendered = inline(other, width, wrap, smart);
                 if !rendered.is_empty() {
@@ -117,6 +122,65 @@ pub(super) fn fragments(
             }
         }
         after_space = next_after_space;
+    }
+    let mut grouped = Vec::new();
+    for fragment in out {
+        if let (
+            Some(Fragment::Text(previous) | Fragment::Atom(previous)),
+            Fragment::Text(text) | Fragment::Atom(text),
+        ) = (grouped.last_mut(), &fragment)
+            && !previous.ends_with('\n')
+        {
+            previous.push_str(text);
+        } else {
+            grouped.push(fragment);
+        }
+    }
+    grouped
+}
+
+fn block_fragments(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> Vec<Fragment> {
+    let mut out = Vec::new();
+    let mut previous: Option<&Block> = None;
+    for item in items {
+        let mut rendered = match item {
+            Block::Plain(inlines) | Block::Para(inlines) => fragments(inlines, width, wrap, smart),
+            Block::BlockQuote(items) => {
+                let mut body = vec![Fragment::Atom("#quote(block: true)[\n".to_owned())];
+                body.extend(block_fragments(items, width, wrap, smart));
+                body.push(Fragment::Atom("\n]".to_owned()));
+                body
+            }
+            _ => {
+                let text = super::block(item, width, wrap, smart);
+                if text.is_empty() {
+                    continue;
+                }
+                vec![Fragment::Atom(text)]
+            }
+        };
+        while matches!(rendered.last(), Some(Fragment::Space | Fragment::Soft)) {
+            rendered.pop();
+        }
+        if let Some(Fragment::Text(text)) = rendered
+            .iter_mut()
+            .find(|fragment| !matches!(fragment, Fragment::Space | Fragment::Soft))
+        {
+            *text = escape_open_marker(text);
+        }
+        if rendered.is_empty() {
+            continue;
+        }
+        if let Some(previous) = previous {
+            let separator = if matches!(previous, Block::Header(..) | Block::Plain(_)) {
+                "\n"
+            } else {
+                "\n\n"
+            };
+            out.push(Fragment::Atom(separator.to_owned()));
+        }
+        out.extend(rendered);
+        previous = Some(item);
     }
     out
 }
@@ -269,7 +333,8 @@ fn fill_with(
             }
             Fragment::Text(text) | Fragment::Atom(text) => {
                 let escapable = matches!(fragment, Fragment::Text(_));
-                let word_width = display_width(text);
+                let (word_width, multiline, last_width) =
+                    word_line_metrics(&[text], display_width(text));
                 let trailing = if Some(position) == last_word { glue } else { 0 };
                 if at_line_start {
                     push_word(&mut out, text, escapable, physical_line_start);
@@ -289,6 +354,11 @@ fn fill_with(
                     column += word_width;
                 }
                 pending_space = false;
+                if multiline {
+                    column = indent + last_width;
+                    at_line_start = last_width == 0;
+                    physical_line_start = last_width == 0;
+                }
             }
         }
     }

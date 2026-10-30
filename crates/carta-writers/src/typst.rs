@@ -254,7 +254,7 @@ fn enum_numbering(attrs: &ListAttributes) -> String {
 /// Render one list item: the marker on its first line, with every continuation line indented to
 /// align under the marker's text column.
 fn list_item(marker: &str, item: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
-    let body = blocks(item, width, wrap, smart);
+    let body = blocks(item, width.saturating_sub(marker.len()), wrap, smart);
     if body.is_empty() {
         return marker.trim_end().to_owned();
     }

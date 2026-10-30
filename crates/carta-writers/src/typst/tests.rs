@@ -297,6 +297,99 @@ fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
     TypstWriter.write(&document, &options).unwrap()
 }
 
+#[test]
+fn footnotes_share_the_surrounding_line_width() {
+    for (body, expected) in [
+        (
+            vec![para(vec![
+                str_inline("alpha"),
+                Inline::Space,
+                str_inline("beta"),
+                Inline::Space,
+                str_inline("gamma"),
+            ])],
+            "A\nnote#footnote[alpha\nbeta gamma] follows.",
+        ),
+        (
+            vec![
+                para(vec![str_inline("alpha"), Inline::Space, str_inline("beta")]),
+                para(vec![
+                    str_inline("gamma"),
+                    Inline::Space,
+                    str_inline("delta"),
+                ]),
+            ],
+            "A\nnote#footnote[alpha\nbeta\n\ngamma delta]\nfollows.",
+        ),
+    ] {
+        let output = render_columns(
+            vec![para(vec![
+                str_inline("A"),
+                Inline::Space,
+                str_inline("note"),
+                Inline::Note(body),
+                Inline::Space,
+                str_inline("follows."),
+            ])],
+            20,
+        );
+        assert_eq!(output, expected);
+    }
+}
+
+#[test]
+fn footnote_paragraphs_keep_line_markers_literal() {
+    for marker in ["-", "+", "=", "/"] {
+        let output = render_columns(
+            vec![para(vec![Inline::Note(vec![
+                para(vec![str_inline("first")]),
+                para(vec![str_inline(marker), Inline::Space, str_inline("word")]),
+            ])])],
+            20,
+        );
+        assert_eq!(output, format!("#footnote[first\n\n\\{marker} word]"));
+    }
+}
+
+#[test]
+fn heading_footnotes_keep_paragraphs_unwrapped_and_markers_literal() {
+    let output = render_columns(
+        vec![Block::Header(
+            1,
+            Box::default(),
+            vec![Inline::Note(vec![
+                para(vec![
+                    str_inline("alpha"),
+                    Inline::Space,
+                    str_inline("beta"),
+                    Inline::Space,
+                    str_inline("gamma"),
+                    Inline::Space,
+                    str_inline("delta"),
+                ]),
+                para(vec![str_inline("-"), Inline::Space, str_inline("word")]),
+            ])],
+        )],
+        12,
+    );
+    assert_eq!(output, "= #footnote[alpha beta gamma delta\n\n\\- word]");
+}
+
+#[test]
+fn list_markers_reduce_the_available_width() {
+    let output = render_columns(
+        vec![Block::BulletList(vec![vec![Block::Plain(vec![
+            str_inline("alpha"),
+            Inline::Space,
+            str_inline("beta"),
+            Inline::Space,
+            str_inline("gamma"),
+        ])]])],
+        17,
+    );
+    assert_eq!(output, "- alpha beta\n  gamma");
+}
+
 fn many_words() -> Vec<Block> {
     let words: Vec<Inline> = std::iter::repeat_n(
         [str_inline("word"), Inline::Space]
