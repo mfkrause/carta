@@ -145,6 +145,11 @@ pub(super) fn n_ary_element(
     style: Style,
     depth: usize,
 ) -> Option<Element> {
+    let limit_location = match atom.limits {
+        Some(true) => "undOvr",
+        Some(false) => "subSup",
+        None => limit_location,
+    };
     let properties = Element::new("m:naryPr")
         .child(Element::new("m:chr").attr("m:val", glyph.to_string()))
         .child(Element::new("m:limLoc").attr("m:val", limit_location))

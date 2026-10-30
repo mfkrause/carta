@@ -259,3 +259,31 @@ fn modulo_operands_keep_display_limits_and_empty_groups() {
         assert!(empty.contains("<m:t>\u{200B}</m:t>"));
     }
 }
+
+#[test]
+fn explicit_limit_placement_overrides_display_defaults() {
+    for display in [false, true] {
+        for (source, placement) in [
+            ("\\int\\limits_0^1 x", "undOvr"),
+            ("\\sum\\nolimits_i^n x", "subSup"),
+            ("\\int\\limits\\nolimits_0^1 x", "subSup"),
+        ] {
+            let xml = to_omml(source, display).unwrap();
+            assert!(
+                xml.contains(&format!("<m:limLoc m:val=\"{placement}\" />")),
+                "{source}"
+            );
+        }
+        for (source, stacked) in [
+            ("\\max\\limits_x f", true),
+            ("\\lim\\nolimits_x f", false),
+            ("\\bigcup\\limits_i A", true),
+            ("\\bigcup\\nolimits_i A", false),
+            ("\\bigoplus\\limits_i A", true),
+        ] {
+            let xml = to_omml(source, display).unwrap();
+            assert_eq!(xml.contains("<m:limLow>"), stacked, "{source}");
+            assert_eq!(xml.contains("<m:sSub>"), !stacked, "{source}");
+        }
+    }
+}

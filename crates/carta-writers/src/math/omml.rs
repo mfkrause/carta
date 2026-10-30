@@ -365,10 +365,11 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
 fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
     let mut base = nucleus(&atom.body, style, depth, display)?;
     let mut runs = atom.script_runs();
-    // Display limit operators place scripts above and below the base.
-    if display
-        && atom.siblings.is_empty()
-        && stacks_display_limits(&atom.body)
+    // Explicit modifiers override the operator's display placement.
+    if atom.siblings.is_empty()
+        && atom
+            .limits
+            .unwrap_or(display && stacks_display_limits(&atom.body))
         && (atom.sub.is_some() || atom.sup.is_some())
     {
         return Some(vec![stacked_limits(

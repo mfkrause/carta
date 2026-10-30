@@ -477,7 +477,6 @@ read-gaps = [
 ]
 write-gaps = [
   '''`\overparen` and `\underparen` render as their raw dollar-delimited text rather than a group-character parenthesis set over or under the base.''',
-  '''The `\limits` and `\nolimits` modifiers on a big operator or integral are ignored, so limit placement stays at the operator's default (an integral keeps side scripts, a sum keeps under/over scripts).''',
   '''`\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the surrounding spacing differs.''',
 ]
 
