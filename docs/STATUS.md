@@ -215,7 +215,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `revealjs` ✅
 
 ### `latex` ✅
-- A table nested in a cell cannot split across pages.
 - `data:` images are used as graphics filenames rather than decoded.
 
 ### `pdf` 🚧
