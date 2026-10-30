@@ -5,6 +5,338 @@ All notable changes to carta are documented in this file.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.13](https://github.com/mfkrause/carta/compare/v0.0.12...v0.0.13) - 2026-10-30
+
+### Added
+
+- *(cli)* accept typed JSON template variables
+- *(cli)* scope footnotes and identifiers per input file
+- *(html)* support TeX image services
+- *(writers)* support literate code without dropping content
+- *(readers)* preserve literate program sections
+- *(asciidoc)* support modern and legacy output names
+- *(ipynb)* preserve raw Markdown cell source
+- *(markdown)* support wiki links and preserve metadata
+- *(plain)* honor Gutenberg text conventions
+
+### Fixed
+
+- *(html)* place legacy table footers before table bodies
+- *(typst)* honor disabled code highlighting
+- *(docx)* anchor only isolated inline equations
+- *(cli)* preserve defaults variable names
+- *(cli)* preserve precision in JSON template numbers
+- *(cli)* load defaults files in option order
+- *(cli)* let later options replace earlier values
+- *(cli)* resolve scoped links relative to their input files
+- *(markdown)* rebase relative targets by source directory
+- *(epub)* preserve content in XHTML 1.1 fallbacks
+- *(epub)* preserve image assets and descriptions
+- *(cli)* combine binary inputs without losing images
+- *(media)* extract embedded images for TeX output
+- *(asciidoc)* include list markers in wrap widths
+- *(asciidoc)* wrap inline footnote bodies
+- *(writers)* wrap line blocks and preserve verse lines
+- *(html)* render simple math with inline markup
+- *(markdown)* preserve wrapped footnote definitions
+- *(writers)* honor four-column list indentation
+- *(cli)* parse metadata files with the selected Markdown variant
+- *(core)* apply East Asian line break handling to all readers
+- *(highlight)* resolve language aliases and canonical classes
+- *(typst)* preserve title spacing and author details
+- *(docx)* anchor paragraphs ending in inline equations
+- *(docx)* share embedded image resources
+- *(docx)* preserve scoped text direction
+- *(docx)* preserve scoped language properties
+- *(writers)* lay out tables inside quotes
+- *(docbook)* preserve author markup and name spacing
+- *(docbook)* render structured author names
+- *(ipynb)* read version three worksheets and outputs
+- *(rtf)* keep punctuation after control words
+- *(rtf)* preserve formatted metadata and generator fields
+- *(man)* count fallback equations when wrapping lines
+- *(man)* keep list markers inside table cells
+- *(man)* scope list bodies that start with blocks
+- *(man)* render code syntax styles and preserve blank lines
+- *(man)* preserve table cells across row and column spans
+- *(man)* preserve manual citations and small text macros
+- *(man)* classify alphabetic markers and split list styles
+- *(latex)* preserve nested table content and boundaries
+- *(latex)* preserve cells that span table rows
+- *(latex)* separate definition terms from nested lists
+- *(latex)* render checkbox markers in bullet lists
+- *(latex)* preserve content inside raised boxes
+- *(latex)* preserve long table captions and labels
+- *(latex)* resolve references to numbered document targets
+- *(latex)* preserve raw commands and following paragraph text
+- *(markdown)* consume attributes after unresolved bracket groups
+- *(markdown)* preserve attributes in reference definitions
+- *(markdown)* resolve links through explicit header labels
+- *(markdown)* preserve empty script spans and adjacent delimiters
+- *(markdown)* keep task and ordinary bullet items together
+- *(org)* preserve file URLs and absolute image paths
+- *(org)* resolve named links to their declared anchors
+- *(org)* preserve property drawers and heading identifiers
+- *(rst)* apply table widths using source columns
+- *(mediawiki)* preserve HTML flow in nested definition lists
+- *(jira)* preserve list depth in definition bodies
+- *(jira)* preserve list items across block contexts
+- *(dokuwiki)* preserve table structure inside quotes
+- *(dokuwiki)* preserve list structure in table cells
+- *(asciidoc)* separate block content in table cells
+- *(typst)* preserve section boundaries in table captions
+- *(typst)* preserve empty cells and list items
+- *(cli)* accept the ASCII flag for ODT output
+- *(odt)* serialize package XML consistently
+- *(odt)* indent table structure and cell content
+- *(odt)* indent list items and nested content
+- *(odt)* apply explicit syntax highlighting
+- *(odt)* render internal link reference fields
+- *(math)* keep modulo operands inside their operator group
+- *(odt)* order combined text style attributes
+- *(odt)* escape quotes in XML text content
+- *(mathml)* preserve display and text fraction sizes
+- *(odt)* name and reuse numbered list styles
+- *(odt)* emit explicit closing tags for empty cells
+- *(odt)* keep a literal space before preserved runs
+- *(odt)* preserve metadata sequence items
+- *(revealjs)* add a slide-relative table of contents
+- *(odt)* omit paragraphs for empty definition bodies
+- *(odt)* select definition spacing for each entry
+- *(odt)* use loose spacing after an empty first list item
+- *(odt)* retain delimiters when math conversion fails
+- *(odt)* use PNG density when sizing images
+- *(odt)* preserve source heading levels
+- *(odt)* always include the standard formula styles
+- *(odt)* omit the empty scripts element
+- *(revealjs)* number slide titles and body headings
+- *(org)* place nested bullets after definition terms
+- *(org)* separate initial list blocks from their markers
+- *(cli)* infer AsciiDoc for AsciiDoc input files
+- *(writers)* suppress empty headers in text tables
+- *(typst)* keep tight block spacing inside list items
+- *(asciidoc)* preserve list markers before nested blocks
+- *(writers)* preserve tight nested list spacing
+- *(html)* omit empty table headers
+- *(docx)* omit text styles from picture runs
+- *(dokuwiki)* preserve code block trailing breaks
+- *(revealjs)* prefix internal slide links
+- *(beamer)* use presentation targets for internal links
+- *(epub)* package images from data URLs
+- *(media)* decode text payloads in data URLs
+- *(typst)* decode embedded image sources
+- *(odt)* preserve paragraphs with nonempty inline lists
+- *(odt)* require the canonical raw format name
+- *(odt)* number outer footnotes before nested notes
+- *(odt)* omit empty footnote paragraphs
+- *(odt)* omit empty line blocks by default
+- *(odt)* omit empty code blocks
+- *(odt)* use the figure style without a caption
+- *(odt)* preserve block content in captions
+- *(docx)* number empty figure and table captions
+- *(writers)* preserve wrapped table captions
+- *(typst)* preserve code block trailing newlines
+- *(typst)* use label targets for internal links
+- *(dokuwiki)* preserve widths for ordinary multiline cells
+- *(latex)* use tabular for nested tables
+- *(ast)* [**breaking**] release deep trees without recursive drop
+- *(ipynb)* preserve exact numeric values
+- *(ast)* preserve nonfinite column widths in JSON
+- *(core)* traverse deep documents with stack growth
+- *(ast)* grow the stack while encoding deep trees
+- *(media)* preserve percent-encoded binary bytes
+- *(markdown)* honor four-column list continuations when reading
+- *(odt)* use fallback dimensions for damaged PNG images
+- *(odt)* honor East Asian line break settings
+- *(toc)* honor unlisted sections and division boundaries
+- *(typst)* account for copied data and report resource exhaustion
+- *(highlight)* handle deep rule graphs without repeated state scans
+- *(highlight)* detect context cycles without fixed step limits
+- *(markdown)* expand embedded TeX macros in source order
+- *(latex)* keep comments and spacing in macro arguments
+- *(markdown)* preserve escapes and comments in raw TeX groups
+- *(markdown)* preserve standalone TeX macro definitions
+- *(markdown)* preserve raw macro parameter text
+- *(latex)* preserve token order during delayed expansion
+- *(latex)* read delimited macro arguments as balanced tokens
+- *(latex)* preserve token aliases and expand macros in math
+- *(readers)* apply ASCII heading identifiers consistently
+- *(markdown)* discard soft breaks only when requested
+- *(markdown)* honor the angle bracket escape option
+- *(markdown)* honor legacy dash conventions
+- *(markdown)* preserve raw TeX argument boundaries
+- *(markdown)* normalize bare fence language names
+- *(markdown)* keep underscore emphasis inside native spans
+- *(markdown)* preserve raw span tag spelling
+- *(markdown)* bind smart abbreviations in citation affixes
+- *(markdown)* preserve indentation in parsed HTML content
+- *(markdown)* preserve content after unclosed HTML
+- *(markdown)* preserve HTML paragraph boundaries and contents
+- *(markdown)* tighten paragraphs before raw text blocks
+- *(docx)* space math operators and preserve text boundaries
+- *(docx)* use canonical math symbol commands
+- *(docx)* preserve breaks and text boxes
+- *(markdown)* validate and preserve attribute escapes
+- *(markdown)* check alert marker indentation
+- *(readers)* honor configured tab stops
+- *(ipynb)* validate required fields and execution counts
+- *(ipynb)* reject unknown cell and output kinds
+- *(rtf)* normalize escaped control characters in prose
+- *(rtf)* decode escaped bytes with the declared character set
+- *(rtf)* discard optional line wraps
+- *(man)* keep argument spacing in verbatim font macros
+- *(latex)* keep content before the document body
+- *(mediawiki)* preserve literal labels from link targets
+- *(mediawiki)* preserve unfinished reference text
+- *(jira)* trim initial whitespace in quote macros
+- *(dokuwiki)* recognize URI schemes without authority prefixes
+- *(dokuwiki)* preserve nested footnote content
+- *(typst)* preserve paragraph boundaries in content values
+- *(typst)* preserve code-mode math expressions
+- *(odt)* preserve nested character style state
+- *(odt)* clamp table spans to the available grid
+- *(mathml)* parse fenced separators as row operators
+- *(odt)* preserve list numbering and identifier state
+- *(mathml)* convert measured spacing units
+- *(odt)* read math only from referenced objects
+- *(odt)* preserve form feeds in text
+- *(odt)* restrict inline container content
+- *(odt)* share cross-reference anchor targets
+- *(odt)* preserve bibliography citations
+- *(odt)* omit unsupported block containers
+- *(odt)* restrict note bodies to paragraphs
+- *(odt)* omit direct tables in list items
+- *(odt)* restrict table cell block content
+- *(odt)* filter direct link content
+- *(odt)* preserve style definition precedence
+- *(odt)* require matching list marker punctuation
+- *(odt)* normalize package-relative link and image targets
+- *(odt)* recognize numeric font weight steps
+- *(odt)* omit numbered paragraph containers
+- *(odt)* omit ruby wrappers
+- *(odt)* omit in-content metadata wrappers
+- *(odt)* omit cached list numbering labels
+- *(odt)* omit cached field display text
+- *(typst)* reject unknown emoji names
+- *(odt)* parse integer space counts
+- *(odt)* merge whitespace at inline boundaries
+- *(odt)* drop images without resource targets
+- *(odt)* use bullets for unknown number formats
+- *(odt)* preserve large ordered list starts
+- *(odt)* preserve large heading levels
+- *(odt)* preserve section containers
+- *(odt)* flatten inline breaks in code text
+- *(odt)* normalize figures after paragraph compaction
+- *(odt)* attach leading table captions when reading
+- *(odt)* strip figure labels from captions only
+- *(odt)* retain table caption classes when reading
+- *(typst)* avoid repeated regex prefilter construction
+- *(typst)* build math text without copying nested expressions
+- *(typst)* charge repeated execution without a parser depth cutoff
+- *(typst)* grow the stack for recursive value operations
+- *(latex)* share group source without a parser depth cutoff
+- *(mediawiki)* share nested source scans without a depth cutoff
+- *(mediawiki)* resolve emphasis with linear parsing work
+- *(dokuwiki)* preserve nested content without a depth cutoff
+- *(jira)* share inline indexes without a nesting cutoff
+- *(rst)* track include cycles and charge expansion work
+- *(rst)* track expansion cycles without a footnote depth limit
+- *(man)* build bodiless tagged lists without recursion
+- *(commonmark)* preserve block nesting without a depth cutoff
+- *(typst)* share sequence values and defer repeated content
+- *(latex)* track macro cycles and share expansion work limits
+- *(dokuwiki)* memoize inline searches without a scan budget
+- *(jira)* index inline closing markers without scan budgets
+- *(docbook)* resolve entity dependencies without repeated passes
+- *(commonmark)* index raw TeX groups and environments
+- *(man)* retain expansion context for generated macro calls
+- *(org)* index inline delimiters without a scan budget
+- *(typst)* compile regex patterns without a source length cap
+- *(epub)* use a valid language for neutral process locales
+- *(gfm)* include quoted table layout in isolated builds
+- *(rst)* retain inline reference targets
+- *(rst)* preserve figure content and target names
+- *(typst)* preserve embedded image byte arrays
+- *(beamer)* honor requested output columns
+- *(latex)* wrap footnotes with scoped indentation
+- *(typst)* wrap footnotes within enclosing blocks
+- *(man)* count continuations and raw line widths
+- *(docx)* preserve relation operator spacing
+- *(docx)* render equation parenthesis marks
+- *(docx)* honor explicit equation limit placement
+- *(docx)* render invisible math spacing boxes
+- *(docx)* include list helpers in minimal builds
+- *(rst)* escape literal smart punctuation
+- *(ipynb)* preserve large execution counts
+- *(rtf)* preserve nested table structure and cell widths
+- *(rtf)* alternate automatic numbering by list depth
+- *(latex)* preserve line block height and spacing
+- *(dokuwiki)* preserve break types across rendering contexts
+- *(typst)* preserve paragraph breaks in table cells
+- *(odt)* restore paragraph flow inside generic containers
+- *(odt)* size AVIF frames from image properties
+- *(odt)* use JPEG resolution metadata consistently
+- *(odt)* read TIFF image dimensions and resolution
+- *(odt)* size PDF image frames from page bounds
+- *(odt)* size EPS frames from declared bounds
+- *(odt)* resolve SVG intrinsic dimensions consistently
+- *(odt)* number captions with native sequence fields
+- *(odt)* preserve automatic and relative table column widths
+- *(odt)* indent nested block quotes
+- *(odt)* start paragraph flow before container content
+- *(odt)* preserve paragraph flow after raw blocks and figures
+- *(odt)* retain span and container language styles
+- *(odt)* render highlighted mark spans
+- *(odt)* render map and boolean metadata values
+- *(odt)* retain structured metadata text
+- *(odt)* preserve missing data image media types
+- *(mathml)* keep Greek capitals upright with font overrides
+- *(mathml)* classify symbols by their operands
+- *(mathml)* emit operator names as identifiers
+- *(mathml)* mark named function applications
+- *(mathml)* place accents on their operator glyphs
+- *(mathml)* keep bare delimiters at a fixed size
+- *(odt)* order list definitions by numbering settings
+- *(odt)* create alignment styles per table column
+- *(odt)* use character offsets for column style names
+- *(odt)* clamp row spans to their table section
+- *(odt)* reject invalid image dimensions
+- *(odt)* omit the extra contents index name
+- *(org)* wrap words inside styled inline spans
+- *(odt)* suppress empty plain body blocks
+- *(docx)* preserve code block trailing breaks
+- *(docx)* omit empty verbatim runs in code blocks
+- *(docx)* separate keyword lists with commas
+- *(typst)* preserve figure reference labels
+- *(latex)* avoid repeated page heads in nested tables
+- *(org)* preserve heading depth within the output budget
+- *(dokuwiki)* measure table padding between line breaks
+- *(math)* expand macros through token frames
+- *(typst)* preserve deep heading levels with numeric syntax
+
+### Performance
+
+- *(typst)* write collection text into one output buffer
+- *(typst)* move owned call arguments into content containers
+- *(mediawiki)* scan paragraph note state once
+- *(mediawiki)* parse nested table cells from shared source ranges
+- *(jira)* index deep list markers by byte
+- *(typst)* skip repetition of empty content
+- *(commonmark)* index suffix maxima for fence searches
+- *(tables)* cache column measurements without a nesting cutoff
+
+### Other
+
+- *(cli)* normalize Windows paths in LaTeX media assertion
+- cover missing reader extensions and stabilize coverage checks
+- validate document packages against format requirements
+- remove snapshots for excluded man cases
+- refresh conversion and standalone snapshots
+- *(asciidoc)* cover legacy writer output
+- keep fixtures compatible with strict lint checks
+- *(docbook)* update structured author spacing
+- register numbered document reference corpus
+
 ## [0.0.12](https://github.com/mfkrause/carta/compare/v0.0.11...v0.0.12) - 2026-10-26
 
 ### Added

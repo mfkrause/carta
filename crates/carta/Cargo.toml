@@ -112,8 +112,8 @@ carta-ast = { workspace = true }
 carta-core = { workspace = true }
 carta-highlight = { workspace = true, optional = true }
 # Direct paths retain per-crate feature selection; versions support registry publication.
-carta-readers = { path = "../carta-readers", version = "0.0.12", default-features = false, optional = true }
-carta-writers = { path = "../carta-writers", version = "0.0.12", default-features = false, optional = true }
+carta-readers = { path = "../carta-readers", version = "0.0.13", default-features = false, optional = true }
+carta-writers = { path = "../carta-writers", version = "0.0.13", default-features = false, optional = true }
 serde_json = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
 clap_complete = { version = "4", optional = true }
