@@ -79,6 +79,48 @@ fn cell_div_selects_kind_and_keeps_id() {
 }
 
 #[test]
+fn large_execution_counts_survive_in_cells_and_results() {
+    for (input, expected) in [
+        ("9223372036854775808", "9223372036854775808"),
+        ("18446744073709551617", "18446744073709551617"),
+        ("00018446744073709551617", "18446744073709551617"),
+    ] {
+        let attributes = vec![("execution_count".into(), input.into())];
+        let notebook = write(vec![Block::Div(
+            Box::new(Attr {
+                id: "cell".into(),
+                classes: vec!["cell".into(), "code".into()],
+                attributes: attributes.clone(),
+            }),
+            vec![
+                Block::CodeBlock(Box::default(), "saved".into()),
+                Block::Div(
+                    Box::new(Attr {
+                        id: Text::default(),
+                        classes: vec!["output".into(), "execute_result".into()],
+                        attributes,
+                    }),
+                    vec![Block::CodeBlock(
+                        Box::new(Attr {
+                            classes: vec!["plain".into()],
+                            ..Attr::default()
+                        }),
+                        "saved result".into(),
+                    )],
+                ),
+            ],
+        )]);
+        assert_eq!(
+            notebook
+                .matches(&format!("\"execution_count\": {expected}"))
+                .count(),
+            2
+        );
+        assert!(!notebook.contains("\"execution_count\": null"));
+    }
+}
+
+#[test]
 fn raw_cell_carries_mime_type() {
     let notebook = write(vec![Block::Div(
         Box::new(Attr {

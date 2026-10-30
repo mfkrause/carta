@@ -159,6 +159,10 @@ fn execution_count_json(attr: &Attr) -> Json {
     match attribute_value(attr, "execution_count") {
         Some(raw) => match raw.parse::<i64>() {
             Ok(count) => Json::Number(count.to_string()),
+            Err(_) if !raw.is_empty() && raw.bytes().all(|byte| byte.is_ascii_digit()) => {
+                let count = raw.trim_start_matches('0');
+                Json::Number(if count.is_empty() { "0" } else { count }.to_owned())
+            }
             Err(_) => Json::Null,
         },
         None => Json::Null,
