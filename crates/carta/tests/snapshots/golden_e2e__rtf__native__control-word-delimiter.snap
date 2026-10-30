@@ -7,6 +7,6 @@ expression: output
     , Space
     , Str "then"
     , Space
-    , Str "c\8212d."
+    , Str "c\8212-d."
     ]
 ]

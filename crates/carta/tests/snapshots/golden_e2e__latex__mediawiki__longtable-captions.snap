@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| id="table" class="wikitable"
+|+ Table ''caption''
+|-
+! style="text-align: left;"| Heading
+! style="text-align: left;"| Value
+|-
+| style="text-align: left;"| Item
+| style="text-align: left;"| 12
+|}
+
+See Table [[#table|1]].
+
+{| class="wikitable"
+|+ First line<br />
+Second line
+|-
+| style="text-align: left;"| Content
+|}

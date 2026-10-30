@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{longtable}[]{@{}ll@{}}
+\caption[Short title]{Table \emph{caption}}\label{table}\tabularnewline
+\toprule\noalign{}
+Heading & Value \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Heading & Value \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Item & 12 \\
+\end{longtable}
+
+See Table \hyperref[table]{1}.
+
+\begin{longtable}[]{@{}l@{}}
+\caption{First line\\
+Second line}\tabularnewline
+\toprule\noalign{}
+\endfirsthead
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Content \\
+\end{longtable}

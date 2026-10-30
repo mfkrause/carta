@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Before kept text after.
+
+\emph{Formatted text}
+
+\includegraphics[width=0.5\linewidth,height=\textheight,keepaspectratio,alt={image}]{image.png}

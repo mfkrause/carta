@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|+ Explicit column widths
+|-
+| one
+| two
+|}
+
+{| class="wikitable"
+|+ Header column widths
+|-
+! a
+! b
+|-
+| c
+| d
+|}

@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+| style="text-align: left;"| {| class="wikitable"
+|-
+! style="text-align: left;"| Inner
+! style="text-align: right;"| Right
+|-
+| style="text-align: left;"| Next
+| style="text-align: right;"| Last
+|}
+| style="text-align: left;"| Outer
+|-
+| style="text-align: left;"| Final
+| style="text-align: left;"| Tail
+|}
+
+{| class="wikitable"
+|-
+| style="text-align: left;"| {| class="wikitable"
+|-
+| style="text-align: center;"| Grouped
+|-
+| style="text-align: center;"| Content
+|}
+| style="text-align: left;"| A&amp;B
+|}

@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><table>
+<thead>
+<tr>
+<th style="text-align: left;">Inner</th>
+<th style="text-align: right;">Right</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Next</td>
+<td style="text-align: right;">Last</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;">Outer</td>
+</tr>
+<tr>
+<td style="text-align: left;">Final</td>
+<td style="text-align: left;">Tail</td>
+</tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><table>
+<tbody>
+<tr>
+<td style="text-align: center;">Grouped</td>
+</tr>
+<tr>
+<td style="text-align: center;">Content</td>
+</tr>
+</tbody>
+</table></td>
+<td style="text-align: left;">A&amp;B</td>
+</tr>
+</tbody>
+</table>

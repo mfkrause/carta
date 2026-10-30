@@ -35,3 +35,14 @@ Read input from the named file.
 \begin{quote}
 An indented paragraph with no marker.
 \end{quote}
+
+\section{ALPHABETIC}\label{alphabetic}
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi}.}
+\setcounter{enumi}{2}
+\item
+  Third letter.
+\item
+  Fourth letter.
+\end{enumerate}

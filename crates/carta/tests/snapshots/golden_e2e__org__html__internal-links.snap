@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><a href="#later"><strong>Forward link</strong></a> and <a
+href="later">file:later</a>.</p>
+<p><span id="later"></span>A named target.</p>
+<p><a href="#later">later</a> and <span class="spurious-link"
+target="missing"><em>Missing target</em></span>.</p>
+<p><span id="a-b"></span>and <span id="a-b-1"></span>.</p>
+<p><a href="#a-b">a/b</a> and <a href="#a-b-1">a+b</a>.</p>
+<table>
+<tbody>
+<tr>
+<td>Link</td>
+<td><a href="#later">later</a></td>
+</tr>
+</tbody>
+</table>
+<p>Text with a note.<a href="#fn1" class="footnote-ref" id="fnref1"
+role="doc-noteref"><sup>1</sup></a></p>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>See <a href="#later">later</a>.<a href="#fnref1"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>

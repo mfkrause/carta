@@ -5,11 +5,15 @@ expression: output
 Introduction
 ============
 
+.. _intro:
+
 See `[intro] <#intro>`__ for context.
 
 .. figure:: plot.png
 
    A labelled figure.
+
+.. _fig-plot:
 
 Reference to `[fig-plot] <#fig-plot>`__ as well.
 

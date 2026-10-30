@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Emph [ Str "printf" ] , Str "(3)" ]
+        ( "man:printf(3)" , "" )
+    , Str ","
+    , Space
+    , Str "then"
+    , Space
+    , Str "continue."
+    ]
+, Para
+    [ Str "Small"
+    , Space
+    , Str "text"
+    , Space
+    , Strong [ Str "Bold" , Space , Str "text" ]
+    ]
+, DefinitionList
+    [ ( [ Link
+            ( "" , [] , [] )
+            [ Emph [ Str "open" ] , Str "(2)" ]
+            ( "man:open(2)" , "" )
+        ]
+      , [ [ Para
+              [ Str "Open" , Space , Str "a" , Space , Str "file." ]
+          ]
+        ]
+      )
+    ]
+, Para [ Strong [ Str "Nested" , Space , Str "style" ] ]
+]

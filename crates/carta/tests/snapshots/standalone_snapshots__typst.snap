@@ -2,7 +2,7 @@
 source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
-#let authors = ([Ada Lovelace],[Alan Turing],)
+#let authors = ((name: [Ada Lovelace], affiliation: [], email: []),(name: [Alan Turing], affiliation: [], email: []),)
 #let text-value(value) = {
   if value.has("text") { value.text }
   else if value.has("children") { value.children.map(text-value).join() }
@@ -10,7 +10,7 @@ expression: output
   else if value == [ ] { " " }
   else { "" }
 }
-#set document(title: [A #emph[Grand] "Report"], author: authors.map(text-value).join(", ", last: " & "), keywords: ("analysis","computing",), )
+#set document(title: [A #emph[Grand] "Report"], author: authors.map(author => text-value(author.name)).join(", ", last: " & "), keywords: ("analysis","computing",), )
 #set page(paper: "us-letter", margin: (x: 1.25in, y: 1.25in), numbering: "1", number-align: center)
 #set text(size: 12pt, lang: "en")
 #set par(justify: true)
@@ -18,18 +18,24 @@ expression: output
 #set heading(numbering: none)
 #let horizontalrule = align(center, line(length: 50%))
 
+#place(top, float: true, scope: "parent", clearance: 4mm, block(below: 1em, width: 100%)[
 #align(center)[#block[
-#text(weight: "bold", size: 1.5em)[A #emph[Grand] "Report"#footnote[With thanks to the reviewers.]]
+#text(weight: "bold", size: 1.5em, hyphenate: false)[A #emph[Grand] "Report"#footnote[With thanks to the reviewers.]]
 #parbreak()
-#text(size: 1.25em)[On Matters of Import]
+#text(weight: "bold", size: 1.25em, hyphenate: false)[On Matters of Import]
 ]]
-#grid(columns: (1fr,) * calc.min(3, authors.len()), ..authors.map(name => align(center, name)))
-#align(center)[2026-06-20]
+#grid(columns: (1fr,) * calc.min(3, authors.len()), row-gutter: 1.5em, ..authors.map(author => align(center)[
+#author.name \
+#author.affiliation \
+#author.email
+]))
+#align(center)[#block(inset: 1em)[2026-06-20]]
 #block(inset: 2em)[
 *Abstract* #parbreak()
 A concise overview of the matters discussed herein.
 
 ]
+])
 = Introduction
 <introduction>
 The opening remarks, with #emph[emphasis] and a

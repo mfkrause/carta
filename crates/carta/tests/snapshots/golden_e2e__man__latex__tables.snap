@@ -45,4 +45,42 @@ Left & Right \\
 
 A table with a horizontal span follows.
 
-TABLE
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{2}{@{}l}{%
+Wide span} & End \\
+\multicolumn{2}{@{}l}{%
+one} & three \\
+\end{longtable}
+}
+
+A table with a vertical span follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multirow{2}{*}{Name} & One \\
+& Two \\
+\end{longtable}
+}
+
+A table with combined spans follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{2}{@{}l}{%
+\multirow{2}{*}{Wide}} & First \\
+& & Second \\
+\end{longtable}
+}

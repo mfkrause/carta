@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Forward link and file:later.
+
+A named target.
+
+later and Missing target.
+
+and .
+
+a/b and a+b.
+
+  ------ -------
+  Link   later
+  ------ -------
+
+Text with a note.[1]
+
+[1] See later.

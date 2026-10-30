@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+
+   .. rubric:: First
+      :name: first
+
+.. container:: cell markdown
+
+   .. rubric:: Deeper *heading*
+      :name: deeper-heading
+
+.. container:: cell code
+
+   .. code:: python
+
+      print(1)
+
+   .. container:: output stream stdout
+
+      ::
+
+         1
+
+   .. container:: output execute_result
+
+      ::
+
+         1
+
+   .. container:: output error
+
+      ::
+
+         line 1
+         ExampleError: text
+
+.. container:: cell raw
+
+   .. raw:: latex
+
+      \textbf{raw}
+
+.. container:: cell markdown
+
+   Final text

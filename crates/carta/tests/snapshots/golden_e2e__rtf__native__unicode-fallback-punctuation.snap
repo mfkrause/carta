@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "\8220quoted\8221"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\8212tail,"
+    , Space
+    , Str "caf\233s."
+    ]
+]

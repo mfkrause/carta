@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{First}\label{first}
+
+Deeper \emph{heading}
+
+\begin{verbatim}
+print(1)
+\end{verbatim}
+
+\begin{verbatim}
+1
+\end{verbatim}
+
+\begin{verbatim}
+1
+\end{verbatim}
+
+\begin{verbatim}
+line 1
+ExampleError: text
+\end{verbatim}
+
+\textbf{raw}
+
+Final text

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Before kept text after.
+
+''Formatted text''
+
+[[File:image.png|image]]

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See `printf(3) <man:printf(3)>`__, then continue.
+
+Small text **Bold text**
+
+`open(2) <man:open(2)>`__
+   Open a file.
+
+**Nested style**

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="stable-id"></span>
+= Stable heading =
+
+Body.
+
+<span id="custom-id"></span>
+= Custom heading =
+
+More body.

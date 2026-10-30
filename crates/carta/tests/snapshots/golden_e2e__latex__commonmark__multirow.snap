@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<tbody>
+<tr>
+<td rowspan="2" style="text-align: left;"><em>Name</em></td>
+<td style="text-align: left;">One</td>
+</tr>
+<tr>
+<td style="text-align: left;">Two</td>
+</tr>
+</tbody>
+</table>
+
+<table>
+<tbody>
+<tr>
+<td colspan="2" rowspan="2" style="text-align: center;">Wide</td>
+<td style="text-align: left;">First</td>
+</tr>
+<tr>
+<td style="text-align: left;">Second</td>
+</tr>
+</tbody>
+</table>
+
+<table>
+<tbody>
+<tr>
+<td rowspan="2" style="text-align: left;">Upward</td>
+<td style="text-align: left;">Above</td>
+</tr>
+<tr>
+<td style="text-align: left;">Below</td>
+</tr>
+</tbody>
+</table>

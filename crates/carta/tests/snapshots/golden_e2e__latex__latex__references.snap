@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Forward: \hyperref[second]{1.1}.
+
+\subsubsection{First}\label{first}
+
+\paragraph{Second}\label{second}
+
+\hyperref[first]{1}, \hyperref[second]{1.1}, \hyperref[second]{1.1},
+\hyperref[second]{{[}second{]}}, \hyperref[missing]{{[}missing{]}}.
+
+\begin{figure}
+\centering
+
+\caption{Anonymous figure}
+\end{figure}
+
+\begin{figure}
+\centering
+
+\caption{Named figure}\label{figure}
+\end{figure}
+
+See Figure \hyperref[figure]{2}.
+
+\section{Part}\label{part}
+
+See Part \hyperref[part]{I}.

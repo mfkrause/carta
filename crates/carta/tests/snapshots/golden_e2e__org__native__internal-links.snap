@@ -1,0 +1,102 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Strong [ Str "Forward" , Space , Str "link" ] ]
+        ( "#later" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "file:later" ] ( "later" , "" )
+    , Str "."
+    ]
+, Para
+    [ Span ( "later" , [] , [] ) []
+    , Str "A"
+    , Space
+    , Str "named"
+    , Space
+    , Str "target."
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "later" ] ( "#later" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Span
+        ( "" , [ "spurious-link" ] , [ ( "target" , "missing" ) ] )
+        [ Emph [ Str "Missing" , Space , Str "target" ] ]
+    , Str "."
+    ]
+, Para
+    [ Span ( "a-b" , [] , [] ) []
+    , Str "and"
+    , Space
+    , Span ( "a-b-1" , [] , [] ) []
+    , Str "."
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "a/b" ] ( "#a-b" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "a+b" ] ( "#a-b-1" , "" )
+    , Str "."
+    ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Link" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Link
+                        ( "" , [] , [] )
+                        [ Str "later" ]
+                        ( "#later" , "" )
+                    ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "note."
+    , Note
+        [ Para
+            [ Str "See"
+            , Space
+            , Link ( "" , [] , [] ) [ Str "later" ] ( "#later" , "" )
+            , Str "."
+            ]
+        ]
+    ]
+]

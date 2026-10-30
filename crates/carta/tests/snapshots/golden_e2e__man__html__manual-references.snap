@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>See <a href="man:printf(3)"><em>printf</em>(3)</a>, then
+continue.</p>
+<p>Small text <strong>Bold text</strong></p>
+<dl>
+<dt><a href="man:open(2)"><em>open</em>(2)</a></dt>
+<dd>
+<p>Open a file.</p>
+</dd>
+</dl>
+<p><strong>Nested style</strong></p>

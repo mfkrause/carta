@@ -1,0 +1,101 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Table
+    ( "table" , [] , [] )
+    (Caption
+       (Just [ Str "Short" , Space , Str "title" ])
+       [ Plain [ Str "Table" , Space , Emph [ Str "caption" ] ] ])
+    [ ( AlignLeft , ColWidthDefault )
+    , ( AlignLeft , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Heading" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Value" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Item" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "12" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para
+    [ Str "See"
+    , Space
+    , Str "Table"
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref" )
+          , ( "reference" , "table" )
+          ]
+        )
+        [ Str "1" ]
+        ( "#table" , "" )
+    , Str "."
+    ]
+, Table
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "First"
+           , Space
+           , Str "line"
+           , LineBreak
+           , Str "Second"
+           , Space
+           , Str "line"
+           ]
+       ])
+    [ ( AlignLeft , ColWidthDefault ) ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Content" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

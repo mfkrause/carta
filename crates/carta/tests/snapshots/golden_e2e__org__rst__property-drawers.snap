@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _stable-id:
+
+Stable heading
+==============
+
+Body.
+
+.. _custom-id:
+
+Custom heading
+==============
+
+More body.

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+=========== =====
+===== ===== Outer
+Inner Right 
+===== ===== 
+Next  Last  
+===== ===== 
+Final       Tail
+=========== =====
+
+=========== ===
++---------+ A&B
+| Grouped | 
++---------+ 
+| Content | 
++---------+ 
+=========== ===

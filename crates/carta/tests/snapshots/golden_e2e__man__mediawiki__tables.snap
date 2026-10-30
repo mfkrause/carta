@@ -41,4 +41,31 @@ A table with a multi-line text block follows.
 
 A table with a horizontal span follows.
 
-TABLE
+{| class="wikitable"
+|-
+| colspan="2" style="text-align: left;"| Wide span
+| style="text-align: left;"| End
+|-
+| colspan="2" style="text-align: left;"| one
+| style="text-align: left;"| three
+|}
+
+A table with a vertical span follows.
+
+{| class="wikitable"
+|-
+| rowspan="2" style="text-align: left;"| Name
+| style="text-align: left;"| One
+|-
+| style="text-align: left;"| Two
+|}
+
+A table with combined spans follows.
+
+{| class="wikitable"
+|-
+| rowspan="2" colspan="2" style="text-align: left;"| Wide
+| style="text-align: left;"| First
+|-
+| style="text-align: left;"| Second
+|}

@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[[#later|'''Forward link''']] and [[later|file:later]].
+
+<span id="later"></span>A named target.
+
+[[#later|later]] and <span class="spurious-link" target="missing">''Missing target''</span>.
+
+<span id="a-b"></span>and <span id="a-b-1"></span>.
+
+[[#a-b|a/b]] and [[#a-b-1|a+b]].
+
+{| class="wikitable"
+|-
+| Link
+| [[#later|later]]
+|}
+
+Text with a note.<ref>See [[#later|later]].</ref>
+
+<references />

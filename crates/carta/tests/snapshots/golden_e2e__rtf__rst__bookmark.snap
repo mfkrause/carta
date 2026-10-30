@@ -2,4 +2,6 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
+.. _anchor:
+
 See this section below.

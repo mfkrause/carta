@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Forward: 1.1.
+
+First
+
+Second
+
+1, 1.1, 1.1, [second], [missing].
+
+See Figure 2.
+
+Part
+
+See Part I.

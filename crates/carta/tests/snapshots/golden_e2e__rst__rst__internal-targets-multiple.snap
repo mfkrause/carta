@@ -2,6 +2,8 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
+.. _first target:
+
 .. _second target:
 
 Section Title

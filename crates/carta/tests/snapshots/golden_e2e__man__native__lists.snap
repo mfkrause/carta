@@ -83,4 +83,10 @@ expression: output
         , Str "marker."
         ]
     ]
+, Header 1 ( "alphabetic" , [] , [] ) [ Str "ALPHABETIC" ]
+, OrderedList
+    ( 3 , LowerAlpha , Period )
+    [ [ Para [ Str "Third" , Space , Str "letter." ] ]
+    , [ Para [ Str "Fourth" , Space , Str "letter." ] ]
+    ]
 ]

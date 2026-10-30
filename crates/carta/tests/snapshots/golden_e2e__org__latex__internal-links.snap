@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\hyperref[later]{\textbf{Forward link}} and \href{later}{file:later}.
+
+\protect\phantomsection\label{later}{}A named target.
+
+\hyperref[later]{later} and {\emph{Missing target}}.
+
+\protect\phantomsection\label{a-b}{}and
+\protect\phantomsection\label{a-b-1}{}.
+
+\hyperref[a-b]{a/b} and \hyperref[a-b-1]{a+b}.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Link & \hyperref[later]{later} \\
+\end{longtable}
+}
+
+Text with a note.\footnote{See \hyperref[later]{later}.}

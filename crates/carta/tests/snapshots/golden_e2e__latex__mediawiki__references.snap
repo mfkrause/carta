@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Forward: [[#second|1.1]].
+
+<span id="first"></span>
+=== First ===
+
+<span id="second"></span>
+==== Second ====
+
+[[#first|1]], [[#second|1.1]], [[#second|1.1]], [[#second|[second]]], [[#missing|[missing]]].
+
+<div class="figure">
+</div>
+
+<div id="figure" class="figure">
+</div>
+
+See Figure [[#figure|2]].
+
+<span id="part"></span>
+= Part =
+
+See Part [[#part|I]].

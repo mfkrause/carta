@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "Document" ]
+        ( "file:///tmp/document.txt" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "Shared" , Space , Str "document" ]
+        ( "file://server/share/document.txt" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "/tmp/document.txt" ]
+        ( "file:///tmp/document.txt" , "" )
+    ]
+, Para
+    [ Image ( "" , [] , [] ) [] ( "file:///tmp/image.png" , "" )
+    ]
+, Para [ Image ( "" , [] , [] ) [] ( "./image.png" , "" ) ]
+]

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[file:///tmp/document.txt Document]
+
+[file://server/share/document.txt Shared document]
+
+[file:///tmp/document.txt /tmp/document.txt]
+
+<nowiki></nowiki>file:///tmp/image.png<nowiki></nowiki>
+
+[[File:./image.png]]

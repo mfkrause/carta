@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+| rowspan="2" style="text-align: left;"| ''Name''
+| style="text-align: left;"| One
+|-
+| style="text-align: left;"| Two
+|}
+
+{| class="wikitable"
+|-
+| rowspan="2" colspan="2" style="text-align: center;"| Wide
+| style="text-align: left;"| First
+|-
+| style="text-align: left;"| Second
+|}
+
+{| class="wikitable"
+|-
+| rowspan="2" style="text-align: left;"| Upward
+| style="text-align: left;"| Above
+|-
+| style="text-align: left;"| Below
+|}

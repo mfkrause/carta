@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table id="table">
+<caption>Table <em>caption</em></caption>
+<thead>
+<tr>
+<th style="text-align: left;">Heading</th>
+<th style="text-align: left;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Item</td>
+<td style="text-align: left;">12</td>
+</tr>
+</tbody>
+</table>
+<p>See Table <a href="#table" data-reference-type="ref"
+data-reference="table">1</a>.</p>
+<table>
+<caption>First line<br />
+Second line</caption>
+<tbody>
+<tr>
+<td style="text-align: left;">Content</td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[**Forward link**](#later) and [file:later](later).
+
+<span id="later"></span>A named target.
+
+[later](#later) and
+<span class="spurious-link" target="missing">*Missing target*</span>.
+
+<span id="a-b"></span>and <span id="a-b-1"></span>.
+
+[a/b](#a-b) and [a+b](#a-b-1).
+
+<table>
+<tbody>
+<tr>
+<td>Link</td>
+<td><a href="#later">later</a></td>
+</tr>
+</tbody>
+</table>
+
+Text with a note.[1]
+
+[1] See [later](#later).

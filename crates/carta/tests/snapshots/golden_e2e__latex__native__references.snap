@@ -1,0 +1,121 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Forward:"
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref" )
+          , ( "reference" , "second" )
+          ]
+        )
+        [ Str "1.1" ]
+        ( "#second" , "" )
+    , Str "."
+    ]
+, Header 3 ( "first" , [] , [] ) [ Str "First" ]
+, Header 4 ( "second" , [] , [] ) [ Str "Second" ]
+, Para
+    [ Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref" )
+          , ( "reference" , "first" )
+          ]
+        )
+        [ Str "1" ]
+        ( "#first" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref+label" )
+          , ( "reference" , "second" )
+          ]
+        )
+        [ Str "1.1" ]
+        ( "#second" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref+Label" )
+          , ( "reference" , "second" )
+          ]
+        )
+        [ Str "1.1" ]
+        ( "#second" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "eqref" )
+          , ( "reference" , "second" )
+          ]
+        )
+        [ Str "[second]" ]
+        ( "#second" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref" )
+          , ( "reference" , "missing" )
+          ]
+        )
+        [ Str "[missing]" ]
+        ( "#missing" , "" )
+    , Str "."
+    ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain [ Str "Anonymous" , Space , Str "figure" ] ])
+    []
+, Figure
+    ( "figure" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "Named" , Space , Str "figure" ] ])
+    []
+, Para
+    [ Str "See"
+    , Space
+    , Str "Figure"
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref" )
+          , ( "reference" , "figure" )
+          ]
+        )
+        [ Str "2" ]
+        ( "#figure" , "" )
+    , Str "."
+    ]
+, Header 1 ( "part" , [] , [] ) [ Str "Part" ]
+, Para
+    [ Str "See"
+    , Space
+    , Str "Part"
+    , Space
+    , Link
+        ( ""
+        , []
+        , [ ( "reference-type" , "ref" )
+          , ( "reference" , "part" )
+          ]
+        )
+        [ Str "I" ]
+        ( "#part" , "" )
+    , Str "."
+    ]
+]

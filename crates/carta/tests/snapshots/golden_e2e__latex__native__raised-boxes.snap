@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Before"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "text"
+    , Space
+    , Str "after."
+    ]
+, Para [ Emph [ Str "Formatted" , Space , Str "text" ] ]
+, Para
+    [ Image
+        ( "" , [] , [ ( "width" , "50%" ) ] )
+        [ Str "image" ]
+        ( "image.png" , "" )
+    ]
+]

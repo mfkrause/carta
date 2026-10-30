@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Stable heading}\label{stable-id}
+
+Body.
+
+\section*{Custom heading}\label{custom-id}
+\addcontentsline{toc}{section}{Custom heading}
+
+More body.

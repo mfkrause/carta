@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. table:: Table *caption*
+
+   ======= =====
+   Heading Value
+   ======= =====
+   Item    12
+   ======= =====
+
+See Table `1 <#table>`__.
+
+.. table:: First line Second line
+
+   +---------+
+   | Content |
+   +---------+

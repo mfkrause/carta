@@ -1,0 +1,154 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignLeft , ColWidthDefault )
+    , ( AlignLeft , ColWidthDefault )
+    ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Table
+                    ( "" , [] , [] )
+                    (Caption Nothing [])
+                    [ ( AlignLeft , ColWidthDefault )
+                    , ( AlignRight , ColWidthDefault )
+                    ]
+                    (TableHead
+                       ( "" , [] , [] )
+                       [ Row
+                           ( "" , [] , [] )
+                           [ Cell
+                               ( "" , [] , [] )
+                               AlignDefault
+                               (RowSpan 1)
+                               (ColSpan 1)
+                               [ Plain [ Str "Inner" ] ]
+                           , Cell
+                               ( "" , [] , [] )
+                               AlignDefault
+                               (RowSpan 1)
+                               (ColSpan 1)
+                               [ Plain [ Str "Right" ] ]
+                           ]
+                       ])
+                    [ TableBody
+                        ( "" , [] , [] )
+                        (RowHeadColumns 0)
+                        []
+                        [ Row
+                            ( "" , [] , [] )
+                            [ Cell
+                                ( "" , [] , [] )
+                                AlignDefault
+                                (RowSpan 1)
+                                (ColSpan 1)
+                                [ Plain [ Str "Next" ] ]
+                            , Cell
+                                ( "" , [] , [] )
+                                AlignDefault
+                                (RowSpan 1)
+                                (ColSpan 1)
+                                [ Plain [ Str "Last" ] ]
+                            ]
+                        ]
+                    ]
+                    (TableFoot ( "" , [] , [] ) [])
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Outer" ] ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Final" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Tail" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignLeft , ColWidthDefault )
+    , ( AlignLeft , ColWidthDefault )
+    ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Table
+                    ( "" , [] , [] )
+                    (Caption Nothing [])
+                    [ ( AlignCenter , ColWidthDefault ) ]
+                    (TableHead ( "" , [] , [] ) [])
+                    [ TableBody
+                        ( "" , [] , [] )
+                        (RowHeadColumns 0)
+                        []
+                        [ Row
+                            ( "" , [] , [] )
+                            [ Cell
+                                ( "" , [] , [] )
+                                AlignDefault
+                                (RowSpan 1)
+                                (ColSpan 1)
+                                [ Plain [ Str "Grouped" ] ]
+                            ]
+                        , Row
+                            ( "" , [] , [] )
+                            [ Cell
+                                ( "" , [] , [] )
+                                AlignDefault
+                                (RowSpan 1)
+                                (ColSpan 1)
+                                [ Plain [ Str "Content" ] ]
+                            ]
+                        ]
+                    ]
+                    (TableFoot ( "" , [] , [] ) [])
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "A&B" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

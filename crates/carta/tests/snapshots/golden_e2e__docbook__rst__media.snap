@@ -3,7 +3,7 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 .. figure:: plot.png
-   name: plot
+   :name: plot
    :alt: A plotted curve
    :width: 4in
    :height: 2in

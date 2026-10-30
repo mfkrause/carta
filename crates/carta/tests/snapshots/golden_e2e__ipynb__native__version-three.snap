@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "cell" , "markdown" ] , [] )
+    [ Header 1 ( "first" , [] , [] ) [ Str "First" ] ]
+, Div
+    ( "" , [ "cell" , "markdown" ] , [] )
+    [ Header
+        9
+        ( "deeper-heading" , [] , [] )
+        [ Str "Deeper" , Space , Emph [ Str "heading" ] ]
+    ]
+, Div
+    ( ""
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "1" )
+      , ( "collapsed" , "false" )
+      , ( "language" , "python" )
+      ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "print(1)"
+    , Div
+        ( "" , [ "output" , "stream" , "stdout" ] , [] )
+        [ CodeBlock ( "" , [] , [] ) "1\n" ]
+    , Div
+        ( ""
+        , [ "output" , "execute_result" ]
+        , [ ( "execution_count" , "1" ) ]
+        )
+        [ CodeBlock ( "" , [] , [] ) "1" ]
+    , Div
+        ( ""
+        , [ "output" , "error" ]
+        , [ ( "ename" , "ExampleError" ) , ( "evalue" , "text" ) ]
+        )
+        [ CodeBlock ( "" , [] , [] ) "line 1\nExampleError: text\n"
+        ]
+    ]
+, Div
+    ( ""
+    , [ "cell" , "raw" ]
+    , [ ( "format" , "text/latex" ) ]
+    )
+    [ RawBlock (Format "latex") "\\textbf{raw}" ]
+, Div
+    ( "" , [ "cell" , "markdown" ] , [] )
+    [ Para [ Str "Final" , Space , Str "text" ] ]
+]

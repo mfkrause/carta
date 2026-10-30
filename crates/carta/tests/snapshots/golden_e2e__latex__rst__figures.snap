@@ -3,6 +3,6 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 .. figure:: diagram.png
-   name: fig:sample
+   :name: fig:sample
 
    A sample diagram.

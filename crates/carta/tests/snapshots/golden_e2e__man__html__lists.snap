@@ -27,3 +27,8 @@ expression: output
 <blockquote>
 <p>An indented paragraph with no marker.</p>
 </blockquote>
+<h1 id="alphabetic">ALPHABETIC</h1>
+<ol start="3" type="a">
+<li><p>Third letter.</p></li>
+<li><p>Fourth letter.</p></li>
+</ol>

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "stable-id" , [] , [ ( "owner" , "Ada" ) ] )
+    [ Str "Stable" , Space , Str "heading" ]
+, Para [ Str "Body." ]
+, Header
+    1
+    ( "custom-id"
+    , [ "marked" , "heading" , "unnumbered" ]
+    , []
+    )
+    [ Str "Custom" , Space , Str "heading" ]
+, Para [ Str "More" , Space , Str "body." ]
+]

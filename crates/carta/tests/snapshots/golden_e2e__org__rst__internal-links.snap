@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+`Forward link <#later>`__ and `file:later <later>`__.
+
+.. _later:
+
+A named target.
+
+`later <#later>`__ and *Missing target*.
+
+.. _a-b:
+
+.. _a-b-1:
+
+and .
+
+`a/b <#a-b>`__ and `a+b <#a-b-1>`__.
+
+==== ==================
+Link `later <#later>`__
+==== ==================
+
+Text with a note. [1]_
+
+.. [1]
+   See `later <#later>`__.

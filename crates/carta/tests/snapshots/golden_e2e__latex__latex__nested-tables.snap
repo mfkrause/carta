@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\begin{tabular}{@{}lr@{}}
+\toprule\noalign{}
+Inner & Right \\
+\midrule\noalign{}
+Next & Last \\
+\bottomrule\noalign{}
+\end{tabular} & Outer \\
+Final & Tail \\
+\end{longtable}
+}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\begin{tabular}{@{}c@{}}
+\toprule\noalign{}
+Grouped \\
+Content \\
+\bottomrule\noalign{}
+\end{tabular} & A\&B \\
+\end{longtable}
+}

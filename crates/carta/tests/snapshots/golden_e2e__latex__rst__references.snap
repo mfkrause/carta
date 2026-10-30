@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Forward: `1.1 <#second>`__.
+
+First
+~~~~~
+
+Second
+^^^^^^
+
+`1 <#first>`__, `1.1 <#second>`__, `1.1 <#second>`__,
+`[second] <#second>`__, `[missing] <#missing>`__.
+
+.. container:: figure
+
+   Anonymous figure
+
+.. container:: figure
+   :name: figure
+
+   Named figure
+
+See Figure `2 <#figure>`__.
+
+Part
+====
+
+See Part `I <#part>`__.

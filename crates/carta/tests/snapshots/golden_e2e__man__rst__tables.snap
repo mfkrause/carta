@@ -28,4 +28,25 @@ Left Right
 
 A table with a horizontal span follows.
 
-TABLE
+=========  =====
+Wide span  End
+---------- -----
+one        three
+---------- -----
+=========  =====
+
+A table with a vertical span follows.
+
++------+-----+
+| Name | One |
+|      +-----+
+|      | Two |
++------+-----+
+
+A table with combined spans follows.
+
++---------+--------+
+| Wide    | First  |
+|         +--------+
+|         | Second |
++---------+--------+

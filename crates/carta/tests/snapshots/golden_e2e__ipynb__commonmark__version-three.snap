@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="cell markdown">
+
+# First
+
+</div>
+
+<div class="cell markdown">
+
+###### Deeper *heading*
+
+</div>
+
+<div class="cell code" data-execution_count="1" data-collapsed="false"
+data-language="python">
+
+``` python
+print(1)
+```
+
+<div class="output stream stdout">
+
+    1
+
+</div>
+
+<div class="output execute_result" data-execution_count="1">
+
+    1
+
+</div>
+
+<div class="output error" data-ename="ExampleError" data-evalue="text">
+
+    line 1
+    ExampleError: text
+
+</div>
+
+</div>
+
+<div class="cell raw" data-format="text/latex">
+
+</div>
+
+<div class="cell markdown">
+
+Final text
+
+</div>

@@ -13,10 +13,16 @@ expression: output
     <subtitle>On Matters of Import</subtitle>
     <authorgroup>
       <author>
-        Ada Lovelace
+        <personname>
+          <firstname>Ada</firstname>
+          <surname>Lovelace</surname>
+        </personname>
       </author>
       <author>
-        Alan Turing
+        <personname>
+          <firstname>Alan</firstname>
+          <surname>Turing</surname>
+        </personname>
       </author>
     </authorgroup>
     <date>2026-06-20</date>

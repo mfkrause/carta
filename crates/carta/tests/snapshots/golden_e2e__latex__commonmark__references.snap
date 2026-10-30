@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Forward: <a href="#second" data-reference-type="ref"
+data-reference="second">1.1</a>.
+
+### First
+
+#### Second
+
+<a href="#first" data-reference-type="ref" data-reference="first">1</a>,
+<a href="#second" data-reference-type="ref+label"
+data-reference="second">1.1</a>,
+<a href="#second" data-reference-type="ref+Label"
+data-reference="second">1.1</a>,
+<a href="#second" data-reference-type="eqref"
+data-reference="second">[second]</a>,
+<a href="#missing" data-reference-type="ref"
+data-reference="missing">[missing]</a>.
+
+<figure>
+&#10;<figcaption>Anonymous figure</figcaption>
+</figure>
+
+<figure id="figure">
+&#10;<figcaption>Named figure</figcaption>
+</figure>
+
+See Figure <a href="#figure" data-reference-type="ref"
+data-reference="figure">2</a>.
+
+# Part
+
+See Part
+<a href="#part" data-reference-type="ref" data-reference="part">I</a>.

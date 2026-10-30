@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+`Document <file:///tmp/document.txt>`__
+
+`Shared document <file://server/share/document.txt>`__
+
+`/tmp/document.txt <file:///tmp/document.txt>`__
+
+|image1|
+
+|image2|
+
+.. |image1| image:: file:///tmp/image.png
+.. |image2| image:: ./image.png

@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See \href{man:printf(3)}{\emph{printf}(3)}, then continue.
+
+Small text \textbf{Bold text}
+
+\begin{description}
+\item[\href{man:open(2)}{\emph{open}(2)}]
+Open a file.
+\end{description}
+
+\textbf{Nested style}
