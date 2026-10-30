@@ -1,6 +1,5 @@
 //! Read LaTeX documents, metadata, and macro definitions.
 
-use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -9,6 +8,7 @@ use carta_ast::{Block, Document, MetaValue};
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::IdRegistry;
+use crate::tabs::expand_tabs;
 
 use self::support::{math_env, section_intrinsic};
 
@@ -31,7 +31,7 @@ pub struct LatexReader;
 
 impl Reader for LatexReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let input = expand_tabs(input);
+        let input = expand_tabs(input, options.tab_stop);
         let ext = options.extensions;
         let (preamble, body) = split_document(&input);
 
@@ -86,25 +86,6 @@ impl Reader for LatexReader {
         references::resolve(&mut document, base_level);
         Ok(document)
     }
-}
-
-fn expand_tabs(input: &str) -> Cow<'_, str> {
-    if !input.contains('\t') {
-        return Cow::Borrowed(input);
-    }
-    let mut output = String::with_capacity(input.len());
-    let mut column = 0;
-    for character in input.chars() {
-        if character == '\t' {
-            let spaces = 4 - column % 4;
-            output.extend(std::iter::repeat_n(' ', spaces));
-            column += spaces;
-        } else {
-            output.push(character);
-            column = if character == '\n' { 0 } else { column + 1 };
-        }
-    }
-    Cow::Owned(output)
 }
 
 /// Splits the source at the document environment, retaining its opening marker with the preamble.

@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 use carta_ast::{ApiVersion, Block, Document, Format, Inline, MetaValue};
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
-use self::preprocess::{expand_tabs, extract_behavior_switches, strip_comments};
+use self::preprocess::{extract_behavior_switches, strip_comments};
 use crate::heading_ids;
+use crate::tabs::expand_tabs;
 use scan::ScanIndex;
 
 mod blocks;
@@ -26,7 +27,7 @@ pub struct MediawikiReader;
 
 impl Reader for MediawikiReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let stripped = strip_comments(&expand_tabs(input));
+        let stripped = strip_comments(&expand_tabs(input, options.tab_stop));
         let (source, behavior_switches) = extract_behavior_switches(&stripped);
         let chars: Vec<char> = source.chars().collect();
         let index = ScanIndex::new(&chars);

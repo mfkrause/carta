@@ -1,17 +1,7 @@
-//! Source preprocessing: tab expansion, comment stripping, and behavior switch extraction.
+//! Source preprocessing: comment stripping and behavior switch extraction.
 
 use super::tags::verbatim_region_end;
 use super::{ScanBounds, at, collect_range, find_seq, matches_prefix_ci};
-
-/// Expands tab characters to spaces on a four-column grid, with the column resetting at each line
-/// break. Wikitext markup is column-sensitive (a leading space marks preformatted text), so tabs
-/// are normalized before any block scanning runs.
-pub(super) fn expand_tabs(input: &str) -> String {
-    input
-        .split_inclusive('\n')
-        .map(|line| crate::tabs::expand_tabs(line, 4))
-        .collect()
-}
 
 /// Removes wikitext comments. A comment that is the whole line (preceded by a line start and
 /// followed by a line end) is dropped together with its trailing newline; one embedded in other

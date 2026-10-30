@@ -194,6 +194,7 @@ impl Parser<'_> {
                     argument.trim(),
                     self.ext,
                     self.columns,
+                    self.tab_stop,
                     self.work,
                     self.includes,
                 ) {

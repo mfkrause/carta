@@ -103,6 +103,7 @@ pub(super) fn included_blocks(
     path: &str,
     ext: Extensions,
     columns: usize,
+    tab_stop: usize,
     work: &Cell<Option<usize>>,
     includes: &Includes,
 ) -> Option<Vec<Block>> {
@@ -130,13 +131,14 @@ pub(super) fn included_blocks(
         .and_then(|remaining| remaining.checked_sub(content.len().max(1)));
     work.set(remaining);
     remaining?;
-    let lines = preprocess(&content);
+    let lines = preprocess(&content, tab_stop);
     let defs = collect_definitions(&lines);
     let mut parser = Parser {
         defs: &defs,
         work,
         ext,
         columns,
+        tab_stop,
         heading_styles: Vec::new(),
         ids: IdRegistry::default(),
         auto_footnote: 0,

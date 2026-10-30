@@ -26,6 +26,21 @@ fn parse_gfm(input: &str) -> Vec<Block> {
 }
 
 #[test]
+fn tab_stops_apply_to_preformatted_regions() {
+    for (width, text) in [(0, "a\tb"), (3, "a   b"), (4, "a  b"), (8, "a  b")] {
+        let mut options = ReaderOptions::default();
+        options.tab_stop = width;
+        assert_eq!(
+            MediawikiReader
+                .read("<pre>a\tb</pre>", &options)
+                .unwrap()
+                .blocks,
+            vec![Block::CodeBlock(Box::default(), text.into())]
+        );
+    }
+}
+
+#[test]
 fn doi_and_javascript_are_recognized_schemes() {
     assert!(is_scheme("doi"));
     assert!(is_scheme("javascript"));

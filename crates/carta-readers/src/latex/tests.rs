@@ -29,6 +29,21 @@ fn parse_ext(input: &str, extensions: Extensions) -> Vec<Block> {
 }
 
 #[test]
+fn tab_stops_apply_to_verbatim_regions() {
+    for (width, text) in [(0, "a\tb"), (3, "a  b"), (4, "a   b"), (8, "a       b")] {
+        let mut options = ReaderOptions::default();
+        options.tab_stop = width;
+        assert_eq!(
+            LatexReader
+                .read("\\begin{verbatim}\na\tb\n\\end{verbatim}\n", &options)
+                .unwrap()
+                .blocks,
+            vec![Block::CodeBlock(Box::default(), text.into())]
+        );
+    }
+}
+
+#[test]
 fn standalone_raw_commands_keep_arguments_and_end_at_a_new_line() {
     let blocks = parse_ext(
         "\\unknown[option] {argument}\nText.\n",

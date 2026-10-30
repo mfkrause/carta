@@ -31,7 +31,7 @@ pub struct RstReader;
 
 impl Reader for RstReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let lines = preprocess(input);
+        let lines = preprocess(input, options.tab_stop);
         let defs = collect_definitions(&lines);
         let work = Cell::new(Some(
             (1usize << 20).saturating_add(input.len().saturating_mul(64)),
@@ -42,6 +42,7 @@ impl Reader for RstReader {
             work: &work,
             ext: options.extensions,
             columns: options.columns.max(1),
+            tab_stop: options.tab_stop,
             heading_styles: Vec::new(),
             ids: IdRegistry::default(),
             auto_footnote: 0,
@@ -68,10 +69,6 @@ impl Reader for RstReader {
         })
     }
 }
-
-// preprocessing
-
-const TAB_STOP: usize = 8;
 
 /// A reserved first-class marker on a `Div` left by an empty `class` directive, signaling that the
 /// directive's classes apply to the next sibling block. Carries a NUL so it cannot collide with a
@@ -138,14 +135,13 @@ fn hex_digit(nibble: u8) -> char {
     }
 }
 
-/// Normalize line endings, expand tabs to spaces on an eight-column grid, and split into lines with
-/// trailing whitespace removed.
-fn preprocess(input: &str) -> Vec<String> {
+/// Normalizes line endings and tab stops, then removes trailing whitespace from each line.
+fn preprocess(input: &str, tab_stop: usize) -> Vec<String> {
     input
         .replace("\r\n", "\n")
         .replace('\r', "\n")
         .split('\n')
-        .map(|line| expand_tabs(line, TAB_STOP).trim_end().to_string())
+        .map(|line| expand_tabs(line, tab_stop).trim_end().to_string())
         .collect()
 }
 
@@ -195,6 +191,7 @@ struct Parser<'a> {
     work: &'a Cell<Option<usize>>,
     ext: Extensions,
     columns: usize,
+    tab_stop: usize,
     heading_styles: Vec<(char, bool)>,
     ids: IdRegistry,
     auto_footnote: usize,

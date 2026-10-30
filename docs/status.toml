@@ -857,7 +857,6 @@ notes = "A few constructs still account for width incorrectly when reflowed at n
 [[feature]]
 name = "Tab expansion (`--tab-stop`)"
 status = "in-development"
-notes = "Only the `docbook` reader takes the column width from the option; the `rst`, `dokuwiki`, and `mediawiki` readers expand tabs on a fixed four-column grid."
 
 [[feature]]
 name = "Section numbering (`--number-sections`)"

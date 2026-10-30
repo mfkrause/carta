@@ -3,11 +3,10 @@
 use carta_ast::{Attr, Block, Format, Inline, to_plain_text};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
-use crate::tabs::expand_tabs;
 use crate::transliterate::dokuwiki_asciify;
 
 use super::Ctx;
-use super::helpers::{TAB_STOP, find_subsequence, leading_columns, matches_at, run_length};
+use super::helpers::{find_subsequence, leading_columns, matches_at, run_length};
 use super::inline::inline_content;
 use super::lists::{opens_list, parse_list};
 use super::tables::{is_table_line, parse_table};
@@ -323,8 +322,7 @@ fn code_language(attr_text: &str) -> Option<String> {
     }
 }
 
-/// Parse a run of indented code lines. Tabs are expanded to spaces, then the common two-column indent
-/// is stripped from each line.
+/// Parses indented code lines, removing their common two-space prefix.
 fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
     let mut out = String::new();
     while *index < lines.len() {
@@ -332,8 +330,7 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
         if !is_indented_code(line) {
             break;
         }
-        let expanded = expand_tabs(line, TAB_STOP);
-        let body = expanded.get(2..).unwrap_or("");
+        let body = line.strip_prefix("  ").unwrap_or(line);
         out.push_str(body);
         out.push('\n');
         *index += 1;

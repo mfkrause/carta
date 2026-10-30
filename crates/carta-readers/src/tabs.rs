@@ -1,21 +1,42 @@
-//! Tab expansion on a fixed column grid, shared by the line-oriented readers.
+//! Tab expansion on a configured column grid.
 
-/// Expand every tab in `line` to spaces, advancing to the next multiple of `tab_stop`. Each non-tab
-/// character counts as one column.
-pub(crate) fn expand_tabs(line: &str, tab_stop: usize) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut col = 0;
-    for ch in line.chars() {
-        if ch == '\t' {
-            let next = (col / tab_stop + 1) * tab_stop;
-            while col < next {
-                out.push(' ');
-                col += 1;
-            }
+use std::borrow::Cow;
+
+/// Expands tabs to column stops, resetting at newlines. Other characters advance one column.
+/// Zero preserves tabs.
+pub(crate) fn expand_tabs(input: &str, tab_stop: usize) -> Cow<'_, str> {
+    if tab_stop == 0 || !input.contains('\t') {
+        return Cow::Borrowed(input);
+    }
+    let mut expanded = String::with_capacity(input.len());
+    let mut column = 0;
+    for character in input.chars() {
+        if character == '\t' {
+            let spaces = tab_stop - column % tab_stop;
+            expanded.extend(std::iter::repeat_n(' ', spaces));
+            column += spaces;
         } else {
-            out.push(ch);
-            col += 1;
+            expanded.push(character);
+            column = if character == '\n' { 0 } else { column + 1 };
         }
     }
-    out
+    Cow::Owned(expanded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn column_stops_reset_at_each_newline() {
+        assert_eq!(
+            expand_tabs("ab\tc\nx\ty\r\n\u{e9}\tz", 4),
+            "ab  c\nx   y\r\n\u{e9}   z"
+        );
+    }
+
+    #[test]
+    fn zero_preserves_tab_characters() {
+        assert_eq!(expand_tabs("a\tb\n\tc", 0), "a\tb\n\tc");
+    }
 }

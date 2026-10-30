@@ -24,6 +24,25 @@ fn with_auto_ids() -> Extensions {
 }
 
 #[test]
+fn tab_stops_apply_to_literal_blocks_and_included_files() {
+    let input = "::\n\n  a\tb\n";
+    let path = std::env::temp_dir().join(format!("carta_rst_tab_stop_{}.rst", std::process::id()));
+    std::fs::write(&path, input).unwrap();
+    let include = format!(".. include:: {}\n", path.display());
+    for (width, text) in [(0, "a\tb"), (3, "a   b"), (4, "a b"), (8, "a     b")] {
+        let mut options = ReaderOptions::default();
+        options.tab_stop = width;
+        for source in [input, include.as_str()] {
+            assert_eq!(
+                RstReader.read(source, &options).unwrap().blocks,
+                vec![Block::CodeBlock(Box::default(), text.into())]
+            );
+        }
+    }
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn leading_punctuation_before_name_does_not_underflow() {
     // Backwards name scan must stop at index zero; leading punctuation cannot extend the name.
     let _ = parse("_C_\n");

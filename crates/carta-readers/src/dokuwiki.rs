@@ -4,6 +4,7 @@ use carta_ast::Document;
 use carta_core::{Extension, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
+use crate::tabs::expand_tabs;
 
 mod blocks;
 mod helpers;
@@ -48,6 +49,7 @@ impl Reader for DokuwikiReader {
             math: options.extensions.contains(Extension::TexMathDollars),
         };
         let text = normalize_newlines(input);
+        let text = expand_tabs(&text, options.tab_stop);
         let lines: Vec<&str> = text.split('\n').collect();
         let mut index = 0;
         let mut blocks = parse_blocks(&lines, &mut index, ctx);

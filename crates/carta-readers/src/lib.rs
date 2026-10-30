@@ -50,6 +50,7 @@ mod smart_fold;
 #[cfg(any(
     feature = "docbook",
     feature = "dokuwiki",
+    feature = "latex",
     feature = "mediawiki",
     feature = "rst"
 ))]

@@ -9,6 +9,45 @@ fn reads_ok(input: &str) -> bool {
 }
 
 #[test]
+fn tab_stops_apply_to_code_regions() {
+    use carta_ast::Block;
+    for (width, text) in [(0, "a\tb"), (3, "a  b"), (4, "a b"), (8, "a b")] {
+        let mut options = ReaderOptions::default();
+        options.tab_stop = width;
+        assert_eq!(
+            DokuwikiReader
+                .read("<code>a\tb</code>", &options)
+                .unwrap()
+                .blocks,
+            vec![Block::CodeBlock(Box::default(), text.into())]
+        );
+    }
+}
+
+#[test]
+fn tab_width_changes_list_nesting() {
+    use carta_ast::Block;
+    let mut options = ReaderOptions::default();
+    options.tab_stop = 3;
+    let source = "  - one\n\t- two\n";
+    let document = DokuwikiReader.read(source, &options).unwrap();
+    let Some(Block::OrderedList(_, items)) = document.blocks.first() else {
+        panic!("expected list");
+    };
+    assert_eq!(items.len(), 2);
+    options.tab_stop = 4;
+    let document = DokuwikiReader.read(source, &options).unwrap();
+    let Some(Block::OrderedList(_, items)) = document.blocks.first() else {
+        panic!("expected list");
+    };
+    assert_eq!(items.len(), 1);
+    assert!(matches!(
+        items.first().and_then(|blocks| blocks.last()),
+        Some(Block::OrderedList(_, _))
+    ));
+}
+
+#[test]
 fn adversarial_footnotes_under_open_emphasis_do_not_stall() {
     let input = format!("(({}))", "//((x)) ".repeat(400));
     assert!(reads_ok(&input));
