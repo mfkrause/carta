@@ -20,8 +20,20 @@ fn run(args: &[&str], stdin: &str) -> Output {
 }
 
 fn run_bytes(args: &[&str], stdin: &[u8]) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
-        .args(args)
+    run_command(Command::new(env!("CARGO_BIN_EXE_carta")).args(args), stdin)
+}
+
+fn run_in(directory: &std::path::Path, args: &[&str], stdin: &str) -> Output {
+    run_command(
+        Command::new(env!("CARGO_BIN_EXE_carta"))
+            .args(args)
+            .current_dir(directory),
+        stdin.as_bytes(),
+    )
+}
+
+fn run_command(command: &mut Command, stdin: &[u8]) -> Output {
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -407,6 +419,65 @@ fn multiple_text_inputs_have_blank_line_boundaries() {
     let result = run(&[first.to_str().unwrap(), second.to_str().unwrap()], "");
     assert!(result.success, "stderr: {}", result.stderr);
     assert_eq!(result.stdout, "<p>one</p>\n<p>two</p>\n");
+}
+
+#[test]
+fn file_scope_keeps_notes_and_internal_links_in_their_own_documents() {
+    let directory = input_directory("file-scope-notes");
+    fs::write(directory.join("first.md"), "# Same\n\nfirst[^n] [local](#same) [cross](second.md#same) [whole](second.md) [figure](#picture)\n\n![caption](photo.png){#picture}\n\n[^n]: first note\n").unwrap();
+    fs::write(
+        directory.join("second.md"),
+        "# Same\n\nsecond[^n] [local](#same)\n\n[^n]: second note\n",
+    )
+    .unwrap();
+    let result = run_in(
+        &directory,
+        &["--file-scope", "--wrap=none", "first.md", "second.md"],
+        "",
+    );
+    assert!(result.success, "{}", result.stderr);
+    for expected in [
+        "id=\"first.md__same\"",
+        "id=\"second.md__same\"",
+        "id=\"second.md\"",
+        "id=\"first.md__picture\"",
+        "href=\"#first.md__same\"",
+        "href=\"#second.md__same\"",
+        "href=\"#second.md\"",
+        "href=\"#first.md__picture\"",
+        "first note",
+        "second note",
+    ] {
+        assert!(
+            result.stdout.contains(expected),
+            "missing {expected}: {}",
+            result.stdout
+        );
+    }
+}
+
+#[test]
+fn file_scope_can_be_disabled_and_keeps_reference_definitions_separate() {
+    let directory = input_directory("file-scope-definitions");
+    fs::write(directory.join("first.md"), "[shared][target]").unwrap();
+    fs::write(directory.join("second.md"), "[target]: https://example.com").unwrap();
+    for (arguments, expected) in [
+        (vec!["--file-scope"], "<p>[shared][target]</p>\n"),
+        (
+            vec!["--file-scope=false"],
+            "<p><a href=\"https://example.com\">shared</a></p>\n",
+        ),
+        (
+            vec!["--file-scope", "--file-scope=false"],
+            "<p><a href=\"https://example.com\">shared</a></p>\n",
+        ),
+    ] {
+        let mut arguments = arguments;
+        arguments.extend(["first.md", "second.md"]);
+        let result = run_in(&directory, &arguments, "");
+        assert!(result.success, "{}", result.stderr);
+        assert_eq!(result.stdout, expected);
+    }
 }
 
 #[test]

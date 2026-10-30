@@ -17,7 +17,7 @@ carta - Document converter
 
 ## Synopsis
 
-**carta** \[**-f**\|**--from**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
+**carta** \[**-f**\|**--from**\] \[**--file-scope**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
 
 ## Description
 
@@ -27,6 +27,16 @@ Document converter
 
 **-f**, **--from** *\<FROM\>*  
 Input format, inferred from input filenames when omitted (default: markdown)
+
+**--file-scope**\[=*\<FILE_SCOPE\>*\] \[default: false\]  
+Parse input files separately, with independent footnotes and internal link identifiers\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **-t**, **--to** *\<TO\>*  
 Output format, inferred from the output filename when omitted (default: html)

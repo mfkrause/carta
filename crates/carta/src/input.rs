@@ -77,6 +77,7 @@ pub(super) fn read_documents(
     from: &str,
     paths: &[PathBuf],
     options: &ReaderOptions,
+    file_scope: bool,
 ) -> Result<(Document, MediaBag)> {
     let base = carta::parse_format_spec(from)?.0;
     let text = matches!(any_reader_for(&base)?, AnyReader::Text(_));
@@ -98,18 +99,25 @@ pub(super) fn read_documents(
         let bytes = read_input(None, text)?;
         return read_document(from, &bytes, &options);
     }
-    if (base == "json" || !text) && paths.len() > 1 {
+    if (file_scope || base == "json" || !text) && paths.len() > 1 {
         let mut document = Document::default();
         let mut media = MediaBag::new();
+        let mut starts = Vec::new();
+        let mut anchors = std::collections::BTreeSet::new();
         for path in paths {
             options.source_dir = super::source_dir(Some(path));
             let bytes = read_input(Some(path), text)?;
             let (mut part, resources) = read_document(from, &bytes, &options)?;
+            if file_scope && text && base != "json" {
+                let name = super::file_scope::apply(&mut part, path, paths, &mut anchors);
+                starts.push((name, document.blocks.len()));
+            }
             merge_media(&mut part, &resources, &mut media);
             document.api_version = part.api_version;
             document.meta.extend(part.meta);
             document.blocks.extend(part.blocks);
         }
+        super::file_scope::add_anchors(&mut document, &starts, &anchors);
         return Ok((document, media));
     }
 

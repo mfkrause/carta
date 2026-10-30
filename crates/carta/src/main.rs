@@ -17,6 +17,7 @@ use carta::{
 use clap::{ArgAction, CommandFactory, Parser};
 
 mod datadir;
+mod file_scope;
 mod filters;
 mod input;
 mod options;
@@ -42,6 +43,10 @@ struct Cli {
     /// Input format, inferred from input filenames when omitted (default: markdown).
     #[arg(short = 'f', long = "from")]
     from: Option<String>,
+    /// Parse input files separately, with independent footnotes and internal link identifiers.
+    #[arg(long, action = ArgAction::Set, num_args = 0..=1, require_equals = true,
+        default_missing_value = "true", default_value_t = false, overrides_with = "file_scope")]
+    file_scope: bool,
     /// Output format, inferred from the output filename when omitted (default: html).
     #[arg(short = 't', long = "to")]
     to: Option<String>,
@@ -415,10 +420,9 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
 
     let mut reader_options = ReaderOptions::default();
     reader_options.columns = writer_options.columns.unwrap_or(72);
-    if let Some(tab_stop) = cli.tab_stop {
-        reader_options.tab_stop = tab_stop;
-    }
-    let (mut document, resources) = input::read_documents(from, &cli.input, &reader_options)?;
+    reader_options.tab_stop = cli.tab_stop.unwrap_or(reader_options.tab_stop);
+    let (mut document, resources) =
+        input::read_documents(from, &cli.input, &reader_options, cli.file_scope)?;
 
     // Merge metadata before filters, then clear layers so removed keys stay removed.
     carta::merge_metadata(&mut document, &writer_options);

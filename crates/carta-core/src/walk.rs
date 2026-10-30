@@ -1,6 +1,66 @@
 //! Mutable document-order traversals for blocks, image targets, and link targets.
 
-use carta_ast::{Block, Caption, Document, Inline, MetaValue, Row, Table, Target};
+use carta_ast::{Attr, Block, Caption, Document, Inline, MetaValue, Row, Table, Target};
+
+/// Apply `visit` to all block, inline, table, row, and cell attributes, including metadata.
+pub fn for_each_document_attribute(document: &mut Document, visit: &mut dyn FnMut(&mut Attr)) {
+    for_each_document_block(document, &mut |block| match block {
+        Block::Header(_, attr, _)
+        | Block::CodeBlock(attr, _)
+        | Block::Div(attr, _)
+        | Block::Figure(attr, _, _) => visit(attr),
+        Block::Table(table) => {
+            visit(&mut table.attr);
+            visit(&mut table.head.attr);
+            for body in &mut table.bodies {
+                visit(&mut body.attr);
+            }
+            visit(&mut table.foot.attr);
+            for rows in row_groups(table) {
+                for row in rows {
+                    visit(&mut row.attr);
+                    for cell in &mut row.cells {
+                        visit(&mut cell.attr);
+                    }
+                }
+            }
+        }
+        _ => {}
+    });
+    for_each_document_inline(document, &mut |inline| match inline {
+        Inline::Code(attr, _)
+        | Inline::Span(attr, _)
+        | Inline::Link(attr, _, _)
+        | Inline::Image(attr, _, _) => visit(attr),
+        _ => {}
+    });
+}
+
+/// Apply `visit` to every block in the document body and metadata.
+pub fn for_each_document_block(document: &mut Document, visit: &mut dyn FnMut(&mut Block)) {
+    for_each_block(&mut document.blocks, visit);
+    for value in document.meta.values_mut() {
+        metadata_blocks(value, visit);
+    }
+}
+
+fn metadata_blocks(value: &mut MetaValue, visit: &mut dyn FnMut(&mut Block)) {
+    crate::with_stack(|| match value {
+        MetaValue::MetaMap(values) => {
+            for value in values.values_mut() {
+                metadata_blocks(value, visit);
+            }
+        }
+        MetaValue::MetaList(values) => {
+            for value in values {
+                metadata_blocks(value, visit);
+            }
+        }
+        MetaValue::MetaBlocks(blocks) => for_each_block(blocks, visit),
+        MetaValue::MetaInlines(inlines) => blocks_in_inlines(inlines, visit),
+        MetaValue::MetaBool(_) | MetaValue::MetaString(_) => {}
+    });
+}
 
 /// Applies `visit` to every image target throughout `blocks`, descending into every nested inline and
 /// block sequence (list items, table cells, notes, captions, and the rest) in document order.
@@ -92,10 +152,16 @@ fn descend_blocks(block: &mut Block, visit: &mut dyn FnMut(&mut Block)) {
             }
         }
         Block::Figure(_, caption, inner) => {
+            if let Some(short) = &mut caption.short {
+                blocks_in_inlines(short, visit);
+            }
             for_each_block(&mut caption.long, visit);
             for_each_block(inner, visit);
         }
         Block::Table(table) => {
+            if let Some(short) = &mut table.caption.short {
+                blocks_in_inlines(short, visit);
+            }
             for_each_block(&mut table.caption.long, visit);
             for rows in row_groups(table) {
                 for row in rows {
@@ -375,5 +441,94 @@ mod tests {
             }
         });
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn document_attributes_include_table_parts_caption_notes_and_metadata() {
+        use carta_ast::{
+            Alignment, Caption, Cell, Document, MetaValue, Row, Table, TableBody, TableFoot,
+            TableHead,
+        };
+        let named = |id: &str| Attr {
+            id: id.into(),
+            ..Attr::default()
+        };
+        let note =
+            |id: &str| Inline::Note(vec![Block::CodeBlock(Box::new(named(id)), "code".into())]);
+        let table = Table {
+            attr: named("table"),
+            caption: Caption {
+                short: Some(vec![note("table-note")]),
+                ..Caption::default()
+            },
+            head: TableHead {
+                attr: named("header"),
+                rows: vec![Row {
+                    attr: named("row"),
+                    cells: vec![Cell {
+                        attr: named("cell"),
+                        align: Alignment::AlignDefault,
+                        row_span: 1,
+                        col_span: 1,
+                        content: vec![Block::Header(
+                            1,
+                            Box::new(named("cell-content")),
+                            Vec::new(),
+                        )],
+                    }],
+                }],
+            },
+            bodies: vec![TableBody {
+                attr: named("body"),
+                ..TableBody::default()
+            }],
+            foot: TableFoot {
+                attr: named("footer"),
+                ..TableFoot::default()
+            },
+            ..Table::default()
+        };
+        let mut document = Document {
+            blocks: vec![Block::Figure(
+                Box::new(named("figure")),
+                Box::new(Caption {
+                    short: Some(vec![note("figure-note")]),
+                    ..Caption::default()
+                }),
+                vec![Block::Table(Box::new(table))],
+            )],
+            ..Document::default()
+        };
+        document.meta.insert(
+            "nested".into(),
+            MetaValue::MetaList(vec![MetaValue::MetaInlines(vec![Inline::Span(
+                Box::new(named("meta-inline")),
+                vec![note("meta-block")],
+            )])]),
+        );
+        let mut seen = Vec::new();
+        super::for_each_document_attribute(&mut document, &mut |attr| {
+            if !attr.id.is_empty() {
+                seen.push(attr.id.to_string());
+            }
+        });
+        seen.sort();
+        assert_eq!(
+            seen,
+            [
+                "body",
+                "cell",
+                "cell-content",
+                "figure",
+                "figure-note",
+                "footer",
+                "header",
+                "meta-block",
+                "meta-inline",
+                "row",
+                "table",
+                "table-note"
+            ]
+        );
     }
 }

@@ -310,5 +310,5 @@ Notes list gaps and limitations only.
 | Writer extension toggles | ✅ | — |
 | Embed resources / extract media | ✅ | — |
 | Filename format inference | ✅ | — |
-| Multiple inputs / defaults files (`--defaults`) | 🚧 | `--file-scope` and defaults files are not supported. |
+| Multiple inputs / defaults files (`--defaults`) | 🚧 | defaults files are not supported. |
 | CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ✅ | — |
