@@ -200,7 +200,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   character set.
 - A control byte delivered through a `\'xx` or `\uN` escape (tab, line feed) is kept as a literal
   character rather than normalized to a space or line break.
-- `\softline` renders as a hard line break rather than being dropped.
 - Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
   document metadata.
 

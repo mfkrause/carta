@@ -43,6 +43,20 @@ fn plain_paragraph_splits_words() {
 }
 
 #[test]
+fn optional_line_wraps_do_not_add_hard_breaks() {
+    let document = read(r"{\rtf1 a\softline\b bold\b0\line end}");
+    assert_eq!(
+        document.blocks,
+        vec![para(vec![
+            s("a"),
+            Inline::Strong(vec![s("bold")]),
+            Inline::LineBreak,
+            s("end"),
+        ])]
+    );
+}
+
+#[test]
 fn collapses_runs_of_spaces() {
     let doc = read(r"{\rtf1\ansi a  b   c\par}");
     assert_eq!(

@@ -376,7 +376,7 @@ impl Parser {
                     emitter.end_paragraph();
                 }
             }
-            "line" | "softline" => {
+            "line" => {
                 let props = self.props();
                 if let Some(emitter) = self.emitter() {
                     emitter.push_break(props);
