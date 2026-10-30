@@ -242,3 +242,40 @@ mod math_tests {
         );
     }
 }
+
+#[test]
+fn legacy_table_footers_preserve_body_first_note_numbers() {
+    use super::Html4Writer;
+    use carta_ast::{Attr, Block, Cell, Document, Inline, Row, Table, TableBody};
+    use carta_core::{Writer, WriterOptions};
+
+    let row = |label: &str| Row {
+        cells: vec![Cell {
+            row_span: 1,
+            col_span: 1,
+            content: vec![Block::Plain(vec![Inline::Note(vec![Block::Para(vec![
+                Inline::Str(label.into()),
+            ])])])],
+            attr: Attr::default(),
+            align: carta_ast::Alignment::AlignDefault,
+        }],
+        ..Row::default()
+    };
+    let mut table = Table::default();
+    table.bodies.push(TableBody {
+        body: vec![row("body")],
+        ..TableBody::default()
+    });
+    table.foot.rows.push(row("footer"));
+    let document = Document {
+        blocks: vec![Block::Table(Box::new(table))],
+        ..Document::default()
+    };
+    let output = Html4Writer
+        .write(&document, &WriterOptions::default())
+        .unwrap();
+    let (prefix, body) = output.split_once("<tbody").unwrap();
+    assert!(prefix.contains("<tfoot"));
+    assert!(prefix.contains("href=\"#fn2\""));
+    assert!(body.contains("href=\"#fn1\""));
+}

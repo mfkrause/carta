@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<table>
+<thead>
+<tr>
+<th>h1</th>
+<th>h2</th>
+</tr>
+</thead>
+<tfoot>
+<tr>
+<td>sum</td>
+<td>3</td>
+</tr>
+</tfoot>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+</tr>
+</tbody>
+
+</table>
+</div>

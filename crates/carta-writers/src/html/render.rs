@@ -560,11 +560,15 @@ impl State<'_> {
             self.rows(out, &table.head.rows, &aligns, true);
             out.push_str("\n</thead>");
         }
+        let body_start = out.len();
         for body in &table.bodies {
             self.table_body(out, body, &aligns);
         }
+        // Keep footnote numbers in reading order when the footer must precede the bodies.
+        let deferred_body = (!self.flavor.is_html5_family() && !table.foot.rows.is_empty())
+            .then(|| out.split_off(body_start));
         if !table.foot.rows.is_empty() {
-            if table.bodies.is_empty() {
+            if table.bodies.is_empty() || deferred_body.is_some() {
                 out.push('\n');
             }
             out.push_str("<tfoot");
@@ -573,6 +577,9 @@ impl State<'_> {
             out.push('\n');
             self.rows(out, &table.foot.rows, &aligns, false);
             out.push_str("\n</tfoot>");
+        }
+        if let Some(body) = deferred_body {
+            out.push_str(&body);
         }
         if table.bodies.is_empty() || !table.foot.rows.is_empty() {
             out.push('\n');

@@ -27,6 +27,7 @@ fn epub2_compatible_body_snapshots() {
         ("table", "table-caption-blocks"),
         ("table", "table-caption-div"),
         ("table", "table-empty"),
+        ("table", "table-foot"),
         ("task-list", "checkboxes"),
     ] {
         let input = fs::read(corpus.join(group).join(format!("{case}.json"))).unwrap();

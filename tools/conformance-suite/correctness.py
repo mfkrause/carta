@@ -62,6 +62,8 @@ def expectation(label):
             if surface == "e2e" and target != "json":
                 name = f"golden_e2e__{source}__{target}__{stem}"
             return name, reason
+    if parts == ["writer", "html4", "table", "table-foot.json"]:
+        return "golden_writer__html4__table__table-foot", "Place the footer before the table bodies."
     if len(parts) == 4 and parts[:3] == ["writer", "rst", "common"]:
         stem = Path(parts[3]).stem
         if stem in {"span", "span-semantic"}:
@@ -80,6 +82,7 @@ def expectation(label):
             ("table", "table-caption-blocks"),
             ("table", "table-caption-div"),
             ("table", "table-empty"),
+            ("table", "table-foot"),
             ("task-list", "checkboxes"),
         }
         if (group, stem) in cases:
