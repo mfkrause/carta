@@ -65,8 +65,6 @@
   ],
   "recognizedNotModeled": [
     "latex_macros",
-    "wikilinks_title_after_pipe",
-    "wikilinks_title_before_pipe",
     "east_asian_line_breaks",
     "four_space_rule",
     "literate_haskell",

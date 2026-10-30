@@ -2,6 +2,108 @@
 
 use super::*;
 
+#[test]
+fn wiki_links_select_the_pipe_direction_and_keep_labels_literal() {
+    for (extension, source) in [
+        (Extension::WikilinksTitleAfterPipe, "[[Page Name|*label*]]"),
+        (Extension::WikilinksTitleBeforePipe, "[[*label*|Page Name]]"),
+    ] {
+        let inlines = pm(source, exts(&[extension]));
+        let [Inline::Link(attributes, label, target)] = inlines.as_slice() else {
+            panic!("{inlines:?}");
+        };
+        assert_eq!(attributes.classes, ["wikilink"]);
+        assert_eq!(label, &[str("*label*")]);
+        assert_eq!(target.url, "Page Name");
+    }
+    assert_eq!(pm("[[Page|label]]", no_ext()), vec![str("[[Page|label]]")]);
+}
+
+#[test]
+fn wiki_images_decode_label_entities_and_keep_targets_verbatim() {
+    let inlines = pm(
+        "![[a&amp;b|x&amp;y]]",
+        exts(&[Extension::WikilinksTitleAfterPipe]),
+    );
+    let [Inline::Image(attributes, label, target)] = inlines.as_slice() else {
+        panic!("{inlines:?}");
+    };
+    assert_eq!(attributes.classes, ["wikilink"]);
+    assert_eq!(label, &[str("x&y")]);
+    assert_eq!(target.url, "a&amp;b");
+    assert_eq!(
+        pm(
+            "[[p|x]]{#id}",
+            exts(&[
+                Extension::WikilinksTitleAfterPipe,
+                Extension::BracketedSpans
+            ])
+        ),
+        vec![span(attr("id", &[], &[]), vec![str("[p|x]")])]
+    );
+}
+
+#[test]
+fn failed_wiki_openers_keep_links_on_later_lines() {
+    let prefix = "[[a".repeat(8000);
+    let source = format!("{prefix}\n[[Page]]");
+    let inlines = pm(&source, exts(&[Extension::WikilinksTitleAfterPipe]));
+    assert!(
+        matches!(inlines.as_slice(), [Inline::Str(text), Inline::SoftBreak, Inline::Link(_, _, target)] if text.as_str() == prefix && target.url == "Page")
+    );
+}
+
+#[test]
+fn commonmark_wiki_links_trim_edges_decode_targets_and_keep_soft_breaks() {
+    let extensions = exts(&[Extension::WikilinksTitleAfterPipe]);
+    let inlines = pe("[[ a&amp;b | c d ]]", extensions);
+    let [Inline::Link(_, content, target)] = inlines.as_slice() else {
+        panic!("{inlines:?}");
+    };
+    assert_eq!(target.url, "a&b");
+    assert_eq!(content, &[str("c"), Inline::Space, str("d")]);
+    let inlines = pe("[[a\nb]]", extensions);
+    let [Inline::Link(_, content, target)] = inlines.as_slice() else {
+        panic!("{inlines:?}");
+    };
+    assert_eq!(target.url, "a\nb");
+    assert_eq!(content, &[str("a"), Inline::SoftBreak, str("b")]);
+    assert_eq!(pe("[[a]b]]", extensions), vec![str("[[a]b]]")]);
+    assert!(
+        matches!(pe("![[Page]]", extensions).as_slice(), [Inline::Str(text), Inline::Link(..)] if text == "!")
+    );
+}
+
+#[test]
+fn commonmark_wiki_links_keep_attached_attributes() {
+    let inlines = pe(
+        "[[Page|label]]{#id .x}",
+        exts(&[Extension::WikilinksTitleAfterPipe, Extension::Attributes]),
+    );
+    let [Inline::Link(attributes, _, _)] = inlines.as_slice() else {
+        panic!("{inlines:?}");
+    };
+    assert_eq!(attributes.id, "id");
+    assert_eq!(attributes.classes, ["x", "wikilink"]);
+}
+
+#[test]
+fn wiki_links_leave_new_brackets_active_after_older_openers_close() {
+    let inlines = pm(
+        "[[Page]] [outer [inner](one)](two) [later](three)",
+        exts(&[Extension::WikilinksTitleAfterPipe]),
+    );
+    let targets: Vec<&str> = inlines
+        .iter()
+        .filter_map(|inline| match inline {
+            Inline::Link(_, _, target) => Some(target.url.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(targets, ["Page", "one", "three"]);
+    assert!(inlines.contains(&str("](two)")));
+}
+
 // Links and images
 
 #[test]

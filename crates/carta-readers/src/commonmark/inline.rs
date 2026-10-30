@@ -105,12 +105,14 @@ fn parse_inlines_shared(
         notes,
         ext,
         bracket_stack: Vec::new(),
+        inactive_link_prefix: 0,
         cite_cache,
         interesting: interesting_chars(ext),
         backtick_runs: None,
         html_closing: std::cell::OnceCell::new(),
         raw_tex_groups: std::cell::OnceCell::new(),
         raw_tex_environments: std::cell::OnceCell::new(),
+        wiki_failed_until: 0,
     };
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
@@ -163,6 +165,8 @@ struct InlineParser<'a> {
     /// Indices into `nodes` for each open `[` or `![` delimiter, in parse order. O(1) lookup of
     /// the most recent bracket opener instead of a backward scan through all nodes.
     bracket_stack: Vec<usize>,
+    /// Non-image openers before this stack position already cannot form links.
+    inactive_link_prefix: usize,
     /// Resolved-citation memo shared with the parses this one spawns over subslices of `text`.
     cite_cache: &'a CiteCache,
     /// For each ASCII code, whether a character can start a syntactic construct under the active
@@ -180,6 +184,7 @@ struct InlineParser<'a> {
     raw_tex_groups: std::cell::OnceCell<BTreeMap<usize, usize>>,
     /// Environment opening-group ends mapped to their matching closing-marker ends.
     raw_tex_environments: std::cell::OnceCell<BTreeMap<usize, usize>>,
+    wiki_failed_until: usize,
 }
 
 /// The ASCII characters that can begin an inline construct under `ext`; every other character is
@@ -286,10 +291,21 @@ impl InlineParser<'_> {
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
                 '.' if self.ext.contains(Extension::Smart) => self.smart_period(),
+                '[' if self.try_wikilink(false) => {}
                 '[' => {
                     self.pos += 1;
                     self.push_open_bracket(false);
                 }
+                '!' if !self.notes.markdown
+                    && (self.ext.contains(Extension::WikilinksTitleAfterPipe)
+                        || self.ext.contains(Extension::WikilinksTitleBeforePipe))
+                    && self.at(1) == Some('[')
+                    && self.at(2) == Some('[') =>
+                {
+                    self.pos += 1;
+                    self.push_text('!');
+                }
+                '!' if self.try_wikilink(true) => {}
                 '!' if self.at(1) == Some('[') => {
                     self.pos += 2;
                     self.push_open_bracket(true);

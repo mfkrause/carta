@@ -9,7 +9,7 @@ use super::super::attr;
 use super::super::para;
 use super::super::postprocess::is_format_name_char;
 use super::super::scan::{
-    char_at, escape_uri, normalize_label, scan_following_label, scan_inline_target,
+    char_at, escape_uri, normalize_label, scan_entity, scan_following_label, scan_inline_target,
 };
 use super::cite_cache::{ResolvedCitation, replay_weight};
 use super::helpers::{
@@ -19,6 +19,40 @@ use super::helpers::{
 use super::{
     Delimiter, InlineParser, MAX_LABEL_BYTES, Node, parse_inlines_shared, resolve_inline_nodes,
 };
+
+fn wiki_text(label: &str) -> String {
+    let mut decoded = String::with_capacity(label.len());
+    let mut position = 0;
+    while let Some(ch) = char_at(label, position) {
+        if ch == '&'
+            && let Some((value, next)) = scan_entity(label, position)
+        {
+            decoded.push_str(&value);
+            position = next;
+        } else {
+            decoded.push(if ch == '\t' { ' ' } else { ch });
+            position += ch.len_utf8();
+        }
+    }
+    decoded
+}
+
+fn wiki_label(label: &str, markdown: bool) -> Vec<Inline> {
+    let decoded = wiki_text(label);
+    let text = if markdown {
+        decoded.as_str()
+    } else {
+        decoded.trim()
+    };
+    let mut content = Vec::new();
+    for (line, text) in text.split('\n').enumerate() {
+        if line > 0 {
+            content.push(Inline::SoftBreak);
+        }
+        super::push_text_inlines(&mut content, text);
+    }
+    content
+}
 
 /// Outcome of resolving an explicit link target after a closing `]`.
 enum Explicit {
@@ -31,7 +65,102 @@ enum Explicit {
 }
 
 impl<'a> InlineParser<'a> {
+    pub(super) fn try_wikilink(&mut self, image: bool) -> bool {
+        let after_pipe = self.ext.contains(Extension::WikilinksTitleAfterPipe);
+        if (!after_pipe && !self.ext.contains(Extension::WikilinksTitleBeforePipe))
+            || self.pos < self.wiki_failed_until
+        {
+            return false;
+        }
+        let start = self.pos + usize::from(image);
+        if !self
+            .text
+            .get(start..)
+            .is_some_and(|rest| rest.starts_with("[["))
+        {
+            return false;
+        }
+        let body_start = start + 2;
+        let Some(rest) = self.text.get(body_start..) else {
+            return false;
+        };
+        if rest.starts_with('[') {
+            return false;
+        }
+        let Some(end) = self.wiki_end(body_start) else {
+            return false;
+        };
+        let Some(body) = self
+            .text
+            .get(body_start..end)
+            .filter(|body| !self.notes.markdown || !body.is_empty())
+        else {
+            return false;
+        };
+        if !image
+            && self.notes.markdown
+            && self.ext.contains(Extension::BracketedSpans)
+            && attr::parse_attributes_bytes(self.text, end + 2, self.notes.markdown).is_some()
+        {
+            return false;
+        }
+        let (target, label) = match body.split_once('|') {
+            Some((left, right)) if after_pipe => (left, right),
+            Some((left, right)) => (right, left),
+            None => (body, body),
+        };
+        let content = wiki_label(label, self.notes.markdown);
+        self.pos = end + 2;
+        let mut attributes = if self.notes.markdown {
+            Attr::default()
+        } else {
+            self.take_link_attr()
+        };
+        if !attributes.classes.iter().any(|class| class == "wikilink") {
+            attributes.classes.push("wikilink".into());
+        }
+        let attributes = Box::new(attributes);
+        let target = if self.notes.markdown {
+            target.to_owned()
+        } else {
+            wiki_text(target).trim().to_owned()
+        };
+        let target = Box::new(Target {
+            url: target.into(),
+            title: carta_ast::Text::default(),
+        });
+        if !image {
+            self.deactivate_earlier_brackets(self.nodes.len());
+        }
+        self.nodes.push(Node::Inline(if image {
+            Inline::Image(attributes, content, target)
+        } else {
+            Inline::Link(attributes, content, target)
+        }));
+        true
+    }
+
+    fn wiki_end(&mut self, start: usize) -> Option<usize> {
+        let rest = self.text.get(start..)?;
+        for offset in memchr::memchr2_iter(b']', b'\n', rest.as_bytes()) {
+            if rest.as_bytes().get(offset) == Some(&b'\n') {
+                if self.notes.markdown {
+                    self.wiki_failed_until = start + offset;
+                    return None;
+                }
+            } else if rest.as_bytes().get(offset + 1) == Some(&b']') {
+                return Some(start + offset);
+            } else if !self.notes.markdown {
+                self.wiki_failed_until = start + offset;
+                return None;
+            }
+        }
+        self.wiki_failed_until = self.text.len();
+        None
+    }
+
     pub(super) fn push_open_bracket(&mut self, image: bool) {
+        self.inactive_link_prefix = self.inactive_link_prefix.min(self.bracket_stack.len());
         let node_index = self.nodes.len();
         self.bracket_stack.push(node_index);
         self.nodes.push(Node::Delimiter(Delimiter {
@@ -411,16 +540,16 @@ impl<'a> InlineParser<'a> {
     /// remain on the bracket stack so that a later `]` can consume them one at a time (spec §6.3,
     /// rule 6): each `]` pops the top inactive entry, literalizes it, and emits `]` as text.
     fn deactivate_earlier_brackets(&mut self, before: usize) {
-        for &ni in &self.bracket_stack {
-            if ni >= before {
-                continue;
-            }
+        let end = self.bracket_stack.partition_point(|&index| index < before);
+        let start = self.inactive_link_prefix.min(end);
+        for &ni in self.bracket_stack.get(start..end).unwrap_or_default() {
             if let Some(Node::Delimiter(d)) = self.nodes.get_mut(ni)
                 && !d.image
             {
                 d.active = false;
             }
         }
+        self.inactive_link_prefix = end;
     }
 
     /// Resolve an explicit link target following `]`: an inline `(...)` destination or an explicit

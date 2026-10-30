@@ -6,7 +6,7 @@ use carta_ast::{
     Attr, Block, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
     Target, Text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extensions, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_html_attr, escape_xml, fill, fill_groups,
@@ -17,6 +17,7 @@ use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, autolink, begins_character_reference, begins_named_entity,
     code_span, destination, indent_code, is_autolink_class, is_html_format, is_word_boundary,
     longest_backtick_run, needs_separator, offset_horizontal_rule, push_html, quote_block,
+    wiki_link,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -29,6 +30,7 @@ impl Writer for CommonmarkWriter {
         let mut state = State {
             wrap: options.wrap,
             width,
+            extensions: options.extensions,
             ..State::default()
         };
         let body = state.blocks_to_string(&document.blocks, width, false);
@@ -52,6 +54,7 @@ struct State {
     footnotes: Vec<String>,
     wrap: WrapMode,
     width: usize,
+    extensions: Extensions,
     /// Whether rendering is currently inside a raw-HTML anchor. An anchor cannot contain another
     /// anchor, so a link nested inside one degrades to a `<span>` carrying its attributes.
     in_anchor: bool,
@@ -70,6 +73,7 @@ impl Default for State {
             footnotes: Vec::new(),
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
+            extensions: Extensions::empty(),
             in_anchor: false,
             groups: Vec::new(),
             in_item: false,
@@ -472,6 +476,10 @@ impl State {
             );
             self.extend_pieces(inlines, out, false);
             out.push(Piece::text("</span>"));
+            return;
+        }
+        if let Some(link) = wiki_link(attr, inlines, target, self.extensions) {
+            out.push(Piece::text(link));
             return;
         }
         if (attr_is_empty(attr) || is_autolink_class(attr))

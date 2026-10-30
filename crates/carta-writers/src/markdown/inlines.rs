@@ -10,7 +10,7 @@ use crate::common::{
 use crate::markdown_common::{
     attr_is_empty, autolink, begins_character_reference, begins_named_entity, code_span,
     destination, is_autolink_class, is_html_format, is_word_boundary, longest_backtick_run,
-    push_html,
+    push_html, wiki_link,
 };
 
 use super::{State, attr_body, attr_braces};
@@ -335,6 +335,10 @@ impl State {
             out.push(Piece::text("</span>"));
             return;
         }
+        if let Some(link) = wiki_link(attr, inlines, target, self.config.extensions) {
+            out.push(Piece::text(link));
+            return;
+        }
         if (attr_is_empty(attr) || is_autolink_class(attr))
             && let Some(autolink) = autolink(inlines, target)
         {
@@ -389,8 +393,19 @@ impl State {
         target: &Target,
         out: &mut Vec<Piece>,
     ) {
-        if self.image_renders_as_html(attr) {
+        if self.image_renders_as_html(attr)
+            || (self.config.cmark
+                && (self.config.has(Extension::WikilinksTitleAfterPipe)
+                    || self.config.has(Extension::WikilinksTitleBeforePipe))
+                && attr.classes.iter().any(|class| class == "wikilink"))
+        {
             out.push(Piece::text(image_html(attr, inlines, target)));
+            return;
+        }
+        if !self.config.cmark
+            && let Some(link) = wiki_link(attr, inlines, target, self.config.extensions)
+        {
+            out.push(Piece::text(format!("!{link}")));
             return;
         }
         out.push(Piece::text("!["));

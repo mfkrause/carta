@@ -1,6 +1,35 @@
 use super::yaml::{yaml_inline_scalar, yaml_needs_quoting};
 
 #[test]
+fn commonmark_x_keeps_wiki_images_with_spaced_filenames() {
+    use carta_ast::{Attr, Block, Document, Inline, Target};
+    use carta_core::{Extension, Writer, WriterOptions, presets};
+    let document = Document {
+        blocks: vec![Block::Para(vec![Inline::Image(
+            Box::new(Attr {
+                classes: vec!["wikilink".into()],
+                ..Attr::default()
+            }),
+            vec![Inline::Str("caption".into())],
+            Box::new(Target {
+                url: "page name.png".into(),
+                title: Default::default(),
+            }),
+        )])],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.extensions = presets::COMMONMARK_X;
+    options
+        .extensions
+        .insert(Extension::WikilinksTitleAfterPipe);
+    assert_eq!(
+        super::CommonmarkXWriter.write(&document, &options).unwrap(),
+        "<img src=\"page name.png\" class=\"wikilink\" alt=\"caption\" />"
+    );
+}
+
+#[test]
 fn deeply_nested_tables_render_without_compounding_measurement() {
     use super::MarkdownWriter;
     use carta_ast::{

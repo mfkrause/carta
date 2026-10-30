@@ -3,8 +3,54 @@
 //! and escaping logic lives here once.
 
 use carta_ast::{Attr, Block, Format, Inline, Target};
+use carta_core::{Extension, Extensions};
 
 use crate::common::{Piece, is_uri, label_matches_url};
+
+/// Render a wiki link only when its syntax can retain all link content and metadata.
+pub(crate) fn wiki_link(
+    attr: &Attr,
+    inlines: &[Inline],
+    target: &Target,
+    extensions: Extensions,
+) -> Option<String> {
+    let after_pipe = extensions.contains(Extension::WikilinksTitleAfterPipe);
+    if (!after_pipe && !extensions.contains(Extension::WikilinksTitleBeforePipe))
+        || !attr.id.is_empty()
+        || !attr.attributes.is_empty()
+        || attr.classes.len() != 1
+        || attr.classes.first().is_none_or(|class| class != "wikilink")
+        || !target.title.is_empty()
+        || inlines
+            .iter()
+            .any(|inline| !matches!(inline, Inline::Str(_) | Inline::Space))
+    {
+        return None;
+    }
+    let label = carta_ast::to_plain_text(inlines).replace('&', "&amp;");
+    let destination = target.url.as_str();
+    if [label.as_str(), destination]
+        .iter()
+        .any(|part| part.contains("]]") || part.contains(['\n', '\r', '\t']))
+    {
+        return None;
+    }
+    let first = if after_pipe {
+        destination
+    } else {
+        label.as_str()
+    };
+    if first.contains('|') || first.starts_with('[') {
+        return None;
+    }
+    if label == destination && !label.is_empty() {
+        Some(format!("[[{destination}]]"))
+    } else if after_pipe {
+        Some(format!("[[{destination}|{label}]]"))
+    } else {
+        Some(format!("[[{label}|{destination}]]"))
+    }
+}
 
 /// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
 /// the first: two lists of the same kind would merge into one, and an indented code block following
@@ -247,6 +293,52 @@ mod tests {
 
     fn str_inlines(text: &str) -> Vec<Inline> {
         vec![Inline::Str(text.to_owned().into())]
+    }
+
+    #[test]
+    fn wiki_syntax_keeps_plain_links_and_declines_lossy_forms() {
+        let mut attributes = Attr {
+            classes: vec!["wikilink".into()],
+            ..Attr::default()
+        };
+        let mut target = Target {
+            url: "Page".into(),
+            title: Default::default(),
+        };
+        let after = Extensions::from_list(&[Extension::WikilinksTitleAfterPipe]);
+        let before = Extensions::from_list(&[Extension::WikilinksTitleBeforePipe]);
+        assert_eq!(
+            wiki_link(&attributes, &str_inlines("label"), &target, after).as_deref(),
+            Some("[[Page|label]]")
+        );
+        assert_eq!(
+            wiki_link(&attributes, &str_inlines("label"), &target, before).as_deref(),
+            Some("[[label|Page]]")
+        );
+        assert_eq!(
+            wiki_link(&attributes, &str_inlines("Page"), &target, after).as_deref(),
+            Some("[[Page]]")
+        );
+        assert_eq!(
+            wiki_link(&attributes, &str_inlines("&amp;"), &target, after).as_deref(),
+            Some("[[Page|&amp;amp;]]")
+        );
+        assert!(wiki_link(&attributes, &str_inlines("one|two"), &target, before).is_none());
+        assert!(wiki_link(&attributes, &str_inlines("one]]two"), &target, after).is_none());
+        assert!(
+            wiki_link(
+                &attributes,
+                &[Inline::Emph(str_inlines("label"))],
+                &target,
+                after
+            )
+            .is_none()
+        );
+        target.title = "Title".into();
+        assert!(wiki_link(&attributes, &str_inlines("label"), &target, after).is_none());
+        target.title = Default::default();
+        attributes.id = "anchor".into();
+        assert!(wiki_link(&attributes, &str_inlines("label"), &target, after).is_none());
     }
 
     #[test]
