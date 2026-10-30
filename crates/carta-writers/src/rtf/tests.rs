@@ -439,6 +439,70 @@ fn table_rows_and_caption() {
 }
 
 #[test]
+fn nested_tables_keep_their_depth_and_restore_the_parent_row() {
+    let table = |content, columns| {
+        Block::Table(Box::new(Table {
+            col_specs: vec![
+                ColSpec {
+                    align: Alignment::AlignDefault,
+                    width: ColWidth::ColWidthDefault,
+                };
+                columns
+            ],
+            head: TableHead {
+                rows: vec![Row {
+                    cells: vec![Cell {
+                        attr: Attr::default(),
+                        align: Alignment::AlignDefault,
+                        row_span: 1,
+                        col_span: 1,
+                        content,
+                    }],
+                    ..Row::default()
+                }],
+                ..TableHead::default()
+            },
+            ..Table::default()
+        }))
+    };
+    for depth in [2, 3] {
+        let mut inner = table(
+            vec![para(vec![
+                s("inner"),
+                Inline::Note(vec![para(vec![s("note")])]),
+            ])],
+            1,
+        );
+        for _ in 2..depth {
+            inner = table(vec![inner], 1);
+        }
+        let outer = table(
+            vec![para(vec![s("before")]), inner, para(vec![s("after")])],
+            2,
+        );
+        let output = render(vec![outer, para(vec![s("outside")])]);
+        assert!(
+            output.contains(&format!("\\intbl\\itap{depth}")),
+            "{output}"
+        );
+        assert!(output.contains("\\cellx4080"), "{output}");
+        assert_eq!(output.matches("\\nestrow").count(), depth - 1, "{output}");
+        assert_eq!(output.matches("\\nestcell").count(), depth - 1, "{output}");
+        let nested_end = output.rfind("\\nestrow").unwrap();
+        let outer_end = output.rfind("\\intbl\\row").unwrap();
+        assert!(
+            output[nested_end..outer_end].contains("\\cellx4320\\clbrdrb\\brdrs\\cellx8640"),
+            "{output}"
+        );
+        assert!(output.contains("\\plain\\pard {\\pard \\ql"), "{output}");
+        assert!(
+            output.ends_with("{\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 outside\\par}"),
+            "{output}"
+        );
+    }
+}
+
+#[test]
 fn column_widths_honor_explicit_fractions() {
     let spec = |width| ColSpec {
         align: Alignment::AlignDefault,
@@ -446,17 +510,20 @@ fn column_widths_honor_explicit_fractions() {
     };
     let cw = ColWidth::ColWidth;
     let def = || ColWidth::ColWidthDefault;
-    assert_eq!(column_widths(&[spec(def()), spec(def())]), vec![4320, 8640]);
     assert_eq!(
-        column_widths(&[spec(cw(0.8)), spec(def())]),
+        column_widths(&[spec(def()), spec(def())], TABLE_WIDTH),
+        vec![4320, 8640]
+    );
+    assert_eq!(
+        column_widths(&[spec(cw(0.8)), spec(def())], TABLE_WIDTH),
         vec![6912, 6912]
     );
     assert_eq!(
-        column_widths(&[spec(def()), spec(cw(0.5)), spec(def())]),
+        column_widths(&[spec(def()), spec(cw(0.5)), spec(def())], TABLE_WIDTH),
         vec![0, 4320, 4320]
     );
     assert_eq!(
-        column_widths(&[spec(cw(0.3)), spec(cw(0.3))]),
+        column_widths(&[spec(cw(0.3)), spec(cw(0.3))], TABLE_WIDTH),
         vec![2592, 5184]
     );
 }

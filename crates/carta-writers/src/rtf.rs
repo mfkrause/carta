@@ -17,6 +17,9 @@ use crate::common::{
 };
 use crate::image_size::{RasterFormat, image_dimensions, image_dpi, raster_format};
 
+const TABLE_WIDTH: i64 = 8640;
+const CELL_PADDING: i64 = 120;
+
 /// Renders a document to Rich Text Format (no trailing newline).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RtfWriter;
@@ -55,7 +58,9 @@ struct Lead {
 struct State {
     indent: i32,
     align: &'static str,
-    in_table: bool,
+    table_depth: u32,
+    available_width: i64,
+    row_properties: Option<String>,
     list_depth: u32,
     pending: Option<Lead>,
     media: Arc<MediaBag>,
@@ -72,7 +77,9 @@ impl State {
         Self {
             indent: 0,
             align: "\\ql",
-            in_table: false,
+            table_depth: 0,
+            available_width: TABLE_WIDTH,
+            row_properties: None,
             list_depth: 0,
             pending: None,
             media,
@@ -124,9 +131,14 @@ impl State {
             Some(lead) => (lead.first_indent, lead.marker),
             None => (0, String::new()),
         };
-        let table = if self.in_table { "\\intbl" } else { "" };
+        let table = if self.table_depth > 0 { "\\intbl" } else { "" };
+        let nesting = if self.table_depth > 1 {
+            format!("\\itap{}", self.table_depth)
+        } else {
+            String::new()
+        };
         format!(
-            "{{\\pard{table} {align} \\f0 \\sa{spacing} \\li{indent} \\fi{first_indent} {marker}{body}\\par}}\n",
+            "{{\\pard{table}{nesting} {align} \\f0 \\sa{spacing} \\li{indent} \\fi{first_indent} {marker}{body}\\par}}\n",
             align = self.align,
             indent = self.indent,
         )
@@ -276,7 +288,8 @@ impl State {
     /// every row emits exactly one cell per column. Row spans are tracked within a section (the head,
     /// each body, and the foot each track their own) and do not carry across section boundaries.
     fn table(&mut self, table: &Table) -> String {
-        let widths = column_widths(&table.col_specs);
+        self.table_depth = self.table_depth.saturating_add(1);
+        let widths = column_widths(&table.col_specs, self.available_width);
         let columns = table.col_specs.len();
         let mut out = String::new();
         out.push_str(&self.table_section(
@@ -302,6 +315,13 @@ impl State {
             &widths,
             false,
         ));
+        self.table_depth = self.table_depth.saturating_sub(1);
+        if self.table_depth > 0
+            && let Some(properties) = &self.row_properties
+        {
+            out.push_str(properties);
+            out.push('\n');
+        }
         let caption = self.inlines(&caption_inlines(&table.caption.long));
         out.push_str(&self.paragraph(180, &caption));
         out
@@ -350,24 +370,57 @@ impl State {
                 widths.get(index).copied().unwrap_or(0)
             );
         }
+        let properties = format!("\\trowd \\trgaph{CELL_PADDING}\n{cell_defs}\n\\trkeep");
+        let previous_properties = self.row_properties.replace(properties.clone());
         let mut cells = String::new();
         let mut emitted = 0usize;
         for slot in slots.iter().take(columns) {
             match slot {
                 GridSlot::Cell(column, cell) => {
                     let column_align = specs.get(*column).map(|spec| &spec.align);
-                    cells.push_str(&self.table_cell(&cell.content, &cell.align, column_align));
+                    let left = column
+                        .checked_sub(1)
+                        .and_then(|index| widths.get(index))
+                        .copied()
+                        .unwrap_or(0);
+                    let right = widths.get(*column).copied().unwrap_or(left);
+                    let width = right
+                        .saturating_sub(left)
+                        .saturating_sub(2 * CELL_PADDING)
+                        .max(0);
+                    cells.push_str(&self.table_cell(
+                        &cell.content,
+                        &cell.align,
+                        column_align,
+                        width,
+                    ));
                 }
-                GridSlot::Covered => cells.push_str("{\\cell}\n"),
+                GridSlot::Covered => {
+                    let _ = writeln!(cells, "{{{}}}", self.cell_end());
+                }
             }
             emitted += 1;
         }
         for _ in emitted..columns {
-            cells.push_str("{\\cell}\n");
+            let _ = writeln!(cells, "{{{}}}", self.cell_end());
         }
-        format!(
-            "{{\n\\trowd \\trgaph120\n{cell_defs}\n\\trkeep\\intbl\n{{\n{cells}}}\n\\intbl\\row}}\n"
-        )
+        self.row_properties = previous_properties;
+        if self.table_depth > 1 {
+            format!(
+                "{{\n\\intbl\\itap{depth}\n{{\n{cells}}}\n{{\\*\\nesttableprops{properties}\\nestrow}}\n{{\\nonesttables\\par}}\n}}\n",
+                depth = self.table_depth,
+            )
+        } else {
+            format!("{{\n{properties}\\intbl\n{{\n{cells}}}\n\\intbl\\row}}\n")
+        }
+    }
+
+    fn cell_end(&self) -> &'static str {
+        if self.table_depth > 1 {
+            "\\nestcell{\\nonesttables\\par}"
+        } else {
+            "\\cell"
+        }
     }
 
     /// Render one cell's content in table mode, at the surrounding left indent and the cell's
@@ -379,17 +432,18 @@ impl State {
         content: &[Block],
         cell_align: &Alignment,
         column_align: Option<&Alignment>,
+        width: i64,
     ) -> String {
         let effective = match cell_align {
             Alignment::AlignDefault => column_align.unwrap_or(&Alignment::AlignDefault),
             explicit => explicit,
         };
-        let saved = (self.align, self.in_table);
+        let saved = (self.align, self.available_width);
         self.align = align_word(effective);
-        self.in_table = true;
+        self.available_width = width;
         let body = self.blocks(content);
-        (self.align, self.in_table) = saved;
-        format!("{{{body}\\cell}}\n")
+        (self.align, self.available_width) = saved;
+        format!("{{{body}{}}}\n", self.cell_end())
     }
 
     fn inlines(&mut self, items: &[Inline]) -> String {
@@ -456,14 +510,29 @@ impl State {
     /// A footnote is emitted inline as an auto-numbered `\footnote` group; its body renders at the
     /// document's own indentation, outside any enclosing table row.
     fn note(&mut self, blocks: &[Block]) -> String {
-        let saved = (self.indent, self.align, self.in_table, self.list_depth);
+        let saved = (
+            self.indent,
+            self.align,
+            self.table_depth,
+            self.list_depth,
+            self.available_width,
+        );
+        let row_properties = self.row_properties.take();
         let pending = self.pending.take();
         self.indent = 0;
         self.align = "\\ql";
-        self.in_table = false;
+        self.table_depth = 0;
+        self.available_width = TABLE_WIDTH;
         self.list_depth = 0;
         let body = self.blocks(blocks);
-        (self.indent, self.align, self.in_table, self.list_depth) = saved;
+        (
+            self.indent,
+            self.align,
+            self.table_depth,
+            self.list_depth,
+            self.available_width,
+        ) = saved;
+        self.row_properties = row_properties;
         self.pending = pending;
         format!("{{\\super\\chftn}}{{\\*\\footnote\\chftn\\~\\plain\\pard {body}}}")
     }
@@ -616,13 +685,13 @@ fn align_word(align: &Alignment) -> &'static str {
     }
 }
 
-/// The cumulative right edge of each column in twips, out of a full-width 8640. A column with an
+/// The cumulative right edge of each column in twips, within the available width. A column with an
 /// explicit fractional width uses it. A column without one takes no width, so explicit fractions keep
 /// their intended proportions; only when no column declares a width do they divide the full width
 /// evenly.
 // Nearest-twip rounding is intended; the product stays well within range.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn column_widths(specs: &[ColSpec]) -> Vec<i64> {
+fn column_widths(specs: &[ColSpec], width: i64) -> Vec<i64> {
     let count = specs.len();
     if count == 0 {
         return Vec::new();
@@ -646,7 +715,7 @@ fn column_widths(specs: &[ColSpec]) -> Vec<i64> {
             ColWidth::ColWidth(fraction) => fraction,
             ColWidth::ColWidthDefault => default_share,
         };
-        edges.push((cumulative * 8640.0).round() as i64);
+        edges.push((cumulative * width as f64).round() as i64);
     }
     edges
 }
