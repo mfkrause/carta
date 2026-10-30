@@ -9,17 +9,19 @@ use std::collections::BTreeMap;
 /// exactly one language, so a value is always emitted.
 pub(crate) const DEFAULT_LANGUAGE: &str = "en-US";
 
-/// The language a locale value (the `LANG` environment variable) implies: the tag before any
-/// charset (`.UTF-8`) or modifier (`@euro`) suffix, with `_` separators written as `-`. A set but
-/// empty locale yields an empty language; only an absent locale falls back to [`DEFAULT_LANGUAGE`].
+/// Convert a process locale to a language tag, using a default for language-neutral locales.
+/// Charset and modifier suffixes are removed, and `_` separators become `-`.
 pub(crate) fn language_from_locale(locale: Option<&str>) -> String {
-    match locale {
-        None => DEFAULT_LANGUAGE.to_owned(),
-        Some(value) => value
-            .split(['.', '@'])
-            .next()
-            .unwrap_or(value)
-            .replace('_', "-"),
+    let language = locale
+        .unwrap_or_default()
+        .split(['.', '@'])
+        .next()
+        .unwrap_or_default()
+        .replace('_', "-");
+    if language.is_empty() || language == "C" || language == "POSIX" {
+        DEFAULT_LANGUAGE.to_owned()
+    } else {
+        language
     }
 }
 

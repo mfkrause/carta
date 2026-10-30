@@ -94,12 +94,17 @@ fn empty_fragment_fields_leave_projected_defaults_intact() {
 }
 
 #[test]
-fn language_from_locale_reduces_the_tag_and_defaults_only_when_absent() {
-    assert_eq!(language_from_locale(None), "en-US");
-    assert_eq!(language_from_locale(Some("")), "");
-    assert_eq!(language_from_locale(Some("C")), "C");
-    assert_eq!(language_from_locale(Some("C.UTF-8")), "C");
-    assert_eq!(language_from_locale(Some("POSIX")), "POSIX");
+fn language_from_locale_defaults_for_language_neutral_locales() {
+    for locale in [
+        None,
+        Some(""),
+        Some("C"),
+        Some("C.UTF-8"),
+        Some("POSIX"),
+        Some("POSIX.UTF-8"),
+    ] {
+        assert_eq!(language_from_locale(locale), "en-US", "{locale:?}");
+    }
     assert_eq!(language_from_locale(Some("en_US.UTF-8")), "en-US");
     assert_eq!(language_from_locale(Some("de_AT.UTF-8@euro")), "de-AT");
     assert_eq!(language_from_locale(Some("fr")), "fr");
