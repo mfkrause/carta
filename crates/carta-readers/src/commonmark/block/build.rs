@@ -192,6 +192,24 @@ impl Parser {
         out
     }
 
+    fn build_raw_tex(node: &Node, literate_code: bool) -> Option<IrBlock> {
+        if node.open {
+            let text = node.text.trim();
+            return (!text.is_empty()).then(|| IrBlock::Para(text.to_owned()));
+        }
+        if literate_code
+            && let Some((_, body)) = node.text.split_once('\n')
+            && let Some(body) = body.strip_suffix("\\end{code}")
+            && !body.is_empty()
+        {
+            return Some(IrBlock::CodeBlock(
+                crate::literate::code_attr(),
+                body.trim_end_matches('\n').to_owned(),
+            ));
+        }
+        Some(IrBlock::RawBlock(Format("tex".into()), node.text.clone()))
+    }
+
     pub(super) fn build_block(&self, index: usize) -> Option<IrBlock> {
         let node = self.nodes.get(index)?;
         let block = match &node.kind {
@@ -239,6 +257,7 @@ impl Parser {
             Kind::IndentedCode => {
                 IrBlock::CodeBlock(Attr::default(), strip_trailing_blank_lines(&node.text))
             }
+            Kind::BirdTracks => IrBlock::CodeBlock(crate::literate::code_attr(), node.text.clone()),
             Kind::FencedCode(fence) => {
                 // A closing fence drops the final newline; end-of-input keeps it.
                 let text = if node.open {
@@ -260,18 +279,7 @@ impl Parser {
             Kind::RawHtmlSpan { .. } => {
                 IrBlock::RawHtml(node.text.trim_end_matches('\n').to_owned())
             }
-            Kind::RawTex { .. } => {
-                // Still open at end of input: no `\end` found, the lines fall back to a paragraph.
-                if node.open {
-                    let trimmed = node.text.trim();
-                    if trimmed.is_empty() {
-                        return None;
-                    }
-                    IrBlock::Para(trimmed.to_owned())
-                } else {
-                    IrBlock::RawBlock(Format("tex".into()), node.text.clone())
-                }
-            }
+            Kind::RawTex { literate_code, .. } => Self::build_raw_tex(node, *literate_code)?,
             Kind::BlockQuote { allows_alert } => {
                 if *allows_alert
                     && self.extensions.contains(Extension::Alerts)

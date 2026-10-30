@@ -31,7 +31,13 @@ impl Parser {
     /// Math environments stay inline; unclosed raw environments become paragraphs.
     /// A line-leading non-math opener inside inline math can open a separate block.
     pub(super) fn open_raw_tex(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
-        if !self.extensions.contains(Extension::RawTex) {
+        let raw_tex = self.extensions.contains(Extension::RawTex);
+        let literate_code = self.extensions.contains(Extension::LiterateHaskell)
+            && cursor
+                .remaining()
+                .strip_prefix("\\begin{code}")
+                .is_some_and(|rest| rest.trim().is_empty());
+        if !raw_tex && !literate_code {
             return None;
         }
         let name = raw_tex_env_name(cursor.remaining(), b"begin")?;
@@ -40,7 +46,11 @@ impl Parser {
         }
         let line = cursor.rest();
         cursor.advance_chars(line.chars().count());
-        let kind = Kind::RawTex { name, depth: 0 };
+        let kind = Kind::RawTex {
+            name,
+            depth: 0,
+            literate_code,
+        };
         let parent = self.place(container, &kind);
         let index = self.append_child(parent, Node::new(kind));
         self.feed_raw_tex(index, &line);
@@ -52,11 +62,30 @@ impl Parser {
     /// when the depth returns to zero the environment closes at that `\end`, dropping the trailing
     /// newline. Any content after the closing `\end` on the same line is re-fed as a fresh line.
     pub(super) fn feed_raw_tex(&mut self, index: usize, line: &str) {
-        let Some(Kind::RawTex { name, depth }) = self.kind(index) else {
+        let Some(Kind::RawTex {
+            name,
+            depth,
+            literate_code,
+        }) = self.kind(index)
+        else {
             return;
         };
-        let (new_depth, close_at) = raw_tex_scan(line, name, *depth);
+        let (new_depth, close_at) = if *literate_code {
+            (
+                0,
+                line.find("\\end{code}")
+                    .map(|start| start + "\\end{code}".len()),
+            )
+        } else {
+            raw_tex_scan(line, name, *depth)
+        };
         if let Some(end) = close_at {
+            if line.get(end..).is_some_and(|rest| !rest.trim().is_empty())
+                && let Some(node) = self.nodes.get_mut(index)
+                && let Kind::RawTex { literate_code, .. } = &mut node.kind
+            {
+                *literate_code = false;
+            }
             self.append_text(index, line.get(..end).unwrap_or(line));
             self.set_raw_tex_depth(index, 0);
             if self.greedy_paragraphs

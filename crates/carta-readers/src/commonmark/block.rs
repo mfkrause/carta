@@ -41,11 +41,13 @@ pub(crate) fn parse(
             parser.last_html_close_line = lines.iter().rposition(|line| line.contains("</"));
         }
     }
-    for index in 0..lines.len() {
+    let mut index = 0;
+    while index < lines.len() {
         let line = lines.get(index).copied().unwrap_or("");
         let following = lines.get(index + 1..).unwrap_or(&[]);
         parser.source_line = index;
         parser.process_line(line, following, Some(index));
+        index += 1 + std::mem::take(&mut parser.skip_lines);
     }
     parser.finalize_open_text_tables();
     parser.finish()
@@ -167,6 +169,7 @@ enum Kind {
     },
     Heading(i32),
     IndentedCode,
+    BirdTracks,
     FencedCode(FenceInfo),
     HtmlBlock(u8),
     /// Raw HTML collected through the matching close tag, counting nested same-name tags.
@@ -189,6 +192,7 @@ enum Kind {
     RawTex {
         name: String,
         depth: usize,
+        literate_code: bool,
     },
     ThematicBreak,
     /// A dash-ruled table candidate, accumulating its physical lines (each `\n`-terminated). Its
@@ -341,6 +345,7 @@ struct Parser {
     html_closing_lines: [Option<usize>; 6],
     last_html_close_line: Option<usize>,
     source_line: usize,
+    skip_lines: usize,
 }
 
 impl Parser {
@@ -355,6 +360,7 @@ impl Parser {
             html_closing_lines: [None; 6],
             last_html_close_line: None,
             source_line: 0,
+            skip_lines: 0,
         }
     }
 

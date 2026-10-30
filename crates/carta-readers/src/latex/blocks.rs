@@ -163,6 +163,7 @@ impl Parser {
                     inner,
                 )]
             }
+            "code" if self.ext.contains(Extension::LiterateHaskell) => self.parse_verbatim_env(env),
             "verbatim" | "verbatim*" | "Verbatim" | "lstlisting" | "minted" | "alltt"
             | "lstinputlisting" => self.parse_verbatim_env(env),
             "comment" => {
@@ -299,7 +300,11 @@ impl Parser {
     // Verbatim
 
     pub(super) fn parse_verbatim_env(&mut self, env: &str) -> Vec<Block> {
-        let mut classes = Vec::new();
+        let mut classes = if env == "code" {
+            crate::literate::code_attr().classes
+        } else {
+            Vec::new()
+        };
         let mut attributes = Vec::new();
         // `lstlisting`/`Verbatim` take `[key=value,…]` options; `minted` takes `{language}`.
         if matches!(env, "lstlisting" | "Verbatim" | "lstinputlisting") {
@@ -346,7 +351,19 @@ impl Parser {
             }
         }
         self.consume_env_marker("\\end");
-        body.trim_matches('\n').to_owned()
+        if env == "code" {
+            let body = body
+                .split_once('\n')
+                .map_or(body.as_str(), |(first, rest)| {
+                    if first.trim().is_empty() { rest } else { &body }
+                });
+            let body = body.rsplit_once('\n').map_or(body, |(before, last)| {
+                if last.trim().is_empty() { before } else { body }
+            });
+            body.to_owned()
+        } else {
+            body.trim_matches('\n').to_owned()
+        }
     }
 
     // Figures & tables

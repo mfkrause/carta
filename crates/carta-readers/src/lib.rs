@@ -38,6 +38,8 @@ mod inline_scan;
     feature = "mediawiki"
 ))]
 mod inline_text;
+#[cfg(any(feature = "commonmark", feature = "rst", feature = "latex"))]
+mod literate;
 #[cfg(any(
     feature = "html",
     feature = "odt",

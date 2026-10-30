@@ -1376,3 +1376,15 @@ fn asciidoc_flavors_select_their_math_syntax() {
         assert_eq!(result.stdout, expected);
     }
 }
+
+#[cfg(all(feature = "read-commonmark", feature = "write-json"))]
+#[test]
+fn program_filename_selects_literate_input() {
+    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("program.lhs");
+    fs::write(&path, "> square x = x * x\n").unwrap();
+    let result = run(&["-t", "json", path.to_str().unwrap()], "");
+    assert!(result.success, "{}", result.stderr);
+    let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+    assert_eq!(document["blocks"][0]["t"], "CodeBlock");
+    assert_eq!(document["blocks"][0]["c"][1], "square x = x * x");
+}

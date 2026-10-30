@@ -27,7 +27,7 @@ macro_rules! define_extensions {
             /// The extension named `name`, or `None` if no extension uses that identifier.
             #[must_use]
             pub fn from_name(name: &str) -> Option<Extension> {
-                match name { $($name => Some(Extension::$variant),)+ _ => None }
+                match name { "lhs" => Some(Extension::LiterateHaskell), $($name => Some(Extension::$variant),)+ _ => None }
             }
         }
     };

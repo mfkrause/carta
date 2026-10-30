@@ -135,13 +135,13 @@ fn hex_digit(nibble: u8) -> char {
     }
 }
 
-/// Normalizes line endings and tab stops, then removes trailing whitespace from each line.
+/// Normalize line endings and expand tabs.
 fn preprocess(input: &str, tab_stop: usize) -> Vec<String> {
     input
         .replace("\r\n", "\n")
         .replace('\r', "\n")
         .split('\n')
-        .map(|line| expand_tabs(line, tab_stop).trim_end().to_string())
+        .map(|line| expand_tabs(line, tab_stop).into_owned())
         .collect()
 }
 

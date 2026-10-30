@@ -30,6 +30,30 @@ impl Parser {
 
         if indent < TAB_STOP {
             cursor.skip_indent();
+            if indent == 0
+                && !gates.blockquote
+                && self.extensions.contains(Extension::LiterateHaskell)
+                && cursor.peek() == Some(b'>')
+            {
+                let path = self.container_path(container);
+                let later = following.iter().map_while(|line| {
+                    let mut cursor = Cursor::new(line);
+                    self.strip_container_path(&path, &mut cursor)
+                        .then(|| cursor.rest())
+                });
+                if let Some((text, count)) =
+                    crate::literate::bird_tracks(std::iter::once(cursor.rest()).chain(later))
+                {
+                    let kind = Kind::BirdTracks;
+                    let parent = self.place(container, &kind);
+                    let index = self.append_child(parent, Node::new(kind));
+                    self.append_text(index, &text);
+                    self.skip_lines = count - 1;
+                    cursor.advance_chars(cursor.remaining().chars().count());
+                    self.close(index);
+                    return Some(index);
+                }
+            }
             if let Some(block) = self.open_raw_tex(container, cursor) {
                 return Some(block);
             }
@@ -67,13 +91,26 @@ impl Parser {
             // CommonMark needs a spaced hash run; Markdown may accept unspaced hashes at column zero.
             let require_space =
                 !self.greedy_paragraphs || self.extensions.contains(Extension::SpaceInAtxHeader);
+            let heading_marker = if self.extensions.contains(Extension::LiterateHaskell) {
+                b'='
+            } else {
+                b'#'
+            };
             if !gates.heading
                 && (!self.greedy_paragraphs || indent == 0)
-                && let Some(level) = cursor.atx_heading(self.greedy_paragraphs, require_space)
+                && let Some(level) =
+                    cursor.atx_heading(heading_marker, self.greedy_paragraphs, require_space)
             {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
-                self.append_text(index, &strip_atx_closing(cursor.remaining(), require_space));
+                self.append_text(
+                    index,
+                    &strip_atx_closing(
+                        cursor.remaining(),
+                        char::from(heading_marker),
+                        require_space,
+                    ),
+                );
                 self.close(index);
                 return Some(index);
             }
@@ -500,6 +537,7 @@ impl Parser {
                     | Kind::LineBlock
                     | Kind::TextTable
                     | Kind::IndentedCode
+                    | Kind::BirdTracks
                     | Kind::FencedCode(_)
                     | Kind::HtmlBlock(_)
                     | Kind::RawTex { .. },

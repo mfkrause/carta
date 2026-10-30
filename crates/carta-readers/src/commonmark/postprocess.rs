@@ -638,20 +638,23 @@ pub(super) fn strip_trailing_blank_lines(text: &str) -> String {
     lines.join("\n")
 }
 
-/// Trim an ATX heading's content: drop surrounding spaces/tabs and an optional closing run of `#`
-/// (which must be preceded by whitespace or form the whole line, else it belongs to the content).
-pub(super) fn strip_atx_closing(content: &str, require_preceding_space: bool) -> String {
+/// Trim surrounding whitespace and a closing marker run from an ATX heading.
+pub(super) fn strip_atx_closing(
+    content: &str,
+    marker: char,
+    require_preceding_space: bool,
+) -> String {
     let trimmed = content.trim_matches([' ', '\t']);
-    let without_hashes = trimmed.trim_end_matches('#');
-    if without_hashes.len() == trimmed.len() {
+    let without_markers = trimmed.trim_end_matches(marker);
+    if without_markers.len() == trimmed.len() {
         return trimmed.to_owned();
     }
-    // With the opener-space rule, closing hashes also need preceding whitespace.
+    // Closing markers obey the same whitespace rule as the opener.
     if !require_preceding_space
-        || without_hashes.is_empty()
-        || without_hashes.ends_with([' ', '\t'])
+        || without_markers.is_empty()
+        || without_markers.ends_with([' ', '\t'])
     {
-        without_hashes.trim_end_matches([' ', '\t']).to_owned()
+        without_markers.trim_end_matches([' ', '\t']).to_owned()
     } else {
         trimmed.to_owned()
     }

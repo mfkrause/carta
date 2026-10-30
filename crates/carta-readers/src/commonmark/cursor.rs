@@ -220,31 +220,33 @@ impl<'a> Cursor<'a> {
         self.remaining().to_owned()
     }
 
-    /// Parse an ATX heading opener, returning its level. `CommonMark` caps the level at six hashes;
-    /// when `allow_deep` is set (the Markdown dialect) a run of seven or more hashes is a valid
-    /// heading at that exact, uncapped level. At least one hash is always required. When
-    /// `require_space` is set, a space or end of line must follow the run; when it is clear, a hash
-    /// run glued directly to text (`#heading`) still opens a heading.
-    pub(super) fn atx_heading(&mut self, allow_deep: bool, require_space: bool) -> Option<i32> {
+    /// Parse an ATX heading opener with the given marker.
+    /// Deep headings allow more than six markers; required spacing separates the marker from text.
+    pub(super) fn atx_heading(
+        &mut self,
+        marker: u8,
+        allow_deep: bool,
+        require_space: bool,
+    ) -> Option<i32> {
         let start = self.offset;
         let start_col = self.column;
-        let mut hashes = 0;
-        while self.peek() == Some(b'#') {
+        let mut level = 0;
+        while self.peek() == Some(marker) {
             self.advance_one();
-            hashes += 1;
+            level += 1;
         }
-        if hashes == 0 || (hashes > 6 && !allow_deep) {
+        if level == 0 || (level > 6 && !allow_deep) {
             self.offset = start;
             self.column = start_col;
             return None;
         }
         match self.peek() {
-            None => Some(hashes),
+            None => Some(level),
             Some(b' ' | b'\t') => {
                 self.consume_optional_space();
-                Some(hashes)
+                Some(level)
             }
-            _ if !require_space => Some(hashes),
+            _ if !require_space => Some(level),
             _ => {
                 self.offset = start;
                 self.column = start_col;

@@ -442,3 +442,104 @@ fn wrapped_footnotes_keep_all_text_inside_the_definition() {
         ));
     }
 }
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "read-rst",
+    feature = "read-latex"
+))]
+#[test]
+fn literate_readers_keep_program_text_and_language_classes() {
+    use carta::ast::{Attr, Block};
+    let expected = vec![Block::CodeBlock(
+        Box::new(Attr {
+            classes: vec!["haskell".into(), "literate".into()],
+            ..Attr::default()
+        }),
+        "square x = x * x\nmain = print (square 3)".into(),
+    )];
+    for (format, source) in [
+        (
+            "markdown",
+            "> square x = x * x\n> main = print (square 3)\n",
+        ),
+        ("rst", "> square x = x * x\n> main = print (square 3)\n"),
+        (
+            "latex",
+            "\\begin{code}\nsquare x = x * x\nmain = print (square 3)\n\\end{code}\n",
+        ),
+    ] {
+        for extension in [carta::Extension::LiterateHaskell.name(), "lhs"] {
+            let format = format!("{format}+{extension}");
+            let (document, _) =
+                carta::read_document(&format, source.as_bytes(), &ReaderOptions::default())
+                    .unwrap();
+            assert_eq!(document.blocks, expected, "{format}");
+        }
+    }
+}
+
+#[cfg(feature = "read-commonmark")]
+#[test]
+fn literate_markdown_keeps_quotes_prose_and_equals_headings_distinct() {
+    use carta::ast::{Block, to_plain_text};
+    let source = "# prose\n\n= Heading =\n\n > quote\n\n> code\n\ntext\n> continuation\n";
+    let (document, _) =
+        carta::read_document("markdown+lhs", source.as_bytes(), &ReaderOptions::default()).unwrap();
+    let [
+        Block::Para(prose),
+        Block::Header(1, _, title),
+        Block::BlockQuote(_),
+        Block::CodeBlock(_, code),
+        Block::Para(last),
+    ] = document.blocks.as_slice()
+    else {
+        panic!("unexpected blocks: {:?}", document.blocks);
+    };
+    assert_eq!(to_plain_text(prose), "# prose");
+    assert_eq!(to_plain_text(title), "Heading");
+    assert_eq!(code, "code");
+    assert_eq!(to_plain_text(last), "text > continuation");
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "read-rst",
+    feature = "read-latex"
+))]
+#[test]
+fn literate_code_keeps_blank_lines_and_trailing_spaces() {
+    use carta::ast::Block;
+    for (format, source) in [
+        ("markdown+lhs", ">\n> a  \n>\n"),
+        ("rst+lhs", ">\n> a  \n>\n"),
+        ("rst+lhs", "\\begin{code}\n\na  \n\n\\end{code}\n"),
+        ("latex+lhs", "\\begin{code}\n\na  \n\n\\end{code}\n"),
+    ] {
+        let (document, _) =
+            carta::read_document(format, source.as_bytes(), &ReaderOptions::default()).unwrap();
+        let [Block::CodeBlock(_, text)] = document.blocks.as_slice() else {
+            panic!("expected code: {:?}", document.blocks);
+        };
+        assert_eq!(text, "\na  \n", "{format}");
+    }
+}
+
+#[cfg(feature = "read-rst")]
+#[test]
+fn literate_code_keeps_list_paragraphs_separate() {
+    use carta::ast::Block;
+    let (document, _) = carta::read_document(
+        "rst+lhs",
+        b"- item\n\n  > code\n",
+        &ReaderOptions::default(),
+    )
+    .unwrap();
+    let [Block::BulletList(items)] = document.blocks.as_slice() else {
+        panic!("expected a list: {:?}", document.blocks);
+    };
+    assert!(matches!(
+        items[0].as_slice(),
+        [Block::Para(_), Block::CodeBlock(_, _)]
+    ));
+}

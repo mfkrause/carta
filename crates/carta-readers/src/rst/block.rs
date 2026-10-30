@@ -26,6 +26,19 @@ impl Parser<'_> {
         let mut out = Vec::new();
         let mut pending_classes: Option<Vec<String>> = None;
         let mut pending_targets: Vec<String> = Vec::new();
+        let last_code_end = self
+            .ext
+            .contains(Extension::LiterateHaskell)
+            .then(|| {
+                lines
+                    .iter()
+                    .enumerate()
+                    .rfind(|(index, line)| {
+                        line.trim() == "\\end{code}" && is_blank(line_at(lines, index + 1))
+                    })
+                    .map(|(index, _)| index)
+            })
+            .flatten();
         let mut i = 0;
         while i < lines.len() {
             let line = line_at(lines, i);
@@ -56,7 +69,7 @@ impl Parser<'_> {
             }
             let before = out.len();
             let scanned_from = i;
-            i = self.block_at(lines, i, &mut out);
+            i = self.block_at(lines, i, last_code_end, &mut out);
             // Force progress so a construct that yields nothing cannot stall the scan.
             i = i.max(scanned_from + 1);
             if let Some(classes) = pending_classes.take()
@@ -91,13 +104,57 @@ impl Parser<'_> {
         out
     }
 
+    fn literate_code(
+        lines: &[String],
+        index: usize,
+        last_end: Option<usize>,
+        out: &mut Vec<Block>,
+    ) -> Option<usize> {
+        let line = line_at(lines, index);
+        let (text, next) = if line.starts_with('>') {
+            let (text, count) = crate::literate::bird_tracks(lines.get(index..)?.iter())?;
+            (text, index + count)
+        } else if line.trim_end() == "\\begin{code}" {
+            let last = last_end?;
+            let offset = lines
+                .get(index + 2..=last)?
+                .iter()
+                .position(|line| line.trim() == "\\end{code}")?;
+            let end = index + 2 + offset;
+            if !is_blank(line_at(lines, end + 1)) {
+                return None;
+            }
+            (lines.get(index + 1..end)?.join("\n"), end + 1)
+        } else {
+            return None;
+        };
+        out.push(Block::CodeBlock(
+            Box::new(crate::literate::code_attr()),
+            text.into(),
+        ));
+        Some(next)
+    }
+
     /// Parse the block beginning at line `i`, appending it to `out`, and return the next line index.
-    fn block_at(&mut self, lines: &[String], i: usize, out: &mut Vec<Block>) -> usize {
+    fn block_at(
+        &mut self,
+        lines: &[String],
+        i: usize,
+        last_code_end: Option<usize>,
+        out: &mut Vec<Block>,
+    ) -> usize {
         let line = line_at(lines, i);
         let indent = indent_of(line);
 
         if indent > 0 {
             return self.block_quote(lines, i, out);
+        }
+
+        if self.ext.contains(Extension::LiterateHaskell)
+            && line.starts_with('>')
+            && let Some(next) = Self::literate_code(lines, i, last_code_end, out)
+        {
+            return next;
         }
 
         if let Some(c) = adornment_char(line) {
@@ -175,6 +232,11 @@ impl Parser<'_> {
             return self.definition_list(lines, i, out);
         }
 
+        if self.ext.contains(Extension::LiterateHaskell)
+            && let Some(next) = Self::literate_code(lines, i, last_code_end, out)
+        {
+            return next;
+        }
         self.paragraph(lines, i, out)
     }
 
@@ -571,12 +633,19 @@ impl Parser<'_> {
 
 // list looseness
 
-/// Tighten a list: when no item holds two or more paragraphs, each item's paragraphs become plain
-/// blocks so the list renders compactly.
+/// Tighten item paragraphs when each item has at most one block outside nested lists.
 fn compactify(items: &mut [Vec<Block>]) {
-    let loose = items
-        .iter()
-        .any(|item| item.iter().filter(|b| matches!(b, Block::Para(_))).count() >= 2);
+    let loose = items.iter().any(|item| {
+        item.iter()
+            .filter(|block| {
+                !matches!(
+                    block,
+                    Block::BulletList(_) | Block::OrderedList(..) | Block::DefinitionList(_)
+                )
+            })
+            .count()
+            >= 2
+    });
     if loose {
         return;
     }
