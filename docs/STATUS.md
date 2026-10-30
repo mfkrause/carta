@@ -187,8 +187,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `epub` ✅
 
 ### `ipynb` ✅
-- Lenient where the format is strict: a stream output with no `name`, a null `execution_count`, or a
-  missing top-level `nbformat` are accepted rather than rejected.
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅

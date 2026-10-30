@@ -51,6 +51,26 @@ fn missing_minor_version_defaults_to_zero() {
 }
 
 #[test]
+fn missing_or_invalid_major_version_is_an_error() {
+    for version in [
+        None,
+        Some(Value::Null),
+        Some(serde_json::json!("4")),
+        Some(serde_json::json!(true)),
+        Some(serde_json::json!(4.5)),
+    ] {
+        let mut notebook = serde_json::json!({"cells": [], "metadata": {}, "nbformat_minor": 5});
+        if let Some(version) = version {
+            notebook["nbformat"] = version;
+        }
+        let error = IpynbReader
+            .read(&notebook.to_string(), &ReaderOptions::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("nbformat must be an integer"));
+    }
+}
+
+#[test]
 fn metadata_scalars_normalize_and_recurse() {
     let document = read(
         r#"{"cells": [], "metadata": {"afloat": 3.0, "aint": 7, "abool": true,
@@ -253,6 +273,76 @@ fn null_execution_count_yields_no_attribute() {
         panic!("expected a cell div");
     };
     assert!(attr.attributes.is_empty());
+}
+
+#[test]
+fn execution_counts_keep_whole_numbers_and_null() {
+    for (value, expected) in [
+        ("0", Some("0")),
+        ("1.0", Some("1")),
+        ("2e0", Some("2")),
+        ("null", None),
+    ] {
+        let input = format!(
+            r#"{{"cells": [{{"cell_type": "code", "metadata": {{}},
+            "execution_count": {value}, "source": [], "outputs": [{{
+                "output_type": "execute_result", "execution_count": {value},
+                "data": {{"text/plain": "saved"}}, "metadata": {{}}}}]}}],
+            "metadata": {{}}, "nbformat": 4, "nbformat_minor": 5}}"#
+        );
+        let document = read(&input);
+        let Some(Block::Div(cell, _)) = document.blocks.first() else {
+            panic!("expected cell");
+        };
+        let Some(Block::Div(output, _)) = first_output(&document) else {
+            panic!("expected result");
+        };
+        let attributes = expected
+            .map(|count| vec![("execution_count".into(), count.into())])
+            .unwrap_or_default();
+        assert_eq!(cell.attributes, attributes);
+        assert_eq!(output.attributes, attributes);
+        assert_eq!(output.classes, ["output", "execute_result"]);
+    }
+}
+
+#[test]
+fn invalid_execution_counts_are_errors() {
+    for value in ["-1", "1.5", "true", "\"1\""] {
+        for result in [false, true] {
+            let mut cell = serde_json::json!({"cell_type": "code", "metadata": {}, "source": [], "outputs": [], "execution_count": 1});
+            let count: Value = serde_json::from_str(value).unwrap();
+            if result {
+                cell["outputs"] = serde_json::json!([{"output_type": "execute_result", "execution_count": count, "data": {}, "metadata": {}}]);
+            } else {
+                cell["execution_count"] = count;
+            }
+            let input = serde_json::json!({"nbformat": 4, "nbformat_minor": 5, "metadata": {}, "cells": [cell]});
+            let error = IpynbReader
+                .read(&input.to_string(), &ReaderOptions::default())
+                .unwrap_err();
+            assert!(error.to_string().contains("execution_count must be"));
+        }
+    }
+}
+
+#[test]
+fn stream_outputs_require_a_name() {
+    for name in [None, Some(Value::Null), Some(serde_json::json!(1))] {
+        let mut output = serde_json::json!({"output_type": "stream", "text": "saved"});
+        if let Some(name) = name {
+            output["name"] = name;
+        }
+        let input = serde_json::json!({"nbformat": 4, "nbformat_minor": 5, "metadata": {}, "cells": [{"cell_type": "code", "execution_count": null, "metadata": {}, "source": [], "outputs": [output]}]});
+        let error = IpynbReader
+            .read(&input.to_string(), &ReaderOptions::default())
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("stream outputs need a string name")
+        );
+    }
 }
 
 #[test]

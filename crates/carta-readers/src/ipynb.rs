@@ -28,7 +28,7 @@ impl Reader for IpynbReader {
             .get("nbformat")
             .and_then(Value::as_number)
             .and_then(|number| meta_number(number).parse::<i64>().ok())
-            .unwrap_or(4);
+            .ok_or_else(|| notebook_error("notebook nbformat must be an integer"))?;
         if nbformat < 3 {
             return Err(Error::UnsupportedFormat(format!(
                 "notebook format version {nbformat} (only nbformat 3 and later are read)"
@@ -360,7 +360,7 @@ fn cell_to_block(
         } else {
             kind
         },
-    );
+    )?;
     let block = match kind {
         "markdown" => Block::Div(Box::new(attr), markdown_cell_blocks(cell, options, media)?),
         "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language, media)?),
@@ -388,7 +388,7 @@ fn cell_to_block(
 
 /// The cell's attributes: its `id`, the classes `cell` and the cell kind, then a code cell's
 /// `execution_count` followed by the cell's own metadata entries in key order.
-fn cell_attr(cell: &Value, kind: &str) -> Attr {
+fn cell_attr(cell: &Value, kind: &str) -> Result<Attr> {
     let id = cell
         .get("id")
         .and_then(Value::as_str)
@@ -397,22 +397,36 @@ fn cell_attr(cell: &Value, kind: &str) -> Attr {
     let classes = vec!["cell".to_owned(), kind.to_owned()];
     let mut attributes = Vec::new();
     if kind == "code"
-        && let Some(count) = cell.get("execution_count").and_then(Value::as_i64)
+        && let Some(value) = cell.get("execution_count")
+        && let Some(count) = execution_count(value)?
     {
-        attributes.push(("execution_count".to_owned(), count.to_string()));
+        attributes.push(("execution_count".to_owned(), count));
     }
     if let Some(Value::Object(metadata)) = cell.get("metadata") {
         for (key, value) in metadata {
             attributes.push((key.clone(), attribute_value(value)));
         }
     }
-    Attr {
+    Ok(Attr {
         id: id.into(),
         classes: classes.into_iter().map(Into::into).collect(),
         attributes: attributes
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect(),
+    })
+}
+
+fn execution_count(value: &Value) -> Result<Option<String>> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let count = value.as_number().map(meta_number);
+    match count {
+        Some(count) if is_integer_literal(&count) => Ok(Some(count)),
+        _ => Err(notebook_error(
+            "execution_count must be a nonnegative integer or null",
+        )),
     }
 }
 
@@ -535,9 +549,15 @@ fn output_to_block(output: &Value, media: &mut MediaBag) -> Result<Block> {
         .and_then(Value::as_str)
         .ok_or_else(|| notebook_error("notebook output_type must be a string"))?;
     Ok(match kind {
-        "stream" => stream_output(output),
-        "execute_result" => result_output(output, true, media),
-        "display_data" => result_output(output, false, media),
+        "stream" => {
+            let name = output
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| notebook_error("stream outputs need a string name"))?;
+            stream_output(output, name)
+        }
+        "execute_result" => result_output(output, true, media)?,
+        "display_data" => result_output(output, false, media)?,
         "error" => error_output(output),
         _ => {
             return Err(notebook_error(format!(
@@ -549,11 +569,7 @@ fn output_to_block(output: &Value, media: &mut MediaBag) -> Result<Block> {
 
 /// A `stream` output: a plain `CodeBlock` of the stream text inside a `Div` classed by the stream
 /// name (stdout or stderr). Terminal control sequences in the text are removed.
-fn stream_output(output: &Value) -> Block {
-    let name = output
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("stdout");
+fn stream_output(output: &Value, name: &str) -> Block {
     let text = strip_ansi(&multiline_text(output.get("text")));
     let attr = Attr {
         id: carta_ast::Text::default(),
@@ -568,15 +584,20 @@ fn stream_output(output: &Value) -> Block {
 
 /// An `execute_result` or `display_data` output: the richest renderable bundle from its `data`,
 /// inside a `Div`. A result carries its `execution_count` as an attribute.
-fn result_output(output: &Value, is_result: bool, media: &mut MediaBag) -> Block {
+fn result_output(output: &Value, is_result: bool, media: &mut MediaBag) -> Result<Block> {
     let kind = if is_result {
         "execute_result"
     } else {
         "display_data"
     };
     let mut attributes = Vec::new();
-    if is_result && let Some(count) = output.get("execution_count").and_then(Value::as_i64) {
-        attributes.push(("execution_count".to_owned(), count.to_string()));
+    if is_result {
+        let count = output
+            .get("execution_count")
+            .ok_or_else(|| notebook_error("result outputs need an execution_count"))?;
+        if let Some(count) = execution_count(count)? {
+            attributes.push(("execution_count".to_owned(), count));
+        }
     }
     let attr = Attr {
         id: carta_ast::Text::default(),
@@ -586,10 +607,10 @@ fn result_output(output: &Value, is_result: bool, media: &mut MediaBag) -> Block
             .map(|(k, v)| (k.into(), v.into()))
             .collect(),
     };
-    Block::Div(
+    Ok(Block::Div(
         Box::new(attr),
         data_to_blocks(output.get("data"), output.get("metadata"), media),
-    )
+    ))
 }
 
 /// An `error` output: its traceback as a plain `CodeBlock` inside a `Div` carrying the exception

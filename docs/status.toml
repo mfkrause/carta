@@ -527,7 +527,6 @@ write = "usable"
 read-feature = "read-ipynb"
 write-feature = "write-ipynb"
 read-gaps = [
-  "Lenient where the format is strict: a stream output with no `name`, a null `execution_count`, or a missing top-level `nbformat` are accepted rather than rejected.",
   "Extreme-magnitude numbers may render rounded or in scientific form.",
 ]
 write-gaps = [
