@@ -517,12 +517,116 @@ fn malformed_input_is_an_error_not_a_panic() {
 }
 
 #[test]
-fn pre_v4_notebook_is_an_error_not_a_panic() {
+fn pre_v3_notebook_is_an_error_not_a_panic() {
     let result = IpynbReader.read(
-        r#"{"nbformat": 3, "nbformat_minor": 0, "worksheets": []}"#,
+        r#"{"nbformat": 2, "nbformat_minor": 0, "worksheets": []}"#,
         &ReaderOptions::default(),
     );
     assert!(matches!(result, Err(Error::UnsupportedFormat(_))));
+}
+
+#[test]
+fn version_three_worksheets_preserve_cell_order_and_heading_levels() {
+    let document = read(include_str!(
+        "../../../../corpus/text/ipynb/version-three.ipynb"
+    ));
+    assert_eq!(document.blocks.len(), 5);
+    assert_eq!(
+        jupyter(&document).get("nbformat"),
+        Some(&MetaValue::MetaString("3".into()))
+    );
+    assert!(matches!(
+        &document.blocks[1],
+        Block::Div(attributes, blocks)
+            if attributes.classes == ["cell", "markdown"]
+                && matches!(blocks.first(), Some(Block::Header(9, _, _)))
+    ));
+    let Block::Div(attributes, blocks) = &document.blocks[2] else {
+        panic!("expected a code cell");
+    };
+    assert_eq!(
+        attributes.attributes,
+        vec![
+            ("execution_count".into(), "1".into()),
+            ("collapsed".into(), "false".into()),
+            ("language".into(), "python".into()),
+        ]
+    );
+    assert_eq!(blocks.len(), 4);
+    assert!(matches!(blocks.first(), Some(Block::CodeBlock(_, text)) if text == "print(1)"));
+    assert!(matches!(
+        &document.blocks[3],
+        Block::Div(_, blocks)
+            if matches!(blocks.first(), Some(Block::RawBlock(format, _)) if format.0 == "latex")
+    ));
+    let mut versioned: Value = serde_json::from_str(include_str!(
+        "../../../../corpus/text/ipynb/version-three.ipynb"
+    ))
+    .unwrap();
+    versioned["nbformat"] = Value::from(3.0);
+    versioned["nbformat_minor"] = Value::from(1.0);
+    let converted = read(&versioned.to_string());
+    assert_eq!(converted.blocks, document.blocks);
+    assert_eq!(
+        jupyter(&converted).get("nbformat_minor"),
+        Some(&MetaValue::MetaString("1".into()))
+    );
+}
+
+#[test]
+fn version_three_html_json_and_images_keep_their_contents() {
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>";
+    let notebook = serde_json::json!({
+        "nbformat": 3, "nbformat_minor": 0, "metadata": {},
+        "worksheets": [{"cells": [
+            {"cell_type": "html", "source": "<div>legacy</div>", "metadata": {}},
+            {"cell_type": "code", "input": "x", "language": "python",
+             "collapsed": false, "metadata": {"collapsed": true}, "prompt_number": 7,
+             "outputs": [
+                 {"output_type": "pyout", "prompt_number": 7, "json": ["{\"n\":7}"], "metadata": {}},
+                 {"output_type": "display_data", "svg": svg, "metadata": {}}
+             ]}
+        ]}]
+    });
+    let mut options = ReaderOptions::default();
+    options.extensions = carta_core::Extensions::from_list(&[carta_core::Extension::RawHtml]);
+    let (document, media) = IpynbReader
+        .read_media(&notebook.to_string(), &options)
+        .unwrap();
+    assert!(matches!(
+        &document.blocks[0],
+        Block::Div(attributes, blocks)
+            if attributes.classes == ["cell", "markdown"]
+                && matches!(blocks.first(), Some(Block::RawBlock(format, text))
+                    if format.0 == "html" && text.contains("legacy"))
+    ));
+    let Block::Div(attributes, blocks) = &document.blocks[1] else {
+        panic!("expected a code cell");
+    };
+    assert!(
+        attributes
+            .attributes
+            .contains(&("collapsed".into(), "true".into()))
+    );
+    assert!(matches!(
+        &blocks[1],
+        Block::Div(_, body)
+            if matches!(body.first(), Some(Block::CodeBlock(attributes, text))
+                if attributes.classes == ["json"] && text == "{\"n\":7}")
+    ));
+    let name = carta_core::media::content_addressed_name("image/svg+xml", svg.as_bytes());
+    assert_eq!(media.get(&name).unwrap().bytes, svg.as_bytes());
+}
+
+#[test]
+fn malformed_version_three_worksheets_return_errors() {
+    for input in [
+        r#"{"nbformat":3,"nbformat_minor":0,"metadata":{},"worksheets":{}}"#,
+        r#"{"nbformat":3,"nbformat_minor":0,"metadata":{},"worksheets":[{"cells":{}}]}"#,
+        r#"{"nbformat":3,"nbformat_minor":0,"metadata":{},"worksheets":[{"cells":[5]}]}"#,
+    ] {
+        assert!(IpynbReader.read(input, &ReaderOptions::default()).is_err());
+    }
 }
 
 /// The body of the first output div of the first code cell.

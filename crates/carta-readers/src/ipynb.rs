@@ -1,4 +1,4 @@
-//! Read Jupyter notebook version 4 cells, metadata, and embedded resources.
+//! Read Jupyter notebook cells, metadata, and embedded resources.
 
 use std::collections::BTreeMap;
 
@@ -7,7 +7,7 @@ use carta_ast::{
 };
 use carta_core::media::{base64_decode, content_addressed_name};
 use carta_core::{Error, MediaBag, Reader, ReaderOptions, Result};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::commonmark::CommonmarkReader;
 use crate::numeric::general_decimal;
@@ -26,25 +26,42 @@ impl Reader for IpynbReader {
         let notebook: Value = serde_json::from_str(input)?;
         let nbformat = notebook
             .get("nbformat")
-            .and_then(Value::as_i64)
+            .and_then(Value::as_number)
+            .and_then(|number| meta_number(number).parse::<i64>().ok())
             .unwrap_or(4);
-        if nbformat < 4 {
+        if nbformat < 3 {
             return Err(Error::UnsupportedFormat(format!(
-                "notebook format version {nbformat} (only nbformat 4 and later are read)"
+                "notebook format version {nbformat} (only nbformat 3 and later are read)"
             )));
         }
         let nbformat_minor = notebook
             .get("nbformat_minor")
-            .and_then(Value::as_i64)
+            .and_then(Value::as_number)
+            .and_then(|number| meta_number(number).parse::<i64>().ok())
             .unwrap_or(0);
         let language = notebook_language(&notebook);
         let meta = build_meta(&notebook, nbformat, nbformat_minor);
 
         let mut media = MediaBag::new();
         let mut blocks = Vec::new();
-        if let Some(Value::Array(cells)) = notebook.get("cells") {
+        let groups = if nbformat == 3 {
+            notebook
+                .get("worksheets")
+                .and_then(Value::as_array)
+                .ok_or_else(|| notebook_error("notebook worksheets must be an array"))?
+                .as_slice()
+        } else {
+            std::slice::from_ref(&notebook)
+        };
+        for group in groups {
+            let cells = group
+                .get("cells")
+                .and_then(Value::as_array)
+                .ok_or_else(|| notebook_error("notebook cells must be an array"))?;
             for cell in cells {
-                if let Some(block) = cell_to_block(cell, &language, options, &mut media)? {
+                if let Some(block) =
+                    cell_to_block(cell, nbformat == 3, &language, options, &mut media)?
+                {
                     blocks.push(block);
                 }
             }
@@ -56,6 +73,127 @@ impl Reader for IpynbReader {
         };
         Ok((document, media))
     }
+}
+
+fn notebook_error(message: impl Into<String>) -> Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, message.into()).into()
+}
+
+fn normalize_legacy_cell(cell: &Value) -> Result<Value> {
+    let mut cell = cell
+        .as_object()
+        .cloned()
+        .ok_or_else(|| notebook_error("notebook cells must be objects"))?;
+    let kind = cell
+        .get("cell_type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| notebook_error("notebook cells need a cell_type"))?
+        .to_owned();
+    match kind.as_str() {
+        "code" => {
+            let source = cell
+                .remove("input")
+                .ok_or_else(|| notebook_error("code cells need input"))?;
+            cell.insert("source".to_owned(), source);
+            if let Some(count) = cell.remove("prompt_number") {
+                cell.insert("execution_count".to_owned(), count);
+            }
+            let mut metadata = match cell.remove("metadata") {
+                Some(Value::Object(metadata)) => metadata,
+                None => Map::new(),
+                Some(_) => return Err(notebook_error("cell metadata must be an object")),
+            };
+            for field in ["collapsed", "language"] {
+                if let Some(value) = cell.remove(field) {
+                    metadata.entry(field.to_owned()).or_insert(value);
+                }
+            }
+            cell.insert("metadata".to_owned(), Value::Object(metadata));
+            let outputs = cell
+                .get_mut("outputs")
+                .and_then(Value::as_array_mut)
+                .ok_or_else(|| notebook_error("code cell outputs must be an array"))?;
+            for output in outputs {
+                *output = normalize_legacy_output(std::mem::take(output))?;
+            }
+        }
+        "heading" => {
+            let source = multiline_text(cell.get("source"));
+            cell.insert("source".to_owned(), Value::String(format!("# {source}")));
+        }
+        "html" => {
+            cell.insert("cell_type".to_owned(), Value::String("markdown".to_owned()));
+        }
+        "markdown" | "raw" => {}
+        _ => {
+            return Err(notebook_error(format!(
+                "unknown notebook cell type: {kind}"
+            )));
+        }
+    }
+    Ok(Value::Object(cell))
+}
+
+fn normalize_legacy_output(output: Value) -> Result<Value> {
+    let Value::Object(output) = output else {
+        return Err(notebook_error("notebook outputs must be objects"));
+    };
+    let kind = match output.get("output_type").and_then(Value::as_str) {
+        Some("stream") => "stream",
+        Some("pyout") => "execute_result",
+        Some("display_data") => "display_data",
+        Some("pyerr") => "error",
+        Some(kind) => {
+            return Err(notebook_error(format!(
+                "unknown notebook output type: {kind}"
+            )));
+        }
+        None => return Err(notebook_error("notebook outputs need an output_type")),
+    };
+    let rich = matches!(kind, "execute_result" | "display_data");
+    let mut normalized = Map::new();
+    let mut data = Map::new();
+    for (key, value) in output {
+        if key == "output_type" {
+            continue;
+        }
+        if rich {
+            let mime = match key.as_str() {
+                "text" => Some("text/plain"),
+                "html" => Some("text/html"),
+                "latex" => Some("text/latex"),
+                "png" => Some("image/png"),
+                "jpeg" => Some("image/jpeg"),
+                "svg" => Some("image/svg+xml"),
+                "pdf" => Some("application/pdf"),
+                "json" => Some("application/json"),
+                "javascript" => Some("application/javascript"),
+                mime if mime.contains('/') => Some(mime),
+                _ => None,
+            };
+            if let Some(mime) = mime {
+                let value = if is_json_like(mime) {
+                    let text = multiline_text(Some(&value));
+                    serde_json::from_str(&text).unwrap_or(Value::String(text))
+                } else {
+                    value
+                };
+                data.insert(mime.to_owned(), value);
+                continue;
+            }
+        }
+        let key = match key.as_str() {
+            "prompt_number" => "execution_count".to_owned(),
+            "stream" if kind == "stream" => "name".to_owned(),
+            _ => key,
+        };
+        normalized.insert(key, value);
+    }
+    normalized.insert("output_type".to_owned(), Value::String(kind.to_owned()));
+    if rich {
+        normalized.insert("data".to_owned(), Value::Object(data));
+    }
+    Ok(Value::Object(normalized))
 }
 
 /// The kernel language, taken from `metadata.kernelspec.language`. Code without a declared language
@@ -199,18 +337,45 @@ fn json_write(value: &Value, out: &mut String) {
 /// `media`.
 fn cell_to_block(
     cell: &Value,
+    legacy: bool,
     language: &str,
     options: &ReaderOptions,
     media: &mut MediaBag,
 ) -> Result<Option<Block>> {
+    let normalized;
+    let cell = if legacy {
+        normalized = normalize_legacy_cell(cell)?;
+        &normalized
+    } else {
+        cell
+    };
     let Some(kind) = cell.get("cell_type").and_then(Value::as_str) else {
         return Ok(None);
     };
-    let attr = cell_attr(cell, kind);
+    let attr = cell_attr(
+        cell,
+        if legacy && kind == "heading" {
+            "markdown"
+        } else {
+            kind
+        },
+    );
     let block = match kind {
         "markdown" => Block::Div(Box::new(attr), markdown_cell_blocks(cell, options, media)?),
         "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language, media)),
         "raw" => Block::Div(Box::new(attr), vec![raw_cell_block(cell)]),
+        "heading" if legacy => {
+            let level = cell
+                .get("level")
+                .and_then(Value::as_i64)
+                .filter(|level| *level > 0)
+                .ok_or_else(|| notebook_error("heading cells need a positive level"))?;
+            let mut blocks = markdown_cell_blocks(cell, options, media)?;
+            if let Some(Block::Header(current, _, _)) = blocks.first_mut() {
+                *current = level;
+            }
+            Block::Div(Box::new(attr), blocks)
+        }
         _ => return Ok(None),
     };
     Ok(Some(block))
