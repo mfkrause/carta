@@ -374,6 +374,19 @@ fn is_east_asian(c: char) -> bool {
     )
 }
 
+/// Renders paragraph inlines and anchors a final inline equation with a text run.
+pub(super) fn render_paragraph_runs(
+    inlines: &[Inline],
+    props: &RunProps,
+    ctx: &mut Ctx,
+    out: &mut Element,
+) {
+    render_runs(inlines, props, ctx, out);
+    if matches!(inlines.last(), Some(Inline::Math(MathType::InlineMath, _))) {
+        out.push(text_run(props, "\u{200B}"));
+    }
+}
+
 /// Lowers an inline sequence to runs. Consecutive text pieces gather into one run, split where the
 /// text crosses into or out of an East Asian script so that only the East Asian stretch carries the
 /// font hint; a single space between two text pieces joins the non-East-Asian side, while a space at

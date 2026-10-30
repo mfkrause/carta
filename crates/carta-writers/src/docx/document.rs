@@ -4,7 +4,10 @@
 use self::comments::render_comment_entry;
 use self::figures::{render_figure, render_footnote_entry};
 use self::lists::{render_bullet_list, render_definition_list, render_ordered_list};
-use self::runs::{RunProps, code_paragraph, horizontal_rule, line_block_paragraph, render_runs};
+use self::runs::{
+    RunProps, code_paragraph, horizontal_rule, line_block_paragraph, render_paragraph_runs,
+    render_runs,
+};
 use self::tables::render_table;
 use super::numbering::ListPlan;
 use super::wml_root;
@@ -552,7 +555,16 @@ fn open_heading(level: i64, id: &str, inlines: &[Inline], body: &mut Element, ct
         );
         ctx.bookmarks.push(Bookmark { level, id: mark });
     }
-    body.push(paragraph(style, inlines, ctx));
+    let mut para = Element::new("w:p");
+    para.push(paragraph_props(
+        Some(style),
+        None,
+        None,
+        ctx.run_properties.right_to_left,
+    ));
+    let properties = ctx.run_properties.clone();
+    render_runs(inlines, &properties, ctx, &mut para);
+    body.push(para);
 }
 
 /// Pushes a block, wrapping it in a bookmark that spans just that block when it carries an
@@ -757,7 +769,7 @@ fn styled_paragraph(
         ctx.run_properties.right_to_left,
     ));
     let properties = ctx.run_properties.clone();
-    render_runs(inlines, &properties, ctx, &mut para);
+    render_paragraph_runs(inlines, &properties, ctx, &mut para);
     para
 }
 

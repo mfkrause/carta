@@ -1,7 +1,7 @@
 //! Figure, caption, numbering and footnote-entry rendering.
 
 use super::images::image_drawing_for;
-use super::runs::{RunProps, render_runs, run_with_props, text_run};
+use super::runs::{RunProps, render_paragraph_runs, render_runs, run_with_props, text_run};
 use super::{
     Ctx, FlowStyle, TABLE_TEXT_WIDTH, close_bookmark, is_display_equation, open_bookmark,
     paragraph, paragraph_props, render_flow, styled_flow_with_display, styled_paragraph,
@@ -230,7 +230,7 @@ fn numbered_caption(
     let mut prefixed = Vec::with_capacity(inlines.len() + 1);
     prefixed.push(Inline::Str(": ".into()));
     prefixed.extend(inlines.iter().cloned());
-    render_runs(&prefixed, &properties, ctx, &mut para);
+    render_paragraph_runs(&prefixed, &properties, ctx, &mut para);
     para
 }
 

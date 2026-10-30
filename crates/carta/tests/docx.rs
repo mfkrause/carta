@@ -156,3 +156,41 @@ fn repeated_images_share_media_across_document_parts() {
         );
     }
 }
+
+#[test]
+fn final_inline_equations_have_a_text_anchor() {
+    use carta_ast::{Block, Document, Inline, MathType};
+
+    for (inlines, anchors) in [
+        (vec![Inline::Math(MathType::InlineMath, "x".into())], 1),
+        (
+            vec![Inline::Math(MathType::InlineMath, "\\invalid{x}".into())],
+            1,
+        ),
+        (vec![Inline::Math(MathType::DisplayMath, "x".into())], 0),
+        (
+            vec![
+                Inline::Math(MathType::InlineMath, "x".into()),
+                Inline::Str("next".into()),
+            ],
+            0,
+        ),
+        (
+            vec![
+                Inline::Math(MathType::InlineMath, "x".into()),
+                Inline::Space,
+            ],
+            0,
+        ),
+    ] {
+        let document = Document {
+            blocks: vec![Block::Para(inlines)],
+            ..Document::default()
+        };
+        let output = document_part(&docx_bytes("docx", &carta_ast::to_json(&document).unwrap()));
+        assert_eq!(output.matches('\u{200B}').count(), anchors);
+        if anchors > 0 {
+            assert!(output.contains("<w:t xml:space=\"preserve\">\u{200B}</w:t>\n</w:r>\n</w:p>"));
+        }
+    }
+}
