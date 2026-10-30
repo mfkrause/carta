@@ -110,6 +110,25 @@ fn ordered_list_markers_align() {
 }
 
 #[test]
+fn lists_with_a_nested_first_block_keep_the_parent_marker() {
+    let child = Block::BulletList(vec![vec![Block::Plain(vec![s("Child")])]]);
+    assert_eq!(
+        render(vec![Block::BulletList(vec![
+            vec![child.clone()],
+            vec![Block::Plain(vec![s("Sibling")])],
+        ])]),
+        ".IP \\(bu 2\n.RS 2\n.IP \\(bu 2\nChild\n.RE\n.IP \\(bu 2\nSibling"
+    );
+    assert_eq!(
+        render(vec![Block::DefinitionList(vec![(
+            vec![s("Term")],
+            vec![vec![child]],
+        )])]),
+        ".TP\nTerm\n.RS\n.IP \\(bu 2\nChild\n.RE"
+    );
+}
+
+#[test]
 fn list_item_continuation_indents() {
     let items = vec![vec![Block::Para(vec![s("a")]), Block::Para(vec![s("b")])]];
     assert_eq!(

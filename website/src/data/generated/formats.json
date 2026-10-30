@@ -880,7 +880,6 @@
         "feature": "write-man",
         "gaps": [
           "Lists in table cells are flattened or misplaced.",
-          "A list item starting with a nested block has incorrect spacing.",
           "Long runs of adjacent inline equations wrap at different columns."
         ]
       }

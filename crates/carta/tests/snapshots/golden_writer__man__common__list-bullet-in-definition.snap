@@ -4,7 +4,9 @@ expression: output
 ---
 .TP
 term
+.RS
 .IP \(bu 2
 alpha
 .IP \(bu 2
 beta
+.RE

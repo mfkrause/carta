@@ -204,9 +204,7 @@ impl State<'_> {
         out
     }
 
-    /// Render one list item: the first block follows the `.IP` marker line directly, every later
-    /// block sits inside an `.RS`/`.RE` group indented by `relative` columns. A numbered marker is
-    /// quoted (its delimiter could otherwise be read as a request argument); the bullet glyph is not.
+    /// Renders a list marker and its body, quoting numbered markers.
     fn list_item(&mut self, marker: &str, quote: bool, relative: usize, item: &[Block]) -> String {
         let field = visible_width(marker) + 1;
         let head = if quote {
@@ -214,26 +212,37 @@ impl State<'_> {
         } else {
             format!(".IP {marker} {field}")
         };
-        match item.split_first() {
-            None => head,
-            Some((first, rest)) => {
-                let mut out = head;
-                let first_text = self.block(first, true);
-                if !first_text.is_empty() {
-                    out.push('\n');
-                    out.push_str(&first_text);
-                }
-                if !rest.is_empty() {
-                    let _ = write!(out, "\n.RS {relative}\n{}\n.RE", self.blocks(rest));
-                }
-                out
-            }
+        let body = self.list_body(item, Some(relative));
+        if body.is_empty() {
+            head
+        } else {
+            format!("{head}\n{body}")
         }
     }
 
-    /// Render a definition list: each term sits on a `.TP` line, and its definitions are flattened
-    /// into one block run whose first block follows the term directly and whose later blocks continue
-    /// under an `.RS`/`.RE` group.
+    fn list_body(&mut self, items: &[Block], relative: Option<usize>) -> String {
+        let Some((first, rest)) = items.split_first() else {
+            return String::new();
+        };
+        let starts_with_text = matches!(first, Block::Plain(_) | Block::Para(_));
+        let mut out = if starts_with_text {
+            self.block(first, true)
+        } else {
+            String::new()
+        };
+        let continuation = if starts_with_text { rest } else { items };
+        let body = self.blocks(continuation);
+        if !body.is_empty() {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            let indent = relative.map_or_else(String::new, |width| format!(" {width}"));
+            let _ = write!(out, ".RS{indent}\n{body}\n.RE");
+        }
+        out
+    }
+
+    /// Renders definition terms and their bodies with scoped continuation indents.
     fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
         let mut out = String::new();
         for (term, definitions) in items {
@@ -242,15 +251,10 @@ impl State<'_> {
             }
             let _ = write!(out, ".TP\n{}", self.inline_run(term));
             let blocks: Vec<Block> = definitions.iter().flatten().cloned().collect();
-            if let Some((first, rest)) = blocks.split_first() {
-                let first_text = self.block(first, true);
-                if !first_text.is_empty() {
-                    out.push('\n');
-                    out.push_str(&first_text);
-                }
-                if !rest.is_empty() {
-                    let _ = write!(out, "\n.RS\n{}\n.RE", self.blocks(rest));
-                }
+            let body = self.list_body(&blocks, None);
+            if !body.is_empty() {
+                out.push('\n');
+                out.push_str(&body);
             }
         }
         out
