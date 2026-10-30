@@ -123,11 +123,10 @@ pub fn decode_data_uri(url: &str) -> Option<(Vec<u8>, String)> {
     let rest = url.strip_prefix("data:")?;
     let (header, payload) = rest.split_once(',').unwrap_or((rest, ""));
     let payload = percent_decode_bytes(payload)?;
-    let payload = String::from_utf8_lossy(&payload);
     let bytes = if header.ends_with(";base64") {
-        base64::decode_lenient(&payload)
+        base64::decode_lenient(&String::from_utf8_lossy(&payload))
     } else {
-        payload.into_owned().into_bytes()
+        payload
     };
     let mime = match header.split(';').next() {
         Some(kind) if !kind.is_empty() => kind,
@@ -508,7 +507,7 @@ mod tests {
                 b"<svg/>".to_vec(),
                 "image/svg+xml",
             ),
-            ("data:image/png,%FF%00", vec![239, 191, 189, 0], "image/png"),
+            ("data:image/png,%FF%00", vec![255, 0], "image/png"),
         ] {
             assert_eq!(super::decode_data_uri(url), Some((bytes, mime.into())));
         }
