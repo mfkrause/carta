@@ -9,8 +9,8 @@ use carta_ast::{
 use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, display_width, fill, fill_offset, head_rows,
-    label_matches_url,
+    self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, display_width, fill, fill_hang, fill_offset,
+    head_rows, label_matches_url,
 };
 
 mod helpers;
@@ -124,7 +124,7 @@ impl State {
             Block::Table(table) => self.table(table, width),
             Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks, width),
             Block::Div(attr, blocks) => self.div(attr, blocks, width),
-            Block::LineBlock(lines) => self.line_block(lines, width),
+            Block::LineBlock(lines) => self.line_block(lines),
         }
     }
 
@@ -188,10 +188,10 @@ impl State {
         }
     }
 
-    fn line_block(&mut self, lines: &[Vec<Inline>], width: usize) -> String {
+    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
         let body: Vec<String> = lines
             .iter()
-            .map(|line| fill(&self.pieces(line), width, self.wrap))
+            .map(|line| fill_hang(&self.pieces(line), usize::MAX, self.wrap))
             .collect();
         format!("[verse]\n--\n{}\n--", body.join("\n"))
     }

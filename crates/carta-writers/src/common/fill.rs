@@ -148,7 +148,13 @@ pub(crate) fn fill_groups(
 /// laid out as hanging text that a caller will prefix with a marker, so a space that opens the first
 /// block sits between the marker and the first word instead of being swallowed.
 #[cfg_attr(
-    not(any(feature = "org", feature = "plain", feature = "rst")),
+    not(any(
+        feature = "asciidoc",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain",
+        feature = "rst"
+    )),
     allow(dead_code)
 )]
 pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {

@@ -9,8 +9,8 @@ use carta_ast::{
 use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions, presets};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, fill, fill_into, fill_offset, indent_block,
-    is_literate_code, is_loose, item_separator, literate_tracks, offset_as_i64,
+    FILL_COLUMN, NotesHost, Piece, append_notes, fill, fill_hang, fill_into, fill_offset,
+    indent_block, is_literate_code, is_loose, item_separator, literate_tracks, offset_as_i64,
     offset_quoted_table, ordered_marker, quote_block, render_html_attr,
 };
 use crate::markdown_common::{
@@ -409,7 +409,7 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width.min(self.width)),
             Block::Div(attr, blocks) => self.div(attr, blocks, width),
-            Block::LineBlock(lines) => self.line_block(lines),
+            Block::LineBlock(lines) => self.line_block(lines, width),
             Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks, width),
             Block::Table(table) => self.table(table, width),
         }
@@ -546,17 +546,18 @@ impl State {
         }
     }
 
-    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
+    fn line_block(&mut self, lines: &[Vec<Inline>], width: usize) -> String {
         if !self.config.has(Extension::LineBlocks) {
-            let rendered: Vec<String> = lines
-                .iter()
-                .map(|line| self.inlines_oneline(line))
-                .collect();
-            return rendered.join(&format!("{}\n", self.config.hard_break()));
+            let mut pieces = self.pieces(&lines.join(&Inline::LineBreak));
+            escape_leading_markers(&mut pieces);
+            return fill_hang(&pieces, width, self.wrap);
         }
         let rendered: Vec<String> = lines
             .iter()
-            .map(|line| format!("| {}", self.inlines_oneline(line)))
+            .map(|line| {
+                let body = fill_hang(&self.pieces(line), width.saturating_sub(2), self.wrap);
+                indent_block(&body, "| ", "  ")
+            })
             .collect();
         rendered.join("\n")
     }

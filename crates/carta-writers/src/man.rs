@@ -189,13 +189,23 @@ impl State<'_> {
         let mut out = String::from(if self.table_cell { ".sp\n" } else { ".PP\n" });
         for (index, line) in lines.iter().enumerate() {
             if index > 0 {
+                if !out.ends_with('\n') {
+                    out.push('\n');
+                }
                 out.push_str(if self.table_cell {
-                    "\n.br\n"
+                    ".br\n"
                 } else {
-                    "\n.PD 0\n.P\n.PD\n"
+                    ".PD 0\n.P\n.PD\n"
                 });
             }
-            out.push_str(&self.inline_run(line));
+            let mut fragments = self.fragments(line, Font::default());
+            if let Some(fragment @ Fragment::Space) = fragments.first_mut() {
+                *fragment = Fragment::Text {
+                    rendered: "\\ ".to_owned(),
+                    width: 2,
+                };
+            }
+            out.push_str(&fill(&fragments, self.width, true, self.wrap));
         }
         out
     }

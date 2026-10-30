@@ -209,7 +209,7 @@ impl State {
                 }
             }
             Block::Div(_, blocks) => self.blocks_to_string(blocks, width, false, 0),
-            Block::LineBlock(lines) => self.line_block(lines),
+            Block::LineBlock(lines) => self.line_block(lines, width, hang),
         }
     }
 
@@ -275,12 +275,17 @@ impl State {
         Some(pieces_to_string(&out))
     }
 
-    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
+    fn line_block(&mut self, lines: &[Vec<Inline>], width: usize, hang: bool) -> String {
         let rendered: Vec<String> = lines
             .iter()
-            .map(|line| {
+            .enumerate()
+            .map(|(index, line)| {
                 let pieces = self.pieces(line);
-                pieces_to_string(&pieces)
+                if hang && index == 0 {
+                    fill_hang(&pieces, width, self.wrap)
+                } else {
+                    fill(&pieces, width, self.wrap)
+                }
             })
             .collect();
         rendered.join("\n")

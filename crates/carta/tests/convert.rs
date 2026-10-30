@@ -7,6 +7,94 @@ use carta::{
     convert_text, reader_for, writer_for,
 };
 
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-commonmark",
+    feature = "write-markdown",
+    feature = "write-plain",
+    feature = "write-man",
+    feature = "write-asciidoc"
+))]
+#[test]
+fn line_blocks_wrap_without_adding_verse_lines() {
+    let source = "| alpha beta gamma delta epsilon zeta\n| second line has several more words\n";
+    let mut options = WriterOptions::default();
+    options.columns = Some(20);
+    for (target, expected) in [
+        (
+            "markdown",
+            "| alpha beta gamma\n  delta epsilon zeta\n| second line has\n  several more words",
+        ),
+        (
+            "commonmark",
+            "alpha beta gamma\ndelta epsilon zeta\\\nsecond line has\nseveral more words",
+        ),
+        (
+            "plain",
+            "alpha beta gamma\ndelta epsilon zeta\nsecond line has\nseveral more words",
+        ),
+        (
+            "man",
+            ".PP\nalpha beta gamma\ndelta epsilon zeta\n.PD 0\n.P\n.PD\nsecond line has\nseveral more words",
+        ),
+        (
+            "asciidoc",
+            "[verse]\n--\nalpha beta gamma delta epsilon zeta\nsecond line has several more words\n--",
+        ),
+    ] {
+        let output = convert_text(
+            "markdown",
+            target,
+            source,
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        assert_eq!(output, expected, "{target}");
+        if target == "markdown" {
+            let (before, _) =
+                carta::read_document("markdown", source.as_bytes(), &ReaderOptions::default())
+                    .unwrap();
+            let (after, _) =
+                carta::read_document("markdown", output.as_bytes(), &ReaderOptions::default())
+                    .unwrap();
+            assert_eq!(after, before);
+        }
+    }
+}
+
+#[cfg(all(
+    feature = "write-markdown",
+    feature = "write-plain",
+    feature = "write-man"
+))]
+#[test]
+fn quoted_line_blocks_keep_their_initial_space() {
+    use carta::ast::{Block, Document, Inline};
+    let document = Document {
+        blocks: vec![Block::BlockQuote(vec![Block::LineBlock(vec![vec![
+            Inline::Space,
+            Inline::Str("alpha".into()),
+            Inline::Space,
+            Inline::Str("beta".into()),
+            Inline::Space,
+            Inline::Str("gamma".into()),
+        ]])])],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.columns = Some(12);
+    for (target, expected) in [
+        ("markdown-line_blocks", ">  alpha\n> beta gamma"),
+        ("plain", "   alpha\n  beta gamma"),
+        ("man", ".RS\n.PP\n\\ alpha beta\ngamma\n.RE"),
+    ] {
+        let output =
+            carta::render_document(target, document.clone(), Default::default(), &options).unwrap();
+        assert_eq!(output, Output::Text(expected.into()), "{target}");
+    }
+}
+
 #[cfg(all(feature = "read-commonmark", feature = "write-html"))]
 #[test]
 fn convert_on_text_target_matches_convert_text() {

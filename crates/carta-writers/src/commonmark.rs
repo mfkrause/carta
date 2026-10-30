@@ -165,19 +165,13 @@ impl State {
                     format!("{open}\n\n{body}\n\n</div>")
                 }
             }
-            Block::LineBlock(lines) => self.line_block(lines),
+            Block::LineBlock(lines) => {
+                self.block(&Block::Para(lines.join(&Inline::LineBreak)), width, hang)
+            }
             Block::Figure(..) | Block::Table(_) => collapse_html_block(
                 &crate::html::render_fragment(std::slice::from_ref(block), self.wrap),
             ),
         }
-    }
-
-    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
-        let rendered: Vec<String> = lines
-            .iter()
-            .map(|line| self.inlines_oneline(line, true))
-            .collect();
-        rendered.join("\\\n")
     }
 
     fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
@@ -262,7 +256,7 @@ impl State {
     }
 
     /// Render an inline sequence to a single line, collapsing breakable and forced breaks to spaces.
-    /// Used where a construct cannot span lines (headers, line-block lines).
+    /// Used where a construct cannot span lines, such as a heading.
     fn inlines_oneline(&mut self, inlines: &[Inline], line_start: bool) -> String {
         let (pieces, _groups) = self.pieces(inlines, line_start);
         let mut out = String::new();
