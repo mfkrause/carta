@@ -123,3 +123,52 @@ fn footnotes_use_the_selected_math_method() {
     assert!(output.contains("<math display=\"inline\""));
     assert!(!output.contains("class=\"math"));
 }
+
+#[test]
+fn webtex_encodes_unicode_and_escapes_image_attributes() {
+    let mut options = options();
+    options.math_method = MathMethod::Webtex("https://example.test/?a=1&tex=".into());
+    for (kind, class, source, encoded, escaped) in [
+        (
+            MathType::InlineMath,
+            "inline",
+            " x + α ",
+            "%5Ctextstyle%20x%20%2B%20%CE%B1",
+            "x + α",
+        ),
+        (
+            MathType::DisplayMath,
+            "display",
+            "\\frac{1}{2}<&\"'",
+            "%5Cdisplaystyle%20%5Cfrac%7B1%7D%7B2%7D%3C%26%22%27",
+            "\\frac{1}{2}&lt;&amp;&quot;&#39;",
+        ),
+    ] {
+        let expected = format!(
+            "<p><img style=\"vertical-align:middle\" src=\"https://example.test/?a=1&amp;tex={encoded}\" alt=\"{escaped}\" title=\"{escaped}\" class=\"math {class}\" /></p>"
+        );
+        let document = document(kind, source);
+        assert_eq!(HtmlWriter.write(&document, &options).unwrap(), expected);
+        assert_eq!(Html4Writer.write(&document, &options).unwrap(), expected);
+    }
+}
+
+#[cfg(feature = "revealjs")]
+#[test]
+fn slides_use_the_selected_math_method() {
+    let document = document(MathType::InlineMath, "x^2");
+    for (method, markup) in [
+        (MathMethod::MathJax("math.js".into()), "\\(x^2\\)"),
+        (
+            MathMethod::Webtex("https://example.test/?q=".into()),
+            "src=\"https://example.test/?q=%5Ctextstyle%20x%5E2\"",
+        ),
+    ] {
+        let mut options = options();
+        options.math_method = method;
+        let output = carta_writers::RevealjsWriter
+            .write(&document, &options)
+            .unwrap();
+        assert!(output.contains(markup), "{output}");
+    }
+}

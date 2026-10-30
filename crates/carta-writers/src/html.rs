@@ -131,25 +131,24 @@ fn fragment_prefix(flavor: Flavor) -> &'static str {
 /// the fragments and then calls [`fill_slides`] once over the whole document.
 // Used by the slide writer; unreferenced when its feature is sliced out of the build.
 #[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
-pub(crate) struct SlideRenderer {
-    state: State,
+pub(crate) struct SlideRenderer<'a> {
+    state: State<'a>,
 }
 
 #[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
-impl SlideRenderer {
+impl<'a> SlideRenderer<'a> {
     #[must_use]
-    pub(crate) fn new(highlighting: Highlighting) -> Self {
+    pub(crate) fn new(options: &'a WriterOptions) -> Self {
         #[cfg_attr(not(feature = "highlight"), allow(unused_mut))]
         let mut state = State {
             flavor: Flavor::Slides,
+            math: math_output(options),
             ..State::default()
         };
         #[cfg(feature = "highlight")]
         {
-            state.highlighter = highlighting;
+            state.highlighter = highlighting(options);
         }
-        #[cfg(not(feature = "highlight"))]
-        let () = highlighting;
         Self { state }
     }
 
@@ -352,7 +351,7 @@ fn render_with_flavor(
     flavor: Flavor,
     wrap: WrapMode,
     width: usize,
-    math: MathOutput,
+    math: MathOutput<'_>,
     highlighting: Highlighting,
     literate_code: bool,
 ) -> String {
@@ -382,12 +381,13 @@ pub(crate) fn fill_width(options: &WriterOptions) -> usize {
 }
 
 /// Which math markup an HTML writer emits for the chosen renderer.
-fn math_output(options: &WriterOptions) -> MathOutput {
-    match options.math_method {
+fn math_output(options: &WriterOptions) -> MathOutput<'_> {
+    match &options.math_method {
         MathMethod::Katex(_) => MathOutput::Raw,
         MathMethod::Mathml => MathOutput::Mathml,
         MathMethod::Plain => MathOutput::Plain,
         MathMethod::MathJax(_) => MathOutput::Delimited,
+        MathMethod::Webtex(url) => MathOutput::Webtex(url),
     }
 }
 
@@ -452,7 +452,7 @@ enum AttrOrder {
 
 /// How math is rendered in an HTML fragment.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-enum MathOutput {
+enum MathOutput<'a> {
     /// Text and inline HTML, with dollar-delimited TeX when conversion is not possible.
     #[default]
     Plain,
@@ -462,16 +462,18 @@ enum MathOutput {
     Raw,
     /// Structured MathML with a TeX source annotation.
     Mathml,
+    /// Images from a TeX rendering service.
+    Webtex(&'a str),
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
 /// emitted as a section at the end of the document.
 #[derive(Debug, Default)]
-struct State {
+struct State<'a> {
     footnotes: Vec<String>,
     in_anchor: bool,
     flavor: Flavor,
-    math: MathOutput,
+    math: MathOutput<'a>,
     literate_code: bool,
     /// Sequence number of the code block being rendered, incremented for every code block so a
     /// colorized block that names no identifier can synthesize a stable `cbN` one.
@@ -720,6 +722,26 @@ fn fill_math(text: &str) -> String {
         }
     }
     out
+}
+
+fn webtex_image(url: &str, text: &str, kind: &carta_ast::MathType) -> String {
+    let (class, prefix) = match kind {
+        carta_ast::MathType::InlineMath => ("inline", "\\textstyle "),
+        carta_ast::MathType::DisplayMath => ("display", "\\displaystyle "),
+    };
+    let text = text.trim();
+    let mut target = escape_attr(url);
+    for byte in prefix.bytes().chain(text.bytes()) {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            target.push(char::from(byte));
+        } else {
+            let _ = write!(target, "%{byte:02X}");
+        }
+    }
+    let text = escape_attr(text);
+    format!(
+        "<img{BREAK}style=\"vertical-align:middle\"{BREAK}src=\"{target}\"{BREAK}alt=\"{text}\"{BREAK}title=\"{text}\"{BREAK}class=\"math {class}\" />"
+    )
 }
 
 #[cfg(test)]

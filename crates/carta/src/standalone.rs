@@ -487,7 +487,7 @@ fn insert_output_vars(
         context.insert("numbersections".to_owned(), Value::Bool(true));
     }
     match &options.math_method {
-        MathMethod::Plain => {}
+        MathMethod::Plain | MathMethod::Webtex(_) => {}
         MathMethod::Mathml => {
             context.insert("mathml".to_owned(), Value::Bool(true));
         }

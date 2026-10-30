@@ -25,10 +25,10 @@ use super::helpers::{render_id_into, render_keyvals_into};
 use super::{
     AttrOrder, BREAK, FLUSH, Flavor, MathOutput, SEMANTIC_SPAN_TAGS, SOFT, STACK_RED_ZONE,
     STACK_SEGMENT, State, escape_attr, escape_attr_into, escape_text_into, fill_math,
-    fragment_prefix, protect,
+    fragment_prefix, protect, webtex_image,
 };
 
-impl State {
+impl State<'_> {
     /// Render a block sequence into `out`, one block per line. A block that renders to nothing (such
     /// as an empty paragraph) contributes neither output nor a separating newline.
     pub(super) fn blocks(&mut self, out: &mut String, blocks: &[Block]) {
@@ -665,6 +665,10 @@ impl State {
                     return;
                 }
                 let (open, close) = match self.math {
+                    MathOutput::Webtex(url) => {
+                        out.push_str(&webtex_image(url, text, kind));
+                        return;
+                    }
                     MathOutput::Delimited => delimiters,
                     MathOutput::Raw => ("", ""),
                     MathOutput::Plain | MathOutput::Mathml => match kind {

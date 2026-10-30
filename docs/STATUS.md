@@ -314,7 +314,7 @@ Notes list gaps and limitations only.
 | Filters (JSON) | ✅ | — |
 | Filters (Lua) | ❌ | — |
 | Data directory (`--data-dir`) | ✅ | — |
-| Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no webtex or default plain-HTML renderer yet. |
+| Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | — |
 | Writer extension toggles | ✅ | — |
 | Embed resources / extract media | ✅ | — |
 | Filename format inference | ✅ | — |

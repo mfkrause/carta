@@ -161,6 +161,8 @@ pub enum MathMethod {
     Katex(String),
     /// Presentation MathML with a TeX source annotation.
     Mathml,
+    /// Images from the given service URL, followed by percent-encoded TeX.
+    Webtex(String),
 }
 
 /// How a writer supplies a table of contents.

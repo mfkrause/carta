@@ -135,6 +135,11 @@ struct Cli {
     /// Use MathML to display embedded TeX math in HTML output.
     #[arg(long = "mathml")]
     mathml: bool,
+    /// Use images from a TeX rendering service. An optional URL overrides the service location.
+    #[allow(clippy::option_option)]
+    #[arg(long = "webtex", value_name = "URL", num_args = 0..=1, require_equals = true,
+        overrides_with_all = ["mathjax", "katex", "mathml", "webtex"])]
+    webtex: Option<Option<String>>,
     /// Set a metadata field: `KEY:VAL` (or `KEY=VAL`; `true`/`false` become booleans), or bare `KEY`
     /// for `true`. Repeatable.
     #[arg(short = 'M', long = "metadata", value_name = "KEY[:VAL]")]
@@ -613,11 +618,13 @@ fn template_dir(path: &Path) -> PathBuf {
 const DEFAULT_MATHJAX_URL: &str = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js";
 /// The asset base URL KaTeX loads from when `--katex` is given no explicit location.
 const DEFAULT_KATEX_URL: &str = "https://cdn.jsdelivr.net/npm/katex@latest/dist/";
+const DEFAULT_WEBTEX_URL: &str = "https://latex.codecogs.com/png.latex?";
 
-/// Resolve the math renderer, preferring MathJax, then KaTeX, then MathML.
-/// Optional flag values override the default script URLs.
+/// Resolve the math renderer and its default asset URL.
 fn math_method(cli: &Cli) -> MathMethod {
-    if let Some(url) = &cli.mathjax {
+    if let Some(url) = &cli.webtex {
+        MathMethod::Webtex(url.clone().unwrap_or_else(|| DEFAULT_WEBTEX_URL.to_owned()))
+    } else if let Some(url) = &cli.mathjax {
         MathMethod::MathJax(
             url.clone()
                 .unwrap_or_else(|| DEFAULT_MATHJAX_URL.to_owned()),

@@ -17,7 +17,7 @@ carta - Document converter
 
 ## Synopsis
 
-**carta** \[**-f**\|**--from**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
+**carta** \[**-f**\|**--from**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
 
 ## Description
 
@@ -99,6 +99,9 @@ Use KaTeX to display embedded TeX math in HTML output. An optional URL overrides
 
 **--mathml**  
 Use MathML to display embedded TeX math in HTML output
+
+**--webtex**\[=*\<URL\>*\]  
+Use images from a TeX rendering service. An optional URL overrides the service location
 
 **-M**, **--metadata** *\<KEY\[:VAL\]\>*  
 Set a metadata field: `KEY:VAL` (or `KEY=VAL`; `true`/`false` become booleans), or bare `KEY` for `true`. Repeatable

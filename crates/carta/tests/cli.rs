@@ -75,6 +75,51 @@ fn mathml_flag_renders_structured_math() {
     );
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn webtex_selects_the_service_and_respects_later_math_flags() {
+    for (flags, prefix) in [
+        (vec!["--webtex"], "https://latex.codecogs.com/png.latex?"),
+        (
+            vec!["--webtex=https://example.test/?q="],
+            "https://example.test/?q=",
+        ),
+        (vec!["--webtex="], ""),
+        (
+            vec!["--mathjax", "--webtex"],
+            "https://latex.codecogs.com/png.latex?",
+        ),
+    ] {
+        let mut arguments = vec!["-f", "markdown", "-t", "html", "--wrap=none"];
+        arguments.extend(flags);
+        let result = run(&arguments, "$x^2$");
+        assert!(result.success, "{}", result.stderr);
+        assert_eq!(
+            result.stdout,
+            format!(
+                "<p><img style=\"vertical-align:middle\" src=\"{prefix}%5Ctextstyle%20x%5E2\" alt=\"x^2\" title=\"x^2\" class=\"math inline\" /></p>\n"
+            )
+        );
+    }
+    let result = run(
+        &[
+            "-f",
+            "markdown",
+            "-t",
+            "html",
+            "--webtex",
+            "--mathjax",
+            "--wrap=none",
+        ],
+        "$x^2$",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        "<p><span class=\"math inline\">\\(x^2\\)</span></p>\n"
+    );
+}
+
 #[test]
 fn json_round_trips_canonically() {
     let result = run(&["-f", "json", "-t", "json"], SAMPLE_JSON);

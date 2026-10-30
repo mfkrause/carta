@@ -5,7 +5,7 @@ use std::fmt::Write;
 use carta_ast::{Block, Document, Inline};
 use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
-use crate::html::{SlideRenderer, fill_slides, fill_width, highlighting, render_slide_metadata};
+use crate::html::{SlideRenderer, fill_slides, fill_width, render_slide_metadata};
 use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
 
 /// Renders a document to a nested-`<section>` slide deck.
@@ -16,7 +16,7 @@ impl Writer for RevealjsWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let level = slide_level(&document.blocks);
         let slides = segment(&document.blocks, level);
-        let mut renderer = SlideRenderer::new(highlighting(options));
+        let mut renderer = SlideRenderer::new(options);
         let mut deck = Deck::new(level);
         if slides.is_empty() {
             deck.empty_frame();
@@ -129,7 +129,13 @@ impl Deck {
         );
     }
 
-    fn push(&mut self, renderer: &mut SlideRenderer, slide: &Slide, top: i64, has_children: bool) {
+    fn push(
+        &mut self,
+        renderer: &mut SlideRenderer<'_>,
+        slide: &Slide,
+        top: i64,
+        has_children: bool,
+    ) {
         match slide {
             Slide::Section { level, attr, title } if *level == top => {
                 if self.outer_open {
@@ -205,7 +211,7 @@ impl Deck {
     }
 
     fn section_marker(
-        renderer: &mut SlideRenderer,
+        renderer: &mut SlideRenderer<'_>,
         level: i64,
         attr: &carta_ast::Attr,
         title: &[Inline],
@@ -221,7 +227,7 @@ impl Deck {
     /// its blocks render to nothing, leaving a blank line where dropped content stood.
     fn frame(
         &self,
-        renderer: &mut SlideRenderer,
+        renderer: &mut SlideRenderer<'_>,
         title: Option<&FrameTitle>,
         body: &[Block],
     ) -> String {
