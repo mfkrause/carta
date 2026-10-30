@@ -19,7 +19,7 @@ pub(crate) enum TableForm {
 }
 
 /// Place a quoted table's opening border or blank line directly after the quote prefix.
-#[cfg(any(feature = "plain", feature = "markdown"))]
+#[cfg(any(feature = "plain", feature = "markdown", feature = "gfm"))]
 pub(crate) fn offset_quoted_table(blocks: &[Block], body: String) -> String {
     if !matches!(blocks.first(), Some(Block::Table(_))) {
         return body;
