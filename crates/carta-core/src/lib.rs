@@ -280,7 +280,7 @@ pub struct DocxOptions {
 }
 
 /// Syntax-highlighting configuration for the writers that colorize code blocks (the HTML family,
-/// LaTeX, DOCX, and ODT). The default leaves code blocks unhighlighted.
+/// LaTeX, man, DOCX, and ODT). The default leaves code blocks unhighlighted.
 #[cfg(feature = "highlight")]
 #[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
 #[derive(Debug, Clone, Default)]

@@ -8,7 +8,6 @@
 # case activates automatically. A few mark an intentional divergence in the differential comparison,
 # where a byte-for-byte match would demand wrong output or the difference is a negligible cosmetic
 # artifact; those are documented under the relevant format in docs/STATUS.md and are expected to stay.
-man	common/code-block-lang
 
 # Intentional EPUB divergences (see docs/STATUS.md → EPUB):
 # - image-external: an absolute image URL is emitted verbatim rather than resolved against the

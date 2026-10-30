@@ -127,6 +127,51 @@ fn block_quote_wraps_in_rs() {
 }
 
 #[test]
+fn code_blocks_keep_trailing_blank_lines() {
+    assert_eq!(
+        render(vec![Block::CodeBlock(Box::default(), "line\n\n".into())]),
+        ".IP\n.EX\nline\n\n.EE"
+    );
+}
+
+#[cfg(feature = "highlight")]
+#[test]
+#[allow(clippy::arc_with_non_send_sync)]
+fn code_languages_use_theme_font_styles() {
+    let document = Document {
+        blocks: vec![Block::CodeBlock(
+            Box::new(Attr {
+                classes: vec!["rust".into()],
+                ..Attr::default()
+            }),
+            "let x: i32 = 1;\n// comment".into(),
+        )],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.highlight.highlighter = Some(std::sync::Arc::new(carta_highlight::Highlighter::new()));
+    options.highlight.theme = Some(carta_highlight::builtin_style("pygments").unwrap().unwrap());
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        ".IP\n.EX\n\\f[B]let\\f[R] x: i32 = 1;\n\\f[I]// comment\\f[R]\n.EE"
+    );
+    options.highlight.theme = Some(
+        carta_highlight::builtin_style("monochrome")
+            .unwrap()
+            .unwrap(),
+    );
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        ".IP\n.EX\n\\f[B]let\\f[R] x: \\f[I]i32\\f[R] = 1;\n\\f[I]// comment\\f[R]\n.EE"
+    );
+    options.highlight.highlighter = None;
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        ".IP\n.EX\nlet x: i32 = 1;\n// comment\n.EE"
+    );
+}
+
+#[test]
 fn code_block_example_group() {
     assert_eq!(
         render(vec![Block::CodeBlock(Box::default(), "a\nb\n".into())]),

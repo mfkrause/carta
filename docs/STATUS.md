@@ -259,7 +259,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `mediawiki` ✅
 
 ### `man` ✅
-- Code-block language attributes are ignored.
 - Lists in table cells are flattened or misplaced.
 - A list item starting with a nested block has incorrect spacing.
 - Long runs of adjacent inline equations wrap at different columns.

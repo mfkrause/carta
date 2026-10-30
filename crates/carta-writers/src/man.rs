@@ -20,9 +20,10 @@ pub struct ManWriter;
 impl Writer for ManWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State {
+            notes: Vec::new(),
             width: options.columns.unwrap_or(FILL_COLUMN),
             wrap: options.wrap,
-            ..State::default()
+            options,
         };
         let body = state.blocks(&document.blocks);
         let mut out = body;
@@ -55,20 +56,11 @@ impl Writer for ManWriter {
 /// the fill column that bounds wrapped prose, and the paragraph layout mode that governs whether
 /// filled text wraps to that column.
 #[derive(Debug)]
-struct State {
+struct State<'a> {
     notes: Vec<String>,
     width: usize,
     wrap: WrapMode,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            notes: Vec::new(),
-            width: FILL_COLUMN,
-            wrap: WrapMode::default(),
-        }
-    }
+    options: &'a WriterOptions,
 }
 
 /// The active font attributes, rendered to a `\f[..]` selector. Each emphasis inline pushes its
@@ -115,7 +107,7 @@ enum Fragment {
     Display(String),
 }
 
-impl State {
+impl State<'_> {
     /// Render a block sequence at the top level or inside an indent group. A paragraph is preceded by
     /// `.PP` unless it immediately follows a heading; every other block carries its own leading
     /// request, so blocks are newline-joined.
@@ -151,7 +143,7 @@ impl State {
                 }
             }
             Block::Header(level, _, items) => self.header(*level, items),
-            Block::CodeBlock(_, text) => code_block(text),
+            Block::CodeBlock(attributes, text) => code_block(attributes, text, self.options),
             Block::RawBlock(format, text) => raw_passthrough(format, text),
             Block::BlockQuote(items) => self.block_quote(items),
             Block::BulletList(items) => self.bullet_list(items),
@@ -903,16 +895,60 @@ fn alignment_letter(align: &Alignment) -> &'static str {
 
 /// A code block: each line escaped and control-character-protected, wrapped in an `.IP`/`.EX`/`.EE`
 /// example group.
-fn code_block(text: &str) -> String {
+fn code_block(attributes: &carta_ast::Attr, text: &str, options: &WriterOptions) -> String {
+    #[cfg(feature = "highlight")]
+    if let Some(code) = highlighted_code_block(attributes, text, &options.highlight) {
+        return code;
+    }
+    #[cfg(not(feature = "highlight"))]
+    let _ = (attributes, options);
     let mut out = String::from(".IP\n.EX");
     if !text.is_empty() {
-        for line in text.trim_end_matches('\n').split('\n') {
+        for line in text.strip_suffix('\n').unwrap_or(text).split('\n') {
             out.push('\n');
             out.push_str(&escape_line_start(&escape_text(line)));
         }
     }
     out.push_str("\n.EE");
     out
+}
+
+#[cfg(feature = "highlight")]
+fn highlighted_code_block(
+    attributes: &carta_ast::Attr,
+    text: &str,
+    options: &carta_core::HighlightOptions,
+) -> Option<String> {
+    let highlighter = options.highlighter.as_deref()?;
+    let theme = options.theme.as_ref()?;
+    let lines = attributes
+        .classes
+        .iter()
+        .find_map(|language| highlighter.highlight(language, text))?;
+    let mut out = String::from(".IP\n.EX");
+    for line in lines {
+        let mut rendered = String::new();
+        for token in line {
+            let font = theme
+                .style_for(token.kind)
+                .map(|style| Font {
+                    bold: style.bold,
+                    italic: style.italic || style.underline,
+                    mono: false,
+                })
+                .unwrap_or_default();
+            let escaped = escape_text(&token.text);
+            if font.bold || font.italic {
+                let _ = write!(rendered, "\\f[{}]{escaped}\\f[R]", font.code());
+            } else {
+                rendered.push_str(&escaped);
+            }
+        }
+        out.push('\n');
+        out.push_str(&escape_line_start(&rendered));
+    }
+    out.push_str("\n.EE");
+    Some(out)
 }
 
 fn raw_passthrough(format: &Format, text: &str) -> String {
