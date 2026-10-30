@@ -16,10 +16,9 @@ for fmt in $FORMATS; do
     [ -f "$input" ] || continue
     label="$(basename "$input")"
     for target in $TARGETS; do
-      norm="$(oracle_norm "$target")"
       is_json_target "$target" && mode=json || mode=text
       run_diff "$mode" "e2e/$fmt->$target/$label" "$input" \
-        "-f $fmt -t $target $norm" "-f $fmt -t $target"
+        "-f $fmt -t $target" "-f $fmt -t $target"
     done
   done
   report e2e "$fmt"
@@ -33,7 +32,7 @@ if echo "$FORMATS" | grep -qw commonmark; then
   for input in "$specdir"/*.md; do
     [ -f "$input" ] || continue
     run_diff text "e2e/commonmark-spec->html/$(basename "$input")" "$input" \
-      "-f commonmark -t html --syntax-highlighting=none --mathjax" "-f commonmark -t html --syntax-highlighting=none"
+      "-f commonmark -t html --syntax-highlighting=none" "-f commonmark -t html --syntax-highlighting=none"
   done
   report e2e commonmark-spec-html
   tally_group

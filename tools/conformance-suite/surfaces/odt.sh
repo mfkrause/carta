@@ -167,9 +167,8 @@ $detail"
 }
 
 run_odt() {
-  local onorm input feature stem
+  local input feature stem
   conf_reset "odt"
-  onorm=$(oracle_norm odt)
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
@@ -177,7 +176,7 @@ run_odt() {
       SKIP=$((SKIP + 1))
       continue
     fi
-    odt_case "odt/$feature/$stem" odt "$input" "$onorm"
+    odt_case "odt/$feature/$stem" odt "$input" ""
   done
   for input in "$CORPUS"/ast-ext/odt*/*.json; do
     [ -e "$input" ] || continue
@@ -187,7 +186,7 @@ run_odt() {
       SKIP=$((SKIP + 1))
       continue
     fi
-    odt_case "odt/$feature/$stem" "$feature" "$input" "$onorm"
+    odt_case "odt/$feature/$stem" "$feature" "$input" ""
   done
   report odt odt
   tally_group

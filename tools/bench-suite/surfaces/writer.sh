@@ -8,12 +8,11 @@ TARGETS="html latex rst plain commonmark mediawiki native json"
 
 for target in $TARGETS; do
   table_header writer "json → $target"
-  norm="$(oracle_norm "$target")"
   for size in $(sizes_list); do
     input="$FIXTURES/ast.$size.json"
     [ -s "$input" ] || continue
     bench_pair "writer/$target/$size" "$input" "$(file_bytes "$input")" \
-      "-f json -t $target $norm" "-f json -t $target"
+      "-f json -t $target" "-f json -t $target"
   done
 done
 

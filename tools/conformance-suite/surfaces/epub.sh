@@ -40,9 +40,8 @@ $d"
 }
 
 run_dialect() {
-  local dialect="$1" onorm input feature stem label work detail repro
+  local dialect="$1" input feature stem label work detail repro
   conf_reset "epub-$dialect"
-  onorm=$(oracle_norm "$dialect")
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
@@ -56,7 +55,7 @@ run_dialect() {
     mkdir -p "$work/o" "$work/x"
     repro="repro: $OX -f json -t $dialect $input -o out.epub  (then unzip)"
     # shellcheck disable=SC2086
-    if ! "$ORACLE" -f json -t "$dialect" $onorm "$input" -o "$work/o.epub" 2>/dev/null; then
+    if ! "$ORACLE" -f json -t "$dialect" "$input" -o "$work/o.epub" 2>/dev/null; then
       SKIP=$((SKIP + 1))
       continue
     fi

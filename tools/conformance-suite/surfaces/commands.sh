@@ -85,7 +85,7 @@ if [ -d "$cmdroot" ]; then
     fi
     is_json_target "$TO" && mode=json || mode=text
     run_diff "$mode" "commands/$(basename "$infile" .in) [$cmd]" "$infile" \
-      "-f $FROM -t $TO $(oracle_norm "$TO")" "-f $FROM -t $TO"
+      "-f $FROM -t $TO" "-f $FROM -t $TO"
   done <"$manifest"
 fi
 

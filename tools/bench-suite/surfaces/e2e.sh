@@ -10,12 +10,11 @@ for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
   table_header e2e "$from → $to"
-  norm="$(oracle_norm "$to")"
   for size in $(sizes_list); do
     input="$(fixture_for "$from" "$size")"
     [ -s "$input" ] || continue
     bench_pair "e2e/$from-$to/$size" "$input" "$(file_bytes "$input")" \
-      "-f $from -t $to $norm" "-f $from -t $to"
+      "-f $from -t $to" "-f $from -t $to"
   done
 done
 

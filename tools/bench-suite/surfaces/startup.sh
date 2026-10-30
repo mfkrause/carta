@@ -10,12 +10,11 @@ for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
   table_header startup "$from → $to (near-empty input)"
-  norm="$(oracle_norm "$to")"
   input="$FIXTURES/startup.md"
   [ "$from" = json ] && input="$FIXTURES/startup.ast.json"
   [ -s "$input" ] || continue
   bench_pair "startup/$from-$to" "$input" "$(file_bytes "$input")" \
-    "-f $from -t $to $norm" "-f $from -t $to"
+    "-f $from -t $to" "-f $from -t $to"
 done
 
 exit "$SUITE_RC"

@@ -161,9 +161,8 @@ $detail"
 }
 
 run_docx() {
-  local onorm input feature stem
+  local input feature stem
   conf_reset "docx"
-  onorm=$(oracle_norm docx)
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
@@ -171,7 +170,7 @@ run_docx() {
       SKIP=$((SKIP + 1))
       continue
     fi
-    docx_case "docx/$feature/$stem" docx "$input" "$onorm"
+    docx_case "docx/$feature/$stem" docx "$input" ""
   done
   for input in "$CORPUS"/ast-ext/docx*/*.json; do
     [ -e "$input" ] || continue
@@ -181,7 +180,7 @@ run_docx() {
       SKIP=$((SKIP + 1))
       continue
     fi
-    docx_case "docx/$feature/$stem" "$feature" "$input" "$onorm"
+    docx_case "docx/$feature/$stem" "$feature" "$input" ""
   done
   report docx docx
   tally_group
