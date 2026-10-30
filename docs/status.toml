@@ -222,7 +222,7 @@ write = "usable"
 read-feature = "read-latex"
 write-feature = "write-latex"
 read-gaps = [
-  '''`\csname`/`\expandafter`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length.''',
+  '''`\csname`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length.''',
 ]
 write-gaps = [
 ]

@@ -333,13 +333,19 @@ impl Parser {
         );
     }
 
-    /// If the cursor is at a user macro invocation, pushes its expansion as a new input frame for the
-    /// cursor to read next. Returns whether an expansion occurred.
+    /// Pushes a macro or expansion primitive's replacement before the remaining input.
     pub(super) fn try_expand_macro(&mut self) -> bool {
+        self.expand_macro(true)
+    }
+
+    fn expand_macro(&mut self, track_call: bool) -> bool {
         if !self.ext.contains(Extension::LatexMacros) || self.expansions.calls.get() == 0 {
             return false;
         }
         self.drop_exhausted_frames();
+        if self.is_expand_after() {
+            return self.expand_after();
+        }
         if self.frames.last().is_some_and(|frame| frame.fixed_token) {
             return false;
         }
@@ -406,16 +412,68 @@ impl Parser {
             .calls
             .set(self.expansions.calls.get().saturating_sub(1));
         if !expanded.is_empty() {
-            self.expansions.active.borrow_mut().insert(call.clone());
-            let mut frame = Frame::new(
-                &expanded,
+            let expansion = if track_call {
+                self.expansions.active.borrow_mut().insert(call.clone());
                 Some(Rc::new(Expansion {
                     call,
                     state: Rc::clone(&self.expansions),
                     parent,
-                })),
-            );
+                }))
+            } else {
+                parent
+            };
+            let mut frame = Frame::new(&expanded, expansion);
             frame.fixed_token = matches!(mac.as_ref(), Macro::Token(_));
+            self.frames.push(frame);
+        }
+        true
+    }
+
+    fn is_expand_after(&self) -> bool {
+        let Some(name) = self.peek_control_word() else {
+            return false;
+        };
+        if self
+            .frames
+            .iter()
+            .rev()
+            .find(|frame| frame.pos < frame.end)
+            .is_some_and(|frame| frame.fixed_token)
+        {
+            return name == "expandafter";
+        }
+        match self.macros.get(&name).map(Rc::as_ref) {
+            Some(Macro::Token(token)) => token == "\\expandafter",
+            Some(Macro::Defined { .. }) => false,
+            None => name == "expandafter",
+        }
+    }
+
+    fn expand_after(&mut self) -> bool {
+        let parent = self.frames.last().and_then(|frame| frame.expansion.clone());
+        let mut delayed = Vec::new();
+        while self.expansions.calls.get() > 0 && self.is_expand_after() {
+            self.consume_control_word();
+            self.expansions
+                .calls
+                .set(self.expansions.calls.get().saturating_sub(1));
+            self.drop_exhausted_frames();
+            let fixed_token = self.frames.last().is_some_and(|frame| frame.fixed_token);
+            let token = if self.cur() == Some('\\') {
+                self.read_control_sequence().map(|name| format!("\\{name}"))
+            } else {
+                self.bump().map(|c| c.to_string())
+            };
+            let Some(token) = token else {
+                break;
+            };
+            delayed.push((token, fixed_token));
+        }
+        // The delayed token starts a separate expansion branch.
+        self.expand_macro(false);
+        for (token, fixed_token) in delayed.into_iter().rev() {
+            let mut frame = Frame::new(&token, parent.clone());
+            frame.fixed_token = fixed_token;
             self.frames.push(frame);
         }
         true
@@ -518,7 +576,9 @@ impl Parser {
     }
 
     pub(super) fn expand_math(&self, source: &str) -> String {
-        if !self.ext.contains(Extension::LatexMacros) || self.macros.is_empty() {
+        if !self.ext.contains(Extension::LatexMacros)
+            || (self.macros.is_empty() && !source.contains("\\expandafter"))
+        {
             return source.to_owned();
         }
         let mut parser = self.child(source, false);

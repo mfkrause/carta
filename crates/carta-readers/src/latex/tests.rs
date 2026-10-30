@@ -739,6 +739,53 @@ fn delimiter_matching_uses_the_expansion_work_allowance() {
 }
 
 #[test]
+fn expand_after_expands_the_second_token_once_before_the_first() {
+    for (source, expanded) in [
+        (
+            r"\def\first#1{[#1]}\def\second{abc}\expandafter\first\second",
+            "[a]bc",
+        ),
+        (r"\def\word{x}\expandafter\word\word", "xx"),
+        (
+            r"\newcommand{\word}{Hello}\expandafter\textbf\expandafter{\word}",
+            r"\textbf{Hello}",
+        ),
+        (
+            r"\def\first#1{[#1]}\def\second{\third}\def\third{abc}\expandafter\first\second",
+            "[abc]",
+        ),
+        (
+            r"\def\first#1{[#1]}\def\second{\third}\def\third{abc}\expandafter\expandafter\expandafter\first\second",
+            "[a]bc",
+        ),
+        (
+            r"\def\word{ab}\expandafter\let\expandafter\copy\word\copy",
+            "ba",
+        ),
+        (r"\def\word{x}\expandafter\%\word", r"\%x"),
+        (r"\def\word{abc}\expandafter{\word}", "{abc}"),
+        (
+            r"\let\later\expandafter\def\expandafter{broken}\def\first#1{[#1]}\def\second{abc}\later\first\second",
+            "[a]bc",
+        ),
+        (
+            r"\def\first#1{[#1]}\def\second{abc}$\expandafter\first\second$",
+            "$[a]bc$",
+        ),
+        (r"$\expandafter\alpha\beta$", r"$\alpha\beta$"),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+}
+
+#[test]
+fn expand_after_keeps_long_chains_and_recursion_bounded() {
+    let source = format!("{} kept", r"\expandafter\relax".repeat(3000));
+    assert_eq!(plain_text(&source), "kept");
+    assert!(parse(r"\def\word{\expandafter\word\word}\word").is_empty());
+}
+
+#[test]
 fn macro_optional_argument_defaults_when_absent() {
     assert_eq!(
         plain_text("\\newcommand{\\x}[2][d]{#1#2}\n\n\\x{B}\n"),

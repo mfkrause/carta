@@ -443,7 +443,7 @@
         "ships": true,
         "feature": "read-latex",
         "gaps": [
-          "`\\csname`/`\\expandafter`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length."
+          "`\\csname`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length."
         ]
       },
       "write": {
