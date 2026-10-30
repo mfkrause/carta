@@ -302,6 +302,38 @@ fn a_marker_only_alert_carries_just_its_title() {
 }
 
 #[test]
+fn indented_alert_markers_remain_ordinary_quotes() {
+    for spaces in 0..=5 {
+        let input = format!(">{}[!NOTE]\n> body\n", " ".repeat(spaces));
+        let out = gfm_blocks(&input);
+        if spaces <= 1 {
+            assert!(matches!(out.first(), Some(IrBlock::Div(..))), "{input:?}");
+        } else {
+            assert!(
+                matches!(out.first(), Some(IrBlock::BlockQuote(..))),
+                "{input:?}"
+            );
+        }
+    }
+    for input in [
+        ">\t[!NOTE]\n> body\n",
+        "> \t[!NOTE]\n> body\n",
+        ">\n> [!NOTE]\n> body\n",
+    ] {
+        let out = gfm_blocks(input);
+        assert!(
+            matches!(out.first(), Some(IrBlock::BlockQuote(..))),
+            "{input:?}"
+        );
+    }
+    let out = gfm_blocks("  >\t[!NOTE]\n  > body\n");
+    assert!(matches!(out.first(), Some(IrBlock::Div(..))));
+    let out = gfm_blocks("> > [!NOTE]\n> > body\n");
+    assert!(matches!(out.first(), Some(IrBlock::BlockQuote(blocks))
+        if matches!(blocks.first(), Some(IrBlock::Div(..)))));
+}
+
+#[test]
 fn an_alert_preserves_richer_body_content() {
     let out = gfm_blocks("> [!WARNING]\n> # Heading\n");
     let Some(IrBlock::Div(_, content)) = out.first() else {

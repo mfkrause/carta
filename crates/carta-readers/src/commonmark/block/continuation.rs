@@ -24,7 +24,7 @@ impl Parser {
                 cursor.advance_columns(info.indent);
                 Continue::Matched
             }
-            Some(Kind::BlockQuote) => {
+            Some(Kind::BlockQuote { .. }) => {
                 let checkpoint = cursor.checkpoint();
                 cursor.skip_up_to_three_spaces();
                 if cursor.peek() == Some(b'>') {
@@ -258,7 +258,7 @@ impl Parser {
                     | Kind::DefinitionItem { .. }
                     | Kind::HtmlElement(_),
                 ) => {}
-                Some(Kind::BlockQuote) => {
+                Some(Kind::BlockQuote { .. }) => {
                     cursor.skip_up_to_three_spaces();
                     if cursor.peek() == Some(b'>') {
                         cursor.advance_one();

@@ -324,7 +324,6 @@ Constructs the supported extensions read, each with one narrow case that still d
 | `raw_tex` | Inline `\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\begin{env}…\end{env}` is recognized only as a whole paragraph (block level); inline, each `\begin`/`\end` is an ordinary command. |
 | `citations` | An abbreviation-led citation suffix such as `p. 5` is a single string in the dialect (a non-breaking space follows the period); carta splits it into separate tokens. |
 | `attributes` | An attribute spec `{…}` containing a backslash escape is void in the dialect (it stays literal text) whereas carta accepts the backslash into the id, class, or value. |
-| `alerts` | An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one. |
 
 ### Not yet implemented
 

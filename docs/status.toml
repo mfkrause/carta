@@ -834,10 +834,6 @@ description = "An abbreviation-led citation suffix such as `p. 5` is a single st
 names = ["attributes"]
 description = "An attribute spec `{…}` containing a backslash escape is void in the dialect (it stays literal text) whereas carta accepts the backslash into the id, class, or value."
 
-[[extensions.gap]]
-names = ["alerts"]
-description = "An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one."
-
 [[feature]]
 name = "Standalone output + templates (`-s`, `--template`)"
 status = "usable"

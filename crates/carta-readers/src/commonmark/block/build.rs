@@ -271,8 +271,9 @@ impl Parser {
                     IrBlock::RawBlock(Format("tex".into()), node.text.clone())
                 }
             }
-            Kind::BlockQuote => {
-                if self.extensions.contains(Extension::Alerts)
+            Kind::BlockQuote { allows_alert } => {
+                if *allows_alert
+                    && self.extensions.contains(Extension::Alerts)
                     && let Some(alert) = self.build_alert(index)
                 {
                     alert
@@ -331,7 +332,6 @@ impl Parser {
             Some((line, rest)) => (line, Some(rest)),
             None => (first_node.text.as_str(), None),
         };
-        // Known limitation: folded indentation lets a marker indented 2+ columns match.
         let alert_type = alert_marker_type(marker_line, self.greedy_paragraphs)?;
 
         let title = IrBlock::Div(

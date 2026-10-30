@@ -35,9 +35,11 @@ impl Parser {
             }
             if !gates.blockquote && cursor.peek() == Some(b'>') {
                 cursor.advance_one();
+                let allows_alert = cursor.indent() <= 1 && !cursor.is_blank();
                 cursor.consume_optional_space();
-                let parent = self.place(container, &Kind::BlockQuote);
-                return Some(self.append_child(parent, Node::new(Kind::BlockQuote)));
+                let kind = Kind::BlockQuote { allows_alert };
+                let parent = self.place(container, &kind);
+                return Some(self.append_child(parent, Node::new(kind)));
             }
             // Folds into a greedy paragraph unless it is an open definition's body, which it ends.
             if (!gates.foldable || self.footnote_def_open_below(container))

@@ -129,7 +129,9 @@ fn leading_fence_run(line: &str, marker: u8) -> Option<usize> {
 #[derive(Debug, Clone)]
 enum Kind {
     Document,
-    BlockQuote,
+    BlockQuote {
+        allows_alert: bool,
+    },
     List(ListInfo),
     Item(ItemInfo),
     /// A footnote definition, holding its normalized label. Its content is gathered like a list
@@ -377,7 +379,7 @@ impl Parser {
         match self.kind(container) {
             Some(
                 Kind::Document
-                | Kind::BlockQuote
+                | Kind::BlockQuote { .. }
                 | Kind::Item(_)
                 | Kind::FootnoteDef(_)
                 | Kind::FencedDiv(..)
@@ -699,7 +701,7 @@ impl Parser {
             self.kind(index),
             Some(
                 Kind::Document
-                    | Kind::BlockQuote
+                    | Kind::BlockQuote { .. }
                     | Kind::List(_)
                     | Kind::Item(_)
                     | Kind::FootnoteDef(_)
