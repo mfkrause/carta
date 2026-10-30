@@ -225,3 +225,168 @@ fn tbl_header_row_marker_honors_an_explicit_off_value() {
     assert_eq!(head_rows("<w:tblHeader w:val=\"false\"/>"), 1);
     assert_eq!(head_rows("<w:tblHeader w:val=\"1\"/>"), 1);
 }
+
+fn text_box(body: &str) -> String {
+    format!(
+        "<w:pict xmlns:v=\"urn:schemas-microsoft-com:vml\"><v:shape><v:textbox>\
+         <w:txbxContent>{body}</w:txbxContent></v:textbox></v:shape></w:pict>"
+    )
+}
+
+#[test]
+fn page_and_column_breaks_keep_words_separate() {
+    for kind in ["textWrapping", "page", "column"] {
+        let body = format!(
+            "<w:p><w:r><w:t>before</w:t><w:br w:type=\"{kind}\"/>\
+             <w:t>after</w:t></w:r></w:p>"
+        );
+        let document = DocxReader
+            .read(&docx_from_body(&body), &ReaderOptions::default())
+            .unwrap();
+        assert_eq!(
+            document.blocks,
+            vec![Block::Para(vec![
+                Inline::Str("before".into()),
+                Inline::LineBreak,
+                Inline::Str("after".into()),
+            ])],
+            "{kind}"
+        );
+        let root = xml::parse_tolerant(body.as_bytes(), MAX_XML_DEPTH);
+        let paragraph = root.child("p").unwrap();
+        assert_eq!(
+            inline::code_paragraph_text(paragraph),
+            "before\nafter",
+            "{kind}"
+        );
+    }
+}
+
+#[test]
+fn text_boxes_keep_blocks_formatting_and_surrounding_text() {
+    let boxed = text_box(
+        "<w:p><w:r><w:t>Box </w:t></w:r><w:r><w:rPr><w:i/></w:rPr>\
+         <w:t>text</w:t></w:r></w:p><w:p><w:r><w:t>next</w:t></w:r></w:p>",
+    );
+    let body = format!("<w:p><w:r><w:t>before </w:t>{boxed}<w:t> after</w:t></w:r></w:p>");
+    let document = DocxReader
+        .read(&docx_from_body(&body), &ReaderOptions::default())
+        .unwrap();
+    let root = xml::parse_tolerant(body.as_bytes(), MAX_XML_DEPTH);
+    assert_eq!(
+        inline::code_paragraph_text(root.child("p").unwrap()),
+        "before  after"
+    );
+    assert_eq!(
+        document.blocks,
+        vec![
+            Block::Para(vec![
+                Inline::Str("before".into()),
+                Inline::Space,
+                Inline::Str("after".into())
+            ]),
+            Block::Para(vec![
+                Inline::Str("Box".into()),
+                Inline::Space,
+                Inline::Emph(vec![Inline::Str("text".into())])
+            ]),
+            Block::Para(vec![Inline::Str("next".into())]),
+        ]
+    );
+}
+
+#[test]
+fn text_boxes_select_one_compatibility_branch() {
+    let choice = text_box("<w:p><w:r><w:t>choice</w:t></w:r></w:p>");
+    let fallback = text_box("<w:p><w:r><w:t>fallback</w:t></w:r></w:p>");
+    for has_fallback in [false, true] {
+        let fallback = if has_fallback {
+            format!("<mc:Fallback>{fallback}</mc:Fallback>")
+        } else {
+            String::new()
+        };
+        let body = format!(
+            "<w:p><w:r><mc:AlternateContent \
+             xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" \
+             xmlns:v=\"urn:schemas-microsoft-com:vml\">\
+             <mc:Choice Requires=\"v\">{choice}</mc:Choice>{fallback}\
+             </mc:AlternateContent></w:r></w:p>"
+        );
+        let document = DocxReader
+            .read(&docx_from_body(&body), &ReaderOptions::default())
+            .unwrap();
+        let expected = if has_fallback { "fallback" } else { "choice" };
+        assert_eq!(
+            document.blocks,
+            vec![Block::Para(vec![Inline::Str(expected.into())])]
+        );
+    }
+}
+
+#[test]
+fn text_box_images_stay_inside_their_own_paragraphs() {
+    let boxed = text_box(
+        "<w:p><w:r><w:t>Box</w:t></w:r></w:p><w:p><w:r><w:pict>\
+         <v:shape><v:imagedata xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" \
+         r:id=\"image\"/></v:shape></w:pict></w:r></w:p>",
+    );
+    let body = format!("<w:p><w:r>{boxed}</w:r></w:p>");
+    let mut parts = zip::read_map(&docx_from_body(&body)).unwrap();
+    parts.insert("word/_rels/document.xml.rels".into(),
+        b"<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\
+          <Relationship Id=\"image\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" \
+          Target=\"https://example.test/image.png\" TargetMode=\"External\"/></Relationships>".to_vec());
+    let mut archive = ZipArchive::new();
+    for (path, contents) in parts {
+        archive.deflate(&path, &contents).unwrap();
+    }
+    let document = DocxReader
+        .read(&archive.finish().unwrap(), &ReaderOptions::default())
+        .unwrap();
+    assert_eq!(document.blocks.len(), 2);
+    assert_eq!(
+        document.blocks.first(),
+        Some(&Block::Para(vec![Inline::Str("Box".into())]))
+    );
+    assert!(matches!(document.blocks.get(1), Some(Block::Para(inlines))
+        if matches!(inlines.as_slice(), [Inline::Image(_, _, target)]
+            if target.url == "https://example.test/image.png")));
+}
+
+#[test]
+fn nested_text_boxes_keep_the_innermost_text() {
+    let mut body = "<w:p><w:r><w:t>core</w:t></w:r></w:p>".to_owned();
+    for _ in 0..128 {
+        body = format!("<w:p><w:r>{}</w:r></w:p>", text_box(&body));
+    }
+    let document = DocxReader
+        .read(&docx_from_body(&body), &ReaderOptions::default())
+        .unwrap();
+    assert_eq!(
+        document.blocks,
+        vec![Block::Para(vec![Inline::Str("core".into())])]
+    );
+}
+
+#[test]
+fn text_box_traversal_keeps_siblings_and_skips_deletions() {
+    let first = text_box("<w:p><w:r><w:t>first</w:t></w:r></w:p>");
+    let deleted = text_box("<w:p><w:r><w:t>deleted</w:t></w:r></w:p>");
+    let second = text_box("<w:p><w:r><w:t>second</w:t></w:r></w:p>");
+    for deletion in ["del", "moveFrom"] {
+        let body = format!(
+            "<w:p><w:r>{first}</w:r><w:{deletion}><w:r>{deleted}</w:r></w:{deletion}>\
+             <w:r>{second}</w:r></w:p>"
+        );
+        let document = DocxReader
+            .read(&docx_from_body(&body), &ReaderOptions::default())
+            .unwrap();
+        assert_eq!(
+            document.blocks,
+            vec![
+                Block::Para(vec![Inline::Str("first".into())]),
+                Block::Para(vec![Inline::Str("second".into())]),
+            ]
+        );
+    }
+}

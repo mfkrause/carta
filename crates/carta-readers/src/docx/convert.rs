@@ -11,8 +11,9 @@ use crate::xml::{Element, local_name};
 use super::blocks::{BlockSink, ListEntry};
 use super::helpers::{
     DEFAULT_TEXT_WIDTH_TWIPS, INTER_COLUMN_TWIPS, alignment, canonical_style, custom_style_attr,
-    image_attr, is_builtin_style, mime_for, net_left_indent, normalize_target, parse_int, ratio,
-    read_toggles, single_image, style_class, table_look_first_row, tbl_header_on, tokenize_inlines,
+    drawing_descendant, image_attr, is_builtin_style, mime_for, net_left_indent, normalize_target,
+    parse_int, ratio, read_toggles, single_image, style_class, table_look_first_row, tbl_header_on,
+    tokenize_inlines,
 };
 use super::inline::{InlineBuilder, code_paragraph_text};
 use super::omml::omml_to_tex;
@@ -27,7 +28,10 @@ impl Converter<'_> {
         let mut sink = BlockSink::default();
         for element in container.elements() {
             match local_name(&element.name) {
-                "p" => self.convert_paragraph(element, &mut sink),
+                "p" => {
+                    self.convert_paragraph(element, &mut sink);
+                    self.convert_text_boxes(element, &mut sink);
+                }
                 "tbl" => {
                     self.in_title_block = false;
                     if let Some(table) = self.convert_table(element) {
@@ -46,6 +50,31 @@ impl Converter<'_> {
             }
         }
         sink.finish()
+    }
+
+    /// Emits anchored text-box blocks after their containing paragraph.
+    fn convert_text_boxes(&mut self, container: &Element, sink: &mut BlockSink) {
+        carta_core::with_stack(|| {
+            for element in container.elements() {
+                match local_name(&element.name) {
+                    "txbxContent" => {
+                        for block in self.convert_blocks(element) {
+                            sink.emit(block);
+                        }
+                    }
+                    "AlternateContent" => {
+                        if let Some(content) = element
+                            .child("Fallback")
+                            .or_else(|| element.child("Choice"))
+                        {
+                            self.convert_text_boxes(content, sink);
+                        }
+                    }
+                    "del" | "moveFrom" => {}
+                    _ => self.convert_text_boxes(element, sink),
+                }
+            }
+        });
     }
 
     #[allow(clippy::too_many_lines)]
@@ -347,14 +376,7 @@ impl Converter<'_> {
                 None => builder.push_text(fmt, &child.text()),
             },
             "tab" => builder.push_space(fmt),
-            "br" => {
-                // A page or column break renders no line of its own and carries no content.
-                let kind = child.attr("type").unwrap_or("textWrapping");
-                if kind == "textWrapping" {
-                    builder.push_break(fmt);
-                }
-            }
-            "cr" => builder.push_break(fmt),
+            "br" | "cr" => builder.push_break(fmt),
             "noBreakHyphen" => builder.push_text(fmt, "\u{2011}"),
             "sym" => {
                 if let Some(ch) = child
@@ -453,21 +475,19 @@ impl Converter<'_> {
 
     fn convert_drawing(&mut self, drawing: &Element) -> Option<Inline> {
         // DrawingML carries the relationship on `a:blip`; legacy VML and OLE previews on `v:imagedata`.
-        let rel_id = drawing
-            .descendant("blip")
+        let rel_id = drawing_descendant(drawing, "blip")
             .and_then(|blip| {
                 blip.attr_qualified("r:embed", "embed")
                     .or_else(|| blip.attr_qualified("r:link", "link"))
             })
             .or_else(|| {
-                drawing.descendant("imagedata").and_then(|data| {
+                drawing_descendant(drawing, "imagedata").and_then(|data| {
                     data.attr_qualified("r:id", "id")
                         .or_else(|| data.attr_qualified("r:link", "link"))
                 })
             })?;
         let rel = self.rels.get(rel_id)?;
-        let alt = drawing
-            .descendant("docPr")
+        let alt = drawing_descendant(drawing, "docPr")
             .and_then(|doc_pr| doc_pr.attr("descr"))
             .map(tokenize_inlines)
             .unwrap_or_default();

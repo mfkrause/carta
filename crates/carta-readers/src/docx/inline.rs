@@ -54,13 +54,7 @@ fn push_code_runs(element: &Element, out: &mut String) {
         match local_name(&child.name) {
             "t" => out.push_str(&child.text()),
             "tab" => out.push('\t'),
-            "br" => {
-                // Only a text-wrapping break advances the code line; page and column breaks do not.
-                if child.attr("type").unwrap_or("textWrapping") == "textWrapping" {
-                    out.push('\n');
-                }
-            }
-            "cr" => out.push('\n'),
+            "br" | "cr" => out.push('\n'),
             "noBreakHyphen" => out.push('\u{2011}'),
             "sym" => {
                 if let Some(ch) = child
@@ -71,8 +65,8 @@ fn push_code_runs(element: &Element, out: &mut String) {
                     out.push(ch);
                 }
             }
-            // Properties, tracked deletions, and field instructions are not part of the code.
-            "rPr" | "pPr" | "del" | "delText" | "instrText" => {}
+            // Text-box blocks are emitted separately; properties and deletions have no code text.
+            "rPr" | "pPr" | "del" | "delText" | "instrText" | "txbxContent" => {}
             _ => push_code_runs(child, out),
         }
     }

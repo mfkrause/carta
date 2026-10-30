@@ -177,8 +177,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `man` ✅
 
 ### `docx` ✅
-- Page and column breaks are dropped rather than converted to line breaks, and a VML textbox's text
-  (including an `mc:AlternateContent` fallback) is not extracted.
 - Office Math sets binary and relational operators tight, with no surrounding thin space
   (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`).
 - A few math symbols take a less idiomatic TeX spelling (`→` becomes `\to` rather than

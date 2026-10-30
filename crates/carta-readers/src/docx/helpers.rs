@@ -247,10 +247,27 @@ fn tokenize_field(instr: &str) -> Vec<String> {
     tokens
 }
 
+/// Finds drawing metadata without crossing into a text box's separate block content.
+pub(super) fn drawing_descendant<'a>(drawing: &'a Element, name: &str) -> Option<&'a Element> {
+    for child in drawing.elements() {
+        let child_name = local_name(&child.name);
+        if child_name == "txbxContent" {
+            continue;
+        }
+        if child_name == name {
+            return Some(child);
+        }
+        if let Some(found) = drawing_descendant(child, name) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 /// Reads a drawing's `wp:extent` into `width`/`height` attributes measured in inches.
 pub(super) fn image_attr(drawing: &Element) -> Attr {
     let mut attributes = Vec::new();
-    if let Some(extent) = drawing.descendant("extent") {
+    if let Some(extent) = drawing_descendant(drawing, "extent") {
         if let Some(cx) = extent
             .attr("cx")
             .and_then(|value| value.parse::<i64>().ok())
