@@ -64,6 +64,24 @@ def expectation(label):
         stem = Path(parts[3]).stem
         if stem in {"span", "span-semantic"}:
             return f"golden_writer__rst__common__{stem}", "Keep inline target identifiers."
+    if len(parts) == 4 and parts[:2] == ["docx", "docx"]:
+        case, part = parts[2:]
+        if case in {"language", "direction"} and part in {"document", "footnotes", "comments"}:
+            name = f"docx__docx__{case}" if part == "document" else f"docx__{case}__{part}"
+            return name, "Preserve language and direction in every document part."
+    if len(parts) == 4 and parts[:2] == ["epub", "epub2"]:
+        group, stem = parts[2:]
+        cases = {
+            ("common", "ordered-start"),
+            ("common", "span-semantic"),
+            ("common", "underline-smallcaps"),
+            ("table", "table-caption-blocks"),
+            ("table", "table-caption-div"),
+            ("table", "table-empty"),
+            ("task-list", "checkboxes"),
+        }
+        if (group, stem) in cases:
+            return f"epub__epub2_body__{group}__{stem}", "Use XHTML-compatible EPUB 2 markup."
     return None
 
 
@@ -77,6 +95,10 @@ def main():
     snapshot = root / "crates/carta/tests/snapshots" / f"{name}.snap"
     body = snapshot.read_bytes().split(b"\n---\n", 1)[1]
     actual = Path(actual_path).read_bytes()
+    if mode == "docx":
+        actual = actual.replace(b"><", b">\n<")
+    if mode == "epub":
+        actual = actual.split(b"<body>\n", 1)[1].split(b"</body>", 1)[0]
     if mode == "json":
         matches = json.loads(body) == json.loads(actual)
     else:

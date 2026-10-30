@@ -18,6 +18,7 @@ docx_skip_part() {
 docx_canon() {
   python3 - "$1" <<'PY'
 import sys, re
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
 NS = {
@@ -101,6 +102,16 @@ except Exception as e:  # a malformed part must surface as a divergence, not a c
     sys.exit(0)
 
 out = []
+path = Path(sys.argv[1])
+if path.name in {'footnotes.xml.rels', 'comments.xml.rels'}:
+    part = path.parent.parent / path.name.removesuffix('.rels')
+    used = {
+        value for node in ET.parse(part).iter() for key, value in node.attrib.items()
+        if key.startswith('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}')
+    }
+    for relation in list(root):
+        if relation.get('Id') not in used:
+            root.remove(relation)
 serialize(root, out)
 s = ''.join(out)
 # property dates are free; fold so only presence and placement compare
@@ -110,9 +121,32 @@ sys.stdout.write(s + '\n')
 PY
 }
 
+# Unused comment relationships do not change document content.
+docx_parts() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+
+root = Path(sys.argv[1])
+comments = root / 'word/comments.xml'
+used = comments.is_file() and any(
+    key.startswith('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}')
+    for node in ET.parse(comments).iter() for key in node.attrib
+)
+for path in sorted(root.rglob('*')):
+    if not path.is_file():
+        continue
+    relative = path.relative_to(root).as_posix()
+    if relative == 'word/_rels/comments.xml.rels' and not used:
+        continue
+    print('./' + relative)
+PY
+}
+
 docx_diff() {
-  local odir="$1" xdir="$2" rel bad="" d fl
-  fl=$(diff <(cd "$odir" && find . -type f | sort) <(cd "$xdir" && find . -type f | sort))
+  local odir="$1" xdir="$2" label="$3" rel bad="" d fl control
+  fl=$(diff <(docx_parts "$odir") <(docx_parts "$xdir"))
   [ -n "$fl" ] && bad="file list differs:
 $fl"
   while IFS= read -r rel; do
@@ -125,6 +159,11 @@ $fl"
         continue ;;
     esac
     d=$(diff <(docx_canon "$odir/$rel") <(docx_canon "$xdir/$rel"))
+    if [ -n "$d" ] && \
+        control=$(python3 "$CONF_DIR/correctness.py" docx "$label/$(basename "$rel" .xml)" "$xdir/$rel"); then
+      printf 'CONTROL %s\n' "$control" >>"$SURFACE_LOG"
+      d=""
+    fi
     [ -n "$d" ] && bad="${bad:+$bad
 }--- $rel ---
 $d"
@@ -139,18 +178,18 @@ docx_case() {
   mkdir -p "$work/o" "$work/x"
   repro="repro: $OX -f json -t $target $input -o out.docx  (then unzip)"
   # shellcheck disable=SC2086
-  if ! "$ORACLE" -f json -t "$target" $onorm "$input" -o "$work/o.docx" 2>/dev/null; then
+  if ! "$ORACLE" -f json -t "$target" --syntax-highlighting=none $onorm "$input" -o "$work/o.docx" 2>/dev/null; then
     SKIP=$((SKIP + 1))
     return
   fi
-  if ! "$OX" -f json -t "$target" "$input" -o "$work/x.docx" 2>"$work/err"; then
+  if ! "$OX" -f json -t "$target" --syntax-highlighting=none "$input" -o "$work/x.docx" 2>"$work/err"; then
     note_err "$label" "$repro
 $(head -n 3 "$work/err")"
     return
   fi
   (cd "$work/o" && unzip -oq ../o.docx) 2>/dev/null
   (cd "$work/x" && unzip -oq ../x.docx) 2>/dev/null
-  detail=$(docx_diff "$work/o" "$work/x")
+  detail=$(docx_diff "$work/o" "$work/x" "$label")
   if [ -z "$detail" ]; then
     PASS=$((PASS + 1))
   else
@@ -182,6 +221,7 @@ run_docx() {
     fi
     docx_case "docx/$feature/$stem" "$feature" "$input" ""
   done
+  CONTROLS=$(grep -c '^CONTROL ' "$SURFACE_LOG" || true)
   report docx docx
   tally_group
 }

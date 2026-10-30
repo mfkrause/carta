@@ -16,6 +16,43 @@ use carta::{
 use carta_core::container::zip;
 use carta_core::media::{base64_encode, sha1_hex};
 
+#[cfg(feature = "read-json")]
+#[test]
+fn epub2_compatible_body_snapshots() {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/ast");
+    for (group, case) in [
+        ("common", "ordered-start"),
+        ("common", "span-semantic"),
+        ("common", "underline-smallcaps"),
+        ("table", "table-caption-blocks"),
+        ("table", "table-caption-div"),
+        ("table", "table-empty"),
+        ("task-list", "checkboxes"),
+    ] {
+        let input = fs::read(corpus.join(group).join(format!("{case}.json"))).unwrap();
+        let (document, media) = read_document("json", &input, &ReaderOptions::default()).unwrap();
+        let Output::Bytes(bytes) =
+            render_document("epub2", document, media, &WriterOptions::default()).unwrap()
+        else {
+            panic!("EPUB output must contain archive bytes");
+        };
+        let entries = zip::read(&bytes).unwrap();
+        let chapter = entries
+            .iter()
+            .find(|entry| entry.name == "EPUB/text/ch001.xhtml")
+            .unwrap();
+        let text = std::str::from_utf8(&chapter.data).unwrap();
+        let body = text
+            .split_once("<body>\n")
+            .unwrap()
+            .1
+            .split_once("</body>")
+            .unwrap()
+            .0;
+        insta::assert_snapshot!(format!("epub2_body__{group}__{case}"), body);
+    }
+}
+
 /// The directory holding the EPUB Markdown fixtures.
 fn fixtures_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/epub")

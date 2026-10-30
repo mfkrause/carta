@@ -32,7 +32,7 @@ epub_norm() {
 }
 
 epub_diff() {
-  local odir="$1" xdir="$2" rel bad="" d fl
+  local odir="$1" xdir="$2" label="$3" rel bad="" d fl control
   fl=$(diff <(cd "$odir" && find . -type f | sort) <(cd "$xdir" && find . -type f | sort))
   [ -n "$fl" ] && bad="file list differs:
 $fl"
@@ -46,6 +46,11 @@ $fl"
         continue ;;
     esac
     d=$(diff <(epub_norm <"$odir/$rel") <(epub_norm <"$xdir/$rel"))
+    if [ -n "$d" ] && [ "$rel" = EPUB/text/ch001.xhtml ] && \
+        control=$(python3 "$CONF_DIR/correctness.py" epub "$label" "$xdir/$rel"); then
+      printf 'CONTROL %s\n' "$control" >>"$SURFACE_LOG"
+      d=""
+    fi
     [ -n "$d" ] && bad="${bad:+$bad
 }--- $rel ---
 $d"
@@ -80,7 +85,7 @@ $(head -n 3 "$work/err")"
     fi
     (cd "$work/o" && unzip -oq ../o.epub) 2>/dev/null
     (cd "$work/x" && unzip -oq ../x.epub) 2>/dev/null
-    detail=$(epub_diff "$work/o" "$work/x")
+    detail=$(epub_diff "$work/o" "$work/x" "$label")
     if [ -z "$detail" ]; then
       PASS=$((PASS + 1))
     else
@@ -89,27 +94,34 @@ $detail"
     fi
     rm -rf "$work"
   done
+  CONTROLS=$(grep -c '^CONTROL ' "$SURFACE_LOG" || true)
   report epub "$dialect"
   tally_group
 }
 
 # Subprocesses report through STATUS files and exported variables.
 epubcheck_one() {
-  local dialect="$1" input="$2" feature stem label out res slug
+  local dialect="$1" input="$2" feature stem label out res slug status=0 kind detail
   feature=$(basename "$(dirname "$input")")
   stem=$(basename "$input" .json)
   label="epub/epubcheck/$dialect/$feature/$stem"
   slug="$dialect-$feature-$stem"
   out="$EC_WORK/$slug.epub"
-  if ! "$OX" -f json -t "$dialect" "$input" -o "$out" 2>/dev/null; then
+  if ! "$OX" -f json -t "$dialect" --resource-path="$RESOURCE_DIR" "$input" -o "$out" 2>/dev/null; then
     printf 'ERR\t%s\tcarta failed to convert\n' "$label" >"$EC_RESDIR/$slug"
     return
   fi
-  res=$("$EC_JAVA" -jar "$EC_JAR" "$out" 2>&1)
+  res=$("$EC_JAVA" -jar "$EC_JAR" "$out" 2>&1) || status=$?
   rm -f "$out"
-  if printf '%s' "$res" | grep -qE 'ERROR|FATAL'; then
-    printf 'FAIL\t%s\t%s\n' "$label" \
-      "$(printf '%s' "$res" | grep -E 'ERROR|FATAL' | head -n 4 | tr '\n' '~')" >"$EC_RESDIR/$slug"
+  if [ "$status" -ne 0 ] || printf '%s' "$res" | grep -qE 'ERROR|FATAL'; then
+    kind=FAIL
+    detail=$(printf '%s' "$res" | grep -E 'ERROR|FATAL' | head -n 4 | tr '\n' '~')
+    if [ -z "$detail" ]; then
+      kind=ERR
+      detail=$(printf '%s' "$res" | head -n 4 | tr '\n' '~')
+    fi
+    printf '%s\t%s\t%s\n' "$kind" "$label" \
+      "${detail:-EPUBCheck exited with status $status}" >"$EC_RESDIR/$slug"
   else
     printf 'PASS\t%s\t\n' "$label" >"$EC_RESDIR/$slug"
   fi
@@ -117,7 +129,7 @@ epubcheck_one() {
 
 run_epubcheck() {
   conf_reset "epub-epubcheck"
-  local jar java resdir ecwork jobs f status label detail unresolved legacy_epub2
+  local jar java resdir ecwork jobs f status label detail unresolved
   jar="${EPUBCHECK_JAR:-$ROOT/.oracle/epubcheck/epubcheck.jar}"
   java="${JAVA_BIN:-java}"
   if ! command -v "$java" >/dev/null 2>&1 || [ ! -f "$jar" ]; then
@@ -126,9 +138,7 @@ run_epubcheck() {
     return
   fi
   # Unresolved offline resources yield references that EPUBCheck rejects.
-  unresolved=" common/image-external common/image-inline common/link-in-link figure/figure-captioned figure/figure-no-alt figure/figure-with-dims image-dimensions/image-inline-dims "
-  # EPUBCheck rejects content without a valid XHTML 1.1 form in EPUB 2.
-  legacy_epub2=" common/ordered-start common/span-semantic common/underline-smallcaps table/table-caption-blocks table/table-empty table/table-foot task-list/checkboxes "
+  unresolved=" common/image-external common/link-in-link "
   resdir="$WORK/epub/epubcheck-results"
   ecwork="$WORK/epub/epubcheck-work"
   rm -rf "$resdir" "$ecwork"
@@ -144,16 +154,10 @@ run_epubcheck() {
         SKIP=$((SKIP + 1))
         continue ;;
       esac
-      if [ "$dialect" = epub2 ]; then
-        case "$legacy_epub2" in *" $feature/$stem "*)
-          SKIP=$((SKIP + 1))
-          continue ;;
-        esac
-      fi
       printf '%s\t%s\n' "$dialect" "$input" >>"$jobs"
     done
   done
-  export OX EC_JAVA="$java" EC_JAR="$jar" EC_WORK="$ecwork" EC_RESDIR="$resdir"
+  export OX RESOURCE_DIR EC_JAVA="$java" EC_JAR="$jar" EC_WORK="$ecwork" EC_RESDIR="$resdir"
   export -f epubcheck_one
   local slots
   slots=$(( $(command -v nproc >/dev/null 2>&1 && nproc || echo 4) ))

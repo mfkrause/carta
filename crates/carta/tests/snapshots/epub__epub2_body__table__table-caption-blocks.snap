@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<div>
+<div class="table-caption" style="font-style: italic; margin-bottom: 0.4em; text-align: center">
+<p>First caption paragraph</p>
+<p>Second caption paragraph</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>h</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
