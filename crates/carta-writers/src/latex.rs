@@ -114,12 +114,13 @@ impl Dialect {
 /// writers render the content of each frame through this entry point, laid out under `wrap`.
 pub(crate) fn render_fragment(
     blocks: &[Block],
+    width: usize,
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
-    render_blocks(blocks, FILL_COLUMN, 0, dialect, wrap, smart, hl)
+    render_blocks(blocks, width, 0, dialect, wrap, smart, hl)
         .trim_end_matches('\n')
         .to_owned()
 }
@@ -129,20 +130,12 @@ pub(crate) fn render_heading(
     level: i64,
     attr: &Attr,
     inlines: &[Inline],
+    width: usize,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
-    header(
-        level,
-        attr,
-        inlines,
-        FILL_COLUMN,
-        Dialect::SLIDE,
-        wrap,
-        smart,
-        hl,
-    )
+    header(level, attr, inlines, width, Dialect::SLIDE, wrap, smart, hl)
 }
 
 /// Render a titled environment opening: a `prefix` literal (such as `\begin{frame}{`), the title
@@ -151,6 +144,7 @@ pub(crate) fn render_heading(
 pub(crate) fn render_titled_open(
     prefix: &str,
     inlines: &[Inline],
+    width: usize,
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
@@ -158,16 +152,9 @@ pub(crate) fn render_titled_open(
 ) -> String {
     let mut pieces = InlineLayout::default();
     pieces.push(Piece::text(prefix.to_owned()));
-    pieces.append(inline_pieces(
-        inlines,
-        FILL_COLUMN,
-        dialect,
-        wrap,
-        smart,
-        hl,
-    ));
+    pieces.append(inline_pieces(inlines, width, dialect, wrap, smart, hl));
     pieces.push(Piece::text("}"));
-    pieces.render(FILL_COLUMN, wrap)
+    pieces.render(width, wrap)
 }
 
 /// The anchor markup for an element carrying an identifier, exposed for slide-level scaffolding.

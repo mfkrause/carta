@@ -23,9 +23,10 @@ impl Writer for BeamerWriter {
         let smart = options.extensions.contains(Extension::Smart);
         let hl = code_highlighting(options);
         let level = slide_level(&document.blocks);
+        let width = options.columns.unwrap_or(crate::common::FILL_COLUMN);
         let units: Vec<String> = segment(&document.blocks, level)
             .iter()
-            .map(|slide| render_slide(slide, level, options.wrap, smart, hl))
+            .map(|slide| render_slide(slide, level, width, options.wrap, smart, hl))
             .collect();
         Ok(units.join("\n\n"))
     }
@@ -99,12 +100,21 @@ const FRAME_CLASSES: &[&str] = &[
     "t",
 ];
 
-fn render_slide(slide: &Slide, level: i64, wrap: WrapMode, smart: bool, hl: Hl<'_>) -> String {
+fn render_slide(
+    slide: &Slide,
+    level: i64,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+    hl: Hl<'_>,
+) -> String {
     match slide {
         Slide::Section { level, attr, title } => {
-            render_heading(*level, attr, title, wrap, smart, hl)
+            render_heading(*level, attr, title, width, wrap, smart, hl)
         }
-        Slide::Frame { title, body } => render_frame(title.as_ref(), body, level, wrap, smart, hl),
+        Slide::Frame { title, body } => {
+            render_frame(title.as_ref(), body, level, width, wrap, smart, hl)
+        }
     }
 }
 
@@ -114,6 +124,7 @@ fn render_frame(
     title: Option<&FrameTitle>,
     body: &[Block],
     level: i64,
+    width: usize,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
@@ -126,6 +137,7 @@ fn render_frame(
             lines.push(render_titled_open(
                 &format!("\\begin{{frame}}{options}{{"),
                 title.inlines,
+                width,
                 Dialect::SLIDE,
                 wrap,
                 smart,
@@ -137,7 +149,7 @@ fn render_frame(
         }
         None => lines.push(format!("\\begin{{frame}}{options}")),
     }
-    let rendered = render_body(body, level + 1, wrap, smart, hl);
+    let rendered = render_body(body, level + 1, width, wrap, smart, hl);
     if !rendered.is_empty() {
         lines.push(rendered);
     }
@@ -176,20 +188,21 @@ fn frame_options(title: Option<&FrameTitle>, fragile: bool) -> String {
 fn render_body(
     blocks: &[Block],
     block_level: i64,
+    width: usize,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
     let Some(group_level) = shallowest_header(blocks) else {
-        return render_fragment(blocks, Dialect::SLIDE, wrap, smart, hl);
+        return render_fragment(blocks, width, Dialect::SLIDE, wrap, smart, hl);
     };
     let group_level = group_level.max(block_level);
     let units: Vec<String> = group_headings(blocks, group_level)
         .iter()
         .map(|heading| match heading {
-            Heading::Loose(run) => render_fragment(run, Dialect::SLIDE, wrap, smart, hl),
+            Heading::Loose(run) => render_fragment(run, width, Dialect::SLIDE, wrap, smart, hl),
             Heading::Section { attr, title, body } => {
-                render_block_env(attr, title, body, group_level, wrap, smart, hl)
+                render_block_env(attr, title, body, group_level, width, wrap, smart, hl)
             }
         })
         .filter(|rendered| !rendered.is_empty())
@@ -205,6 +218,7 @@ fn render_block_env(
     title: &[Inline],
     body: &[Block],
     group_level: i64,
+    width: usize,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
@@ -212,6 +226,7 @@ fn render_block_env(
     let mut lines = vec![render_titled_open(
         "\\begin{block}{",
         title,
+        width,
         Dialect::SLIDE,
         wrap,
         smart,
@@ -220,7 +235,7 @@ fn render_block_env(
     if !attr.id.is_empty() {
         lines.push(anchor(&attr.id));
     }
-    let rendered = render_body(body, group_level.saturating_add(1), wrap, smart, hl);
+    let rendered = render_body(body, group_level.saturating_add(1), width, wrap, smart, hl);
     if !rendered.is_empty() {
         lines.push(rendered);
     }
@@ -337,6 +352,34 @@ mod tests {
 
     fn para(text: &str) -> Block {
         Block::Para(vec![Inline::Str(text.to_owned().into())])
+    }
+
+    #[test]
+    fn requested_columns_wrap_slide_text() {
+        let source = "alpha beta gamma delta epsilon zeta eta theta";
+        let words = source
+            .split_whitespace()
+            .flat_map(|word| [Inline::Str(word.into()), Inline::Space])
+            .collect();
+        let document = Document {
+            blocks: vec![Block::Para(words)],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(20);
+        for (wrap, body) in [
+            (
+                WrapMode::Auto,
+                "alpha beta gamma\ndelta epsilon zeta\neta theta",
+            ),
+            (WrapMode::None, source),
+        ] {
+            options.wrap = wrap;
+            assert_eq!(
+                BeamerWriter.write(&document, &options).unwrap(),
+                format!("\\begin{{frame}}\n{body}\n\\end{{frame}}")
+            );
+        }
     }
 
     #[test]

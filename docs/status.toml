@@ -790,7 +790,6 @@ status = "usable"
 [[feature]]
 name = "Text wrapping (`--wrap`, `--columns`)"
 status = "usable"
-notes = "A few constructs still account for width incorrectly when reflowed at narrow columns: line blocks, footnote bodies, the AsciiDoc list-marker indent, and roff line-continuation."
 
 [[feature]]
 name = "Tab expansion (`--tab-stop`)"
