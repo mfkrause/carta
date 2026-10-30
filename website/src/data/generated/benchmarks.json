@@ -1,32 +1,32 @@
 {
   "provenance": {
-    "date": "2026-10-26",
-    "carta": "0.0.12",
+    "date": "2026-10-30",
+    "carta": "0.0.13",
     "pandoc": "3.10",
     "hyperfine": "2.0.0",
-    "runner": "Apple M1 Pro (10 cores), 16 GB RAM, macOS 27.0.1 (arm64)",
+    "runner": "AMD EPYC 9V45 96-Core Processor (4 cores), 16 GB RAM, Ubuntu 24.04.5 LTS (x86_64)",
     "warmup": 5,
     "runs": 20
   },
   "headline": {
     "endToEndSpeedup": {
-      "low": 10.9,
-      "high": 33.0
+      "low": 14.2,
+      "high": 31.5
     },
-    "surfaceSpeedup": 41.5,
+    "surfaceSpeedup": 45.8,
     "binarySize": {
-      "carta": "9.3 MB",
-      "pandoc": "179.8 MB",
-      "ratio": 19.3
+      "carta": "13.1 MB",
+      "pandoc": "154.8 MB",
+      "ratio": 11.8
     },
     "memoryRatio": {
-      "low": 4.3,
-      "high": 21.8
+      "low": 2.1,
+      "high": 14.8
     }
   },
   "binary": {
-    "carta": 9754112,
-    "pandoc": 188563376
+    "carta": 13757224,
+    "pandoc": 162316016
   },
   "results": [
     {
@@ -35,11 +35,11 @@
       "size": "13 KB",
       "bytes": 13368,
       "runs": 20,
-      "cartaMs": 4.01,
-      "pandocMs": 54.81,
-      "speedup": 13.7,
-      "cartaRss": 5505024,
-      "pandocRss": 112590848
+      "cartaMs": 2.02,
+      "pandocMs": 39.36,
+      "speedup": 19.5,
+      "cartaRss": 9453568,
+      "pandocRss": 122253312
     },
     {
       "surface": "reader",
@@ -47,11 +47,11 @@
       "size": "101 KB",
       "bytes": 103602,
       "runs": 20,
-      "cartaMs": 5.99,
-      "pandocMs": 94.08,
-      "speedup": 15.7,
-      "cartaRss": 9289728,
-      "pandocRss": 127254528
+      "cartaMs": 4.85,
+      "pandocMs": 87.16,
+      "speedup": 18.0,
+      "cartaRss": 12496896,
+      "pandocRss": 134905856
     },
     {
       "surface": "reader",
@@ -59,11 +59,11 @@
       "size": "1 MB",
       "bytes": 1049388,
       "runs": 20,
-      "cartaMs": 27.31,
-      "pandocMs": 585.37,
-      "speedup": 21.4,
-      "cartaRss": 55017472,
-      "pandocRss": 236339200
+      "cartaMs": 36.68,
+      "pandocMs": 629.43,
+      "speedup": 17.2,
+      "cartaRss": 42905600,
+      "pandocRss": 246222848
     },
     {
       "surface": "reader",
@@ -71,11 +71,11 @@
       "size": "19 KB",
       "bytes": 19092,
       "runs": 20,
-      "cartaMs": 4.07,
-      "pandocMs": 71.66,
-      "speedup": 17.6,
-      "cartaRss": 5259264,
-      "pandocRss": 114655232
+      "cartaMs": 2.01,
+      "pandocMs": 55.89,
+      "speedup": 27.8,
+      "cartaRss": 9072640,
+      "pandocRss": 124088320
     },
     {
       "surface": "reader",
@@ -83,11 +83,11 @@
       "size": "145 KB",
       "bytes": 148249,
       "runs": 20,
-      "cartaMs": 6.5,
-      "pandocMs": 214.67,
-      "speedup": 33.0,
-      "cartaRss": 10698752,
-      "pandocRss": 153452544
+      "cartaMs": 5.75,
+      "pandocMs": 216.31,
+      "speedup": 37.6,
+      "cartaRss": 14106624,
+      "pandocRss": 163803136
     },
     {
       "surface": "reader",
@@ -95,11 +95,11 @@
       "size": "1 MB",
       "bytes": 1505025,
       "runs": 20,
-      "cartaMs": 35.85,
-      "pandocMs": 1487.11,
-      "speedup": 41.5,
-      "cartaRss": 60211200,
-      "pandocRss": 490078208
+      "cartaMs": 53.55,
+      "pandocMs": 1592.46,
+      "speedup": 29.7,
+      "cartaRss": 63995904,
+      "pandocRss": 500314112
     },
     {
       "surface": "writer",
@@ -107,11 +107,11 @@
       "size": "12 KB",
       "bytes": 12631,
       "runs": 20,
-      "cartaMs": 4.32,
-      "pandocMs": 34.46,
-      "speedup": 8.0,
-      "cartaRss": 6275072,
-      "pandocRss": 45416448
+      "cartaMs": 2.35,
+      "pandocMs": 12.83,
+      "speedup": 5.5,
+      "cartaRss": 10092544,
+      "pandocRss": 45424640
     },
     {
       "surface": "writer",
@@ -119,11 +119,11 @@
       "size": "113 KB",
       "bytes": 115411,
       "runs": 20,
-      "cartaMs": 4.99,
-      "pandocMs": 54.45,
-      "speedup": 10.9,
-      "cartaRss": 6504448,
-      "pandocRss": 64831488
+      "cartaMs": 2.61,
+      "pandocMs": 26.06,
+      "speedup": 10.0,
+      "cartaRss": 10080256,
+      "pandocRss": 74555392
     },
     {
       "surface": "writer",
@@ -131,11 +131,11 @@
       "size": "1 MB",
       "bytes": 1169804,
       "runs": 20,
-      "cartaMs": 7.55,
-      "pandocMs": 123.38,
-      "speedup": 16.3,
-      "cartaRss": 8830976,
-      "pandocRss": 128794624
+      "cartaMs": 5.43,
+      "pandocMs": 112.07,
+      "speedup": 20.6,
+      "cartaRss": 11710464,
+      "pandocRss": 138969088
     },
     {
       "surface": "writer",
@@ -143,11 +143,11 @@
       "size": "12 KB",
       "bytes": 12631,
       "runs": 20,
-      "cartaMs": 10.24,
-      "pandocMs": 37.56,
-      "speedup": 3.7,
-      "cartaRss": 6275072,
-      "pandocRss": 43450368
+      "cartaMs": 2.28,
+      "pandocMs": 7.46,
+      "speedup": 3.3,
+      "cartaRss": 10133504,
+      "pandocRss": 37748736
     },
     {
       "surface": "writer",
@@ -155,11 +155,11 @@
       "size": "113 KB",
       "bytes": 115411,
       "runs": 20,
-      "cartaMs": 5.7,
-      "pandocMs": 63.76,
-      "speedup": 11.2,
-      "cartaRss": 7061504,
-      "pandocRss": 58900480
+      "cartaMs": 2.61,
+      "pandocMs": 19.39,
+      "speedup": 7.4,
+      "cartaRss": 10194944,
+      "pandocRss": 69136384
     },
     {
       "surface": "writer",
@@ -167,11 +167,11 @@
       "size": "1 MB",
       "bytes": 1169804,
       "runs": 20,
-      "cartaMs": 8.63,
-      "pandocMs": 118.34,
-      "speedup": 13.7,
-      "cartaRss": 9289728,
-      "pandocRss": 128368640
+      "cartaMs": 5.87,
+      "pandocMs": 106.8,
+      "speedup": 18.2,
+      "cartaRss": 12034048,
+      "pandocRss": 138285056
     },
     {
       "surface": "writer",
@@ -179,11 +179,11 @@
       "size": "12 KB",
       "bytes": 12631,
       "runs": 20,
-      "cartaMs": 3.42,
-      "pandocMs": 32.49,
-      "speedup": 9.5,
-      "cartaRss": 4292608,
-      "pandocRss": 41025536
+      "cartaMs": 1.59,
+      "pandocMs": 5.09,
+      "speedup": 3.2,
+      "cartaRss": 7970816,
+      "pandocRss": 27504640
     },
     {
       "surface": "writer",
@@ -191,11 +191,11 @@
       "size": "113 KB",
       "bytes": 115411,
       "runs": 20,
-      "cartaMs": 4.09,
-      "pandocMs": 34.21,
-      "speedup": 8.4,
-      "cartaRss": 4947968,
-      "pandocRss": 42795008
+      "cartaMs": 1.91,
+      "pandocMs": 12.08,
+      "speedup": 6.3,
+      "cartaRss": 8183808,
+      "pandocRss": 37240832
     },
     {
       "surface": "writer",
@@ -203,11 +203,11 @@
       "size": "1 MB",
       "bytes": 1169804,
       "runs": 20,
-      "cartaMs": 7.33,
-      "pandocMs": 100.42,
-      "speedup": 13.7,
-      "cartaRss": 7503872,
-      "pandocRss": 127795200
+      "cartaMs": 4.81,
+      "pandocMs": 88.16,
+      "speedup": 18.3,
+      "cartaRss": 9261056,
+      "pandocRss": 134672384
     },
     {
       "surface": "writer",
@@ -215,11 +215,11 @@
       "size": "12 KB",
       "bytes": 12631,
       "runs": 20,
-      "cartaMs": 4.46,
-      "pandocMs": 32.65,
-      "speedup": 7.3,
-      "cartaRss": 4227072,
-      "pandocRss": 41304064
+      "cartaMs": 1.48,
+      "pandocMs": 4.64,
+      "speedup": 3.1,
+      "cartaRss": 8110080,
+      "pandocRss": 28549120
     },
     {
       "surface": "writer",
@@ -227,11 +227,11 @@
       "size": "113 KB",
       "bytes": 115411,
       "runs": 20,
-      "cartaMs": 3.89,
-      "pandocMs": 36.12,
-      "speedup": 9.3,
-      "cartaRss": 4866048,
-      "pandocRss": 65110016
+      "cartaMs": 1.76,
+      "pandocMs": 22.46,
+      "speedup": 12.8,
+      "cartaRss": 8093696,
+      "pandocRss": 73936896
     },
     {
       "surface": "writer",
@@ -239,11 +239,11 @@
       "size": "1 MB",
       "bytes": 1169804,
       "runs": 20,
-      "cartaMs": 6.54,
-      "pandocMs": 105.53,
-      "speedup": 16.1,
-      "cartaRss": 7569408,
-      "pandocRss": 128155648
+      "cartaMs": 4.42,
+      "pandocMs": 90.34,
+      "speedup": 20.4,
+      "cartaRss": 9650176,
+      "pandocRss": 135151616
     },
     {
       "surface": "writer",
@@ -251,95 +251,95 @@
       "size": "12 KB",
       "bytes": 12631,
       "runs": 20,
-      "cartaMs": 4.49,
-      "pandocMs": 34.44,
+      "cartaMs": 1.53,
+      "pandocMs": 12.1,
+      "speedup": 7.9,
+      "cartaRss": 7933952,
+      "pandocRss": 38825984
+    },
+    {
+      "surface": "writer",
+      "group": "json → commonmark",
+      "size": "113 KB",
+      "bytes": 115411,
+      "runs": 20,
+      "cartaMs": 1.85,
+      "pandocMs": 36.55,
+      "speedup": 19.8,
+      "cartaRss": 8249344,
+      "pandocRss": 74788864
+    },
+    {
+      "surface": "writer",
+      "group": "json → commonmark",
+      "size": "1 MB",
+      "bytes": 1169804,
+      "runs": 20,
+      "cartaMs": 4.47,
+      "pandocMs": 204.8,
+      "speedup": 45.8,
+      "cartaRss": 9809920,
+      "pandocRss": 137293824
+    },
+    {
+      "surface": "writer",
+      "group": "json → mediawiki",
+      "size": "12 KB",
+      "bytes": 12631,
+      "runs": 20,
+      "cartaMs": 1.53,
+      "pandocMs": 5.33,
+      "speedup": 3.5,
+      "cartaRss": 7741440,
+      "pandocRss": 28786688
+    },
+    {
+      "surface": "writer",
+      "group": "json → mediawiki",
+      "size": "113 KB",
+      "bytes": 115411,
+      "runs": 20,
+      "cartaMs": 1.81,
+      "pandocMs": 14.0,
       "speedup": 7.7,
-      "cartaRss": 4276224,
-      "pandocRss": 43352064
+      "cartaRss": 8318976,
+      "pandocRss": 45051904
     },
     {
       "surface": "writer",
-      "group": "json → commonmark",
+      "group": "json → mediawiki",
+      "size": "1 MB",
+      "bytes": 1169804,
+      "runs": 20,
+      "cartaMs": 4.44,
+      "pandocMs": 95.19,
+      "speedup": 21.4,
+      "cartaRss": 9572352,
+      "pandocRss": 134795264
+    },
+    {
+      "surface": "writer",
+      "group": "json → native",
+      "size": "12 KB",
+      "bytes": 12631,
+      "runs": 20,
+      "cartaMs": 1.54,
+      "pandocMs": 7.45,
+      "speedup": 4.8,
+      "cartaRss": 7606272,
+      "pandocRss": 30150656
+    },
+    {
+      "surface": "writer",
+      "group": "json → native",
       "size": "113 KB",
       "bytes": 115411,
       "runs": 20,
-      "cartaMs": 4.33,
-      "pandocMs": 46.58,
+      "cartaMs": 1.98,
+      "pandocMs": 21.4,
       "speedup": 10.8,
-      "cartaRss": 4964352,
-      "pandocRss": 65994752
-    },
-    {
-      "surface": "writer",
-      "group": "json → commonmark",
-      "size": "1 MB",
-      "bytes": 1169804,
-      "runs": 20,
-      "cartaMs": 6.55,
-      "pandocMs": 199.76,
-      "speedup": 30.5,
-      "cartaRss": 7602176,
-      "pandocRss": 129089536
-    },
-    {
-      "surface": "writer",
-      "group": "json → mediawiki",
-      "size": "12 KB",
-      "bytes": 12631,
-      "runs": 20,
-      "cartaMs": 3.64,
-      "pandocMs": 32.64,
-      "speedup": 9.0,
-      "cartaRss": 4177920,
-      "pandocRss": 41025536
-    },
-    {
-      "surface": "writer",
-      "group": "json → mediawiki",
-      "size": "113 KB",
-      "bytes": 115411,
-      "runs": 20,
-      "cartaMs": 4.0,
-      "pandocMs": 32.42,
-      "speedup": 8.1,
-      "cartaRss": 4800512,
-      "pandocRss": 44728320
-    },
-    {
-      "surface": "writer",
-      "group": "json → mediawiki",
-      "size": "1 MB",
-      "bytes": 1169804,
-      "runs": 20,
-      "cartaMs": 6.44,
-      "pandocMs": 98.87,
-      "speedup": 15.4,
-      "cartaRss": 7454720,
-      "pandocRss": 127680512
-    },
-    {
-      "surface": "writer",
-      "group": "json → native",
-      "size": "12 KB",
-      "bytes": 12631,
-      "runs": 20,
-      "cartaMs": 3.54,
-      "pandocMs": 32.46,
-      "speedup": 9.2,
-      "cartaRss": 4145152,
-      "pandocRss": 40386560
-    },
-    {
-      "surface": "writer",
-      "group": "json → native",
-      "size": "113 KB",
-      "bytes": 115411,
-      "runs": 20,
-      "cartaMs": 3.84,
-      "pandocMs": 46.73,
-      "speedup": 12.2,
-      "cartaRss": 4898816,
-      "pandocRss": 44384256
+      "cartaRss": 7790592,
+      "pandocRss": 44752896
     },
     {
       "surface": "writer",
@@ -347,11 +347,11 @@
       "size": "1 MB",
       "bytes": 1169804,
       "runs": 20,
-      "cartaMs": 7.47,
-      "pandocMs": 180.68,
-      "speedup": 24.2,
-      "cartaRss": 9699328,
-      "pandocRss": 149585920
+      "cartaMs": 6.33,
+      "pandocMs": 224.01,
+      "speedup": 35.4,
+      "cartaRss": 12169216,
+      "pandocRss": 159612928
     },
     {
       "surface": "writer",
@@ -359,11 +359,11 @@
       "size": "12 KB",
       "bytes": 12631,
       "runs": 20,
-      "cartaMs": 3.7,
-      "pandocMs": 32.52,
-      "speedup": 8.8,
-      "cartaRss": 3948544,
-      "pandocRss": 40271872
+      "cartaMs": 1.5,
+      "pandocMs": 4.36,
+      "speedup": 2.9,
+      "cartaRss": 7626752,
+      "pandocRss": 25903104
     },
     {
       "surface": "writer",
@@ -371,11 +371,11 @@
       "size": "113 KB",
       "bytes": 115411,
       "runs": 20,
-      "cartaMs": 4.03,
-      "pandocMs": 32.79,
-      "speedup": 8.1,
-      "cartaRss": 4358144,
-      "pandocRss": 41517056
+      "cartaMs": 1.76,
+      "pandocMs": 11.65,
+      "speedup": 6.6,
+      "cartaRss": 7393280,
+      "pandocRss": 34738176
     },
     {
       "surface": "writer",
@@ -383,143 +383,143 @@
       "size": "1 MB",
       "bytes": 1169804,
       "runs": 20,
-      "cartaMs": 5.52,
-      "pandocMs": 91.66,
-      "speedup": 16.6,
-      "cartaRss": 7110656,
-      "pandocRss": 127451136
+      "cartaMs": 4.15,
+      "pandocMs": 85.14,
+      "speedup": 20.5,
+      "cartaRss": 9089024,
+      "pandocRss": 134373376
     },
     {
       "surface": "e2e",
       "group": "commonmark → html",
       "size": "13 KB",
       "bytes": 13368,
+      "runs": 20,
+      "cartaMs": 3.22,
+      "pandocMs": 55.55,
+      "speedup": 17.3,
+      "cartaRss": 11792384,
+      "pandocRss": 126971904
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → html",
+      "size": "101 KB",
+      "bytes": 103602,
+      "runs": 20,
+      "cartaMs": 6.18,
+      "pandocMs": 174.45,
+      "speedup": 28.2,
+      "cartaRss": 13946880,
+      "pandocRss": 140824576
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → html",
+      "size": "1 MB",
+      "bytes": 1049388,
+      "runs": 20,
+      "cartaMs": 47.44,
+      "pandocMs": 1493.27,
+      "speedup": 31.5,
+      "cartaRss": 40587264,
+      "pandocRss": 271597568
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → latex",
+      "size": "13 KB",
+      "bytes": 13368,
+      "runs": 20,
+      "cartaMs": 3.67,
+      "pandocMs": 52.08,
+      "speedup": 14.2,
+      "cartaRss": 12091392,
+      "pandocRss": 125005824
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → latex",
+      "size": "101 KB",
+      "bytes": 103602,
+      "runs": 20,
+      "cartaMs": 7.84,
+      "pandocMs": 171.96,
+      "speedup": 21.9,
+      "cartaRss": 14671872,
+      "pandocRss": 141426688
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → latex",
+      "size": "1 MB",
+      "bytes": 1049388,
+      "runs": 20,
+      "cartaMs": 66.6,
+      "pandocMs": 1406.1,
+      "speedup": 21.1,
+      "cartaRss": 42377216,
+      "pandocRss": 279019520
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → rst",
+      "size": "13 KB",
+      "bytes": 13368,
+      "runs": 20,
+      "cartaMs": 2.41,
+      "pandocMs": 47.38,
+      "speedup": 19.7,
+      "cartaRss": 9936896,
+      "pandocRss": 122384384
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → rst",
+      "size": "101 KB",
+      "bytes": 103602,
+      "runs": 20,
+      "cartaMs": 5.83,
+      "pandocMs": 134.82,
+      "speedup": 23.1,
+      "cartaRss": 12402688,
+      "pandocRss": 138174464
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → rst",
+      "size": "1 MB",
+      "bytes": 1049388,
+      "runs": 20,
+      "cartaMs": 50.62,
+      "pandocMs": 1079.81,
+      "speedup": 21.3,
+      "cartaRss": 38907904,
+      "pandocRss": 257675264
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → json",
+      "size": "13 KB",
+      "bytes": 13368,
+      "runs": 20,
+      "cartaMs": 2.08,
+      "pandocMs": 43.09,
+      "speedup": 20.7,
+      "cartaRss": 9568256,
+      "pandocRss": 122449920
+    },
+    {
+      "surface": "e2e",
+      "group": "commonmark → json",
+      "size": "101 KB",
+      "bytes": 103602,
       "runs": 20,
       "cartaMs": 4.96,
-      "pandocMs": 58.32,
-      "speedup": 11.8,
-      "cartaRss": 7847936,
-      "pandocRss": 114016256
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → html",
-      "size": "101 KB",
-      "bytes": 103602,
-      "runs": 20,
-      "cartaMs": 8.14,
-      "pandocMs": 161.06,
-      "speedup": 19.8,
-      "cartaRss": 11255808,
-      "pandocRss": 127614976
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → html",
-      "size": "1 MB",
-      "bytes": 1049388,
-      "runs": 20,
-      "cartaMs": 36.7,
-      "pandocMs": 1211.85,
-      "speedup": 33.0,
-      "cartaRss": 49266688,
-      "pandocRss": 257654784
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → latex",
-      "size": "13 KB",
-      "bytes": 13368,
-      "runs": 20,
-      "cartaMs": 5.26,
-      "pandocMs": 57.3,
-      "speedup": 10.9,
-      "cartaRss": 7979008,
-      "pandocRss": 112410624
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → latex",
-      "size": "101 KB",
-      "bytes": 103602,
-      "runs": 20,
-      "cartaMs": 8.92,
-      "pandocMs": 145.96,
-      "speedup": 16.4,
-      "cartaRss": 11141120,
-      "pandocRss": 129187840
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → latex",
-      "size": "1 MB",
-      "bytes": 1049388,
-      "runs": 20,
-      "cartaMs": 48.3,
-      "pandocMs": 1113.83,
-      "speedup": 23.1,
-      "cartaRss": 49889280,
-      "pandocRss": 266665984
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → rst",
-      "size": "13 KB",
-      "bytes": 13368,
-      "runs": 20,
-      "cartaMs": 4.19,
-      "pandocMs": 52.31,
-      "speedup": 12.5,
-      "cartaRss": 5865472,
-      "pandocRss": 111673344
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → rst",
-      "size": "101 KB",
-      "bytes": 103602,
-      "runs": 20,
-      "cartaMs": 7.36,
-      "pandocMs": 120.22,
-      "speedup": 16.3,
-      "cartaRss": 9338880,
-      "pandocRss": 127418368
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → rst",
-      "size": "1 MB",
-      "bytes": 1049388,
-      "runs": 20,
-      "cartaMs": 41.16,
-      "pandocMs": 847.65,
-      "speedup": 20.6,
-      "cartaRss": 45629440,
-      "pandocRss": 248053760
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → json",
-      "size": "13 KB",
-      "bytes": 13368,
-      "runs": 20,
-      "cartaMs": 4.14,
-      "pandocMs": 46.08,
-      "speedup": 11.1,
-      "cartaRss": 5439488,
-      "pandocRss": 112558080
-    },
-    {
-      "surface": "e2e",
-      "group": "commonmark → json",
-      "size": "101 KB",
-      "bytes": 103602,
-      "runs": 20,
-      "cartaMs": 6.04,
-      "pandocMs": 94.09,
-      "speedup": 15.6,
-      "cartaRss": 9142272,
-      "pandocRss": 127254528
+      "pandocMs": 97.22,
+      "speedup": 19.6,
+      "cartaRss": 12656640,
+      "pandocRss": 135032832
     },
     {
       "surface": "e2e",
@@ -527,11 +527,11 @@
       "size": "1 MB",
       "bytes": 1049388,
       "runs": 20,
-      "cartaMs": 27.44,
-      "pandocMs": 551.02,
-      "speedup": 20.1,
-      "cartaRss": 52543488,
-      "pandocRss": 236322816
+      "cartaMs": 42.88,
+      "pandocMs": 672.95,
+      "speedup": 15.7,
+      "cartaRss": 43704320,
+      "pandocRss": 246108160
     },
     {
       "surface": "startup",
@@ -539,11 +539,11 @@
       "size": "27 B",
       "bytes": 27,
       "runs": 20,
-      "cartaMs": 3.06,
-      "pandocMs": 32.06,
-      "speedup": 10.5,
-      "cartaRss": 4210688,
-      "pandocRss": 42582016
+      "cartaMs": 1.55,
+      "pandocMs": 7.61,
+      "speedup": 4.9,
+      "cartaRss": 8634368,
+      "pandocRss": 33222656
     },
     {
       "surface": "startup",
@@ -551,11 +551,11 @@
       "size": "27 B",
       "bytes": 27,
       "runs": 20,
-      "cartaMs": 3.19,
-      "pandocMs": 32.37,
-      "speedup": 10.1,
-      "cartaRss": 4227072,
-      "pandocRss": 40861696
+      "cartaMs": 1.58,
+      "pandocMs": 3.87,
+      "speedup": 2.4,
+      "cartaRss": 8765440,
+      "pandocRss": 18206720
     }
   ]
 }
