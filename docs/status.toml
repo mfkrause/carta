@@ -443,7 +443,6 @@ write-feature = "write-man"
 read-gaps = [
 ]
 write-gaps = [
-  "Long runs of adjacent inline equations wrap at different columns.",
 ]
 
 [[format]]

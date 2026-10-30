@@ -257,9 +257,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `dokuwiki` ✅
 ### `jira` ✅
 ### `mediawiki` ✅
-
 ### `man` ✅
-- Long runs of adjacent inline equations wrap at different columns.
 
 ### `docx` ✅
 - A `lang` value carried by a span or div is dropped rather than set as a run language property.

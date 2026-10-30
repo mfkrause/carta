@@ -36,12 +36,6 @@ man	table/table-empty-cell
 man	table/table-cell-blocks
 man	table/table-grid-spans
 
-# The man writer's line fill breaks a long run of adjacent inline equations at a column that depends
-# on the run's width, so these wide math paragraphs wrap at points not worth comparing; content is the same.
-man	math/braces
-man	math/matrix-array
-man	math/over-under-set
-
 # A table nested inside a block quote is not yet reflowed at parity by these writers, which drop the
 # quote's blank continuation line or misprefix the table rows with the quote marker.
 plain	table/table-in-blockquote

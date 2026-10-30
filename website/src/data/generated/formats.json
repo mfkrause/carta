@@ -878,9 +878,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-man",
-        "gaps": [
-          "Long runs of adjacent inline equations wrap at different columns."
-        ]
+        "gaps": []
       }
     },
     {

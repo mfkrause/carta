@@ -545,9 +545,10 @@ impl State<'_> {
                     MathType::InlineMath => "$",
                     MathType::DisplayMath => "$$",
                 };
+                let rendered = escape_text(&format!("{delimiter}{text}{delimiter}"));
                 vec![Fragment::Text {
-                    rendered: escape_text(&format!("{delimiter}{text}{delimiter}")),
-                    width: 0,
+                    width: display_width(&rendered),
+                    rendered,
                 }]
             }
         };

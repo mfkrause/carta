@@ -509,6 +509,30 @@ fn nonconvertible_inline_math_falls_back_to_escaped_source() {
 }
 
 #[test]
+fn fallback_inline_math_counts_toward_the_wrap_column() {
+    let document = Document {
+        blocks: vec![para(vec![
+            inline_math("\\overbrace{a+b}"),
+            Inline::Space,
+            inline_math("\\overbrace{a+b}"),
+        ])],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.columns = Some(20);
+    let equation = "$\\(rsoverbrace{a+b}$";
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        format!(".PP\n{equation}\n{equation}")
+    );
+    options.wrap = WrapMode::None;
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        format!(".PP\n{equation} {equation}")
+    );
+}
+
+#[test]
 fn nonconvertible_display_math_falls_back_inside_the_group() {
     assert_eq!(
         render(vec![para(vec![display_math("\\frac{1}{2}")])]),
