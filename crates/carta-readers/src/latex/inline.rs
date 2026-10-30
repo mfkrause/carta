@@ -780,7 +780,7 @@ impl Parser {
         let mut sub = if let Some(frame) = self.group_frame() {
             self.child_frame(frame, self.in_figure)
         } else {
-            let source = self.read_group_raw().unwrap_or_default();
+            let source = self.read_macro_group().unwrap_or_default();
             self.child(&source, self.in_figure)
         };
         sub.parse_blocks(&Stop::Eof)

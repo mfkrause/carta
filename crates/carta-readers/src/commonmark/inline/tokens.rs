@@ -36,70 +36,32 @@ pub(super) struct TexGroups {
 impl TexGroups {
     fn new(text: &str, comments: bool) -> Self {
         let mut groups = Self {
-            ends: BTreeMap::new(),
+            ends: crate::tex_groups::group_pairs(text.char_indices(), comments)
+                .into_iter()
+                .collect(),
             bodies: BTreeMap::new(),
             comments: BTreeMap::new(),
         };
-        let mut closing = Vec::new();
-        let (mut braces, mut brackets) = (None, None);
-        let (mut line_braces, mut line_brackets) = (None, None);
-        let (mut body, mut line_body) = (None, None);
-        let mut line_end = text.len();
-        let mut characters = text.char_indices().rev().peekable();
-        // Saved stack positions skip comment text without rescanning or copying groups.
-        while let Some((position, character)) = characters.next() {
-            let mut escapes = 0usize;
-            while characters
-                .peek()
-                .is_some_and(|(_, character)| *character == '\\')
-            {
-                characters.next();
-                escapes += 1;
-            }
-            if !escapes.is_multiple_of(2) && character != '\n' {
-                continue;
-            }
-            match character {
-                '\n' => {
-                    (line_braces, line_brackets, line_body) = (braces, brackets, body);
-                    line_end = position + 1;
-                }
-                '%' if comments => {
-                    (braces, brackets, body) = (line_braces, line_brackets, line_body);
-                    groups.bodies.insert(position, body);
-                    groups.comments.insert(position, line_end);
-                }
-                '}' => {
-                    closing.push((position + 1, braces, brackets));
-                    braces = Some(closing.len() - 1);
-                    brackets = None;
-                }
-                ']' => {
-                    closing.push((position + 1, brackets, None));
-                    brackets = Some(closing.len() - 1);
-                }
-                '{' => {
-                    if comments {
+        if comments {
+            let (mut body, mut line_body) = (None, None);
+            let mut line_end = text.len();
+            for (position, character) in crate::tex_groups::unescaped_reverse(text.char_indices()) {
+                match character {
+                    '\n' => {
+                        line_body = body;
+                        line_end = position + 1;
+                    }
+                    '%' => {
+                        body = line_body;
+                        groups.bodies.insert(position, body);
+                        groups.comments.insert(position, line_end);
+                    }
+                    '{' => {
                         body = Some(position);
                         groups.bodies.insert(position, body);
                     }
-                    if let Some(&(end, parent, outside)) =
-                        braces.and_then(|index| closing.get(index))
-                    {
-                        groups.ends.insert(position, end);
-                        braces = parent;
-                        brackets = outside;
-                    } else {
-                        brackets = None;
-                    }
+                    _ => {}
                 }
-                '[' => {
-                    if let Some(&(end, parent, _)) = brackets.and_then(|index| closing.get(index)) {
-                        groups.ends.insert(position, end);
-                        brackets = parent;
-                    }
-                }
-                _ => {}
             }
         }
         groups

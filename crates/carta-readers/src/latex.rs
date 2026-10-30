@@ -175,22 +175,10 @@ impl Source {
     fn new(text: &str) -> Self {
         let chars: Vec<char> = text.chars().collect();
         let mut group_ends = vec![chars.len(); chars.len()];
-        let mut pending = Vec::new();
-        let mut position = 0;
-        while let Some(ch) = chars.get(position) {
-            match ch {
-                '\\' => position += 1,
-                '{' => pending.push(position),
-                '}' => {
-                    if let Some(open) = pending.pop()
-                        && let Some(slot) = group_ends.get_mut(open)
-                    {
-                        *slot = position;
-                    }
-                }
-                _ => {}
+        for (open, end) in crate::tex_groups::group_pairs(chars.iter().copied().enumerate(), true) {
+            if let Some(slot) = group_ends.get_mut(open) {
+                *slot = end.saturating_sub(1);
             }
-            position += 1;
         }
         Self { chars, group_ends }
     }

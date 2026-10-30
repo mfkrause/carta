@@ -798,6 +798,84 @@ fn macro_optional_argument_defaults_when_absent() {
 }
 
 #[test]
+fn macro_definitions_accept_spacing_and_comments_between_arguments() {
+    for (source, expanded) in [
+        (
+            r"\newcommand{\word} [1] {Hello #1}\word{reader}",
+            "Hello reader",
+        ),
+        ("\\newcommand{\\word}\n{Hello}\\word", "Hello"),
+        ("\\newcommand% target\n{\\word}{Hello}\\word", "Hello"),
+        ("\\newcommand{\\word% target\n}{Hello}\\word", "Hello"),
+        (
+            "\\newcommand{\\word} % count\n[1] % body\n{Hello #1}\\word{reader}",
+            "Hello reader",
+        ),
+        (
+            "\\newcommand{\\word}[1% count\n]{Hello #1}\\word{reader}",
+            "Hello reader",
+        ),
+        ("\\def\\word\n#1{Hello #1}\\word{reader}", "Hello reader"),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+}
+
+#[test]
+fn comments_cannot_close_macro_bodies_defaults_or_arguments() {
+    for (source, expanded) in [
+        (
+            "\\newcommand{\\word}{Hello% }\nworld}\\word",
+            "Hello\nworld",
+        ),
+        ("\\newcommand{\\word}[1][a% ]\nb]{#1}\\word", "a\nb"),
+        (
+            "\\newcommand{\\word}[1]{Hello #1}\\word% comment\n{reader}",
+            "Hello reader",
+        ),
+        (
+            "\\newcommand{\\word}[1]{Hello #1}\\word{a% }\nb}",
+            "Hello a\nb",
+        ),
+        (r"\newcommand{\word}[1][100\%]{#1}\word", r"100\%"),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+    let source = "\\newcommand{\\word% target\n} [1] {Hello% }\n#1}";
+    assert_eq!(
+        parse_ext(source, Extensions::empty()),
+        vec![Block::RawBlock(Format("latex".into()), source.into())]
+    );
+}
+
+#[test]
+fn optional_macro_calls_keep_line_breaks_before_unconsumed_text() {
+    let source = r"\newcommand{\word}[1][D]{[#1]}\word";
+    assert_eq!(parse(&format!("{source}\n[x]")), parse("[D]\n[x]"));
+    assert_eq!(parse(&format!("{source}\n\n[x]")), parse("[D]\n\n[x]"));
+}
+
+#[test]
+fn footnote_groups_keep_text_after_comment_delimiters() {
+    for (source, expanded) in [
+        (
+            "Before\\footnote{a% }\nb} after",
+            "Before\\footnote{a\nb} after",
+        ),
+        (
+            "\\newcommand{\\word}{Text\\footnote{a% }\nb}}\\word",
+            "Text\\footnote{a\nb}",
+        ),
+        (
+            "\\url{a%20b}\\footnote{a% }\nb} after",
+            "\\url{a%20b}\\footnote{a\nb} after",
+        ),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+}
+
+#[test]
 fn macro_body_invoking_another_macro_expands_fully() {
     assert_eq!(
         plain_text("\\newcommand{\\a}{\\b}\n\\newcommand{\\b}{Z}\n\n\\a\n"),

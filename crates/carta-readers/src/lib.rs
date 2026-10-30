@@ -71,6 +71,8 @@ mod smart_fold;
     feature = "rst"
 ))]
 mod tabs;
+#[cfg(any(feature = "commonmark", feature = "latex"))]
+mod tex_groups;
 #[cfg(any(
     feature = "commonmark",
     feature = "html",

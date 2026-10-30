@@ -44,6 +44,15 @@ impl Parser {
     }
 
     pub(super) fn read_group_raw(&mut self) -> Option<String> {
+        self.read_braced_raw(false)
+    }
+
+    pub(super) fn read_macro_group(&mut self) -> Option<String> {
+        self.skip_macro_space();
+        self.read_braced_raw(true)
+    }
+
+    fn read_braced_raw(&mut self, comments: bool) -> Option<String> {
         while matches!(self.cur(), Some(' ' | '\t')) {
             self.bump();
         }
@@ -76,6 +85,7 @@ impl Parser {
                         self.bump();
                     }
                 }
+                '%' if comments => self.copy_comment(&mut s),
                 _ => {
                     s.push(c);
                     self.bump();
@@ -86,6 +96,10 @@ impl Parser {
     }
 
     pub(super) fn read_optional_raw(&mut self) -> Option<String> {
+        self.read_optional(false)
+    }
+
+    fn read_optional(&mut self, comments: bool) -> Option<String> {
         if self.cur() != Some('[') {
             return None;
         }
@@ -110,6 +124,14 @@ impl Parser {
                     self.bump();
                     break;
                 }
+                '\\' => {
+                    s.push(c);
+                    self.bump();
+                    if let Some(character) = self.bump() {
+                        s.push(character);
+                    }
+                }
+                '%' if comments => self.copy_comment(&mut s),
                 _ => {
                     s.push(c);
                     self.bump();
@@ -117,6 +139,27 @@ impl Parser {
             }
         }
         Some(s)
+    }
+
+    fn copy_comment(&mut self, output: &mut String) {
+        while let Some(character) = self.bump() {
+            output.push(character);
+            if character == '\n' {
+                break;
+            }
+        }
+    }
+
+    fn skip_macro_space(&mut self) {
+        loop {
+            match self.cur() {
+                Some(' ' | '\t' | '\n' | '\r') => {
+                    self.bump();
+                }
+                Some('%') => self.skip_comment(),
+                _ => break,
+            }
+        }
     }
 
     pub(super) fn read_optional_inlines(&mut self) -> Option<Vec<Inline>> {
@@ -189,13 +232,23 @@ impl Parser {
         } else if name == "let" {
             self.parse_let();
         } else if let Some(macro_name) = self.take_defined_name() {
+            self.skip_macro_space();
             let args = self
-                .read_optional_raw()
-                .and_then(|s| s.trim().parse::<usize>().ok())
+                .read_optional(true)
+                .and_then(|source| {
+                    source
+                        .lines()
+                        .map(|line| line.split('%').next().unwrap_or_default())
+                        .collect::<String>()
+                        .trim()
+                        .parse::<usize>()
+                        .ok()
+                })
                 .filter(|&count| count <= 9)
                 .unwrap_or(0);
-            let optional_default = self.read_optional_raw();
-            let body = self.read_group_raw().unwrap_or_default();
+            self.skip_macro_space();
+            let optional_default = self.read_optional(true);
+            let body = self.read_macro_group().unwrap_or_default();
             Rc::make_mut(&mut self.macros).insert(
                 macro_name,
                 Rc::new(Macro::Defined {
@@ -221,12 +274,14 @@ impl Parser {
 
     /// Reads a `\newcommand`-style target name, whether written `{\name}` or bare `\name`.
     pub(super) fn take_defined_name(&mut self) -> Option<String> {
-        while matches!(self.cur(), Some(' ' | '\t')) {
-            self.bump();
-        }
+        self.skip_macro_space();
         if self.cur() == Some('{') {
-            let raw = self.read_group_raw()?;
-            Some(raw.trim().trim_start_matches('\\').to_owned())
+            let raw = self.read_braced_raw(true)?;
+            let mut target = self.child(&raw, false);
+            target.skip_macro_space();
+            let name = target.read_control_sequence()?;
+            target.skip_macro_space();
+            target.cur().is_none().then_some(name)
         } else if self.cur() == Some('\\') {
             self.read_control_sequence()
         } else {
@@ -247,14 +302,14 @@ impl Parser {
     }
 
     pub(super) fn parse_let(&mut self) {
-        self.skip_block_ws();
+        self.skip_macro_space();
         let Some(name) = self.read_control_sequence() else {
             return;
         };
-        self.skip_block_ws();
+        self.skip_macro_space();
         if self.cur() == Some('=') {
             self.bump();
-            self.skip_block_ws();
+            self.skip_macro_space();
         }
         let binding = if self.cur() == Some('\\') {
             let Some(target) = self.read_control_sequence() else {
@@ -276,6 +331,7 @@ impl Parser {
         let Some(macro_name) = self.take_defined_name() else {
             return;
         };
+        self.skip_macro_space();
         let mut prefix = Vec::new();
         let mut parameters = Vec::<Vec<String>>::new();
         while let Some(c) = self.cur() {
@@ -321,7 +377,7 @@ impl Parser {
                 }
             }
         }
-        let body = self.read_group_raw().unwrap_or_default();
+        let body = self.read_macro_group().unwrap_or_default();
         Rc::make_mut(&mut self.macros).insert(
             macro_name,
             Rc::new(Macro::Defined {
@@ -376,7 +432,7 @@ impl Parser {
             }
             if let Some(default) = optional_default {
                 let first = if self.cur() == Some('[') {
-                    self.read_optional_raw().unwrap_or_default()
+                    self.read_optional(true).unwrap_or_default()
                 } else {
                     default.clone()
                 };
@@ -540,7 +596,7 @@ impl Parser {
             }
             match character {
                 '{' => {
-                    let group = self.read_group_raw()?;
+                    let group = self.read_braced_raw(true)?;
                     if argument.is_empty() && self.eat_macro_delimiter(delimiter) {
                         return Some(group);
                     }
@@ -558,14 +614,7 @@ impl Parser {
                         argument.push(' ');
                     }
                 }
-                '%' => {
-                    while let Some(character) = self.bump() {
-                        argument.push(character);
-                        if character == '\n' {
-                            break;
-                        }
-                    }
-                }
+                '%' => self.copy_comment(&mut argument),
                 _ => {
                     argument.push(character);
                     self.bump();
@@ -621,11 +670,9 @@ impl Parser {
 
     /// Reads a single macro argument: a braced group, or the next single token.
     pub(super) fn read_macro_arg(&mut self) -> Option<String> {
-        while matches!(self.cur(), Some(' ' | '\t' | '\n')) {
-            self.bump();
-        }
+        self.skip_macro_space();
         if self.cur() == Some('{') {
-            self.read_group_raw()
+            self.read_braced_raw(true)
         } else if self.cur() == Some('\\') {
             self.read_control_sequence().map(|name| format!("\\{name}"))
         } else {
