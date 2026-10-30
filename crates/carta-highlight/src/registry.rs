@@ -354,6 +354,25 @@ impl Registry {
         self.resolve(lang).is_some()
     }
 
+    /// Return the selected definition's short language name.
+    pub fn canonical_name(&self, language: &str) -> Option<&str> {
+        let selected = self.resolve(language)?;
+        for entry in &self.user {
+            let loaded = match &entry.source {
+                DefinitionSource::Parsed(grammar) => Some(grammar),
+                DefinitionSource::File { grammar, .. } => grammar.get().and_then(Option::as_ref),
+            };
+            if loaded.is_some_and(|grammar| Rc::ptr_eq(grammar, &selected)) {
+                return Some(&entry.short);
+            }
+        }
+        let parsed = self.parsed.borrow();
+        let index = parsed
+            .iter()
+            .find_map(|(index, grammar)| Rc::ptr_eq(grammar, &selected).then_some(*index))?;
+        BUNDLED.get(index).map(|definition| definition.short)
+    }
+
     /// Resolve a code-block language string to a grammar, following the documented lookup order and
     /// the format's fixed aliases.
     pub fn resolve(&self, lang: &str) -> Option<Rc<Grammar>> {
@@ -367,7 +386,8 @@ impl Registry {
             _ => self
                 .by_full_name(&lower)
                 .or_else(|| self.by_short_name(&lower))
-                .or_else(|| self.by_extension(&lower)),
+                .or_else(|| self.by_extension(&lower))
+                .or_else(|| self.by_extension(&format!(".{lower}"))),
         };
         self.resolved
             .borrow_mut()
@@ -601,6 +621,19 @@ mod tests {
             reg.resolve("cs").map(|g| g.name.clone())
         );
         assert!(reg.resolve("csharp").is_some());
+    }
+
+    #[test]
+    fn canonical_names_follow_display_names_and_extension_aliases() {
+        let mut registry = Registry::new();
+        for language in ["rust", "Rust", "RS", "file.rs"] {
+            assert_eq!(registry.canonical_name(language), Some("rust"));
+        }
+        add_from_pack(&mut registry, "cpp");
+        add_from_pack(&mut registry, "python");
+        assert_eq!(registry.canonical_name("C++"), Some("cpp"));
+        assert_eq!(registry.canonical_name("PY"), Some("python"));
+        assert_eq!(registry.canonical_name("unknown-language"), None);
     }
 
     #[cfg(not(feature = "embed-copyleft-grammars"))]

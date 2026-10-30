@@ -825,7 +825,6 @@ status = "usable"
 [[feature]]
 name = "Syntax highlighting"
 status = "usable"
-notes = "Language classes resolve as written (no alias canonicalization), so a mixed-case spelling of an alias may color differently from its lowercase form."
 
 [[feature]]
 name = "Citations / citeproc (`--citeproc`)"

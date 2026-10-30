@@ -369,3 +369,59 @@ fn odt_highlighting_uses_an_explicit_theme_and_validates_definitions() {
     assert!(!invalid.success);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn code_language_classes_use_canonical_names_and_keep_custom_classes() {
+    for language in ["Rust", "RUST", "rs", "RS"] {
+        let source = format!(
+            "```{{.{language} .MyClass}}\nlet x = 1;\n```\n\n`let x = 1;`{{.{language} .MyClass}}\n"
+        );
+        let result = run(&["-f", "markdown", "-t", "html"], &source);
+        assert!(result.success, "{}", result.stderr);
+        assert!(
+            result
+                .stdout
+                .contains(&format!("class=\"sourceCode {language} MyClass\"")),
+            "{}",
+            result.stdout
+        );
+        assert!(
+            result.stdout.contains("<code class=\"sourceCode rust\">"),
+            "{}",
+            result.stdout
+        );
+        assert!(
+            result
+                .stdout
+                .contains(&format!("class=\"sourceCode rust {language} MyClass\"")),
+            "{}",
+            result.stdout
+        );
+        assert!(
+            result.stdout.contains("<span class=\"kw\">let</span>"),
+            "{}",
+            result.stdout
+        );
+    }
+}
+
+#[test]
+fn runtime_definition_aliases_share_their_canonical_language() {
+    let result = run_with_pack(&["-f", "markdown", "-t", "html"], "```PY\nx = 1\n```\n");
+    assert!(result.success, "{}", result.stderr);
+    assert!(
+        result.stdout.contains("class=\"sourceCode py\""),
+        "{}",
+        result.stdout
+    );
+    assert!(
+        result.stdout.contains("<code class=\"sourceCode python\">"),
+        "{}",
+        result.stdout
+    );
+    assert!(
+        result.stdout.contains("<span class=\"dv\">1</span>"),
+        "{}",
+        result.stdout
+    );
+}

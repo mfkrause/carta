@@ -314,7 +314,7 @@ Notes list gaps and limitations only.
 | Tab expansion (`--tab-stop`) | 🚧 | — |
 | Section numbering (`--number-sections`) | ✅ | — |
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | — |
-| Syntax highlighting | ✅ | Language classes resolve as written (no alias canonicalization), so a mixed-case spelling of an alias may color differently from its lowercase form. |
+| Syntax highlighting | ✅ | — |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in the AST, not processed. |
 | Filters (JSON) | ✅ | — |
 | Filters (Lua) | ❌ | — |

@@ -2,8 +2,6 @@
 
 use std::fmt::Write as _;
 
-#[cfg(feature = "highlight")]
-use carta_ast::Text;
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, Inline, ListAttributes, ListNumberStyle, MathType, Row,
     Table, TableBody, Target,
@@ -162,7 +160,9 @@ impl State {
                 .unwrap_or_default(),
             None => plain_source_lines(text),
         };
-        self.emit_source_block(out, attr, language.map(Text::as_str), numbered, &lines);
+        let canonical =
+            language.and_then(|language| highlighter.registry().canonical_name(language.as_str()));
+        self.emit_source_block(out, attr, canonical, numbered, &lines);
         true
     }
 
@@ -189,9 +189,13 @@ impl State {
         out.push_str("<code");
         out.push(BREAK);
         out.push_str("class=\"sourceCode ");
-        escape_attr_into(out, language.as_str());
+        let canonical = highlighter
+            .registry()
+            .canonical_name(language.as_str())
+            .unwrap_or(language.as_str());
+        escape_attr_into(out, canonical);
         for class in &attr.classes {
-            if class.is_empty() || std::ptr::eq(class, language) {
+            if class.is_empty() || class.as_str() == canonical || class == "sourceCode" {
                 continue;
             }
             out.push(' ');
