@@ -847,7 +847,7 @@ mod tests {
         builder.render_blocks(
             &[Block::BlockQuote(vec![
                 Block::Div(
-                    Box::new(Attr::default()),
+                    Box::default(),
                     vec![paragraph("INNER"), paragraph("SECOND")],
                 ),
                 paragraph("AFTER"),

@@ -140,30 +140,6 @@ pub(crate) fn raw_passthrough(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn offset_conversion_saturates() {
-        assert_eq!(offset_as_i64(0), 0);
-        assert_eq!(offset_as_i64(7), 7);
-        assert_eq!(offset_as_i64(usize::MAX), i64::MAX);
-    }
-
-    #[test]
-    fn quote_marks_per_kind() {
-        assert_eq!(
-            quote_marks(&QuoteType::SingleQuote),
-            ('\u{2018}', '\u{2019}')
-        );
-        assert_eq!(
-            quote_marks(&QuoteType::DoubleQuote),
-            ('\u{201c}', '\u{201d}')
-        );
-    }
-}
-
 /// Whether a code block carries both the program language and literate presentation classes.
 #[cfg(any(
     feature = "html",
@@ -191,5 +167,29 @@ pub(crate) fn literate_tracks(text: &str) -> String {
     match body.strip_prefix("> \n") {
         Some(rest) => format!(">\n{rest}"),
         None => body,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offset_conversion_saturates() {
+        assert_eq!(offset_as_i64(0), 0);
+        assert_eq!(offset_as_i64(7), 7);
+        assert_eq!(offset_as_i64(usize::MAX), i64::MAX);
+    }
+
+    #[test]
+    fn quote_marks_per_kind() {
+        assert_eq!(
+            quote_marks(&QuoteType::SingleQuote),
+            ('\u{2018}', '\u{2019}')
+        );
+        assert_eq!(
+            quote_marks(&QuoteType::DoubleQuote),
+            ('\u{201c}', '\u{201d}')
+        );
     }
 }

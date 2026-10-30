@@ -123,7 +123,7 @@ fn push_block_children<'a>(block: &'a Block, pending: &mut Vec<Node<'a>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use carta_ast::{Attr, Caption};
+    use carta_ast::Attr;
 
     fn heading(identifier: &str) -> Block {
         Block::Header(
@@ -146,7 +146,7 @@ mod tests {
                         id: "duplicate".into(),
                         ..Default::default()
                     }),
-                    Box::new(Caption::default()),
+                    Box::default(),
                     Vec::new(),
                 )])],
             ]),

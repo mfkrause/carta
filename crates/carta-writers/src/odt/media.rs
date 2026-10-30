@@ -606,7 +606,7 @@ mod tests {
 
     #[test]
     fn avif_dimensions_reads_nested_properties_and_checks_box_bounds() {
-        fn image_box(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+        fn image_box(kind: [u8; 4], payload: &[u8]) -> Vec<u8> {
             let mut bytes = u32::try_from(payload.len() + 8)
                 .unwrap()
                 .to_be_bytes()
@@ -615,17 +615,17 @@ mod tests {
             bytes.extend(payload);
             bytes
         }
-        let header = image_box(b"ftyp", b"avif\0\0\0\0avifmif1");
-        let property = image_box(b"ispe", b"\0\0\0\0\0\0\0\x20\0\0\0\x10");
-        let properties = image_box(b"ipco", &property);
-        let properties = image_box(b"iprp", &properties);
-        let metadata = image_box(b"meta", &[b"\0\0\0\0", properties.as_slice()].concat());
+        let header = image_box(*b"ftyp", b"avif\0\0\0\0avifmif1");
+        let property = image_box(*b"ispe", b"\0\0\0\0\0\0\0\x20\0\0\0\x10");
+        let properties = image_box(*b"ipco", &property);
+        let properties = image_box(*b"iprp", &properties);
+        let metadata = image_box(*b"meta", &[b"\0\0\0\0", properties.as_slice()].concat());
         let image = [header.as_slice(), &metadata].concat();
         assert_eq!(image_metrics(&image), ((32, 16), (72.0, 72.0)));
         for length in 0..image.len() {
             assert_eq!(avif_dimensions(&image[..length]), None, "{length}");
         }
-        let payload = image_box(b"mdat", &property);
+        let payload = image_box(*b"mdat", &property);
         assert_eq!(
             avif_dimensions(&[header.as_slice(), &payload].concat()),
             None

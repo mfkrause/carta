@@ -126,6 +126,7 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
     fn code_tokens_keep_spaces_quotes_and_comments() {
         let mut options = WriterOptions::default();
         let mut highlighter = Highlighter::new();

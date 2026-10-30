@@ -13,7 +13,7 @@ fn commonmark_x_keeps_wiki_images_with_spaced_filenames() {
             vec![Inline::Str("caption".into())],
             Box::new(Target {
                 url: "page name.png".into(),
-                title: Default::default(),
+                title: "".into(),
             }),
         )])],
         ..Document::default()

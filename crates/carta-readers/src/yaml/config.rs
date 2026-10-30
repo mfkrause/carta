@@ -203,6 +203,8 @@ fn merge_values(target: &mut Map<String, Value>, value: Value) -> std::result::R
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
     use super::parse;
 
     #[test]
@@ -236,9 +238,11 @@ mod tests {
         let mut previous = "a".to_owned();
         for index in 0..20 {
             let name = format!("n{index}");
-            source.push_str(&format!(
-                "{name}: &{name} [*{previous}, *{previous}, *{previous}]\n"
-            ));
+            writeln!(
+                source,
+                "{name}: &{name} [*{previous}, *{previous}, *{previous}]"
+            )
+            .unwrap();
             previous = name;
         }
         assert!(parse(&source).is_err());

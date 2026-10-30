@@ -252,7 +252,10 @@ fn unavailable_images_keep_descriptions_captions_and_identifiers() {
         let entries = zip::read(&bytes).unwrap();
         let mut pages = String::new();
         for entry in &entries {
-            if entry.name.ends_with(".xhtml") {
+            if Path::new(&entry.name)
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("xhtml"))
+            {
                 pages.push_str(std::str::from_utf8(&entry.data).unwrap());
             }
         }
@@ -291,6 +294,7 @@ fn metadata_and_body_images_share_one_packaged_asset() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn epub2_keeps_rich_content_without_html5_elements() {
     use carta::ast::{
         Attr, Block, Caption, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,

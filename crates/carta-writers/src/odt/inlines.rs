@@ -475,11 +475,11 @@ impl Builder<'_> {
 mod tests {
     use super::*;
 
-    fn language_attr(tag: &str) -> Box<Attr> {
-        Box::new(Attr {
+    fn language_attr(tag: &str) -> Attr {
+        Attr {
             attributes: vec![("lang".into(), tag.into())],
             ..Attr::default()
-        })
+        }
     }
 
     #[test]
@@ -488,7 +488,7 @@ mod tests {
         let mut builder = Builder::new(&options);
         let content = vec![
             Inline::Strong(vec![Inline::Span(
-                language_attr("FR_ca"),
+                Box::new(language_attr("FR_ca")),
                 vec![Inline::Str("Text".into())],
             )]),
             Inline::Note(vec![Block::Para(vec![Inline::Str("Note".into())])]),
@@ -496,7 +496,7 @@ mod tests {
         ];
         builder.render_blocks(
             &[
-                Block::Div(language_attr("fr-CA"), vec![Block::Para(content)]),
+                Block::Div(Box::new(language_attr("fr-CA")), vec![Block::Para(content)]),
                 Block::Para(vec![Inline::Str("Outside".into())]),
             ],
             None,
@@ -569,7 +569,10 @@ mod tests {
     fn excessive_language_combinations_return_a_resource_error() {
         let mut inline = Inline::Str("Text".into());
         for index in 0..1_000 {
-            inline = Inline::Span(language_attr(&format!("en-x-{index}")), vec![inline]);
+            inline = Inline::Span(
+                Box::new(language_attr(&format!("en-x-{index}"))),
+                vec![inline],
+            );
         }
         let document = carta_ast::Document {
             blocks: vec![Block::Para(vec![inline])],
@@ -602,7 +605,7 @@ mod tests {
                 &[],
                 &Target {
                     url: source.into(),
-                    title: Default::default(),
+                    title: "".into(),
                 },
             );
             let image = builder.images.first().expect("image is retained");

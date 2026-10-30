@@ -2,6 +2,7 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
 
 # Product names the doc-markdown lint reads as identifiers; `..` extends clippy's built-in list.
 doc-valid-idents = ["MathJax", "KaTeX", "MathML", ".."]

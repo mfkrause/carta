@@ -45,7 +45,7 @@ fn lists_start_below_definition_terms() {
     for block in [
         list.clone(),
         Block::BlockQuote(vec![list.clone()]),
-        Block::Div(Box::new(Attr::default()), vec![list.clone()]),
+        Block::Div(Box::default(), vec![list.clone()]),
     ] {
         let output = render(vec![Block::DefinitionList(vec![(
             str_inlines("Term"),
@@ -82,7 +82,7 @@ fn bullet_tasks_use_checkbox_markers_and_keep_other_items() {
 
 #[test]
 fn line_blocks_keep_code_height_and_trailing_spaces() {
-    let code = Inline::Code(Box::new(Attr::default()), "code".into());
+    let code = Inline::Code(Box::default(), "code".into());
     assert_eq!(
         render(vec![Block::LineBlock(vec![
             vec![Inline::Emph(vec![code.clone()]), Inline::Space],

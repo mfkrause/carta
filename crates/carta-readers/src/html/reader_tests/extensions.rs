@@ -9,7 +9,7 @@ fn ascii_heading_ids_keep_explicit_ids_and_disambiguate_folded_titles() {
     let extensions =
         Extensions::from_list(&[Extension::AutoIdentifiers, Extension::AsciiIdentifiers]);
     let blocks = read_with(
-        "<h1>Café Über</h1><h1>Cafe Uber</h1><h1 id=\"Café\">Café</h1><h1>ı Å K</h1>",
+        "<h1>Café Über</h1><h1>Cafe Uber</h1><h1 id=\"Café\">Café</h1><h1>ı \u{212b} \u{212a}</h1>",
         extensions,
     );
     let ids: Vec<&str> = blocks

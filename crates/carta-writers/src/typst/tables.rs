@@ -346,7 +346,7 @@ mod tests {
             ),
         ] {
             let cell = Cell {
-                attr: Default::default(),
+                attr: carta_ast::Attr::default(),
                 align: Alignment::AlignDefault,
                 row_span: 1,
                 col_span: 1,

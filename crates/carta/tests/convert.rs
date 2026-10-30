@@ -85,7 +85,7 @@ fn inline_footnotes_wrap_with_the_surrounding_text() {
         ..Document::default()
     };
     let output =
-        carta::render_document("asciidoc", document, Default::default(), &options).unwrap();
+        carta::render_document("asciidoc", document, carta::MediaBag::default(), &options).unwrap();
     assert_eq!(output, Output::Text("textfootnote:[ body ]".into()));
 }
 
@@ -171,8 +171,13 @@ fn quoted_line_blocks_keep_their_initial_space() {
         ("plain", "   alpha\n  beta gamma"),
         ("man", ".RS\n.PP\n\\ alpha beta\ngamma\n.RE"),
     ] {
-        let output =
-            carta::render_document(target, document.clone(), Default::default(), &options).unwrap();
+        let output = carta::render_document(
+            target,
+            document.clone(),
+            carta::MediaBag::default(),
+            &options,
+        )
+        .unwrap();
         assert_eq!(output, Output::Text(expected.into()), "{target}");
     }
 }
@@ -746,7 +751,7 @@ fn literate_writers_keep_empty_code_and_terminal_blank_lines() {
             let Output::Text(output) = carta::render_document(
                 target,
                 document.clone(),
-                Default::default(),
+                carta::MediaBag::default(),
                 &WriterOptions::default(),
             )
             .unwrap() else {
@@ -791,7 +796,7 @@ fn literate_headings_keep_levels_equals_signs_and_link_targets() {
                     vec![Inline::Str("go".into())],
                     Box::new(Target {
                         url: "#heading".into(),
-                        title: Default::default(),
+                        title: carta::ast::Text::default(),
                     }),
                 ),
             ]),
@@ -801,7 +806,7 @@ fn literate_headings_keep_levels_equals_signs_and_link_targets() {
     let Output::Text(output) = carta::render_document(
         "markdown+lhs",
         document,
-        Default::default(),
+        carta::MediaBag::default(),
         &WriterOptions::default(),
     )
     .unwrap() else {
@@ -862,7 +867,7 @@ fn literate_code_output_keeps_identifiers_and_rich_markdown_attributes() {
         let Output::Text(output) = carta::render_document(
             target,
             document.clone(),
-            Default::default(),
+            carta::MediaBag::default(),
             &WriterOptions::default(),
         )
         .unwrap() else {
@@ -904,7 +909,7 @@ fn literate_quotes_keep_nested_code_intact() {
         let Output::Text(output) = carta::render_document(
             target,
             document.clone(),
-            Default::default(),
+            carta::MediaBag::default(),
             &WriterOptions::default(),
         )
         .unwrap() else {
@@ -943,7 +948,7 @@ fn code_in_tex_lists_keeps_program_indentation() {
         let Output::Text(output) = carta::render_document(
             "latex+lhs",
             document,
-            Default::default(),
+            carta::MediaBag::default(),
             &WriterOptions::default(),
         )
         .unwrap() else {

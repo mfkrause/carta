@@ -283,7 +283,7 @@ mod tests {
         };
         let mut target = Target {
             url: "Page".into(),
-            title: Default::default(),
+            title: "".into(),
         };
         let after = Extensions::from_list(&[Extension::WikilinksTitleAfterPipe]);
         let before = Extensions::from_list(&[Extension::WikilinksTitleBeforePipe]);
@@ -316,7 +316,7 @@ mod tests {
         );
         target.title = "Title".into();
         assert!(wiki_link(&attributes, &str_inlines("label"), &target, after).is_none());
-        target.title = Default::default();
+        target.title.clear();
         attributes.id = "anchor".into();
         assert!(wiki_link(&attributes, &str_inlines("label"), &target, after).is_none());
     }

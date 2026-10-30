@@ -213,7 +213,7 @@ mod tests {
     fn wide_breaks_cover_metadata_captions_and_every_table_section() {
         let row = || Row {
             cells: vec![Cell {
-                attr: Default::default(),
+                attr: carta_ast::Attr::default(),
                 align: Alignment::AlignDefault,
                 row_span: 1,
                 col_span: 1,

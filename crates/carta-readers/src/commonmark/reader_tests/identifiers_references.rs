@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn ascii_identifiers_share_collisions_and_implicit_link_targets() {
     let document = read_markdown(
-        "# Café Über\n\n[Café Über]\n\n# Cafe Uber\n\n# 東京\n\n# Café {#Café}\n\n# ı Å K\n",
+        "# Café Über\n\n[Café Über]\n\n# Cafe Uber\n\n# 東京\n\n# Café {#Café}\n\n# ı \u{212b} \u{212a}\n",
         &[
             Extension::AutoIdentifiers,
             Extension::AsciiIdentifiers,

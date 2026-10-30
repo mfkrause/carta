@@ -33,7 +33,7 @@ fn ascii_heading_ids_fold_titles_and_keep_explicit_labels() {
     let mut extensions = latex_defaults();
     extensions.insert(Extension::AsciiIdentifiers);
     let blocks = parse_ext(
-        r"\section{Café Über}\section{Cafe Uber}\section{Café}\label{Café}\section{ı Å K}",
+        "\\section{Café Über}\\section{Cafe Uber}\\section{Café}\\label{Café}\\section{ı \u{212b} \u{212a}}",
         extensions,
     );
     let ids: Vec<&str> = blocks
