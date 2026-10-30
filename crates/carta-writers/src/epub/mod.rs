@@ -8,6 +8,7 @@ mod package;
 mod pages;
 mod sections;
 mod styles;
+mod xhtml;
 
 use crate::image_size::image_dimensions;
 use carta_ast::{Block, Document, Inline};
@@ -110,7 +111,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
 
     let mut document = document.clone();
     let (media, cover, fonts) = gather_media(epub, &mut document, options);
-    let sectioned = build_sectioned(&mut document, options);
+    let sectioned = build_sectioned(&mut document, options, version);
     let mut chapters = build_chapter_files(&sectioned, split_level);
     let id_files = map_ids_to_files(&chapters);
     rewrite_internal_links(&mut chapters, &id_files);
@@ -307,7 +308,14 @@ fn pack_epub(parts: &BookParts) -> Result<Vec<u8>> {
 /// Structure the document body into the nested section tree an EPUB uses, applying section numbering
 /// first when requested. A document with a title but no body still yields a leading title section, so
 /// the book is never wholly empty.
-fn build_sectioned(document: &mut Document, options: &WriterOptions) -> Vec<Block> {
+fn build_sectioned(
+    document: &mut Document,
+    options: &WriterOptions,
+    version: Version,
+) -> Vec<Block> {
+    if !version.is_epub3() {
+        xhtml::prepare_inlines(document);
+    }
     let title_inlines = document
         .meta
         .get("title")
@@ -317,7 +325,11 @@ fn build_sectioned(document: &mut Document, options: &WriterOptions) -> Vec<Bloc
     if options.number_sections {
         carta_core::sections::number_sections(&mut body);
     }
-    sections::make_sections(&body, &title_inlines)
+    let mut sectioned = sections::make_sections(&body, &title_inlines);
+    if !version.is_epub3() {
+        xhtml::prepare_tables(&mut sectioned);
+    }
+    sectioned
 }
 
 /// Split the sectioned block tree into chapter files, one block list per output XHTML page.

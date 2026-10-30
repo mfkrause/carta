@@ -11,7 +11,7 @@ use carta_ast::{
 #[cfg(feature = "highlight")]
 use carta_highlight::{SourceLine, Token};
 
-use crate::common::{RowSpanGrid, checkbox_state, quote_marks};
+use crate::common::{RowSpanGrid, checkbox_state, offset_as_i64, ordered_marker, quote_marks};
 #[cfg(feature = "highlight")]
 use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 
@@ -334,24 +334,35 @@ impl State<'_> {
     }
 
     fn bullet_list(&mut self, out: &mut String, items: &[Vec<Block>]) {
+        // XHTML 1.1 lists require at least one item.
+        if self.flavor == Flavor::Epub2 && items.is_empty() {
+            return;
+        }
         if !items.is_empty() && items.iter().all(|item| checkbox_state(item).is_some()) {
             out.push_str("<ul class=\"task-list\">\n");
         } else {
             out.push_str("<ul>\n");
         }
-        self.list_items(out, items);
+        self.list_items(out, items, None);
         out.push_str("\n</ul>");
     }
 
     fn ordered_list(&mut self, out: &mut String, attrs: &ListAttributes, items: &[Vec<Block>]) {
+        if self.flavor == Flavor::Epub2 && items.is_empty() {
+            return;
+        }
+        // XHTML 1.1 excludes `start`; literal markers keep the requested numbering.
+        let explicit_markers = self.flavor == Flavor::Epub2 && attrs.start != 1;
         out.push_str("<ol");
-        if attrs.start != 1 {
+        if attrs.start != 1 && !explicit_markers {
             let _ = write!(out, " start=\"{}\"", attrs.start);
         }
         if matches!(attrs.style, ListNumberStyle::Example) {
             out.push_str(" class=\"example\"");
         }
-        if self.flavor.is_html5_family() {
+        if explicit_markers {
+            out.push_str(" style=\"list-style-type: none\"");
+        } else if self.flavor.is_html5_family() {
             if let Some(kind) = ordered_list_type(attrs.style) {
                 let _ = write!(out, " type=\"{kind}\"");
             }
@@ -359,46 +370,98 @@ impl State<'_> {
             let _ = write!(out, " style=\"list-style-type: {name}\"");
         }
         out.push_str(">\n");
-        self.list_items(out, items);
+        self.list_items(out, items, explicit_markers.then_some(attrs));
         out.push_str("\n</ol>");
     }
 
     /// Render each list item's blocks (newline-joined, no surrounding padding) wrapped in `<li>`.
-    fn list_items(&mut self, out: &mut String, items: &[Vec<Block>]) {
+    fn list_items(
+        &mut self,
+        out: &mut String,
+        items: &[Vec<Block>],
+        numbering: Option<&ListAttributes>,
+    ) {
         for (index, item) in items.iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
             out.push_str("<li>");
-            match checkbox_state(item) {
-                Some(checked) => self.checkbox_item(out, item, checked),
-                None => self.blocks(out, item),
+            if let Some(attrs) = numbering {
+                let number = attrs.start.saturating_add(offset_as_i64(index));
+                let mut prefix = ordered_marker(number, attrs.style, attrs.delim);
+                prefix.push(BREAK);
+                let checked = checkbox_state(item);
+                if let Some(checked) = checked {
+                    prefix.push_str(if checked { "[x] " } else { "[ ] " });
+                }
+                self.prefixed_item(
+                    out,
+                    item,
+                    &prefix,
+                    "",
+                    if checked.is_some() { 2 } else { 0 },
+                );
+            } else {
+                match checkbox_state(item) {
+                    Some(checked) => self.checkbox_item(out, item, checked),
+                    None => self.blocks(out, item),
+                }
             }
             out.push_str("</li>");
         }
     }
 
     fn checkbox_item(&mut self, out: &mut String, item: &[Block], checked: bool) {
-        let input = if checked {
-            "<label><input type=\"checkbox\" checked=\"\" />"
+        let (input, close) = if self.flavor == Flavor::Epub2 {
+            (if checked { "[x] " } else { "[ ] " }, "")
         } else {
-            "<label><input type=\"checkbox\" />"
+            (
+                if checked {
+                    "<label><input type=\"checkbox\" checked=\"\" />"
+                } else {
+                    "<label><input type=\"checkbox\" />"
+                },
+                "</label>",
+            )
         };
+        self.prefixed_item(out, item, input, close, 2);
+    }
+
+    /// Render an item with a marker inside its first paragraph.
+    fn prefixed_item(
+        &mut self,
+        out: &mut String,
+        item: &[Block],
+        prefix: &str,
+        suffix: &str,
+        skip: usize,
+    ) {
+        if item.is_empty() {
+            out.push_str(prefix);
+            out.push_str(suffix);
+            return;
+        }
         for (index, block) in item.iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
             match (index, block) {
                 (0, Block::Plain(inlines)) => {
-                    out.push_str(input);
-                    self.inlines(out, inlines.get(2..).unwrap_or_default());
-                    out.push_str("</label>");
+                    out.push_str(prefix);
+                    self.inlines(out, inlines.get(skip..).unwrap_or_default());
+                    out.push_str(suffix);
                 }
                 (0, Block::Para(inlines)) => {
                     out.push_str("<p>");
-                    out.push_str(input);
-                    self.inlines(out, inlines.get(2..).unwrap_or_default());
-                    out.push_str("</label></p>");
+                    out.push_str(prefix);
+                    self.inlines(out, inlines.get(skip..).unwrap_or_default());
+                    out.push_str(suffix);
+                    out.push_str("</p>");
+                }
+                (0, _) => {
+                    out.push_str(prefix);
+                    self.block(out, block);
+                    out.push_str(suffix);
                 }
                 _ => self.block(out, block),
             }
@@ -406,6 +469,9 @@ impl State<'_> {
     }
 
     fn definition_list(&mut self, out: &mut String, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) {
+        if self.flavor == Flavor::Epub2 && items.is_empty() {
+            return;
+        }
         out.push_str("<dl>");
         for (term, definitions) in items {
             out.push_str("\n<dt>");

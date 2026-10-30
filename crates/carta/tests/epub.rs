@@ -291,6 +291,121 @@ fn metadata_and_body_images_share_one_packaged_asset() {
 }
 
 #[test]
+fn epub2_keeps_rich_content_without_html5_elements() {
+    use carta::ast::{
+        Attr, Block, Caption, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
+        Table,
+    };
+    let document = Document {
+        blocks: vec![
+            Block::Para(vec![
+                Inline::Underline(vec![Inline::Str("underlined".into())]),
+                Inline::Space,
+                Inline::Span(
+                    Box::new(Attr {
+                        id: "highlight".into(),
+                        classes: vec!["mark".into(), "underline".into()],
+                        attributes: vec![("style".into(), "color: red".into())],
+                    }),
+                    vec![Inline::Str("highlighted".into())],
+                ),
+            ]),
+            Block::OrderedList(
+                ListAttributes {
+                    start: 5,
+                    style: ListNumberStyle::LowerAlpha,
+                    delim: ListNumberDelim::OneParen,
+                },
+                vec![
+                    vec![Block::Para(vec![Inline::Str("entry".into())])],
+                    Vec::new(),
+                ],
+            ),
+            Block::BulletList(vec![
+                vec![Block::Plain(vec![
+                    Inline::Str("☐".into()),
+                    Inline::Space,
+                    Inline::Str("open".into()),
+                ])],
+                vec![Block::Plain(vec![
+                    Inline::Str("☒".into()),
+                    Inline::Space,
+                    Inline::Str("done".into()),
+                ])],
+            ]),
+            Block::Table(Box::new(Table {
+                attr: Attr {
+                    id: "empty-table".into(),
+                    ..Attr::default()
+                },
+                caption: Caption {
+                    long: vec![
+                        Block::Para(vec![Inline::Str("First caption".into())]),
+                        Block::Para(vec![Inline::Str("Second caption".into())]),
+                    ],
+                    ..Caption::default()
+                },
+                ..Table::default()
+            })),
+            Block::BulletList(Vec::new()),
+            Block::OrderedList(
+                ListAttributes {
+                    start: 1,
+                    style: ListNumberStyle::DefaultStyle,
+                    delim: ListNumberDelim::DefaultDelim,
+                },
+                Vec::new(),
+            ),
+            Block::DefinitionList(Vec::new()),
+        ],
+        ..Document::default()
+    };
+    let Output::Bytes(bytes) = render_document(
+        "epub2",
+        document,
+        MediaBag::new(),
+        &WriterOptions::default(),
+    )
+    .unwrap() else {
+        panic!("expected bytes");
+    };
+    let entries = zip::read(&bytes).unwrap();
+    let chapter = entries
+        .iter()
+        .find(|entry| entry.name == "EPUB/text/ch001.xhtml")
+        .unwrap();
+    let text = std::str::from_utf8(&chapter.data).unwrap();
+    for forbidden in [
+        "<u>",
+        "<mark",
+        "<input",
+        "<label",
+        " start=",
+        "<caption><p>",
+    ] {
+        assert!(!text.contains(forbidden), "unexpected {forbidden}: {text}");
+    }
+    for expected in [
+        "underlined",
+        "highlighted",
+        "text-decoration: underline",
+        "background-color: yellow",
+        "color: red",
+        "id=\"highlight\"",
+        "e)",
+        "f)",
+        "[ ] open",
+        "[x] done",
+        "First caption",
+        "Second caption",
+        "id=\"empty-table\"",
+        "<td></td>",
+    ] {
+        assert!(text.contains(expected), "missing {expected}: {text}");
+    }
+}
+
+#[test]
 fn epub_cross_chapter_table_cell_id_snapshot() {
     let markdown = concat!(
         "# Overview\n\n",

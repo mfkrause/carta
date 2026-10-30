@@ -220,12 +220,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `mediawiki` ✅
 ### `man` ✅
 ### `docx` ✅
-
 ### `epub` (+ `epub2`, `epub3`) ✅
-- EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`
-  element, block content in a table caption, an empty table, a task-list checkbox) are represented
-  only under EPUB 3's XHTML5 content model.
-
 ### `ipynb` ✅
 
 ### `odt` ✅
