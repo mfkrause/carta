@@ -28,6 +28,7 @@ impl Writer for PlainWriter {
             wrap: options.wrap,
             width,
             smart: options.extensions.contains(Extension::Smart),
+            gutenberg: options.extensions.contains(Extension::Gutenberg),
             ..State::default()
         };
         let body = state.blocks_to_string(&document.blocks, width, false);
@@ -53,6 +54,7 @@ struct State {
     /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
     /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
     smart: bool,
+    gutenberg: bool,
     table_measurements: BTreeMap<(usize, usize), [Vec<usize>; 2]>,
 }
 
@@ -63,6 +65,7 @@ impl Default for State {
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
             smart: false,
+            gutenberg: false,
             table_measurements: BTreeMap::new(),
         }
     }
@@ -78,9 +81,20 @@ impl State {
         let mut rendered = Vec::with_capacity(blocks.len());
         let mut first = true;
         for block in blocks {
-            let text = self.block(block, width, hang && first);
+            let mut text = self.block(block, width, hang && first);
             if !text.is_empty() {
                 first = false;
+            }
+            if self.gutenberg {
+                trim_overlapping_blank_lines(
+                    &mut text,
+                    rendered
+                        .iter()
+                        .rev()
+                        .find_map(|(_, text): &(bool, String)| {
+                            (!text.is_empty()).then_some(text.as_str())
+                        }),
+                );
             }
             rendered.push((matches!(block, Block::Plain(_)), text));
         }
@@ -93,11 +107,14 @@ impl State {
         let mut parts: Vec<String> = Vec::new();
         let mut first = true;
         for block in blocks {
-            let text = self.block(block, width, hang && first);
+            let mut text = self.block(block, width, hang && first);
             if text.is_empty() {
                 continue;
             }
             first = false;
+            if self.gutenberg {
+                trim_overlapping_blank_lines(&mut text, parts.last().map(String::as_str));
+            }
             parts.push(text);
         }
         parts.join("\n")
@@ -122,8 +139,22 @@ impl State {
                     fill(&pieces, width, self.wrap)
                 }
             }
-            Block::Header(_, _, inlines) => {
-                let pieces = self.pieces(inlines);
+            Block::Header(level, _, inlines) => {
+                let mut pieces = self.pieces(inlines);
+                if self.gutenberg {
+                    match level {
+                        1 => {
+                            uppercase_pieces(&mut pieces, 0);
+                            let margin = if hang { "\n\n\n\n" } else { "\n\n" };
+                            return format!("{margin}{}\n", header_text(&pieces));
+                        }
+                        2 => {
+                            let margin = if hang { "\n\n\n" } else { "\n" };
+                            return format!("{margin}{}", header_text(&pieces));
+                        }
+                        _ => {}
+                    }
+                }
                 header_text(&pieces)
             }
             Block::CodeBlock(_, text) => {
@@ -648,6 +679,16 @@ impl State {
                 text.clone()
             })),
             Inline::Code(_, text) => out.push(Piece::text(text.clone())),
+            Inline::Emph(inlines) if self.gutenberg => {
+                out.push(Piece::text("_"));
+                self.extend_pieces(inlines, out);
+                out.push(Piece::text("_"));
+            }
+            Inline::Strong(inlines) if self.gutenberg => {
+                let start = out.len();
+                self.extend_pieces(inlines, out);
+                uppercase_pieces(out, start);
+            }
             Inline::Emph(inlines)
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
@@ -815,6 +856,15 @@ fn join_pieces(pieces: &[Piece], hard: char) -> String {
         }
     }
     out
+}
+
+// Adjacent blocks share the larger blank margin instead of adding both margins.
+fn trim_overlapping_blank_lines(text: &mut String, previous: Option<&str>) {
+    let leading = text.bytes().take_while(|&byte| byte == b'\n').count();
+    let trailing = previous.map_or(0, |text| {
+        text.bytes().rev().take_while(|&byte| byte == b'\n').count()
+    });
+    text.drain(..leading.min(trailing));
 }
 
 fn pieces_to_string(pieces: &[Piece]) -> String {

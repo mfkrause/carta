@@ -350,3 +350,43 @@ fn absurd_column_width_stays_bounded() {
         output.len()
     );
 }
+
+#[test]
+fn gutenberg_preserves_emphasis_and_merges_heading_margins() {
+    let document = Document {
+        blocks: vec![
+            Block::Header(1, Box::default(), vec![Inline::Str("First Straße".into())]),
+            Block::Header(1, Box::default(), vec![Inline::Str("Second".into())]),
+            Block::Para(vec![
+                Inline::Emph(vec![Inline::Str("soft words".into())]),
+                Inline::Space,
+                Inline::Strong(vec![Inline::Str("strong Straße".into())]),
+            ]),
+            Block::Header(2, Box::default(), vec![Inline::Str("Subheading".into())]),
+            Block::Para(vec![Inline::Str("last".into())]),
+        ],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.extensions.insert(Extension::Gutenberg);
+    assert_eq!(
+        PlainWriter.write(&document, &options).unwrap(),
+        "\n\nFIRST STRASSE\n\n\n\nSECOND\n\n\n_soft words_ STRONG STRASSE\n\n\nSubheading\n\nlast"
+    );
+    let quoted = Document {
+        blocks: vec![Block::BlockQuote(vec![
+            Block::Header(1, Box::default(), vec![Inline::Str("Title".into())]),
+            Block::Para(vec![Inline::Str("body".into())]),
+        ])],
+        ..Document::default()
+    };
+    assert_eq!(
+        PlainWriter.write(&quoted, &options).unwrap(),
+        "  \n\n\n\n  TITLE\n\n\n  body"
+    );
+    options.extensions.remove(Extension::Gutenberg);
+    assert_eq!(
+        PlainWriter.write(&document, &options).unwrap(),
+        "First Straße\n\nSecond\n\nsoft words strong Straße\n\nSubheading\n\nlast"
+    );
+}
