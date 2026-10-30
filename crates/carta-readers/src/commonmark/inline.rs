@@ -130,6 +130,17 @@ fn parse_inlines_shared(
 /// footnote and example references in the text resolve to nothing. `markdown` selects the markdown
 /// dialect's inline rules, matching the dialect the document body is parsed under.
 pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) -> Vec<Inline> {
+    let definitions = super::FootnoteDefs::new();
+    let macros = super::resolve::macros::Context::for_source(text, ext, &definitions);
+    parse_meta_inlines_with_macros(text, ext, markdown, macros.as_ref())
+}
+
+pub(super) fn parse_meta_inlines_with_macros(
+    text: &str,
+    ext: Extensions,
+    markdown: bool,
+    macros: Option<&super::resolve::macros::Context<'_>>,
+) -> Vec<Inline> {
     let defined = BTreeSet::new();
     let by_id = BTreeMap::new();
     let examples = ExampleMap::new();
@@ -139,13 +150,44 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) ->
     let notes = RefContext {
         defined: &defined,
         by_id: &by_id,
+        macros,
         in_definition: false,
         markdown,
         examples: &examples,
         cite_count: &cite_count,
         cite_budget: &cite_budget,
     };
-    parse_inlines(text, &refs, notes, ext)
+    let mut inlines = parse_inlines(text, &refs, notes, ext);
+    if let Some(macros) = macros {
+        macros.inlines(&mut inlines);
+    }
+    inlines
+}
+
+pub(super) fn raw_tex_block_prefix(text: &str) -> Option<usize> {
+    let command = text.trim_start_matches([' ', '\t']);
+    let name = command
+        .strip_prefix('\\')?
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .next()?;
+    if name.is_empty()
+        || matches!(name, "begin" | "end")
+        || (name != "let" && tokens::is_inline_tex_command(name))
+    {
+        return None;
+    }
+    let inlines = parse_meta_inlines(command, Extensions::from_list(&[Extension::RawTex]), false);
+    let Inline::RawInline(format, source) = inlines.first()? else {
+        return None;
+    };
+    if format.0 != "tex" {
+        return None;
+    }
+    let remainder = command.get(source.len()..)?;
+    if name != "let" && !remainder.trim().is_empty() {
+        return None;
+    }
+    Some(text.len() - command.len() + source.trim_end_matches([' ', '\t']).len())
 }
 
 /// A link label may hold at most 999 characters between its brackets (`CommonMark`, "Links"). A

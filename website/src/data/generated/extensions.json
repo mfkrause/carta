@@ -64,7 +64,6 @@
     "markdown_attribute"
   ],
   "recognizedNotModeled": [
-    "latex_macros",
     "rebase_relative_paths"
   ],
   "gaps": [],

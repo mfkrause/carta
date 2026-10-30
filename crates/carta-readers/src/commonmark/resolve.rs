@@ -3,6 +3,8 @@
 //! tables with captions, task-list markers, and figure promotion.
 
 use std::cell::Cell;
+
+pub(super) mod macros;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use carta_ast::{
@@ -25,14 +27,14 @@ pub(super) const TASK_CHECKED: &str = "\u{2612}";
 
 /// Document-level reference context threaded through the inline phase.
 ///
-/// A footnote reference `[^label]` resolves only when `label` is in `defined`. At the top level it
-/// becomes a `Note` carrying the matching content from `by_id`; inside a definition's own body it
-/// collapses to an empty string rather than nesting another note. An example reference `@label`
-/// resolves to its number from `examples`.
+/// Footnote references resolve only for labels in `defined`. The macro context resolves their
+/// bodies in source order; other documents use `by_id`. Inside a definition, a reference becomes
+/// empty text. Example references use `examples`.
 #[derive(Clone, Copy)]
 pub(super) struct RefContext<'a> {
     pub(super) defined: &'a BTreeSet<String>,
     pub(super) by_id: &'a BTreeMap<String, Vec<Block>>,
+    pub(super) macros: Option<&'a macros::Context<'a>>,
     pub(super) in_definition: bool,
     /// The markdown dialect, where a backslash-escaped space becomes a non-breaking space, a
     /// superscript or subscript span may not hold an unescaped space, and a code span's content is
@@ -86,15 +88,30 @@ pub(super) fn heading_content_is_context_independent(content: &str) -> bool {
 /// Resolve the whole document: collect the headings reachable by implicit reference, then each
 /// footnote definition's body (where nested references collapse to empty), then the body itself
 /// (where references become notes).
-pub(crate) fn resolve_document(
+#[allow(clippy::too_many_arguments)]
+pub(super) fn resolve_document(
     ir: &[IrBlock],
     mut refs: RefMap,
     footnotes: &FootnoteDefs,
     examples: &ExampleMap,
     ext: Extensions,
     markdown: bool,
-    source_len: usize,
+    source: &str,
+    macros: Option<&macros::Context<'_>>,
 ) -> Vec<Block> {
+    let source_len = source.len();
+    if ext.contains(Extension::LatexMacros)
+        && source.contains('\\')
+        && let Some(blocks) = if let Some(macros) = macros {
+            macros.blocks(ir, &refs, footnotes, examples, ext, markdown, source_len)
+        } else {
+            macros::resolve(
+                ir, &refs, footnotes, examples, ext, markdown, source_len, None,
+            )
+        }
+    {
+        return blocks;
+    }
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
     // Separate counts keep pre-parsing from advancing the body's citation numbering.
@@ -110,6 +127,7 @@ pub(crate) fn resolve_document(
         let probe = RefContext {
             defined: &defined,
             by_id: &empty,
+            macros: None,
             in_definition: false,
             markdown,
             examples,
@@ -121,6 +139,7 @@ pub(crate) fn resolve_document(
     let in_def = RefContext {
         defined: &defined,
         by_id: &empty,
+        macros: None,
         in_definition: true,
         markdown,
         examples,
@@ -139,6 +158,7 @@ pub(crate) fn resolve_document(
     let top = RefContext {
         defined: &defined,
         by_id: &by_id,
+        macros: None,
         in_definition: false,
         markdown,
         examples,
@@ -174,8 +194,20 @@ pub(super) fn gather_headers(
     numbering: &mut HeaderNumbering,
     cache: &mut HeaderParseCache,
 ) {
+    gather_expanded_headers(ir, refs, notes, ext, numbering, cache, &mut VecDeque::new());
+}
+
+fn gather_expanded_headers(
+    ir: &[IrBlock],
+    refs: &mut RefMap,
+    notes: RefContext,
+    ext: Extensions,
+    numbering: &mut HeaderNumbering,
+    cache: &mut HeaderParseCache,
+    expanded: &mut VecDeque<Vec<Inline>>,
+) {
     carta_core::with_stack(|| {
-        gather_headers_nested(ir, refs, notes, ext, numbering, cache);
+        gather_headers_nested(ir, refs, notes, ext, numbering, cache, expanded);
     });
 }
 
@@ -186,13 +218,15 @@ fn gather_headers_nested(
     ext: Extensions,
     numbering: &mut HeaderNumbering,
     cache: &mut HeaderParseCache,
+    expanded: &mut VecDeque<Vec<Inline>>,
 ) {
     for block in ir {
         match block {
             IrBlock::Heading(_, text) => {
                 let (content, attr) = split_header_attr(text, ext);
                 let inlines = parse_inlines(content, refs, notes, ext);
-                let id = numbering.id_for(&attr.id, &inlines);
+                let expanded_inlines = expanded.pop_front();
+                let id = numbering.id_for(&attr.id, expanded_inlines.as_ref().unwrap_or(&inlines));
                 refs.entry(normalize_label(content)).or_insert(LinkDef {
                     url: format!("#{id}"),
                     title: String::new(),
@@ -216,23 +250,33 @@ fn gather_headers_nested(
                 }
             }
             IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {
-                gather_headers(children, refs, notes, ext, numbering, cache);
+                gather_expanded_headers(children, refs, notes, ext, numbering, cache, expanded);
             }
             IrBlock::BulletList(items) | IrBlock::OrderedList(_, items) => {
                 for item in items {
-                    gather_headers(item, refs, notes, ext, numbering, cache);
+                    gather_expanded_headers(item, refs, notes, ext, numbering, cache, expanded);
                 }
             }
             IrBlock::DefinitionList(items) => {
                 for item in items {
                     for definition in &item.definitions {
-                        gather_headers(definition, refs, notes, ext, numbering, cache);
+                        gather_expanded_headers(
+                            definition, refs, notes, ext, numbering, cache, expanded,
+                        );
                     }
                 }
             }
             _ => {}
         }
     }
+}
+
+fn resolve_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
+    let mut inlines = parse_inlines(text, refs, notes, ext);
+    if let Some(macros) = notes.macros {
+        macros.inlines(&mut inlines);
+    }
+    inlines
 }
 
 fn resolve_blocks(
@@ -272,13 +316,13 @@ fn resolve_block_nested(
 ) {
     match block {
         IrBlock::Para(text) => {
-            let inlines = parse_inlines(text, refs, notes, ext);
+            let inlines = resolve_inlines(text, refs, notes, ext);
             out.push(para_or_figure(inlines, ext));
         }
-        IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, notes, ext))),
+        IrBlock::Plain(text) => out.push(plain(resolve_inlines(text, refs, notes, ext))),
         IrBlock::Heading(level, text) => {
             let (content, attr) = split_header_attr(text, ext);
-            let inlines = if heading_content_is_context_independent(content) {
+            let mut inlines = if heading_content_is_context_independent(content) {
                 cache
                     .get_mut(content)
                     .and_then(VecDeque::pop_front)
@@ -286,18 +330,19 @@ fn resolve_block_nested(
             } else {
                 parse_inlines(content, refs, notes, ext)
             };
+            if let Some(macros) = notes.macros {
+                macros.inlines(&mut inlines);
+            }
             out.push(Block::Header(i64::from(*level), Box::new(attr), inlines));
         }
-        IrBlock::CodeBlock(attr, text) => {
-            out.push(Block::CodeBlock(
-                Box::new(attr.clone()),
-                text.clone().into(),
-            ));
-        }
+        IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(
+            Box::new(attr.clone()),
+            text.as_str().into(),
+        )),
         IrBlock::RawHtml(text) => {
             // Markdown dialect without `raw_html`: the block degrades to a paragraph of its text.
             if notes.markdown && !ext.contains(Extension::RawHtml) {
-                out.push(Block::Para(parse_inlines(text, refs, notes, ext)));
+                out.push(Block::Para(resolve_inlines(text, refs, notes, ext)));
             } else {
                 out.push(Block::RawBlock(
                     carta_ast::Format("html".into()),
@@ -305,8 +350,11 @@ fn resolve_block_nested(
                 ));
             }
         }
-        IrBlock::RawBlock(format, text) => {
-            out.push(Block::RawBlock(format.clone(), text.clone().into()));
+        IrBlock::RawBlock(format, text) => out.push(resolve_raw_block(format, text, notes)),
+        IrBlock::FootnoteDefinition(label) => {
+            if let Some(macros) = notes.macros {
+                macros.definition(label, refs, notes, ext);
+            }
         }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::Div(attr, children) => {
@@ -323,14 +371,14 @@ fn resolve_block_nested(
         IrBlock::LineBlock(lines) => out.push(Block::LineBlock(
             lines
                 .iter()
-                .map(|line| parse_inlines(line, refs, notes, ext))
+                .map(|line| resolve_inlines(line, refs, notes, ext))
                 .collect(),
         )),
         IrBlock::DefinitionList(items) => out.push(Block::DefinitionList(
             items
                 .iter()
                 .map(|item| {
-                    let term = parse_inlines(&item.term, refs, notes, ext);
+                    let term = resolve_inlines(&item.term, refs, notes, ext);
                     let definitions = item
                         .definitions
                         .iter()
@@ -358,7 +406,7 @@ fn resolve_block_nested(
             alignments,
             header,
             rows,
-            caption.as_deref(),
+            caption.as_ref(),
             attr,
             refs,
             notes,
@@ -366,6 +414,17 @@ fn resolve_block_nested(
         )),
         IrBlock::GridTable(table) => out.push(resolve_grid_table(table, refs, notes, ext)),
         IrBlock::TextTable(table) => out.push(resolve_text_table(table, refs, notes, ext)),
+    }
+}
+
+fn resolve_raw_block(format: &carta_ast::Format, text: &str, notes: RefContext) -> Block {
+    if format.0 == macros::SOURCE {
+        let text = notes
+            .macros
+            .map_or_else(|| text.to_owned(), |macros| macros.raw(text));
+        Block::RawBlock(carta_ast::Format("tex".into()), text.into())
+    } else {
+        Block::RawBlock(format.clone(), text.into())
     }
 }
 
@@ -414,7 +473,7 @@ fn resolve_table(
     alignments: &[Alignment],
     header: &[String],
     rows: &[Vec<String>],
-    caption: Option<&str>,
+    caption: Option<&super::IrCaption>,
     attr: &Attr,
     refs: &RefMap,
     notes: RefContext,
@@ -434,23 +493,29 @@ fn resolve_table(
             .map(|text| make_cell(text, refs, notes, ext))
             .collect(),
     };
-    let caption = match caption {
-        Some(text) => make_caption(text, refs, notes, ext),
-        None => Caption::default(),
-    };
+    let early_caption = caption
+        .filter(|caption| caption.before)
+        .map(|caption| make_caption(&caption.text, refs, notes, ext));
+    let head = vec![make_row(header)];
+    let body = rows.iter().map(|cells| make_row(cells)).collect();
+    let caption = early_caption.unwrap_or_else(|| {
+        caption.map_or_else(Caption::default, |caption| {
+            make_caption(&caption.text, refs, notes, ext)
+        })
+    });
     Block::Table(Box::new(Table {
         attr: attr.clone(),
         caption,
         col_specs,
         head: TableHead {
             attr: Attr::default(),
-            rows: vec![make_row(header)],
+            rows: head,
         },
         bodies: vec![TableBody {
             attr: Attr::default(),
             row_head_columns: 0,
             head: Vec::new(),
-            body: rows.iter().map(|cells| make_row(cells)).collect(),
+            body,
         }],
         foot: TableFoot::default(),
     }))
@@ -459,7 +524,7 @@ fn resolve_table(
 /// Build a table caption from its text. Caption text that parses to nothing (an attribute-only or
 /// bare caption line) yields an empty block list, not a `Plain` wrapping an empty inline list.
 fn make_caption(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Caption {
-    let inlines = parse_inlines(text, refs, notes, ext);
+    let inlines = resolve_inlines(text, refs, notes, ext);
     Caption {
         short: None,
         long: if inlines.is_empty() {
@@ -476,7 +541,7 @@ fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> T
     let content = if text.is_empty() {
         Vec::new()
     } else {
-        vec![Block::Plain(parse_inlines(text, refs, notes, ext))]
+        vec![Block::Plain(resolve_inlines(text, refs, notes, ext))]
     };
     TableCell {
         attr: Attr::default(),
@@ -509,30 +574,42 @@ fn resolve_grid_table(
         cells: row
             .cells
             .iter()
-            .map(|cell| make_grid_cell(cell, ext, notes.markdown))
+            .map(|cell| make_grid_cell(cell, ext, notes))
             .collect(),
     };
-    let caption = match &table.caption {
-        Some(text) => make_caption(text, refs, notes, ext),
-        None => Caption::default(),
-    };
+    let early_caption = table
+        .caption
+        .as_ref()
+        .filter(|caption| caption.before)
+        .map(|caption| make_caption(&caption.text, refs, notes, ext));
+    let head = table.head.iter().map(make_row).collect();
+    let body = table.body.iter().map(make_row).collect();
+    let foot = table.foot.iter().map(make_row).collect();
+    let caption = early_caption.unwrap_or_else(|| {
+        table
+            .caption
+            .as_ref()
+            .map_or_else(Caption::default, |caption| {
+                make_caption(&caption.text, refs, notes, ext)
+            })
+    });
     Block::Table(Box::new(Table {
         attr: table.attr.clone(),
         caption,
         col_specs,
         head: TableHead {
             attr: Attr::default(),
-            rows: table.head.iter().map(make_row).collect(),
+            rows: head,
         },
         bodies: vec![TableBody {
             attr: Attr::default(),
             row_head_columns: 0,
             head: Vec::new(),
-            body: table.body.iter().map(make_row).collect(),
+            body,
         }],
         foot: TableFoot {
             attr: Attr::default(),
-            rows: table.foot.iter().map(make_row).collect(),
+            rows: foot,
         },
     }))
 }
@@ -566,15 +643,25 @@ fn resolve_text_table(
             .map(|text| make_cell(text, refs, notes, ext))
             .collect(),
     };
+    let early_caption = table
+        .caption
+        .as_ref()
+        .filter(|caption| caption.before)
+        .map(|caption| make_caption(&caption.text, refs, notes, ext));
     let head_rows = if table.head.is_empty() {
         Vec::new()
     } else {
         vec![make_row(&table.head)]
     };
-    let caption = match &table.caption {
-        Some(text) => make_caption(text, refs, notes, ext),
-        None => Caption::default(),
-    };
+    let body = table.body.iter().map(|cells| make_row(cells)).collect();
+    let caption = early_caption.unwrap_or_else(|| {
+        table
+            .caption
+            .as_ref()
+            .map_or_else(Caption::default, |caption| {
+                make_caption(&caption.text, refs, notes, ext)
+            })
+    });
     Block::Table(Box::new(Table {
         attr: table.attr.clone(),
         caption,
@@ -587,7 +674,7 @@ fn resolve_text_table(
             attr: Attr::default(),
             row_head_columns: 0,
             head: Vec::new(),
-            body: table.body.iter().map(|cells| make_row(cells)).collect(),
+            body,
         }],
         foot: TableFoot::default(),
     }))
@@ -595,13 +682,13 @@ fn resolve_text_table(
 
 /// Build one grid-table cell, parsing its raw text into block content (tight cells demote their
 /// paragraphs to `Plain`).
-fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, markdown: bool) -> TableCell {
+fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, notes: RefContext) -> TableCell {
     TableCell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
         row_span: 1,
         col_span: 1,
-        content: super::parse_table_cell(&cell.text, cell.tight, ext, markdown),
+        content: super::parse_table_cell(&cell.text, cell.tight, ext, notes.markdown, notes.macros),
     }
 }
 
@@ -624,7 +711,9 @@ fn resolve_bullet_list(
 
     for item in items {
         let marker = if task_lists {
-            item.first().and_then(task_marker_block)
+            item.iter()
+                .find(|block| !matches!(block, IrBlock::FootnoteDefinition(_)))
+                .and_then(task_marker_block)
         } else {
             None
         };
@@ -651,12 +740,19 @@ fn resolve_item(
     cache: &mut HeaderParseCache,
 ) -> Vec<Block> {
     let mut out = Vec::new();
-    let mut blocks = item.iter();
-    if let Some(first) = blocks.next() {
-        resolve_block(marker.unwrap_or(first), refs, notes, ext, cache, &mut out);
-    }
-    for block in blocks {
-        resolve_block(block, refs, notes, ext, cache, &mut out);
+    let mut first = true;
+    for block in item {
+        if matches!(block, IrBlock::FootnoteDefinition(_)) {
+            resolve_block(block, refs, notes, ext, cache, &mut out);
+        } else {
+            let block = if first {
+                first = false;
+                marker.unwrap_or(block)
+            } else {
+                block
+            };
+            resolve_block(block, refs, notes, ext, cache, &mut out);
+        }
     }
     out
 }

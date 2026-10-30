@@ -37,7 +37,10 @@ impl Reader for CommonmarkReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
         let normalized = normalize(input);
-        let frontmatter::FrontMatter { meta, body } = frontmatter::extract(&normalized, options)?;
+        let definitions = FootnoteDefs::new();
+        let macros = resolve::macros::Context::for_source(&normalized, ext, &definitions);
+        let frontmatter::FrontMatter { meta, body } =
+            frontmatter::extract(&normalized, options, macros.as_ref())?;
         let source = body.as_deref().unwrap_or(&normalized);
         let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
         let blocks = resolve::resolve_document(
@@ -47,7 +50,8 @@ impl Reader for CommonmarkReader {
             &examples,
             ext,
             options.greedy_paragraphs,
-            source.len(),
+            source,
+            macros.as_ref(),
         );
         Ok(Document {
             meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
@@ -69,6 +73,8 @@ pub(crate) enum IrBlock {
     RawHtml(String),
     /// A raw block in a named passthrough format (e.g. a fenced ```` ```{=latex} ```` block).
     RawBlock(Format, String),
+    /// Source position of a separately stored footnote definition.
+    FootnoteDefinition(String),
     ThematicBreak,
     /// A fenced div: its attributes and the recursively-parsed block content.
     Div(Attr, Vec<IrBlock>),
@@ -90,7 +96,7 @@ pub(crate) enum IrBlock {
         alignments: Vec<Alignment>,
         header: Vec<String>,
         rows: Vec<Vec<String>>,
-        caption: Option<String>,
+        caption: Option<IrCaption>,
         /// Attributes attached via the caption line when `table_attributes` is enabled.
         attr: Attr,
     },
@@ -101,6 +107,13 @@ pub(crate) enum IrBlock {
     /// text, each cell parsed as inline content in the inline phase. Any caption is attached after
     /// the block phase.
     TextTable(Box<texttable::TextTable>),
+}
+
+/// A table caption with its source position relative to the table.
+#[derive(Debug, Clone)]
+pub(crate) struct IrCaption {
+    text: String,
+    before: bool,
 }
 
 impl IrBlock {
@@ -123,6 +136,7 @@ impl IrBlock {
             | Self::CodeBlock(..)
             | Self::RawHtml(_)
             | Self::RawBlock(..)
+            | Self::FootnoteDefinition(_)
             | Self::ThematicBreak
             | Self::LineBlock(_)
             | Self::Table { .. }
@@ -179,10 +193,11 @@ pub(crate) type ExampleMap = BTreeMap<String, i32>;
 /// Parse the text of a block-level metadata value into blocks, reusing the full block and inline
 /// pipeline. Front matter is not re-extracted, so a metadata value never recurses into another
 /// metadata block.
-pub(crate) fn parse_meta_blocks(
+fn parse_meta_blocks(
     text: &str,
     extensions: Extensions,
     greedy_paragraphs: bool,
+    macros: Option<&resolve::macros::Context<'_>>,
 ) -> Vec<Block> {
     let normalized = normalize(text);
     let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, greedy_paragraphs);
@@ -193,18 +208,20 @@ pub(crate) fn parse_meta_blocks(
         &examples,
         extensions,
         greedy_paragraphs,
-        normalized.len(),
+        &normalized,
+        macros,
     )
 }
 
 /// Parse the raw text of a table cell into block content, reusing the full block and inline
 /// pipeline. A tight cell (one with no internal blank line) demotes its top-level paragraphs to
 /// `Plain`; an empty cell carries no blocks.
-pub(crate) fn parse_table_cell(
+fn parse_table_cell(
     text: &str,
     tight: bool,
     extensions: Extensions,
     greedy_paragraphs: bool,
+    macros: Option<&resolve::macros::Context<'_>>,
 ) -> Vec<Block> {
     if text.is_empty() {
         return Vec::new();
@@ -215,6 +232,19 @@ pub(crate) fn parse_table_cell(
     if tight {
         postprocess::demote_loose_paragraphs(&mut ir);
     }
+    if let Some(macros) = macros
+        && let Some(blocks) = macros.blocks(
+            &ir,
+            &refs,
+            &footnotes,
+            &examples,
+            extensions,
+            greedy_paragraphs,
+            normalized.len(),
+        )
+    {
+        return blocks;
+    }
     resolve::resolve_document(
         &ir,
         refs,
@@ -222,7 +252,8 @@ pub(crate) fn parse_table_cell(
         &examples,
         extensions,
         greedy_paragraphs,
-        normalized.len(),
+        &normalized,
+        None,
     )
 }
 

@@ -11,7 +11,7 @@ pub(crate) struct GridTable {
     pub head: Vec<Row>,
     pub body: Vec<Row>,
     pub foot: Vec<Row>,
-    pub caption: Option<String>,
+    pub caption: Option<super::IrCaption>,
     /// Attributes attached via the caption line when `table_attributes` is enabled.
     pub attr: Attr,
 }

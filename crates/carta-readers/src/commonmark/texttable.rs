@@ -15,7 +15,7 @@ pub(crate) struct TextTable {
     pub head: Vec<Cell>,
     /// Body rows, each a cell per column.
     pub body: Vec<Vec<Cell>>,
-    pub caption: Option<String>,
+    pub caption: Option<super::IrCaption>,
     /// Attributes attached via the caption line when `table_attributes` is enabled.
     pub attr: carta_ast::Attr,
 }

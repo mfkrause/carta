@@ -14,6 +14,8 @@ use self::support::{math_env, section_intrinsic};
 
 mod blocks;
 mod expand;
+#[cfg(feature = "commonmark")]
+pub(crate) use expand::MacroExpander;
 mod inline;
 mod references;
 mod support;
@@ -37,25 +39,7 @@ impl Reader for LatexReader {
 
         let base_level = base_section_level(body);
 
-        let mut parser = Parser {
-            frames: Vec::new(),
-            ext,
-            smart: ext.contains(Extension::Smart),
-            meta: BTreeMap::new(),
-            macros: Rc::new(BTreeMap::new()),
-            ids: IdRegistry::default(),
-            base_level,
-            in_figure: false,
-            in_float: false,
-            expansions: Rc::new(Expansions {
-                active: RefCell::new(BTreeSet::new()),
-                calls: Cell::new(100_000usize.saturating_add(input.len().saturating_mul(64))),
-                characters: Cell::new(
-                    (1usize << 20).saturating_add(input.len().saturating_mul(64)),
-                ),
-            }),
-            last_ws_had_newline: false,
-        };
+        let mut parser = Parser::new(input.len(), ext, base_level);
 
         let mut blocks = if let Some(preamble) = preamble {
             parser.set_source(preamble);
@@ -155,6 +139,8 @@ enum Macro {
     Token(String),
 }
 
+type MacroDefinitions = Rc<BTreeMap<String, Rc<Macro>>>;
+
 /// One level of input the cursor reads from: a character buffer and a position within it. The
 /// bottom frame holds the source text; each macro expansion pushes a new frame that is read to
 /// exhaustion, then popped, so the expansion's characters are consumed in place of the invocation.
@@ -236,7 +222,7 @@ struct Parser {
     meta: BTreeMap<String, MetaValue>,
     /// User macro definitions, shared with sub-parsers by reference; a sub-parser that defines its own
     /// macro copies the table on write, so definitions never leak across scopes.
-    macros: Rc<BTreeMap<String, Rc<Macro>>>,
+    macros: MacroDefinitions,
     ids: IdRegistry,
     /// The level offset for sectioning commands (see [`base_section_level`]).
     base_level: i32,
@@ -249,6 +235,8 @@ struct Parser {
     /// Whether the most recently consumed inter-word whitespace contained a newline, so the gap
     /// renders as a soft break rather than a plain space.
     last_ws_had_newline: bool,
+    recording: Option<String>,
+    tex_comments: bool,
 }
 
 /// Where an inline run ends.
@@ -267,6 +255,28 @@ enum InlineStop {
 }
 
 impl Parser {
+    fn new(source_len: usize, ext: Extensions, base_level: i32) -> Self {
+        Self {
+            frames: Vec::new(),
+            ext,
+            smart: ext.contains(Extension::Smart),
+            meta: BTreeMap::new(),
+            macros: Rc::new(BTreeMap::new()),
+            ids: IdRegistry::default(),
+            base_level,
+            in_figure: false,
+            in_float: false,
+            expansions: Rc::new(Expansions {
+                active: RefCell::new(BTreeSet::new()),
+                calls: Cell::new(100_000usize.saturating_add(source_len.saturating_mul(64))),
+                characters: Cell::new((1usize << 20).saturating_add(source_len.saturating_mul(64))),
+            }),
+            last_ws_had_newline: false,
+            recording: None,
+            tex_comments: true,
+        }
+    }
+
     /// Replaces the input frames while preserving macro definitions and expansion state.
     fn set_source(&mut self, source: &str) {
         self.frames = vec![Frame::new(source, None)];
@@ -318,6 +328,9 @@ impl Parser {
             .copied();
         if c.is_some() {
             frame.pos += 1;
+            if let (Some(recording), Some(character)) = (&mut self.recording, c) {
+                recording.push(character);
+            }
         }
         c
     }

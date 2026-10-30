@@ -7,8 +7,9 @@ use std::collections::BTreeMap;
 use carta_ast::{Inline, MetaValue};
 use carta_core::{Error, Extension, ReaderOptions, Result};
 
-use super::inline::parse_meta_inlines;
+use super::inline::parse_meta_inlines_with_macros as parse_meta_inlines;
 use super::parse_meta_blocks;
+use super::resolve::macros::Context;
 use crate::yaml::{self, Scalar, Yaml};
 
 /// Document metadata together with the body that remains once any front matter is stripped. A `None`
@@ -20,14 +21,18 @@ pub(crate) struct FrontMatter {
 
 /// Extract document metadata from a leading YAML or title block, if either applies. Returns the
 /// metadata and, when a block is consumed, the remaining body text. Malformed YAML is an error.
-pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<FrontMatter> {
+pub(super) fn extract(
+    normalized: &str,
+    options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
+) -> Result<FrontMatter> {
     if options.extensions.contains(Extension::YamlMetadataBlock)
-        && let Some(front) = yaml_block(normalized, options)?
+        && let Some(front) = yaml_block(normalized, options, macros)?
     {
         return Ok(front);
     }
     if options.extensions.contains(Extension::PandocTitleBlock)
-        && let Some((meta, body)) = title_block(normalized, options)
+        && let Some((meta, body)) = title_block(normalized, options, macros)
     {
         return Ok(FrontMatter {
             meta,
@@ -50,7 +55,11 @@ pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<Front
 
 /// Try to consume a leading YAML metadata block. `Ok(None)` means the input does not open one (fall
 /// through); `Ok(Some(..))` carries the metadata and body; `Err` marks malformed YAML.
-fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontMatter>> {
+fn yaml_block(
+    normalized: &str,
+    options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
+) -> Result<Option<FrontMatter>> {
     let lines: Vec<&str> = normalized.split('\n').collect();
     // Leading whitespace disqualifies a fence, so trim only the end.
     if lines.first().is_none_or(|line| line.trim_end() != "---") {
@@ -74,7 +83,7 @@ fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontM
         Ok(yaml::TopLevel::Mapping(entries)) => {
             let meta = entries
                 .into_iter()
-                .map(|(key, value)| (key, yaml_to_meta(value, options)))
+                .map(|(key, value)| (key, yaml_to_meta(value, options, macros)))
                 .collect();
             let body = lines.get(close + 1..).unwrap_or(&[]).join("\n");
             Ok(Some(FrontMatter {
@@ -100,10 +109,13 @@ pub(crate) fn parse_metadata_yaml(
     content: &str,
     options: &ReaderOptions,
 ) -> Result<BTreeMap<String, MetaValue>> {
+    let definitions = super::FootnoteDefs::new();
+    let state = Context::for_source(content, options.extensions, &definitions);
+    let macros = state.as_ref();
     match yaml::parse(content) {
         Ok(yaml::TopLevel::Mapping(entries)) => Ok(entries
             .into_iter()
-            .map(|(key, value)| (key, yaml_to_meta(value, options)))
+            .map(|(key, value)| (key, yaml_to_meta(value, options, macros)))
             .collect()),
         Ok(yaml::TopLevel::NotMapping) => Ok(BTreeMap::new()),
         Err(()) => Err(Error::InvalidMetadata(
@@ -122,13 +134,16 @@ pub(crate) fn parse_metadata_json(
     content: &str,
     options: &ReaderOptions,
 ) -> Result<BTreeMap<String, MetaValue>> {
+    let definitions = super::FootnoteDefs::new();
+    let state = Context::for_source(content, options.extensions, &definitions);
+    let macros = state.as_ref();
     let value: serde_json::Value = serde_json::from_str(content).map_err(|error| {
         Error::InvalidMetadata(format!("could not parse JSON metadata file: {error}"))
     })?;
     match value {
         serde_json::Value::Object(map) => Ok(map
             .into_iter()
-            .map(|(key, value)| (key, json_to_meta(value, options)))
+            .map(|(key, value)| (key, json_to_meta(value, options, macros)))
             .collect()),
         _ => Err(Error::InvalidMetadata(
             "JSON metadata file must be an object".to_owned(),
@@ -138,7 +153,11 @@ pub(crate) fn parse_metadata_json(
 
 /// Convert a parsed JSON value into a metadata value, mirroring the YAML scalar typing: strings and
 /// numbers parse as inline Markdown, booleans stay boolean, and arrays/objects recurse.
-fn json_to_meta(value: serde_json::Value, options: &ReaderOptions) -> MetaValue {
+fn json_to_meta(
+    value: serde_json::Value,
+    options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
+) -> MetaValue {
     match value {
         serde_json::Value::Null => MetaValue::MetaString(carta_ast::Text::default()),
         serde_json::Value::Bool(b) => MetaValue::MetaBool(b),
@@ -146,61 +165,72 @@ fn json_to_meta(value: serde_json::Value, options: &ReaderOptions) -> MetaValue 
             &n.to_string(),
             options.extensions,
             options.greedy_paragraphs,
+            macros,
         )),
         serde_json::Value::String(s) => MetaValue::MetaInlines(parse_meta_inlines(
             &s,
             options.extensions,
             options.greedy_paragraphs,
+            macros,
         )),
         serde_json::Value::Array(items) => MetaValue::MetaList(
             items
                 .into_iter()
-                .map(|item| json_to_meta(item, options))
+                .map(|item| json_to_meta(item, options, macros))
                 .collect(),
         ),
         serde_json::Value::Object(map) => MetaValue::MetaMap(
             map.into_iter()
-                .map(|(key, item)| (key.into(), json_to_meta(item, options)))
+                .map(|(key, item)| (key.into(), json_to_meta(item, options, macros)))
                 .collect(),
         ),
     }
 }
 
 /// Convert a parsed YAML value into a metadata value, recursing through mappings and sequences.
-fn yaml_to_meta(value: Yaml, options: &ReaderOptions) -> MetaValue {
+fn yaml_to_meta(value: Yaml, options: &ReaderOptions, macros: Option<&Context<'_>>) -> MetaValue {
     match value {
         Yaml::Mapping(entries) => MetaValue::MetaMap(
             entries
                 .into_iter()
-                .map(|(key, value)| (key.into(), yaml_to_meta(value, options)))
+                .map(|(key, value)| (key.into(), yaml_to_meta(value, options, macros)))
                 .collect(),
         ),
         Yaml::Sequence(items) => MetaValue::MetaList(
             items
                 .into_iter()
-                .map(|v| yaml_to_meta(v, options))
+                .map(|v| yaml_to_meta(v, options, macros))
                 .collect(),
         ),
-        Yaml::Scalar(scalar) => scalar_to_meta(scalar, options),
+        Yaml::Scalar(scalar) => scalar_to_meta(scalar, options, macros),
     }
 }
 
 /// Resolve a scalar to a metadata value. Plain scalars are typed (null, boolean, number, or inline
 /// text); quoted scalars are always inline text; block scalars are block- or inline-level depending
 /// on whether their text keeps a trailing newline.
-fn scalar_to_meta(scalar: Scalar, options: &ReaderOptions) -> MetaValue {
+fn scalar_to_meta(
+    scalar: Scalar,
+    options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
+) -> MetaValue {
     match scalar {
-        Scalar::Plain(text) => plain_scalar_to_meta(&text, options),
+        Scalar::Plain(text) => plain_scalar_to_meta(&text, options, macros),
         Scalar::Quoted(text) => MetaValue::MetaInlines(parse_meta_inlines(
             &text,
             options.extensions,
             options.greedy_paragraphs,
+            macros,
         )),
-        Scalar::Block(text) => text_to_meta(&text, options),
+        Scalar::Block(text) => text_to_meta(&text, options, macros),
     }
 }
 
-fn plain_scalar_to_meta(text: &str, options: &ReaderOptions) -> MetaValue {
+fn plain_scalar_to_meta(
+    text: &str,
+    options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
+) -> MetaValue {
     if text.is_empty() || is_null(text) {
         return MetaValue::MetaString(carta_ast::Text::default());
     }
@@ -212,29 +242,33 @@ fn plain_scalar_to_meta(text: &str, options: &ReaderOptions) -> MetaValue {
             &canonical,
             options.extensions,
             options.greedy_paragraphs,
+            macros,
         ));
     }
     MetaValue::MetaInlines(parse_meta_inlines(
         text,
         options.extensions,
         options.greedy_paragraphs,
+        macros,
     ))
 }
 
 /// Text whose trailing newline survived block-scalar chomping is parsed as block-level markdown;
 /// otherwise it is inline markdown.
-fn text_to_meta(text: &str, options: &ReaderOptions) -> MetaValue {
+fn text_to_meta(text: &str, options: &ReaderOptions, macros: Option<&Context<'_>>) -> MetaValue {
     if text.ends_with('\n') {
         MetaValue::MetaBlocks(parse_meta_blocks(
             text,
             options.extensions,
             options.greedy_paragraphs,
+            macros,
         ))
     } else {
         MetaValue::MetaInlines(parse_meta_inlines(
             text,
             options.extensions,
             options.greedy_paragraphs,
+            macros,
         ))
     }
 }
@@ -261,6 +295,7 @@ fn as_bool(text: &str) -> Option<bool> {
 fn title_block(
     normalized: &str,
     options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
 ) -> Option<(BTreeMap<String, MetaValue>, String)> {
     let lines: Vec<&str> = normalized.split('\n').collect();
     if !lines.first().is_some_and(|line| line.starts_with('%')) {
@@ -283,7 +318,7 @@ fn title_block(
             field.push(cont.trim().to_owned());
             idx += 1;
         }
-        insert_field(&mut meta, label, &field, options);
+        insert_field(&mut meta, label, &field, options, macros);
     }
     let body = lines.get(idx..).unwrap_or(&[]).join("\n");
     Some((meta, body))
@@ -379,6 +414,7 @@ fn insert_field(
     label: &str,
     field: &[String],
     options: &ReaderOptions,
+    macros: Option<&Context<'_>>,
 ) {
     if label == "author" {
         let mut authors = Vec::new();
@@ -388,6 +424,7 @@ fn insert_field(
                     chunk.trim(),
                     options.extensions,
                     options.greedy_paragraphs,
+                    macros,
                 )));
             }
         }
@@ -402,6 +439,7 @@ fn insert_field(
                 &text,
                 options.extensions,
                 options.greedy_paragraphs,
+                macros,
             )),
         );
     }

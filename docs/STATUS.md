@@ -145,7 +145,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `gfm` ✅
 
 ### `markdown` ✅
-- `latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.
 - Bracketed citations resolve through a memo, so nesting costs linear work; only brackets nested
   tens of levels deep (past a work budget that bounds total citation output) stay literal text.
 
@@ -276,8 +275,7 @@ Constructs the supported extensions read, each with one narrow case that still d
 ### Not yet implemented
 
 These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but
-the reader does not yet branch on the construct (notable, non-exhaustive): `latex_macros`,
-`rebase_relative_paths`.
+the reader does not yet branch on the construct (notable, non-exhaustive): `rebase_relative_paths`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
 
 ---

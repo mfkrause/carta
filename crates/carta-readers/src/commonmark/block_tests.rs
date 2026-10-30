@@ -380,7 +380,7 @@ fn alerts_off_leaves_the_marker_literal() {
 
 use super::super::postprocess::split_trailing_attr;
 
-fn table_attr_and_caption(input: &str) -> (carta_ast::Attr, Option<String>) {
+fn table_attr_and_caption(input: &str) -> (carta_ast::Attr, Option<super::super::IrCaption>) {
     let out = blocks(input);
     match out.first() {
         Some(IrBlock::Table { attr, caption, .. }) => (attr.clone(), caption.clone()),
@@ -424,7 +424,10 @@ fn caption_attributes_attach_to_the_table() {
     let (attr, caption) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: My cap {#t .w}\n");
     assert_eq!(attr.id, "t");
     assert_eq!(attr.classes, ["w"]);
-    assert_eq!(caption.as_deref(), Some("My cap"));
+    assert_eq!(
+        caption.as_ref().map(|caption| caption.text.as_str()),
+        Some("My cap")
+    );
 }
 
 #[test]
@@ -437,7 +440,10 @@ fn caption_keyvals_attach_to_the_table() {
 fn caption_without_a_block_leaves_attr_empty() {
     let (attr, caption) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: just a caption\n");
     assert!(attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty());
-    assert_eq!(caption.as_deref(), Some("just a caption"));
+    assert_eq!(
+        caption.as_ref().map(|caption| caption.text.as_str()),
+        Some("just a caption")
+    );
 }
 
 #[test]
@@ -448,7 +454,8 @@ fn caption_attributes_are_inert_without_the_extension() {
         &mut table,
         0,
         "c {#t}",
-        presets::COMMONMARK
+        presets::COMMONMARK,
+        false,
     ));
     let (attr, caption) = match table.first() {
         Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
@@ -456,7 +463,10 @@ fn caption_attributes_are_inert_without_the_extension() {
         other => panic!("expected a table, got {other:?}"),
     };
     assert!(attr.id.is_empty());
-    assert_eq!(caption.as_deref(), Some("c {#t}"));
+    assert_eq!(
+        caption.as_ref().map(|caption| caption.text.as_str()),
+        Some("c {#t}")
+    );
 }
 
 #[test]

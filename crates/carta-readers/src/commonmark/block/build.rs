@@ -170,6 +170,12 @@ impl Parser {
         };
         let mut out = Vec::new();
         for &child in &node.children {
+            if self.extensions.contains(Extension::LatexMacros)
+                && let Some(Kind::FootnoteDef(key)) = self.kind(child)
+            {
+                out.push(IrBlock::FootnoteDefinition(key.clone()));
+                continue;
+            }
             if let Some(node) = self.nodes.get(child)
                 && let Kind::TexDefinition(super::tex_definition::Definition::Body {
                     valid_end,
@@ -178,7 +184,7 @@ impl Parser {
                 && *valid_end > 0
             {
                 out.push(IrBlock::RawBlock(
-                    Format("tex".into()),
+                    self.raw_tex_format(),
                     node.text.get(..*valid_end).unwrap_or_default().to_owned(),
                 ));
                 out.push(IrBlock::Para(
@@ -212,7 +218,15 @@ impl Parser {
         out
     }
 
-    fn build_raw_tex(node: &Node, literate_code: bool) -> Option<IrBlock> {
+    fn raw_tex_format(&self) -> Format {
+        Format(if self.extensions.contains(Extension::LatexMacros) {
+            super::super::resolve::macros::SOURCE.into()
+        } else {
+            "tex".into()
+        })
+    }
+
+    fn build_raw_tex(&self, node: &Node, literate_code: bool) -> Option<IrBlock> {
         if node.open {
             let text = node.text.trim();
             return (!text.is_empty()).then(|| IrBlock::Para(text.to_owned()));
@@ -227,7 +241,7 @@ impl Parser {
                 body.trim_end_matches('\n').to_owned(),
             ));
         }
-        Some(IrBlock::RawBlock(Format("tex".into()), node.text.clone()))
+        Some(IrBlock::RawBlock(self.raw_tex_format(), node.text.clone()))
     }
 
     pub(super) fn build_block(&self, index: usize) -> Option<IrBlock> {
@@ -299,12 +313,12 @@ impl Parser {
             Kind::RawHtmlSpan { .. } => {
                 IrBlock::RawHtml(node.text.trim_end_matches('\n').to_owned())
             }
-            Kind::RawTex { literate_code, .. } => Self::build_raw_tex(node, *literate_code)?,
+            Kind::RawTex { literate_code, .. } => self.build_raw_tex(node, *literate_code)?,
             Kind::TexDefinition(super::tex_definition::Definition::Body { .. }) => {
                 IrBlock::Para(node.text.trim().to_owned())
             }
             Kind::TexDefinition(super::tex_definition::Definition::Between(_)) => {
-                IrBlock::RawBlock(Format("tex".into()), node.text.clone())
+                IrBlock::RawBlock(self.raw_tex_format(), node.text.clone())
             }
             Kind::BlockQuote { allows_alert } => {
                 if *allows_alert

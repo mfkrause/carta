@@ -68,6 +68,10 @@ impl TexGroups {
     }
 }
 
+pub(super) fn is_inline_tex_command(name: &str) -> bool {
+    raw_tex_arguments(name).is_some()
+}
+
 fn raw_tex_arguments(name: &str) -> Option<&'static [TexArgument]> {
     use TexArgument::{Braced, ControlSequence, Optional, Text, Verbatim};
     match name {
@@ -363,7 +367,11 @@ impl InlineParser<'_> {
             return false;
         };
         self.nodes.push(Node::Inline(Inline::RawInline(
-            carta_ast::Format("tex".into()),
+            carta_ast::Format(if self.notes.macros.is_some() {
+                super::super::resolve::macros::SOURCE.into()
+            } else {
+                "tex".into()
+            }),
             source.into(),
         )));
         self.pos = end;
@@ -399,6 +407,18 @@ impl InlineParser<'_> {
         }
         if name == "end" {
             return None;
+        }
+        if name == "let" {
+            let target = self.tex_argument_start(position);
+            let mut value = self.tex_argument_start(self.scan_tex_control_sequence(target)?);
+            if char_at(self.text, value) == Some('=') {
+                value = self.tex_argument_start(value + 1);
+            }
+            return if char_at(self.text, value) == Some('\\') {
+                self.scan_tex_control_sequence(value)
+            } else {
+                char_at(self.text, value).map(|character| value + character.len_utf8())
+            };
         }
         if name == "def" {
             return self.scan_tex_definition(position);

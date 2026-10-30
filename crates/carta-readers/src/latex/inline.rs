@@ -770,6 +770,8 @@ impl Parser {
             in_float: false,
             expansions: Rc::clone(&self.expansions),
             last_ws_had_newline: false,
+            recording: None,
+            tex_comments: self.tex_comments,
         }
     }
 

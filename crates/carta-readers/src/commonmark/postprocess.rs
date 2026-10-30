@@ -14,7 +14,9 @@ use super::{ExampleMap, IrBlock, attr, scan, texttable};
 /// Tighten an HTML element's final content block from `Para` to `Plain` when no blank line
 /// separated it from the close tag.
 pub(super) fn tighten_last_block(blocks: &mut [IrBlock]) {
-    if let Some(block) = blocks.last_mut()
+    if let Some(block) = blocks
+        .iter_mut()
+        .rfind(|block| !matches!(block, IrBlock::FootnoteDefinition(_)))
         && let IrBlock::Para(text) = block
     {
         *block = IrBlock::Plain(std::mem::take(text));
@@ -71,8 +73,20 @@ fn attach_table_captions_nested(blocks: &mut Vec<IrBlock>, ext: Extensions) {
             i += 1;
             continue;
         };
-        let attached = (i >= 1 && set_table_caption(blocks, i - 1, &caption, ext))
-            || (i + 1 < blocks.len() && set_table_caption(blocks, i + 1, &caption, ext));
+        let previous = blocks.get(..i).and_then(|prefix| {
+            prefix
+                .iter()
+                .rposition(|block| !matches!(block, IrBlock::FootnoteDefinition(_)))
+        });
+        let next = blocks
+            .iter()
+            .enumerate()
+            .skip(i + 1)
+            .find(|(_, block)| !matches!(block, IrBlock::FootnoteDefinition(_)))
+            .map(|(index, _)| index);
+        let attached = previous
+            .is_some_and(|index| set_table_caption(blocks, index, &caption, ext, false))
+            || next.is_some_and(|index| set_table_caption(blocks, index, &caption, ext, true));
         if attached {
             blocks.remove(i);
         } else {
@@ -119,6 +133,7 @@ pub(super) fn set_table_caption(
     index: usize,
     text: &str,
     ext: Extensions,
+    before: bool,
 ) -> bool {
     let (caption_slot, attr_slot) = match blocks.get_mut(index) {
         Some(IrBlock::Table { caption, attr, .. }) => (caption, attr),
@@ -134,7 +149,10 @@ pub(super) fn set_table_caption(
     } else {
         (text, None)
     };
-    *caption_slot = Some(body.to_owned());
+    *caption_slot = Some(super::IrCaption {
+        text: body.to_owned(),
+        before,
+    });
     if let Some(parsed) = parsed {
         *attr_slot = parsed;
     }

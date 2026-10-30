@@ -10,7 +10,13 @@ use super::support::{
     substitute_macro, symbol_text,
 };
 use super::tables::parse_cell_inlines;
-use super::{Expansion, Frame, InlineStop, Macro, Parser};
+use super::{Expansion, Frame, InlineStop, Macro, MacroDefinitions, Parser};
+
+enum Scope {
+    Group,
+    Environment(String),
+    Explicit,
+}
 
 impl Parser {
     // Accents & arguments
@@ -85,7 +91,7 @@ impl Parser {
                         self.bump();
                     }
                 }
-                '%' if comments => self.copy_comment(&mut s),
+                '%' if comments && self.tex_comments => self.copy_comment(&mut s),
                 _ => {
                     s.push(c);
                     self.bump();
@@ -131,7 +137,7 @@ impl Parser {
                         s.push(character);
                     }
                 }
-                '%' if comments => self.copy_comment(&mut s),
+                '%' if comments && self.tex_comments => self.copy_comment(&mut s),
                 _ => {
                     s.push(c);
                     self.bump();
@@ -156,7 +162,7 @@ impl Parser {
                 Some(' ' | '\t' | '\n' | '\r') => {
                     self.bump();
                 }
-                Some('%') => self.skip_comment(),
+                Some('%') if self.tex_comments => self.skip_comment(),
                 _ => break,
             }
         }
@@ -249,15 +255,17 @@ impl Parser {
             self.skip_macro_space();
             let optional_default = self.read_optional(true);
             let body = self.read_macro_group().unwrap_or_default();
-            Rc::make_mut(&mut self.macros).insert(
-                macro_name,
-                Rc::new(Macro::Defined {
-                    prefix: Vec::new(),
-                    parameters: vec![Vec::new(); args],
-                    optional_default,
-                    body,
-                }),
-            );
+            if name != "providecommand" || !self.macros.contains_key(&macro_name) {
+                self.store_macro(
+                    macro_name,
+                    Rc::new(Macro::Defined {
+                        prefix: Vec::new(),
+                        parameters: vec![Vec::new(); args],
+                        optional_default,
+                        body,
+                    }),
+                );
+            }
         }
         if self.ext.contains(Extension::LatexMacros) {
             return Vec::new();
@@ -324,7 +332,7 @@ impl Parser {
         } else {
             return;
         };
-        Rc::make_mut(&mut self.macros).insert(name, binding);
+        self.store_macro(name, binding);
     }
 
     pub(super) fn parse_def(&mut self) {
@@ -378,7 +386,7 @@ impl Parser {
             }
         }
         let body = self.read_macro_group().unwrap_or_default();
-        Rc::make_mut(&mut self.macros).insert(
+        self.store_macro(
             macro_name,
             Rc::new(Macro::Defined {
                 prefix,
@@ -387,6 +395,17 @@ impl Parser {
                 body,
             }),
         );
+    }
+
+    fn store_macro(&mut self, name: String, definition: Rc<Macro>) {
+        if Rc::strong_count(&self.macros) > 1 {
+            let Some(remaining) = self.expansions.calls.get().checked_sub(self.macros.len()) else {
+                self.expansions.calls.set(0);
+                return;
+            };
+            self.expansions.calls.set(remaining);
+        }
+        Rc::make_mut(&mut self.macros).insert(name, definition);
     }
 
     /// Pushes a macro or expansion primitive's replacement before the remaining input.
@@ -418,6 +437,11 @@ impl Parser {
         let Some(mac) = macros.get(&name) else {
             return false;
         };
+        let preserve = matches!(mac.as_ref(), Macro::Defined { prefix, parameters, .. }
+            if !prefix.is_empty() || !parameters.is_empty());
+        if preserve {
+            self.recording = Some(String::new());
+        }
         self.read_control_sequence();
         let mut args = Vec::new();
         if let Macro::Defined {
@@ -428,7 +452,8 @@ impl Parser {
         } = mac.as_ref()
         {
             if !self.eat_macro_delimiter(prefix) {
-                return true;
+                self.restore_macro_call(parent);
+                return false;
             }
             if let Some(default) = optional_default {
                 let first = if self.cur() == Some('[') {
@@ -442,12 +467,15 @@ impl Parser {
                 .iter()
                 .skip(usize::from(optional_default.is_some()))
             {
-                match self.read_delimited_arg(delimiter) {
-                    Some(a) => args.push(a),
-                    None => args.push(String::new()),
+                if let Some(argument) = self.read_delimited_arg(delimiter) {
+                    args.push(argument);
+                } else {
+                    self.restore_macro_call(parent);
+                    return false;
                 }
             }
         }
+        self.recording = None;
         if self.expansions.calls.get() == 0 {
             return true;
         }
@@ -483,6 +511,11 @@ impl Parser {
             self.frames.push(frame);
         }
         true
+    }
+
+    fn restore_macro_call(&mut self, parent: Option<Rc<Expansion>>) {
+        let source = self.recording.take().unwrap_or_default();
+        self.frames.push(Frame::new(&source, parent));
     }
 
     fn is_expand_after(&self) -> bool {
@@ -614,7 +647,7 @@ impl Parser {
                         argument.push(' ');
                     }
                 }
-                '%' => self.copy_comment(&mut argument),
+                '%' if self.tex_comments => self.copy_comment(&mut argument),
                 _ => {
                     argument.push(character);
                     self.bump();
@@ -631,40 +664,163 @@ impl Parser {
             return source.to_owned();
         }
         let mut parser = self.child(source, false);
+        parser.expand_source(false)
+    }
+
+    fn expand_link_argument(&mut self) -> String {
+        self.recording = Some(String::new());
+        self.consume_control_word();
+        let argument = self.read_group_raw();
+        let source = self.recording.take().unwrap_or_default();
+        let Some(argument) = argument else {
+            return source;
+        };
+        let Some(open) = source.find('{') else {
+            return source;
+        };
+        if !source.ends_with('}') {
+            return source;
+        }
+        let mut parser = self.child(&argument, false);
+        parser.tex_comments = false;
+        let expanded = parser.expand_source(false);
+        let prefix = source.get(..=open).unwrap_or_default();
+        format!("{prefix}{expanded}}}")
+    }
+
+    fn expand_scope(&mut self, name: &str, scopes: &mut Vec<(Scope, MacroDefinitions)>) -> String {
+        self.recording = Some(String::new());
+        self.consume_control_word();
+        if matches!(name, "begin" | "end") {
+            if let Some(environment) = self.read_group_raw() {
+                if name == "begin" {
+                    if matches!(
+                        environment.as_str(),
+                        "verbatim" | "verbatim*" | "Verbatim" | "lstlisting" | "minted"
+                    ) || (environment == "code" && self.ext.contains(Extension::LiterateHaskell))
+                    {
+                        self.read_verbatim_body(&environment);
+                    } else {
+                        scopes.push((Scope::Environment(environment), Rc::clone(&self.macros)));
+                    }
+                } else if scopes.last().is_some_and(
+                    |(scope, _)| matches!(scope, Scope::Environment(open) if open == &environment),
+                ) && let Some((_, macros)) = scopes.pop()
+                {
+                    self.macros = macros;
+                }
+            }
+        } else if name == "begingroup" {
+            scopes.push((Scope::Explicit, Rc::clone(&self.macros)));
+        } else if scopes
+            .last()
+            .is_some_and(|(scope, _)| matches!(scope, Scope::Explicit))
+            && let Some((_, macros)) = scopes.pop()
+        {
+            self.macros = macros;
+        }
+        self.recording.take().unwrap_or_default()
+    }
+
+    fn expand_source(&mut self, definitions: bool) -> String {
         let mut output = String::new();
         let mut control_word = false;
-        while let Some(character) = parser.cur() {
+        let mut scopes = Vec::new();
+        while let Some(character) = self.cur() {
             if character == '\\' {
-                if parser.try_expand_macro() {
+                if self.try_expand_macro() {
                     continue;
                 }
-                output.push('\\');
-                if let Some(name) = parser.peek_control_word() {
-                    parser.advance_chars(name.len() + 1);
+                if let Some(name) = self.peek_control_word() {
+                    if definitions
+                        && matches!(
+                            name.as_str(),
+                            "newcommand"
+                                | "renewcommand"
+                                | "providecommand"
+                                | "DeclareRobustCommand"
+                                | "def"
+                                | "let"
+                        )
+                    {
+                        self.recording = Some(String::new());
+                        self.parse_macro_definition(&name);
+                        output.push_str(&self.recording.take().unwrap_or_default());
+                        control_word = false;
+                        continue;
+                    }
+                    if definitions
+                        && matches!(name.as_str(), "begin" | "end" | "begingroup" | "endgroup")
+                    {
+                        let source = self.expand_scope(&name, &mut scopes);
+                        control_word = source
+                            .chars()
+                            .next_back()
+                            .is_some_and(|character| character.is_ascii_alphabetic());
+                        output.push_str(&source);
+                        continue;
+                    }
+                    if definitions && matches!(name.as_str(), "url" | "href") {
+                        output.push_str(&self.expand_link_argument());
+                        control_word = false;
+                        continue;
+                    }
+                    if definitions && matches!(name.as_str(), "nolinkurl" | "path" | "verb") {
+                        self.recording = Some(String::new());
+                        self.consume_control_word();
+                        if self.cur() == Some('*') {
+                            self.bump();
+                        }
+                        if name == "verb" {
+                            if let Some(delimiter) = self.bump() {
+                                while let Some(character) = self.bump() {
+                                    if character == delimiter {
+                                        break;
+                                    }
+                                }
+                            }
+                        } else {
+                            self.read_group_raw();
+                        }
+                        output.push_str(&self.recording.take().unwrap_or_default());
+                        control_word = false;
+                        continue;
+                    }
+                    self.advance_chars(name.len() + 1);
+                    output.push('\\');
                     output.push_str(&name);
                     control_word = true;
                     continue;
                 }
-                parser.bump();
-                if let Some(symbol) = parser.bump() {
+                output.push('\\');
+                self.bump();
+                if let Some(symbol) = self.bump() {
                     output.push(symbol);
                 }
-            } else if character == '%' {
-                while let Some(character) = parser.bump() {
-                    output.push(character);
-                    if character == '\n' {
-                        break;
+            } else if character == '%' && self.tex_comments {
+                self.copy_comment(&mut output);
+            } else {
+                if definitions {
+                    if character == '{' {
+                        scopes.push((Scope::Group, Rc::clone(&self.macros)));
+                    } else if character == '}'
+                        && scopes
+                            .last()
+                            .is_some_and(|(scope, _)| matches!(scope, Scope::Group))
+                        && let Some((_, macros)) = scopes.pop()
+                    {
+                        self.macros = macros;
                     }
                 }
-            } else {
                 if control_word && character.is_ascii_alphabetic() {
                     output.push(' ');
                 }
                 output.push(character);
-                parser.bump();
+                self.bump();
             }
             control_word = false;
         }
+        self.drop_exhausted_frames();
         output
     }
 
@@ -678,5 +834,65 @@ impl Parser {
         } else {
             self.bump().map(|c| c.to_string())
         }
+    }
+}
+
+/// Stateful expansion of TeX fragments embedded in another text format.
+#[cfg(feature = "commonmark")]
+pub(crate) struct MacroExpander(Parser);
+
+#[cfg(feature = "commonmark")]
+impl MacroExpander {
+    pub(crate) fn new(source_len: usize, mut extensions: carta_core::Extensions) -> Self {
+        extensions.insert(Extension::LatexMacros);
+        Self(Parser::new(source_len, extensions, 1))
+    }
+
+    pub(crate) fn has_definitions(&self) -> bool {
+        !self.0.macros.is_empty()
+    }
+
+    pub(crate) fn probe(&self) -> Self {
+        let mut parser = Parser::new(0, self.0.ext, self.0.base_level);
+        parser.macros = Rc::clone(&self.0.macros);
+        parser.expansions.calls.set(self.0.expansions.calls.get());
+        parser
+            .expansions
+            .characters
+            .set(self.0.expansions.characters.get());
+        Self(parser)
+    }
+
+    pub(crate) fn fork(&self) -> Self {
+        Self(self.0.child("", false))
+    }
+
+    pub(crate) fn raw(&mut self, source: &str) -> String {
+        let content = source.trim_end_matches([' ', '\t']);
+        self.0.set_source(content);
+        let mut output = self.0.expand_source(true);
+        output.push_str(source.get(content.len()..).unwrap_or_default());
+        output
+    }
+
+    pub(crate) fn math(&self, source: &str) -> String {
+        self.0.expand_math(source)
+    }
+}
+
+#[cfg(all(test, feature = "commonmark"))]
+mod tests {
+    use super::MacroExpander;
+
+    #[test]
+    fn scope_copies_stop_when_the_work_allowance_is_spent() {
+        let mut engine = MacroExpander::new(100, carta_core::Extensions::empty());
+        engine.raw(r"\newcommand{\word}{first}\newcommand{\other}{second}");
+        engine.0.expansions.calls.set(1);
+        let mut scope = engine.fork();
+        let source = r"\renewcommand{\word}{inside}\word";
+        assert_eq!(scope.raw(source), source);
+        engine.0.expansions.calls.set(10);
+        assert_eq!(engine.math(r"\word"), "first");
     }
 }

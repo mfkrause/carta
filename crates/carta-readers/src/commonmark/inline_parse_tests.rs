@@ -22,6 +22,7 @@ fn no_notes() -> RefContext<'static> {
     RefContext {
         defined: &NO_DEFINED,
         by_id: &NO_BY_ID,
+        macros: None,
         in_definition: false,
         markdown: false,
         examples: &NO_EXAMPLES,

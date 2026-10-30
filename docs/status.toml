@@ -53,7 +53,6 @@ write = "usable"
 read-feature = "read-commonmark"
 write-feature = "write-markdown"
 read-gaps = [
-  '''`latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.''',
   "Bracketed citations resolve through a memo, so nesting costs linear work; only brackets nested tens of levels deep (past a work budget that bounds total citation output) stay literal text.",
 ]
 write-gaps = [
@@ -770,7 +769,6 @@ supported = [
   "markdown_attribute",
 ]
 recognized-not-modeled = [
-  "latex_macros",
   "rebase_relative_paths",
 ]
 

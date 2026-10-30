@@ -639,6 +639,11 @@ impl<'a> InlineParser<'a> {
         }
         let note = if self.notes.in_definition {
             Inline::Str(carta_ast::Text::default())
+        } else if self.notes.macros.is_some() {
+            Inline::Note(vec![carta_ast::Block::RawBlock(
+                carta_ast::Format(super::super::resolve::macros::NOTE.into()),
+                key.into(),
+            )])
         } else {
             Inline::Note(self.notes.by_id.get(&key).cloned().unwrap_or_default())
         };

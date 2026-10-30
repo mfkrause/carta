@@ -182,6 +182,7 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
     let notes = RefContext {
         defined: &defined,
         by_id: &by_id,
+        macros: None,
         in_definition: false,
         markdown: false,
         examples: &examples,

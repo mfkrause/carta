@@ -1,4 +1,4 @@
-//! Gather consecutive TeX macro definitions as verbatim blocks.
+//! Gather consecutive TeX definitions and standalone commands as raw blocks.
 
 use super::{Cursor, Kind, Node, Parser};
 
@@ -97,7 +97,11 @@ impl Parser {
         if matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph)) {
             return None;
         }
-        opening(cursor.remaining())?;
+        if opening(cursor.remaining()).is_none()
+            && super::super::inline::raw_tex_block_prefix(cursor.remaining()).is_none()
+        {
+            return None;
+        }
         let line = cursor.rest();
         cursor.advance_chars(line.chars().count());
         let kind = Kind::TexDefinition(Definition::Between(String::new()));
@@ -117,6 +121,7 @@ impl Parser {
             self.kind(index),
             Some(Kind::TexDefinition(Definition::Between(_)))
         ) && opening(line).is_none()
+            && super::super::inline::raw_tex_block_prefix(line).is_none()
         {
             self.close(index);
             return false;
@@ -132,6 +137,25 @@ impl Parser {
                 Some(Kind::TexDefinition(Definition::Between(_)))
             ) {
                 let Some((end, parameters)) = opening(line) else {
+                    if let Some(end) = super::super::inline::raw_tex_block_prefix(line) {
+                        if let Some(node) = self.nodes.get_mut(index)
+                            && let Kind::TexDefinition(Definition::Between(pending)) =
+                                &mut node.kind
+                        {
+                            node.text.push_str(pending);
+                            node.text.push_str(line.get(..end).unwrap_or_default());
+                            let rest = line.get(end..).unwrap_or_default();
+                            *pending = if rest.trim().is_empty() {
+                                format!("{rest}\n")
+                            } else {
+                                String::new()
+                            };
+                        }
+                        line = line.get(end..).unwrap_or_default();
+                        if line.trim().is_empty() {
+                            return;
+                        }
+                    }
                     self.close(index);
                     if !line.trim().is_empty() {
                         self.process_fragment(
