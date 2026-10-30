@@ -8,6 +8,7 @@
     feature = "latex",
     feature = "commonmark",
     feature = "docbook",
+    feature = "docx",
     feature = "markdown",
     feature = "gfm",
     feature = "rst",
