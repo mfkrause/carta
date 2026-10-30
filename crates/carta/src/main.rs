@@ -395,7 +395,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     }
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);
-    writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
+    writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file, from)?;
     writer_options.source_name = Some(source_name(cli.input.first().map(PathBuf::as_path)));
     if is_docx(to) {
         writer_options.docx = docx_options(cli)?;
@@ -717,7 +717,7 @@ fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
 
 /// Read and merge every `--metadata-file`, later files overriding earlier ones at the key level. A
 /// `.json` extension selects the JSON parser; everything else is read as YAML.
-fn read_metadata_files(paths: &[PathBuf]) -> Result<BTreeMap<String, MetaValue>> {
+fn read_metadata_files(paths: &[PathBuf], from: &str) -> Result<BTreeMap<String, MetaValue>> {
     let mut defaults = BTreeMap::new();
     for path in paths {
         let content = fs::read_to_string(path)?;
@@ -725,6 +725,15 @@ fn read_metadata_files(paths: &[PathBuf]) -> Result<BTreeMap<String, MetaValue>>
         for (key, value) in carta::parse_metadata_file(&content, json)? {
             defaults.insert(key, value);
         }
+    }
+    if !defaults.is_empty()
+        && carta::format_extensions(Some(from))?
+            .into_iter()
+            .any(|(extension, enabled)| {
+                enabled && extension == carta_core::Extension::EastAsianLineBreaks
+            })
+    {
+        carta_core::drop_metadata_wide_breaks(defaults.values_mut());
     }
     Ok(defaults)
 }

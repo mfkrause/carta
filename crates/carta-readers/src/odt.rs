@@ -48,17 +48,15 @@ impl BytesReader for OdtReader {
     fn read_media(&self, input: &[u8], options: &ReaderOptions) -> Result<(Document, MediaBag)> {
         let parts = zip::read_map(input)?;
         let mut media = MediaBag::new();
-        let mut blocks = convert_on_owned_stack(&parts, &mut media)?;
+        let blocks = convert_on_owned_stack(&parts, &mut media)?;
+        let mut document = Document {
+            blocks,
+            ..Document::default()
+        };
         if options.extensions.contains(Extension::EastAsianLineBreaks) {
-            crate::wide_breaks::drop_wide_breaks(&mut blocks);
+            carta_core::drop_document_wide_breaks(&mut document);
         }
-        Ok((
-            Document {
-                blocks,
-                ..Document::default()
-            },
-            media,
-        ))
+        Ok((document, media))
     }
 }
 

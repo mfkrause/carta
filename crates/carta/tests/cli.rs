@@ -1200,6 +1200,45 @@ fn metadata_file_is_read() {
     );
 }
 
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-json",
+    feature = "metadata-file"
+))]
+#[test]
+fn metadata_file_honors_east_asian_breaks_and_keeps_literal_overrides() {
+    let path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("wide-metadata.yaml");
+    fs::write(&path, "title: |\n  中\n  文\n").unwrap();
+    for (format, expected) in [
+        (
+            "markdown+east_asian_line_breaks",
+            serde_json::json!([{"t":"Str","c":"中"},{"t":"Str","c":"文"}]),
+        ),
+        (
+            "markdown-east_asian_line_breaks",
+            serde_json::json!([{"t":"Str","c":"中"},{"t":"SoftBreak"},{"t":"Str","c":"文"}]),
+        ),
+    ] {
+        let result = run(
+            &[
+                "-f",
+                format,
+                "-t",
+                "json",
+                "--metadata-file",
+                path.to_str().unwrap(),
+                "-M",
+                "literal=中\n文",
+            ],
+            "body\n",
+        );
+        assert!(result.success, "{}", result.stderr);
+        let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(document["meta"]["title"]["c"][0]["c"], expected);
+        assert_eq!(document["meta"]["literal"]["c"], "中\n文");
+    }
+}
+
 #[cfg(feature = "write-html")]
 #[test]
 fn template_flag_overrides_default() {

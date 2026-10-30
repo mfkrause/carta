@@ -15,7 +15,6 @@ use carta_core::{Extension, Reader, ReaderOptions, Result};
 use crate::entities::{code_point, lookup_named};
 use crate::mathml::to_tex;
 use crate::tabs::expand_tabs;
-use crate::wide_breaks::{drop_wide_breaks, drop_wide_breaks_in};
 use crate::xml::{Element, Node, local_name, parse_tolerant_with};
 
 /// Parses a `DocBook` document into the document model.
@@ -120,19 +119,17 @@ fn convert(input: &str, options: &ReaderOptions) -> Document {
         ids,
         parted: divides_into_parts(&document),
     };
-    let mut blocks = converter.blocks(&document.children, Context::default());
-    let mut meta = converter.meta(&document);
-    if options.extensions.contains(Extension::EastAsianLineBreaks) {
-        drop_wide_breaks(&mut blocks);
-        for value in meta.values_mut() {
-            drop_wide_breaks_in_meta(value);
-        }
-    }
-    Document {
+    let blocks = converter.blocks(&document.children, Context::default());
+    let meta = converter.meta(&document);
+    let mut document = Document {
         api_version: ApiVersion::default(),
         meta,
         blocks,
+    };
+    if options.extensions.contains(Extension::EastAsianLineBreaks) {
+        carta_core::drop_document_wide_breaks(&mut document);
     }
+    document
 }
 
 /// Expands the input's tabs on the source column grid, the column restarting at each line break.
@@ -1813,23 +1810,6 @@ fn tighten(blocks: &mut [Block]) {
 fn verbatim(text: &str) -> String {
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     normalized.trim_matches('\n').to_owned()
-}
-
-// East Asian line breaks
-
-/// Applies the same rejoining to a metadata value, which carries the same wording as the body.
-fn drop_wide_breaks_in_meta(value: &mut MetaValue) {
-    match value {
-        MetaValue::MetaInlines(inlines) => drop_wide_breaks_in(inlines),
-        MetaValue::MetaBlocks(blocks) => drop_wide_breaks(blocks),
-        MetaValue::MetaList(values) => values.iter_mut().for_each(drop_wide_breaks_in_meta),
-        MetaValue::MetaMap(entries) => {
-            for entry in entries.values_mut() {
-                drop_wide_breaks_in_meta(entry);
-            }
-        }
-        MetaValue::MetaString(_) | MetaValue::MetaBool(_) => {}
-    }
 }
 
 /// The wording an element carries in its own right, with any nested markup left out.

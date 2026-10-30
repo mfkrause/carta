@@ -20,11 +20,13 @@ pub mod stack;
 #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
 pub mod template;
 pub mod walk;
+mod wide_breaks;
 pub mod width;
 
 pub use extensions::{Extension, Extensions, presets};
 pub use media::{MediaBag, MediaItem};
 pub use stack::{DEEP_STACK, DeepStack, on_deep_stack, with_stack};
+pub use wide_breaks::{drop_document_wide_breaks, drop_metadata_wide_breaks};
 
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]
@@ -726,10 +728,14 @@ impl AnyReader {
     /// [`Error::InvalidUtf8`] if a text reader is handed input that is not valid UTF-8, plus any error
     /// the underlying reader returns.
     pub fn read(&self, input: &[u8], options: &ReaderOptions) -> Result<Document> {
-        match self {
+        let mut document = match self {
             AnyReader::Text(reader) => reader.read(std::str::from_utf8(input)?, options),
             AnyReader::Bytes(reader) => reader.read(input, options),
+        }?;
+        if options.extensions.contains(Extension::EastAsianLineBreaks) {
+            drop_document_wide_breaks(&mut document);
         }
+        Ok(document)
     }
 
     /// Reads `input` into a document together with the embedded resources it references. A text
@@ -744,10 +750,14 @@ impl AnyReader {
         input: &[u8],
         options: &ReaderOptions,
     ) -> Result<(Document, MediaBag)> {
-        match self {
+        let (mut document, media) = match self {
             AnyReader::Text(reader) => reader.read_media(std::str::from_utf8(input)?, options),
             AnyReader::Bytes(reader) => reader.read_media(input, options),
+        }?;
+        if options.extensions.contains(Extension::EastAsianLineBreaks) {
+            drop_document_wide_breaks(&mut document);
         }
+        Ok((document, media))
     }
 }
 
