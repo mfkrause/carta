@@ -258,6 +258,10 @@ impl InlineParser<'_> {
                 self.pos += 1;
                 self.push_text('\u{a0}');
             }
+            Some(ch @ ('<' | '>')) if self.ext.contains(Extension::AngleBracketsEscapable) => {
+                self.pos += 1;
+                self.push_text(ch);
+            }
             Some(ch) if broad && is_ascii_punctuation(ch) => {
                 self.pos += 1;
                 self.push_text(ch);

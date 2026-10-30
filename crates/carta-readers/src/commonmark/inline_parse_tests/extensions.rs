@@ -124,6 +124,22 @@ fn broad_escape_set_is_gated_on_all_symbols_escapable() {
 }
 
 #[test]
+fn angle_escapes_work_without_broad_punctuation_escapes() {
+    let extensions = exts(&[Extension::AngleBracketsEscapable, Extension::RawHtml]);
+    assert_eq!(
+        pm(r"\<https://example.com>", extensions),
+        vec![str("<https://example.com>")]
+    );
+    assert_eq!(
+        pm(r"\<em>text\</em>", extensions),
+        vec![str("<em>text</em>")]
+    );
+    assert_eq!(pm(r"x\<y\>|x\|y", extensions), vec![str(r"x<y>|x\|y")]);
+    assert_eq!(pm(r"x\<y\>", no_ext()), vec![str(r"x\<y>")]);
+    assert_eq!(pm(r"`\<em>`", extensions), vec![code(r"\<em>")]);
+}
+
+#[test]
 fn markdown_superscript_rejects_inner_space() {
     let ext = exts(&[Extension::Superscript, Extension::AllSymbolsEscapable]);
     assert_eq!(pm("^a b^", ext), vec![str("^a"), Inline::Space, str("b^")]);
