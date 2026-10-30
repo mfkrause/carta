@@ -422,25 +422,27 @@ fn rst_builds_a_title_block_from_a_block_scalar_title() {
 
 #[cfg(feature = "write-typst")]
 #[test]
-fn typst_default_template_renders_a_structured_author_name() {
+fn typst_default_template_keeps_structured_author_fields() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     let output = convert_text(
         "markdown",
         "typst",
-        "---\nauthor:\n  - name: Grace Hopper\ntitle: Hi\n---\n\nBody.\n",
+        "---\nauthor:\n  - name: Grace Hopper\n    affiliation: Navy\n    email: grace@example.test\ntitle: Hi\n---\n\nBody.\n",
         &ReaderOptions::default(),
         &options,
     )
     .unwrap();
     // A structured author must render its name rather than map truthiness.
     assert!(
-        output.contains("#let authors = ([Grace Hopper],)")
-            && output.contains("author: authors.map(text-value)"),
+        output.contains("name: [Grace Hopper], affiliation: [Navy], email: [grace\\@example.test]")
+            && output.contains("author: authors.map(author => text-value(author.name))"),
         "structured author name should reach #set document: {output}"
     );
     assert!(
-        output.contains("authors.map(name => align(center, name))"),
+        output.contains("#author.name \\")
+            && output.contains("#author.affiliation \\")
+            && output.contains("#author.email"),
         "structured author should render in the title block: {output}"
     );
     assert!(

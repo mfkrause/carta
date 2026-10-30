@@ -1,5 +1,5 @@
 $if(author)$
-#let authors = ($for(author)$[$if(author.name)$$author.name$$else$$author$$endif$],$endfor$)
+#let authors = ($for(author)$(name: [$if(author.name)$$author.name$$else$$author$$endif$], affiliation: [$author.affiliation$], email: [$author.email$]),$endfor$)
 #let text-value(value) = {
   if value.has("text") { value.text }
   else if value.has("children") { value.children.map(text-value).join() }
@@ -8,7 +8,7 @@ $if(author)$
   else { "" }
 }
 $endif$
-#set document($if(title)$title: [$title$], $endif$$if(author)$author: authors.map(text-value).join(", ", last: " & "), $endif$$if(keywords)$keywords: ($for(keywords)$"$keywords$",$endfor$), $endif$)
+#set document($if(title)$title: [$title$], $endif$$if(author)$author: authors.map(author => text-value(author.name)).join(", ", last: " & "), $endif$$if(keywords)$keywords: ($for(keywords)$"$keywords$",$endfor$), $endif$)
 #set page(paper: "$if(papersize)$$papersize$$else$us-letter$endif$", margin: $if(margin)$$margin$$else$(x: 1.25in, y: 1.25in)$endif$, numbering: "1", number-align: center)
 #set text($if(mainfont)$font: ($for(mainfont)$"$mainfont$",$endfor$), $endif$$if(fontsize)$size: $fontsize$, $endif$lang: "$if(lang)$$lang$$else$en$endif$")
 $if(codefont)$
@@ -26,25 +26,37 @@ $for(header-includes)$
 $header-includes$
 $endfor$
 $if(title)$
+#place(top, float: true, scope: "parent", clearance: 4mm, block(below: 1em, width: 100%)[
 #align(center)[#block[
-#text(weight: "bold", size: 1.5em)[$title$$if(thanks)$#footnote[$thanks$]$endif$]
+#text(weight: "bold", size: 1.5em, hyphenate: false)[$title$$if(thanks)$#footnote[$thanks$]$endif$]
 $if(subtitle)$
 #parbreak()
-#text(size: 1.25em)[$subtitle$]
+#text(weight: "bold", size: 1.25em, hyphenate: false)[$subtitle$]
 $endif$
 ]]
 $endif$
 $if(author)$
-#grid(columns: (1fr,) * calc.min(3, authors.len()), ..authors.map(name => align(center, name)))
+#grid(columns: (1fr,) * calc.min(3, authors.len()), row-gutter: 1.5em, ..authors.map(author => align(center)[
+#author.name \
+#author.affiliation \
+#author.email
+]))
+$else$
+$if(title)$
+#v(1.2em)
+$endif$
 $endif$
 $if(date)$
-#align(center)[$date$]
+#align(center)[#block(inset: 1em)[$date$]]
 $endif$
 $if(abstract)$
 #block(inset: 2em)[
 *Abstract* #parbreak()
 $abstract$
 ]
+$endif$
+$if(title)$
+])
 $endif$
 $if(toc)$
 #outline(title: auto, depth: $if(toc-depth)$$toc-depth$$else$3$endif$)

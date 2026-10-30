@@ -476,8 +476,7 @@
         "ships": true,
         "feature": "write-pdf",
         "gaps": [
-          "LaTeX and HTML PDF engines are not supported; the default engine is Typst instead of LaTeX.",
-          "The default title block leaves less space before the following content."
+          "LaTeX and HTML PDF engines are not supported; the default engine is Typst instead of LaTeX."
         ]
       }
     },

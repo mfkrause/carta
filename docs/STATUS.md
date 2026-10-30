@@ -219,7 +219,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `pdf` 🚧
 - LaTeX and HTML PDF engines are not supported; the default engine is Typst instead of LaTeX.
-- The default title block leaves less space before the following content.
 
 ### `typst` ✅
 ### `asciidoc` ✅
