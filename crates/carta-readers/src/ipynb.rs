@@ -10,7 +10,6 @@ use carta_core::{Error, MediaBag, Reader, ReaderOptions, Result};
 use serde_json::{Map, Value};
 
 use crate::commonmark::CommonmarkReader;
-use crate::numeric::general_decimal;
 
 /// Parses a notebook document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -235,11 +234,8 @@ fn build_meta(notebook: &Value, nbformat: i64, nbformat_minor: i64) -> BTreeMap<
     meta
 }
 
-/// Convert a JSON value to a metadata value. Scalars become strings (a null becomes the empty
-/// string, a boolean a `MetaBool`); arrays and objects recurse. A number that is integer-valued
-/// (whether written as an integer or as a float like `3.0`) reads as a plain integer; a fractional
-/// number keeps the general decimal form, falling to scientific notation for very small or very
-/// large magnitudes.
+/// Converts JSON to metadata without rounding decimal values.
+/// Null becomes an empty string; booleans retain their type; arrays and objects recurse.
 fn meta_value(value: &Value) -> MetaValue {
     match value {
         Value::Null => MetaValue::MetaString(carta_ast::Text::default()),
@@ -255,46 +251,76 @@ fn meta_value(value: &Value) -> MetaValue {
     }
 }
 
-/// Render a number for notebook-level metadata: an integer-valued number reads as a plain integer,
-/// while a fractional value is rendered in the general decimal form (scientific notation outside the
-/// magnitude range `[0.1, 10^7)`).
+/// Renders exact decimal metadata numbers with bounded zero padding.
 fn meta_number(number: &serde_json::Number) -> String {
-    if let Some(integer) = number.as_i64() {
-        return integer.to_string();
-    }
-    if let Some(integer) = number.as_u64() {
-        return integer.to_string();
-    }
-    match number.as_f64() {
-        Some(value) if value.is_finite() && value.fract() == 0.0 => integer_string(value),
-        Some(value) => general_decimal(value),
-        None => number.to_string(),
-    }
+    let literal = number.to_string();
+    decimal_number(&literal, true).unwrap_or(literal)
 }
 
-/// Render a number as a JSON scalar would appear in a serialized bundle: an integer keeps its exact
-/// digits, while a fractional number takes the general decimal form. Unlike [`meta_number`], a value
-/// written with a fractional part such as `3.0` keeps that part (it is not folded to an integer).
+/// Renders JSON numbers exactly, keeping a fractional part when its scale is negative.
 fn json_number(number: &serde_json::Number) -> String {
-    if let Some(integer) = number.as_i64() {
-        return integer.to_string();
-    }
-    if let Some(integer) = number.as_u64() {
-        return integer.to_string();
-    }
-    match number.as_f64() {
-        Some(value) => general_decimal(value),
-        None => number.to_string(),
-    }
+    let literal = number.to_string();
+    decimal_number(&literal, false).unwrap_or(literal)
 }
 
-/// Render an integer-valued floating-point number as a bare integer (no fractional part, no
-/// exponent). Negative zero renders as `0`.
-fn integer_string(value: f64) -> String {
-    if value == 0.0 {
-        return "0".to_owned();
+fn decimal_number(literal: &str, fold_integers: bool) -> Option<String> {
+    let (mantissa, exponent) = match literal.split_once(['e', 'E']) {
+        Some((mantissa, exponent)) => (mantissa, exponent.parse::<isize>().ok()?),
+        None => (literal, 0),
+    };
+    let negative = mantissa.starts_with('-');
+    let mantissa = mantissa.strip_prefix('-').unwrap_or(mantissa);
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let exponent = exponent.checked_sub(isize::try_from(fraction.len()).ok()?)?;
+    let digits = format!("{whole}{fraction}");
+    let digits = digits.trim_start_matches('0');
+    if digits.is_empty() {
+        return Some(
+            if fold_integers || exponent >= 0 {
+                "0"
+            } else {
+                "0.0"
+            }
+            .to_owned(),
+        );
     }
-    format!("{value}")
+    let leading = exponent
+        .checked_add(isize::try_from(digits.len()).ok()?)?
+        .checked_sub(1)?;
+    let significant = digits.trim_end_matches('0');
+    let trailing = isize::try_from(digits.len() - significant.len()).ok()?;
+    let integer = exponent >= 0 || (fold_integers && exponent.checked_add(trailing)? >= 0);
+    // Keep extreme exponents compact to bound zero padding.
+    let fixed = (integer && exponent <= 4096) || (-1..=6).contains(&leading);
+    let mut rendered = if !fixed {
+        let first = significant.get(..1)?;
+        let rest = significant.get(1..)?;
+        format!(
+            "{first}.{}e{leading}",
+            if rest.is_empty() { "0" } else { rest }
+        )
+    } else if leading < 0 {
+        format!("0.{significant}")
+    } else {
+        let point = usize::try_from(leading).ok()?.checked_add(1)?;
+        if point >= significant.len() {
+            let mut text = format!("{significant}{}", "0".repeat(point - significant.len()));
+            if !integer {
+                text.push_str(".0");
+            }
+            text
+        } else {
+            format!(
+                "{}.{}",
+                significant.get(..point)?,
+                significant.get(point..)?
+            )
+        }
+    };
+    if negative {
+        rendered.insert(0, '-');
+    }
+    Some(rendered)
 }
 
 /// Serialize a JSON value to compact text, rendering numbers as [`json_number`] does. Object keys are

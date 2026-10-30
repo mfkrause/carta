@@ -173,12 +173,14 @@ pub(crate) mod column_width {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum Number {
-            Value(f64),
+            Value(serde_json::Number),
             Infinity(String),
         }
         match Option::<Number>::deserialize(deserializer)? {
             None => Ok(f64::NAN),
-            Some(Number::Value(value)) => Ok(value),
+            Some(Number::Value(value)) => value
+                .as_f64()
+                .ok_or_else(|| serde::de::Error::custom("invalid floating-point value")),
             Some(Number::Infinity(value)) => match value.as_str() {
                 "+inf" => Ok(f64::INFINITY),
                 "-inf" => Ok(f64::NEG_INFINITY),

@@ -113,6 +113,70 @@ fn metadata_scalars_normalize_and_recurse() {
 }
 
 #[test]
+fn numbers_keep_exact_digits_in_metadata_attributes_and_outputs() {
+    for (literal, metadata, json) in [
+        (
+            "18446744073709551617",
+            "18446744073709551617",
+            "18446744073709551617",
+        ),
+        (
+            "123456789012345678901234567890",
+            "123456789012345678901234567890",
+            "123456789012345678901234567890",
+        ),
+        (
+            "0.12345678901234567890123456789",
+            "0.12345678901234567890123456789",
+            "0.12345678901234567890123456789",
+        ),
+        ("1e-400", "1.0e-400", "1.0e-400"),
+        ("2e3", "2000", "2000"),
+        ("3.0", "3", "3.0"),
+        ("-0.0", "0", "0.0"),
+    ] {
+        let input = format!(
+            r#"{{"nbformat":4,"nbformat_minor":5,"metadata":{{"number":{literal}}},
+            "cells":[{{"cell_type":"code","execution_count":1,"metadata":{{"number":{literal}}},
+            "source":[],"outputs":[{{"output_type":"display_data","metadata":{{}},
+            "data":{{"application/json":{literal}}}}}]}}]}}"#
+        );
+        let document = read(&input);
+        assert_eq!(
+            jupyter(&document).get("number"),
+            Some(&MetaValue::MetaString(metadata.into()))
+        );
+        let Some(Block::Div(cell, _)) = document.blocks.first() else {
+            panic!("expected cell");
+        };
+        assert!(cell.attributes.contains(&("number".into(), json.into())));
+        let Some(Block::Div(_, output)) = first_output(&document) else {
+            panic!("expected output");
+        };
+        assert!(matches!(output.first(), Some(Block::CodeBlock(_, text)) if text == json));
+    }
+    let huge: serde_json::Number = serde_json::from_str("1e400").unwrap();
+    assert_eq!(meta_number(&huge), format!("1{}", "0".repeat(400)));
+    assert_eq!(json_number(&huge), format!("1{}", "0".repeat(400)));
+    let literal = "9".repeat(5000);
+    let wide: serde_json::Number = serde_json::from_str(&literal).unwrap();
+    assert_eq!(meta_number(&wide), literal);
+    assert_eq!(json_number(&wide), literal);
+}
+
+#[test]
+fn extreme_exponents_do_not_expand_without_a_bound() {
+    for literal in ["1e1000000000", "1e-1000000000"] {
+        let number: serde_json::Number = serde_json::from_str(literal).unwrap();
+        assert_eq!(meta_number(&number), literal.replace("1e", "1.0e"));
+        assert_eq!(json_number(&number), literal.replace("1e", "1.0e"));
+    }
+    let literal = "1e999999999999999999999999999999";
+    let number: serde_json::Number = serde_json::from_str(literal).unwrap();
+    assert_eq!(meta_number(&number), "1e+999999999999999999999999999999");
+}
+
+#[test]
 fn markdown_cell_becomes_a_div_with_parsed_blocks() {
     let document = read(
         r##"{"cells": [{"cell_type": "markdown", "id": "m1", "metadata": {},

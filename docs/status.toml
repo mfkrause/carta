@@ -527,7 +527,6 @@ write = "usable"
 read-feature = "read-ipynb"
 write-feature = "write-ipynb"
 read-gaps = [
-  "Extreme-magnitude numbers may render rounded or in scientific form.",
 ]
 write-gaps = [
   "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",

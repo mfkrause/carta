@@ -35,7 +35,7 @@ mod inline_scan;
 mod inline_text;
 #[cfg(any(feature = "html", feature = "odt", feature = "docbook"))]
 mod mathml;
-#[cfg(any(feature = "ipynb", feature = "rtf"))]
+#[cfg(feature = "rtf")]
 mod numeric;
 #[cfg(any(feature = "commonmark", feature = "man", feature = "rst"))]
 mod roman;

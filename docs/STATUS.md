@@ -185,10 +185,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   `\rightarrow`; `·` is kept literal rather than `\cdot`).
 
 ### `epub` ✅
-
 ### `ipynb` ✅
-- Extreme-magnitude numbers may render rounded or in scientific form.
-
 ### `odt` ✅
 ### `rtf` ✅
 ### `docbook` ✅
