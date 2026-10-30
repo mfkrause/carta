@@ -10,6 +10,14 @@ const INLINE: &[(&str, &str)] = &[
         "\\phantom{x}",
         "<m:oMath><m:phant><m:phantPr><m:show m:val=\"off\" /></m:phantPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phant></m:oMath>",
     ),
+    (
+        "\\overparen{x}",
+        "<m:oMath><m:groupChr><m:groupChrPr><m:chr m:val=\"⏜\" /><m:pos m:val=\"top\" /><m:vertJc m:val=\"bot\" /></m:groupChrPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:groupChr></m:oMath>",
+    ),
+    (
+        "\\underparen{x}",
+        "<m:oMath><m:limLow><m:e><m:r><m:t>x</m:t></m:r></m:e><m:lim><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>⏝</m:t></m:r></m:lim></m:limLow></m:oMath>",
+    ),
     ("x", "<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>"),
     ("1", "<m:oMath><m:r><m:t>1</m:t></m:r></m:oMath>"),
     (

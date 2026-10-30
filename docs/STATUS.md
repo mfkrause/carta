@@ -235,8 +235,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `man` ✅
 
 ### `docx` ✅
-- `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
-  group-character parenthesis set over or under the base.
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
 

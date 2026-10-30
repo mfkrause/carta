@@ -467,6 +467,13 @@ fn nucleus(body: &Body, style: Style, depth: usize, display: bool) -> Option<Vec
                 Some(vec![cancel(strike, argument, style, depth)?])
             } else if name == "boxed" {
                 Some(vec![border_box(argument, style, depth)?])
+            } else if name == "overparen" || name == "underparen" {
+                let (kind, glyph) = if name == "overparen" {
+                    (BraceKind::Over, "\u{23DC}")
+                } else {
+                    (BraceKind::Under, "\u{23DD}")
+                };
+                Some(vec![group_character(kind, glyph, argument, style, depth)?])
             } else if name == "phantom" {
                 Some(vec![
                     Element::new("m:phant")
@@ -495,7 +502,13 @@ fn nucleus(body: &Body, style: Style, depth: usize, display: bool) -> Option<Vec
         Body::Mod(kind, argument) => modulo(*kind, argument.as_deref(), style, depth, display),
         Body::Negated(base) => negated(base),
         Body::NegatedGroup(atoms) => Some(vec![negated_group(atoms, style, depth)?]),
-        Body::Brace(kind, group) => Some(vec![brace(*kind, group, style, depth)?]),
+        Body::Brace(kind, group) => {
+            let glyph = match kind {
+                BraceKind::Over => "\u{23DE}",
+                BraceKind::Under => "\u{23DF}",
+            };
+            Some(vec![group_character(*kind, glyph, group, style, depth)?])
+        }
         Body::Stack(side, mark, base) => Some(vec![stack(*side, mark, base, style, depth)?]),
         Body::ExtArrow(arrow, below, above) => Some(vec![ext_arrow(
             arrow,
@@ -514,22 +527,27 @@ fn upright_props() -> Element {
     properties(vec![style_value("p")])
 }
 
-/// Lower a horizontal brace without its label: an over-brace as a top group character, an under-brace
-/// as a lower limit carrying the bottom brace glyph.
-fn brace(kind: BraceKind, group: &[Atom], style: Style, depth: usize) -> Option<Element> {
+/// Renders a horizontal brace or parenthesis above or below its content.
+fn group_character(
+    kind: BraceKind,
+    glyph: &str,
+    group: &[Atom],
+    style: Style,
+    depth: usize,
+) -> Option<Element> {
     let body = wrap("m:e", non_empty(lower_seq(group, style, depth + 1, false)?));
     Some(match kind {
         BraceKind::Over => Element::new("m:groupChr")
             .child(
                 Element::new("m:groupChrPr")
-                    .child(Element::new("m:chr").attr("m:val", "\u{23DE}"))
+                    .child(Element::new("m:chr").attr("m:val", glyph))
                     .child(Element::new("m:pos").attr("m:val", "top"))
                     .child(Element::new("m:vertJc").attr("m:val", "bot")),
             )
             .child(body),
         BraceKind::Under => Element::new("m:limLow")
             .child(body)
-            .child(wrap("m:lim", vec![run("\u{23DF}", Some(upright_props()))])),
+            .child(wrap("m:lim", vec![run(glyph, Some(upright_props()))])),
     })
 }
 
