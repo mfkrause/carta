@@ -537,6 +537,36 @@ fn code_block_with_language() {
     );
 }
 
+#[cfg(feature = "highlight")]
+#[test]
+fn disabled_native_highlighting_reaches_nested_code() {
+    let code = Block::CodeBlock(
+        Box::new(Attr {
+            classes: vec!["rust".into()],
+            ..Attr::default()
+        }),
+        "let value = 1;".into(),
+    );
+    let document = Document {
+        blocks: vec![
+            Block::BlockQuote(vec![code.clone()]),
+            Block::Para(vec![Inline::Note(vec![code])]),
+        ],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.highlight.disable_native = true;
+    let output = TypstWriter.write(&document, &options).unwrap();
+    assert!(!output.contains("```rust"));
+    assert_eq!(output.matches("```\nlet value = 1;\n```").count(), 2);
+    assert!(
+        TypstWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap()
+            .contains("```rust")
+    );
+}
+
 fn inline_math(text: &str) -> String {
     render(vec![para(vec![Inline::Math(
         MathType::InlineMath,

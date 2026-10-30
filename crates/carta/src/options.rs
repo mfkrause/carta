@@ -86,7 +86,10 @@ pub(super) fn highlight_options(
 ) -> Result<carta::HighlightOptions> {
     let mode = cli.syntax_highlighting.as_deref();
     if cli.no_highlight || mode == Some("none") {
-        return Ok(carta::HighlightOptions::default());
+        return Ok(carta::HighlightOptions {
+            disable_native: true,
+            ..carta::HighlightOptions::default()
+        });
     }
     if mode == Some("idiomatic") {
         return Ok(carta::HighlightOptions {
@@ -116,6 +119,7 @@ pub(super) fn highlight_options(
         return Ok(carta::HighlightOptions::default());
     }
     Ok(carta::HighlightOptions {
+        disable_native: false,
         highlighter: Some(Arc::new(highlighter)),
         theme: Some(theme),
         idiomatic: false,

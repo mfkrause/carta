@@ -66,6 +66,23 @@ fn commonmark_to_html_over_stdin() {
     assert_eq!(result.stdout, "<h1>Hi</h1>\n");
 }
 
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-typst",
+    feature = "highlight"
+))]
+#[test]
+fn disabled_highlighting_keeps_typst_code_plain() {
+    for flag in ["--syntax-highlighting=none", "--no-highlight"] {
+        let output = run(
+            &["-f", "commonmark", "-t", "typst", flag],
+            "```rust\nlet value = 1;\n```\n",
+        );
+        assert!(output.success, "{}", output.stderr);
+        assert_eq!(output.stdout, "```\nlet value = 1;\n```\n");
+    }
+}
+
 #[cfg(all(feature = "read-commonmark", feature = "write-html"))]
 #[test]
 fn mathml_flag_renders_structured_math() {

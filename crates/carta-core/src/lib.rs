@@ -289,6 +289,9 @@ pub struct DocxOptions {
 #[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
 #[derive(Debug, Clone, Default)]
 pub struct HighlightOptions {
+    /// Disable a target format's built-in code highlighting.
+    pub disable_native: bool,
+
     /// The tokenizer catalog. `None` leaves code blocks plain, with no color spans or line-number
     /// scaffolding.
     pub highlighter: Option<std::sync::Arc<carta_highlight::Highlighter>>,

@@ -37,6 +37,7 @@ fn themed(style: &str) -> HighlightOptions {
         .add_definition_with_stem(&xml, "python")
         .expect("parse python grammar");
     HighlightOptions {
+        disable_native: false,
         highlighter: Some(Arc::new(highlighter)),
         theme: Some(theme),
         idiomatic: false,

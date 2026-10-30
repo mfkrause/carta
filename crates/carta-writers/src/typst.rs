@@ -21,6 +21,20 @@ pub struct TypstWriter;
 
 impl Writer for TypstWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        #[cfg(feature = "highlight")]
+        let mut unhighlighted_document;
+        #[cfg(feature = "highlight")]
+        let document = if options.highlight.disable_native {
+            unhighlighted_document = document.clone();
+            carta_core::walk::for_each_document_block(&mut unhighlighted_document, &mut |block| {
+                if let Block::CodeBlock(attributes, _) = block {
+                    attributes.classes.clear();
+                }
+            });
+            &unhighlighted_document
+        } else {
+            document
+        };
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let smart = options.extensions.contains(Extension::Smart);
         let body = blocks(&document.blocks, width, options.wrap, smart);
