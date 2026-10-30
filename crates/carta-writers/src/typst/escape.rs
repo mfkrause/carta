@@ -27,11 +27,10 @@ fn image_source(url: &str) -> String {
     let Some((bytes, mime)) = decode_data_uri(url) else {
         return format!("\"{}\"", escape_string(url));
     };
-    if mime == "image/svg+xml" {
-        return format!(
-            "bytes(\"{}\")",
-            escape_string(&String::from_utf8_lossy(&bytes))
-        );
+    if mime == "image/svg+xml"
+        && let Ok(svg) = std::str::from_utf8(&bytes)
+    {
+        return format!("bytes(\"{}\")", escape_string(svg));
     }
     let mut source = String::from("bytes((");
     for (index, byte) in bytes.iter().enumerate() {
@@ -39,6 +38,9 @@ fn image_source(url: &str) -> String {
             source.push(',');
         }
         let _ = write!(source, "{byte}");
+    }
+    if bytes.len() == 1 {
+        source.push(',');
     }
     source.push_str("))");
     source
