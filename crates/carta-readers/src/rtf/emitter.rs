@@ -479,9 +479,22 @@ impl Emitter {
         let mut out = Vec::new();
         let trailing = self.take_inlines();
         for mut block in self.blocks {
-            if let Block::Para(inlines) | Block::Plain(inlines) = &mut block {
-                out.append(inlines);
+            let inlines = match &mut block {
+                Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
+                    take(inlines)
+                }
+                Block::CodeBlock(attributes, text) => {
+                    vec![Inline::Code(take(attributes), take(text))]
+                }
+                _ => continue,
+            };
+            if !out.is_empty() && !inlines.is_empty() {
+                out.push(Inline::Space);
             }
+            out.extend(inlines);
+        }
+        if !out.is_empty() && !trailing.is_empty() {
+            out.push(Inline::Space);
         }
         out.extend(trailing);
         out

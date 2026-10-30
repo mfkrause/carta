@@ -376,12 +376,40 @@ fn info_group_populates_metadata() {
 }
 
 #[test]
-fn destinations_are_skipped() {
+fn metadata_destinations_do_not_enter_the_body() {
     let doc = read(r"{\rtf1{\fonttbl{\f0 Times;}}\ansi text {\*\generator X;}more\par}");
     assert_eq!(
         doc.blocks,
         vec![para(vec![s("text"), Inline::Space, s("more")])]
     );
+    assert_eq!(
+        doc.meta.get("generator"),
+        Some(&MetaValue::MetaInlines(vec![s("X;")]))
+    );
+}
+
+#[test]
+fn metadata_paragraphs_keep_all_their_text() {
+    let document = read(
+        r"{\rtf1{\fonttbl{\f0\fmodern Courier;}}{\info{\title First\par Last}{\subject{\f0 code\par more}}}Body}",
+    );
+    assert_eq!(
+        document.meta.get("title"),
+        Some(&MetaValue::MetaInlines(vec![
+            s("First"),
+            Inline::Space,
+            s("Last")
+        ]))
+    );
+    assert_eq!(
+        document.meta.get("subject"),
+        Some(&MetaValue::MetaInlines(vec![
+            Inline::Code(Box::default(), "code".into()),
+            Inline::Space,
+            Inline::Code(Box::default(), "more".into()),
+        ]))
+    );
+    assert_eq!(document.blocks, vec![para(vec![s("Body")])]);
 }
 
 #[test]

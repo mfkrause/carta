@@ -3,8 +3,6 @@
 use carta_ast::{Inline, MetaValue, Target, Text};
 use carta_core::media::content_addressed_name;
 
-use crate::inline_text::words_to_inlines;
-
 use super::chars::{
     combine_surrogate, decode_hex, parse_hyperlink, picture_attr, special_char, symbol_char,
     unicode_code,
@@ -16,8 +14,17 @@ use super::parser::Parser;
 
 /// Document-metadata destination words carried into the `meta` map as inline values.
 const META_FIELDS: &[&str] = &[
-    "title", "author", "keywords", "subject", "comment", "company", "doccomm", "operator",
-    "category", "manager",
+    "title",
+    "author",
+    "keywords",
+    "subject",
+    "comment",
+    "company",
+    "doccomm",
+    "operator",
+    "category",
+    "manager",
+    "generator",
 ];
 
 impl Parser {
@@ -33,14 +40,14 @@ impl Parser {
                 }
                 Some(Token::GroupStart) => {
                     self.pos += 1;
-                    self.parse_info_field();
+                    self.parse_metadata_field();
                 }
                 Some(_) => self.pos += 1,
             }
         }
     }
 
-    fn parse_info_field(&mut self) {
+    pub(super) fn parse_metadata_field(&mut self) {
         self.skip_optional_marker();
         let name = match self.tokens.get(self.pos) {
             Some(Token::Control(word, _)) => {
@@ -50,11 +57,11 @@ impl Parser {
             }
             _ => None,
         };
-        let text = self.collect_text();
         let Some(name) = name.filter(|name| META_FIELDS.contains(&name.as_str())) else {
+            self.skip_group();
             return;
         };
-        let inlines = words_to_inlines(&text);
+        let inlines = self.collect_group_inlines(false);
         if !inlines.is_empty() {
             self.meta
                 .insert(name.into(), MetaValue::MetaInlines(inlines));
@@ -497,7 +504,7 @@ impl Parser {
                                 url = Some(found);
                             }
                         }
-                        Some("fldrslt") => display = self.collect_group_inlines(),
+                        Some("fldrslt") => display = self.collect_group_inlines(true),
                         _ => self.skip_group(),
                     }
                 }
@@ -555,13 +562,10 @@ impl Parser {
         }
     }
 
-    /// Builds the inline content of the group opened at the current position, in a throwaway block
-    /// context, and returns it flattened. Edge whitespace is kept: the content is inline display
-    /// text (a hyperlink's `\fldrslt`), where a leading or trailing space separates it from the
-    /// surrounding words.
-    fn collect_group_inlines(&mut self) -> Vec<Inline> {
+    /// Builds a group's inline content with optional edge-space preservation.
+    fn collect_group_inlines(&mut self, preserve_edge_space: bool) -> Vec<Inline> {
         let mut emitter = Emitter::new();
-        emitter.preserve_edge_space = true;
+        emitter.preserve_edge_space = preserve_edge_space;
         self.emitters.push(emitter);
         self.states
             .push(self.states.last().copied().unwrap_or_default());

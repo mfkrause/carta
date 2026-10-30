@@ -194,11 +194,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
-
 ### `rtf` ✅
-- Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
-  document metadata.
-
 ### `docbook` ✅
 ### `csv` ✅
 ### `json` ✅

@@ -19,7 +19,6 @@ const SKIP_DESTINATIONS: &[&str] = &[
     "listtext",
     "revtbl",
     "rsidtbl",
-    "generator",
     "filetbl",
     "pgdsctbl",
     "header",
@@ -256,6 +255,7 @@ impl Parser {
         let (ignorable, dest) = self.peek_destination();
         match dest.as_deref() {
             Some("info") => self.parse_info(),
+            Some("generator") => self.parse_metadata_field(),
             Some("fonttbl") => self.parse_font_table(),
             Some("stylesheet") => self.parse_stylesheet(),
             Some("listtable") => self.parse_list_table(),

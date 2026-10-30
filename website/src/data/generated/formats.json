@@ -1100,9 +1100,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-rtf",
-        "gaps": [
-          "Formatting inside an `\\info` field is flattened to plain text, and `\\generator` is not captured as document metadata."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

@@ -568,7 +568,6 @@ write = "usable"
 read-feature = "read-rtf"
 write-feature = "write-rtf"
 read-gaps = [
-  '''Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as document metadata.''',
 ]
 write-gaps = [
   '''A table nested inside another table's cell carries a single `\intbl` on its cell paragraphs regardless of nesting depth, so the inner table is not set off from its container.''',
