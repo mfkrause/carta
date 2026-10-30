@@ -59,11 +59,13 @@ impl Reader for IpynbReader {
                 .and_then(Value::as_array)
                 .ok_or_else(|| notebook_error("notebook cells must be an array"))?;
             for cell in cells {
-                if let Some(block) =
-                    cell_to_block(cell, nbformat == 3, &language, options, &mut media)?
-                {
-                    blocks.push(block);
-                }
+                blocks.push(cell_to_block(
+                    cell,
+                    nbformat == 3,
+                    &language,
+                    options,
+                    &mut media,
+                )?);
             }
         }
         let document = Document {
@@ -332,16 +334,14 @@ fn json_write(value: &Value, out: &mut String) {
     }
 }
 
-/// Convert one cell into its `Div`, or `None` for an unrecognized cell kind. Any image bytes the
-/// cell carries (a code cell's image outputs, a markdown cell's attachments) are lifted into
-/// `media`.
+/// Converts one cell into a div and captures its embedded resources.
 fn cell_to_block(
     cell: &Value,
     legacy: bool,
     language: &str,
     options: &ReaderOptions,
     media: &mut MediaBag,
-) -> Result<Option<Block>> {
+) -> Result<Block> {
     let normalized;
     let cell = if legacy {
         normalized = normalize_legacy_cell(cell)?;
@@ -349,9 +349,10 @@ fn cell_to_block(
     } else {
         cell
     };
-    let Some(kind) = cell.get("cell_type").and_then(Value::as_str) else {
-        return Ok(None);
-    };
+    let kind = cell
+        .get("cell_type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| notebook_error("notebook cell_type must be a string"))?;
     let attr = cell_attr(
         cell,
         if legacy && kind == "heading" {
@@ -362,7 +363,7 @@ fn cell_to_block(
     );
     let block = match kind {
         "markdown" => Block::Div(Box::new(attr), markdown_cell_blocks(cell, options, media)?),
-        "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language, media)),
+        "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language, media)?),
         "raw" => Block::Div(Box::new(attr), vec![raw_cell_block(cell)]),
         "heading" if legacy => {
             let level = cell
@@ -376,9 +377,13 @@ fn cell_to_block(
             }
             Block::Div(Box::new(attr), blocks)
         }
-        _ => return Ok(None),
+        _ => {
+            return Err(notebook_error(format!(
+                "unknown notebook cell type: {kind}"
+            )));
+        }
     };
-    Ok(Some(block))
+    Ok(block)
 }
 
 /// The cell's attributes: its `id`, the classes `cell` and the cell kind, then a code cell's
@@ -490,7 +495,7 @@ fn capture_attachments(cell: &Value, prefix: Option<&str>, media: &mut MediaBag)
 
 /// A code cell's blocks: a `CodeBlock` of its source tagged with the kernel language, then one
 /// block per renderable output.
-fn code_cell_blocks(cell: &Value, language: &str, media: &mut MediaBag) -> Vec<Block> {
+fn code_cell_blocks(cell: &Value, language: &str, media: &mut MediaBag) -> Result<Vec<Block>> {
     let source = multiline_text(cell.get("source"));
     let source_attr = Attr {
         id: carta_ast::Text::default(),
@@ -498,14 +503,15 @@ fn code_cell_blocks(cell: &Value, language: &str, media: &mut MediaBag) -> Vec<B
         attributes: Vec::new(),
     };
     let mut blocks = vec![Block::CodeBlock(Box::new(source_attr), source.into())];
-    if let Some(Value::Array(outputs)) = cell.get("outputs") {
+    if let Some(outputs) = cell.get("outputs") {
+        let outputs = outputs
+            .as_array()
+            .ok_or_else(|| notebook_error("code cell outputs must be an array"))?;
         for output in outputs {
-            if let Some(block) = output_to_block(output, media) {
-                blocks.push(block);
-            }
+            blocks.push(output_to_block(output, media)?);
         }
     }
-    blocks
+    Ok(blocks)
 }
 
 /// A raw cell's block: a `RawBlock` whose format is read from the cell's media type, or `ipynb`
@@ -522,16 +528,23 @@ fn raw_cell_block(cell: &Value) -> Block {
     Block::RawBlock(Format(format.into()), source.into())
 }
 
-/// Convert one execution output into its `Div`, or `None` for an unrecognized output kind. An image
-/// output's bytes are lifted into `media`.
-fn output_to_block(output: &Value, media: &mut MediaBag) -> Option<Block> {
-    match output.get("output_type").and_then(Value::as_str)? {
-        "stream" => Some(stream_output(output)),
-        "execute_result" => Some(result_output(output, true, media)),
-        "display_data" => Some(result_output(output, false, media)),
-        "error" => Some(error_output(output)),
-        _ => None,
-    }
+/// Converts one execution output into a div and captures its embedded resources.
+fn output_to_block(output: &Value, media: &mut MediaBag) -> Result<Block> {
+    let kind = output
+        .get("output_type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| notebook_error("notebook output_type must be a string"))?;
+    Ok(match kind {
+        "stream" => stream_output(output),
+        "execute_result" => result_output(output, true, media),
+        "display_data" => result_output(output, false, media),
+        "error" => error_output(output),
+        _ => {
+            return Err(notebook_error(format!(
+                "unknown notebook output type: {kind}"
+            )));
+        }
+    })
 }
 
 /// A `stream` output: a plain `CodeBlock` of the stream text inside a `Div` classed by the stream

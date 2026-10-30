@@ -477,12 +477,65 @@ fn raw_cell_maps_format_to_writer_name() {
 }
 
 #[test]
-fn unknown_cell_kinds_are_dropped() {
-    let document = read(
-        r#"{"cells": [{"cell_type": "heading", "level": 2, "metadata": {}, "source": ["H"]}],
-               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
-    );
-    assert!(document.blocks.is_empty());
+fn unknown_or_missing_cell_kinds_are_errors() {
+    for kind in [
+        Some(serde_json::json!("heading")),
+        Some(serde_json::json!("future")),
+        Some(serde_json::json!(1)),
+        None,
+    ] {
+        let mut cell = serde_json::json!({"metadata": {}, "source": ["saved"]});
+        if let Some(kind) = kind {
+            cell["cell_type"] = kind;
+        }
+        let input = serde_json::json!({
+            "cells": [cell], "metadata": {}, "nbformat": 4, "nbformat_minor": 5
+        });
+        let error = IpynbReader
+            .read(&input.to_string(), &ReaderOptions::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("cell type") || error.to_string().contains("cell_type"));
+    }
+}
+
+#[test]
+fn unknown_or_missing_output_kinds_are_errors() {
+    for kind in [
+        Some(serde_json::json!("future")),
+        Some(serde_json::json!(1)),
+        None,
+    ] {
+        let mut output = serde_json::json!({"data": {"text/plain": "saved"}});
+        if let Some(kind) = kind {
+            output["output_type"] = kind;
+        }
+        let input = serde_json::json!({
+            "cells": [{"cell_type": "code", "metadata": {}, "execution_count": 1,
+                "source": [], "outputs": [output]}],
+            "metadata": {}, "nbformat": 4, "nbformat_minor": 5
+        });
+        let error = IpynbReader
+            .read(&input.to_string(), &ReaderOptions::default())
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("output type") || error.to_string().contains("output_type")
+        );
+    }
+}
+
+#[test]
+fn malformed_output_collections_are_errors() {
+    for outputs in [Value::Null, serde_json::json!({"text": "saved"})] {
+        let input = serde_json::json!({
+            "cells": [{"cell_type": "code", "metadata": {}, "execution_count": 1,
+                "source": [], "outputs": outputs}],
+            "metadata": {}, "nbformat": 4, "nbformat_minor": 5
+        });
+        let error = IpynbReader
+            .read(&input.to_string(), &ReaderOptions::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("outputs must be an array"));
+    }
 }
 
 #[test]

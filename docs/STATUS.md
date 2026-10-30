@@ -189,7 +189,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `ipynb` ✅
 - Lenient where the format is strict: a stream output with no `name`, a null `execution_count`, or a
   missing top-level `nbformat` are accepted rather than rejected.
-- Unknown cell and output kinds are silently dropped.
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
 ### `odt` ✅
