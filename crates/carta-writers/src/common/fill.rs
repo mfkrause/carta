@@ -613,7 +613,7 @@ fn place_word<S: Sink>(
 
 /// A gathered word's first-line width, whether it spans more than one line, and its last-line width.
 /// Without an embedded line break the first and last lines are the whole word.
-fn word_line_metrics(word: &[&str], word_width: usize) -> (usize, bool, usize) {
+pub(crate) fn word_line_metrics(word: &[&str], word_width: usize) -> (usize, bool, usize) {
     if !word.iter().any(|part| part.contains('\n')) {
         return (word_width, false, word_width);
     }

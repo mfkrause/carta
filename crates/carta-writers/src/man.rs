@@ -10,7 +10,7 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, GridSlot, RowSpanGrid, clean_prefix_len, display_width, is_known_scheme,
-    label_matches_url, ordered_marker, simple_table_rows,
+    label_matches_url, ordered_marker, simple_table_rows, word_line_metrics,
 };
 
 /// Renders a document to roff man source (no trailing newline).
@@ -795,15 +795,18 @@ impl<'a> Filler<'a> {
     }
 
     fn control(&mut self, text: &str) {
-        let space_before = self.pending_space && self.word.is_empty();
-        self.flush_word();
-        if !self.out.is_empty() && !self.out.ends_with('\n') {
-            if !text.starts_with("\\c") {
+        let text = if let Some(rest) = text.strip_prefix("\\c\n") {
+            self.push_word("\\c", 2);
+            self.flush_word();
+            self.out.push('\n');
+            rest
+        } else {
+            self.flush_word();
+            if !self.out.is_empty() && !self.out.ends_with('\n') {
                 self.out.push('\n');
-            } else if space_before && !self.out.ends_with(' ') {
-                self.out.push(' ');
             }
-        }
+            text
+        };
         self.out.push_str(text);
         self.out.push('\n');
         self.column = 0;
@@ -833,7 +836,8 @@ impl<'a> Filler<'a> {
         if self.word.is_empty() {
             return;
         }
-        let starts_line = self.open_word_line();
+        let (first_width, multiline, last_width) = word_line_metrics(&self.word, self.word_width);
+        let starts_line = self.open_word_line(first_width);
         let opens_request = matches!(
             self.word.first().and_then(|part| part.chars().next()),
             Some('.' | '\'')
@@ -844,16 +848,23 @@ impl<'a> Filler<'a> {
         for part in &self.word {
             self.out.push_str(part);
         }
-        self.column += self.word_width;
+        self.column = if multiline {
+            last_width
+        } else {
+            self.column + self.word_width
+        };
+        if multiline {
+            self.at_line_start = last_width == 0;
+        }
         self.word.clear();
         self.word_width = 0;
         self.pending_space = false;
         self.pending_break = false;
-        self.after_continuation = false;
+        self.after_continuation = multiline && last_width == 0;
     }
 
     /// Emit the separator that precedes the pending word and report whether the word opens a line.
-    fn open_word_line(&mut self) -> bool {
+    fn open_word_line(&mut self, first_width: usize) -> bool {
         if self.after_continuation && self.pending_space {
             self.out.push_str("\\ ");
             self.column = 2;
@@ -864,11 +875,7 @@ impl<'a> Filler<'a> {
             true
         } else if self.pending_break
             || (self.pending_space
-                && self
-                    .column
-                    .saturating_add(1)
-                    .saturating_add(self.word_width)
-                    > self.fill_column)
+                && self.column.saturating_add(1).saturating_add(first_width) > self.fill_column)
         {
             self.out.push('\n');
             self.column = 0;

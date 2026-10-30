@@ -608,6 +608,48 @@ fn link(label: Vec<Inline>, url: &str) -> Inline {
 }
 
 #[test]
+fn link_continuations_count_toward_the_preceding_word_width() {
+    let document = Document {
+        blocks: vec![para(vec![Inline::Strong(vec![
+            s("before"),
+            Inline::Space,
+            s("words"),
+            link(vec![s("label")], "https://example.test"),
+            s("after"),
+        ])])],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.columns = Some(17);
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        ".PP\n\\f[B]before\nwords\\c\n.UR https://example.test\nlabel\n.UE \\c\nafter\\f[R]"
+    );
+}
+
+#[test]
+fn raw_line_breaks_reset_width_and_preserve_following_spaces() {
+    let document = Document {
+        blocks: vec![para(vec![
+            Inline::RawInline(Format("man".into()), "\\c\n.foo\n".into()),
+            Inline::Space,
+            s("alpha"),
+            Inline::Space,
+            s("beta"),
+            Inline::Space,
+            s("gamma"),
+        ])],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.columns = Some(10);
+    assert_eq!(
+        ManWriter.write(&document, &options).unwrap(),
+        ".PP\n\\c\n.foo\n\\ alpha\nbeta gamma"
+    );
+}
+
+#[test]
 fn decoded_label_link_drops_the_label() {
     assert_eq!(
         render(vec![para(vec![link(
