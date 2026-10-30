@@ -65,7 +65,6 @@
   ],
   "recognizedNotModeled": [
     "latex_macros",
-    "four_space_rule",
     "literate_haskell",
     "rebase_relative_paths"
   ],

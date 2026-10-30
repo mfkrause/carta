@@ -318,3 +318,95 @@ fn format_extensions_reject_an_unknown_format() {
     let error = carta::format_extensions(Some("bogus")).unwrap_err();
     assert!(matches!(error, Error::UnsupportedFormat(name) if name == "bogus"));
 }
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-markdown",
+    feature = "write-plain"
+))]
+#[test]
+fn four_column_list_output_keeps_long_markers_and_continuation_blocks() {
+    let source = "- first\n\n  next\n\n1000. a b c d e f g h i j k l m n o p\n\n      next\n\nTerm\n\n: first\n\n  next\n";
+    let expected = "-   first\n\n    next\n\n1000. a b c d e f g\n    h i j k l m n o\n    p\n\n    next\n\nTerm\n\n:   first\n\n    next";
+    let mut options = WriterOptions::default();
+    options.columns = Some(20);
+    for format in ["markdown+four_space_rule", "plain+four_space_rule"] {
+        let output = convert_text(
+            "markdown",
+            format,
+            source,
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        let expected = if format.starts_with("plain") {
+            expected.replace(":   first", "    first")
+        } else {
+            expected.to_owned()
+        };
+        assert_eq!(output, expected, "{format}");
+        if format.starts_with("markdown") {
+            let (mut original, _) =
+                carta::read_document("markdown", source.as_bytes(), &ReaderOptions::default())
+                    .unwrap();
+            let (mut restored, _) =
+                carta::read_document(format, output.as_bytes(), &ReaderOptions::default()).unwrap();
+            for document in [&mut original, &mut restored] {
+                carta::walk::for_each_document_inline(document, &mut |inline| {
+                    if matches!(inline, carta::ast::Inline::SoftBreak) {
+                        *inline = carta::ast::Inline::Space;
+                    }
+                });
+            }
+            assert_eq!(restored, original);
+        }
+    }
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-markdown",
+    feature = "write-plain"
+))]
+#[test]
+fn four_column_lists_account_for_quote_and_task_prefixes() {
+    let quoted = "1000. > a b c d e f g h i j k l m n o p\n";
+    let task = "- [x] a b c d e f g h i j k l m n o p\n";
+    let mut options = WriterOptions::default();
+    options.columns = Some(12);
+    for (format, source, expected) in [
+        (
+            "markdown+four_space_rule",
+            quoted,
+            "1000. > a b\n    > c d e\n    > f g h\n    > i j k\n    > l m n\n    > o p",
+        ),
+        (
+            "plain+four_space_rule",
+            quoted,
+            "1000.   a b\n      c d e\n      f g h\n      i j k\n      l m n\n      o p",
+        ),
+        (
+            "markdown+four_space_rule",
+            task,
+            "-   [x] a b\n    c d e f\n    g h i j\n    k l m n\n    o p",
+        ),
+        (
+            "markdown-four_space_rule",
+            task,
+            "- [x] a b c\n  d e f g h\n  i j k l m\n  n o p",
+        ),
+    ] {
+        assert_eq!(
+            convert_text(
+                "markdown",
+                format,
+                source,
+                &ReaderOptions::default(),
+                &options
+            )
+            .unwrap(),
+            expected,
+            "{format} {source}",
+        );
+    }
+}

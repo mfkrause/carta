@@ -301,7 +301,7 @@ fn render_document(
     wrap: WrapMode,
 ) -> String {
     let mut state = State::new(config, width, wrap);
-    let body = state.blocks_to_string(&document.blocks, width);
+    let body = state.blocks_to_string(&document.blocks, width, 0);
     append_notes(body, &state.footnotes)
 }
 
@@ -315,7 +315,7 @@ pub(crate) fn render_blocks(
     wrap: WrapMode,
 ) -> String {
     let mut state = State::new(config, width, wrap);
-    let body = state.blocks_to_string(blocks, width);
+    let body = state.blocks_to_string(blocks, width, 0);
     append_notes(body, &state.footnotes)
 }
 
@@ -352,9 +352,9 @@ impl State {
 
     /// Render a list item's, definition's, or table cell's blocks, which run on as
     /// [`Self::blocks_to_string`] describes, together with everything nested inside them.
-    fn item_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+    fn item_to_string(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
         let outer = std::mem::replace(&mut self.in_item, true);
-        let body = self.blocks_to_string(blocks, width);
+        let body = self.blocks_to_string(blocks, width, initial);
         self.in_item = outer;
         body
     }
@@ -362,11 +362,18 @@ impl State {
     /// Render a block sequence, dropping blocks that produce no output. Blocks stand apart by a
     /// blank line, except that inside a list item a [`Block::Plain`] runs straight on into the next
     /// block and that certain neighbors need an HTML-comment separator (see [`needs_separator`]).
-    fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+    fn blocks_to_string(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
         for block in blocks {
-            let text = self.block(block, width);
+            let text = if previous.is_none() && initial > 0 {
+                match block {
+                    Block::BlockQuote(children) => self.block_quote(children, width, initial),
+                    _ => self.note_block_offset(block, width, initial),
+                }
+            } else {
+                self.block(block, width)
+            };
             if text.is_empty() {
                 continue;
             }
@@ -395,10 +402,7 @@ impl State {
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::CodeBlock(attr, text) => self.code_block(attr, text),
             Block::RawBlock(format, text) => self.raw_block(format, text),
-            Block::BlockQuote(blocks) => {
-                let body = self.blocks_to_string(blocks, width.saturating_sub(2));
-                quote_block(&offset_quoted_table(blocks, body))
-            }
+            Block::BlockQuote(blocks) => self.block_quote(blocks, width, 0),
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
@@ -408,6 +412,11 @@ impl State {
             Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks, width),
             Block::Table(table) => self.table(table, width),
         }
+    }
+
+    fn block_quote(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
+        let body = self.blocks_to_string(blocks, width.saturating_sub(2), initial);
+        quote_block(&offset_quoted_table(blocks, body))
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
@@ -487,7 +496,7 @@ impl State {
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
-        let body = self.blocks_to_string(blocks, width);
+        let body = self.blocks_to_string(blocks, width, 0);
         if !self.config.has(Extension::FencedDivs) {
             // HTML-aware dialects wrap divs; `markdown_attribute` adds `data-markdown="1"`.
             let marker = self.config.has(Extension::MarkdownAttribute);
@@ -533,10 +542,15 @@ impl State {
             return rendered;
         }
         let loose = is_loose(items);
-        let body_width = width.saturating_sub(2);
+        let (first, rest) = if self.config.has(Extension::FourSpaceRule) {
+            ("-   ", "    ")
+        } else {
+            ("- ", "  ")
+        };
+        let body_width = width.saturating_sub(rest.len());
         let rendered: Vec<String> = items
             .iter()
-            .map(|item| self.list_item(item, body_width, "- ", "  "))
+            .map(|item| self.list_item(item, body_width, first, rest))
             .collect();
         rendered.join(item_separator(loose))
     }
@@ -544,14 +558,19 @@ impl State {
     /// Render one list item's body under its marker. A single-paragraph item is filled straight into
     /// the item buffer with the marker prefixes; any other item keeps the render-then-indent path.
     fn list_item(&mut self, item: &[Block], body_width: usize, first: &str, rest: &str) -> String {
+        let initial = first.len().saturating_sub(rest.len());
         if let Some(inlines) = single_paragraph(item) {
             let mut pieces = self.pieces(inlines);
             escape_leading_markers(&mut pieces);
+            if initial > 0 {
+                let body = fill_offset(&pieces, body_width, initial, self.wrap);
+                return indent_block(&body, first, rest);
+            }
             let mut out = String::new();
             fill_into(&mut out, &pieces, body_width, self.wrap, first, rest);
             return out;
         }
-        let body = self.item_to_string(item, body_width);
+        let body = self.item_to_string(item, body_width, initial);
         let body = offset_horizontal_rule(item, body);
         indent_block(&body, first, rest)
     }
@@ -562,15 +581,25 @@ impl State {
         let marks: Option<Vec<bool>> = items.iter().map(|item| checkbox_state(item)).collect();
         let marks = marks?;
         let loose = is_loose(items);
-        let body_width = width.saturating_sub(2);
+        let rest = if self.config.has(Extension::FourSpaceRule) {
+            "    "
+        } else {
+            "  "
+        };
+        let body_width = width.saturating_sub(rest.len());
         let rendered: Vec<String> = items
             .iter()
             .zip(marks)
             .map(|(item, checked)| {
                 let stripped = strip_checkbox(item);
-                let body = self.item_to_string(&stripped, body_width);
-                let marker = if checked { "- [x] " } else { "- [ ] " };
-                indent_block(&body, marker, "  ")
+                let body = self.item_to_string(&stripped, body_width, 4);
+                let marker = match (rest.len(), checked) {
+                    (4, true) => "-   [x] ",
+                    (4, false) => "-   [ ] ",
+                    (_, true) => "- [x] ",
+                    (_, false) => "- [ ] ",
+                };
+                indent_block(&body, marker, rest)
             })
             .collect();
         Some(rendered.join(item_separator(loose)))
@@ -591,8 +620,13 @@ impl State {
             .map(|(offset, item)| {
                 let number = start.saturating_add(offset_as_i64(offset));
                 let marker = ordered_marker(number, style, delim);
-                let field = (marker.chars().count() + 1).max(4);
-                let first = format!("{marker:<field$}");
+                let first_field = (marker.chars().count() + 1).max(4);
+                let field = if self.config.has(Extension::FourSpaceRule) {
+                    4
+                } else {
+                    first_field
+                };
+                let first = format!("{marker:<first_field$}");
                 let rest = " ".repeat(field);
                 self.list_item(item, width.saturating_sub(field), &first, &rest)
             })
@@ -658,8 +692,13 @@ impl State {
         let bodies: Vec<String> = definitions
             .iter()
             .map(|definition| {
-                let body = self.item_to_string(definition, width.saturating_sub(2));
-                indent_block(&body, ": ", "  ")
+                let (first, rest) = if self.config.has(Extension::FourSpaceRule) {
+                    (":   ", "    ")
+                } else {
+                    (": ", "  ")
+                };
+                let body = self.item_to_string(definition, width.saturating_sub(rest.len()), 0);
+                indent_block(&body, first, rest)
             })
             .collect();
         let separator = if loose { "\n\n" } else { "\n" };
@@ -684,7 +723,7 @@ impl State {
                 let term_line = self.inlines_oneline(term);
                 let bodies: Vec<String> = definitions
                     .iter()
-                    .map(|definition| self.blocks_to_string(definition, width))
+                    .map(|definition| self.blocks_to_string(definition, width, 0))
                     .collect();
                 let body = bodies.join("\n\n");
                 if body.is_empty() {
@@ -704,8 +743,8 @@ impl State {
             return rendered;
         }
         if !self.config.has(Extension::RawHtml) {
-            let body = self.blocks_to_string(blocks, width);
-            let caption = self.blocks_to_string(&caption.long, width);
+            let body = self.blocks_to_string(blocks, width, 0);
+            let caption = self.blocks_to_string(&caption.long, width, 0);
             return match (body.is_empty(), caption.is_empty()) {
                 (true, _) => caption,
                 (_, true) => body,
@@ -777,7 +816,8 @@ impl NotesHost for State {
         width: usize,
         initial: usize,
     ) -> String {
-        let pieces = self.pieces(inlines);
+        let mut pieces = self.pieces(inlines);
+        escape_leading_markers(&mut pieces);
         fill_offset(&pieces, width, initial, self.wrap)
     }
 

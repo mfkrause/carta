@@ -454,7 +454,7 @@ impl State {
     }
 
     fn cell_lines(&mut self, content: &[Block], width: usize) -> Vec<String> {
-        let rendered = self.item_to_string(content, width.max(1));
+        let rendered = self.item_to_string(content, width.max(1), 0);
         if rendered.is_empty() {
             Vec::new()
         } else {

@@ -11,8 +11,8 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     body_rows, caption_runs, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri,
-    item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i64,
+    fill_groups, fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose,
+    is_uri, item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i64,
     offset_quoted_table, ordered_marker, pad_marker, pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
@@ -29,9 +29,10 @@ impl Writer for PlainWriter {
             width,
             smart: options.extensions.contains(Extension::Smart),
             gutenberg: options.extensions.contains(Extension::Gutenberg),
+            four_space_rule: options.extensions.contains(Extension::FourSpaceRule),
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, width, false);
+        let body = state.blocks_to_string(&document.blocks, width, false, 0);
         Ok(append_notes(body, &state.footnotes))
     }
 
@@ -55,6 +56,7 @@ struct State {
     /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
     smart: bool,
     gutenberg: bool,
+    four_space_rule: bool,
     table_measurements: BTreeMap<(usize, usize), [Vec<usize>; 2]>,
 }
 
@@ -66,6 +68,7 @@ impl Default for State {
             width: FILL_COLUMN,
             smart: false,
             gutenberg: false,
+            four_space_rule: false,
             table_measurements: BTreeMap::new(),
         }
     }
@@ -77,11 +80,21 @@ impl State {
     /// items, loose definitions). See [`join_loose`] for the [`Block::Plain`] spacing quirk. When
     /// `hang` is set the first non-empty block keeps a space that opens it, so content laid out under
     /// a list marker or block-quote indent keeps the gap the source put after that prefix.
-    fn blocks_to_string(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
+    fn blocks_to_string(
+        &mut self,
+        blocks: &[Block],
+        width: usize,
+        hang: bool,
+        initial: usize,
+    ) -> String {
         let mut rendered = Vec::with_capacity(blocks.len());
         let mut first = true;
         for block in blocks {
-            let mut text = self.block(block, width, hang && first);
+            let mut text = if first && initial > 0 {
+                self.block_with_offset(block, width, hang, initial)
+            } else {
+                self.block(block, width, hang && first)
+            };
             if !text.is_empty() {
                 first = false;
             }
@@ -103,11 +116,21 @@ impl State {
 
     /// Render a block sequence with a single newline between blocks: the compact layout used inside a
     /// tight list's items and tight definitions. `hang` behaves as in [`Self::blocks_to_string`].
-    fn blocks_tight(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
+    fn blocks_tight(
+        &mut self,
+        blocks: &[Block],
+        width: usize,
+        hang: bool,
+        initial: usize,
+    ) -> String {
         let mut parts: Vec<String> = Vec::new();
         let mut first = true;
         for block in blocks {
-            let mut text = self.block(block, width, hang && first);
+            let mut text = if first && initial > 0 {
+                self.block_with_offset(block, width, hang, initial)
+            } else {
+                self.block(block, width, hang && first)
+            };
             if text.is_empty() {
                 continue;
             }
@@ -121,11 +144,18 @@ impl State {
     }
 
     /// Render a block sequence at the given layout density.
-    fn blocks_at(&mut self, blocks: &[Block], width: usize, loose: bool, hang: bool) -> String {
+    fn blocks_at(
+        &mut self,
+        blocks: &[Block],
+        width: usize,
+        loose: bool,
+        hang: bool,
+        initial: usize,
+    ) -> String {
         if loose {
-            self.blocks_to_string(blocks, width, hang)
+            self.blocks_to_string(blocks, width, hang, initial)
         } else {
-            self.blocks_tight(blocks, width, hang)
+            self.blocks_tight(blocks, width, hang, initial)
         }
     }
 
@@ -167,10 +197,7 @@ impl State {
                     String::new()
                 }
             }
-            Block::BlockQuote(blocks) => {
-                let body = self.blocks_to_string(blocks, width.saturating_sub(2), true);
-                indent_block(&offset_quoted_table(blocks, body), "  ", "  ")
-            }
+            Block::BlockQuote(blocks) => self.block_quote(blocks, width, 0),
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
@@ -179,12 +206,35 @@ impl State {
             Block::Figure(attr, caption, blocks) => {
                 match self.simple_figure(attr, &caption.long, blocks) {
                     Some(rendered) => rendered,
-                    None => self.blocks_to_string(blocks, width, false),
+                    None => self.blocks_to_string(blocks, width, false, 0),
                 }
             }
-            Block::Div(_, blocks) => self.blocks_to_string(blocks, width, false),
+            Block::Div(_, blocks) => self.blocks_to_string(blocks, width, false, 0),
             Block::LineBlock(lines) => self.line_block(lines),
         }
+    }
+
+    fn block_with_offset(
+        &mut self,
+        block: &Block,
+        width: usize,
+        hang: bool,
+        initial: usize,
+    ) -> String {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                let pieces = self.pieces(inlines);
+                fill_groups(&pieces, &[], width, initial, hang, self.wrap)
+            }
+            Block::BlockQuote(children) => self.block_quote(children, width, initial),
+            Block::Div(_, children) => self.blocks_to_string(children, width, hang, initial),
+            _ => self.block(block, width, hang),
+        }
+    }
+
+    fn block_quote(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
+        let body = self.blocks_to_string(blocks, width.saturating_sub(2), true, initial);
+        indent_block(&offset_quoted_table(blocks, body), "  ", "  ")
     }
 
     /// A figure with no attributes whose body is a single bare image (a `Plain` holding one image
@@ -232,12 +282,17 @@ impl State {
 
     fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
         let loose = is_loose(items);
-        let body_width = width.saturating_sub(2);
+        let (first, rest) = if self.four_space_rule {
+            ("-   ", "    ")
+        } else {
+            ("- ", "  ")
+        };
+        let body_width = width.saturating_sub(rest.len());
         let rendered: Vec<String> = items
             .iter()
             .map(|item| {
-                let body = self.blocks_at(item, body_width, loose, true);
-                indent_block(&body, "- ", "  ")
+                let body = self.blocks_at(item, body_width, loose, true, 0);
+                indent_block(&body, first, rest)
             })
             .collect();
         rendered.join(item_separator(loose))
@@ -256,9 +311,16 @@ impl State {
             .map(|(offset, item)| {
                 let number = attrs.start.saturating_add(offset_as_i64(offset));
                 let marker = ordered_marker(number, attrs.style, attrs.delim);
-                let field = (marker.chars().count() + 1).max(4);
-                let body = self.blocks_at(item, width.saturating_sub(field), loose, true);
-                let first = pad_marker(&marker, field);
+                let first_field = (marker.chars().count() + 1).max(4);
+                let field = if self.four_space_rule { 4 } else { first_field };
+                let body = self.blocks_at(
+                    item,
+                    width.saturating_sub(field),
+                    loose,
+                    true,
+                    first_field - field,
+                );
+                let first = pad_marker(&marker, first_field);
                 let rest = " ".repeat(field);
                 indent_block(&body, &first, &rest)
             })
@@ -278,8 +340,15 @@ impl State {
                 let mut group = fill(&term_pieces, width, self.wrap);
                 for definition in definitions {
                     let loose = is_loose_definition(definition);
-                    let body = self.blocks_at(definition, width.saturating_sub(2), loose, true);
-                    let indented = indent_block(&body, "  ", "  ");
+                    let rest = if self.four_space_rule { "    " } else { "  " };
+                    let body = self.blocks_at(
+                        definition,
+                        width.saturating_sub(rest.len()),
+                        loose,
+                        true,
+                        0,
+                    );
+                    let indented = indent_block(&body, rest, rest);
                     if !group.is_empty() {
                         group.push_str(if loose { "\n\n" } else { "\n" });
                     }
@@ -610,7 +679,7 @@ impl State {
 
     /// Render a cell's block content to lines at the given width.
     fn cell_lines(&mut self, content: &[Block], width: usize) -> Vec<String> {
-        let text = self.blocks_to_string(content, width, false);
+        let text = self.blocks_to_string(content, width, false, 0);
         if text.is_empty() {
             Vec::new()
         } else {
