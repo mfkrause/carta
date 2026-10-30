@@ -1011,7 +1011,9 @@ fn extract_media_decodes_data_images_in_the_body_and_metadata() {
     );
     assert!(result.success, "{}", result.stderr);
     let name = carta::media::content_addressed_name("image/png", &[255, 0]);
-    let reference = carta::media::extracted_path(&directory.to_string_lossy(), &name);
+    // LaTeX converts Windows path separators to forward slashes.
+    let reference =
+        carta::media::extracted_path(&directory.to_string_lossy(), &name).replace('\\', "/");
     assert_eq!(
         result.stdout.matches(&reference).count(),
         2,
