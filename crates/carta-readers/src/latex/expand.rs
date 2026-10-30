@@ -199,7 +199,8 @@ impl Parser {
             Rc::make_mut(&mut self.macros).insert(
                 macro_name,
                 Rc::new(Macro::Defined {
-                    args,
+                    prefix: Vec::new(),
+                    parameters: vec![Vec::new(); args],
                     optional_default,
                     body,
                 }),
@@ -275,24 +276,57 @@ impl Parser {
         let Some(macro_name) = self.take_defined_name() else {
             return;
         };
-        let mut args = 0usize;
+        let mut prefix = Vec::new();
+        let mut parameters = Vec::<Vec<String>>::new();
         while let Some(c) = self.cur() {
             if c == '{' {
                 break;
             }
             if c == '#' {
-                args += 1;
                 self.bump();
-                self.bump();
+                if self.cur() == Some('{') {
+                    parameters
+                        .last_mut()
+                        .unwrap_or(&mut prefix)
+                        .push("{".to_owned());
+                    break;
+                }
+                if self
+                    .bump()
+                    .and_then(|c| c.to_digit(10))
+                    .filter(|&number| (1..=9).contains(&number))
+                    .and_then(|number| usize::try_from(number).ok())
+                    != Some(parameters.len() + 1)
+                {
+                    return;
+                }
+                parameters.push(Vec::new());
             } else {
-                self.bump();
+                let token = if c == '\\' {
+                    self.read_control_sequence().map(|name| format!("\\{name}"))
+                } else if c == '%' {
+                    self.skip_comment();
+                    self.bump();
+                    continue;
+                } else if c.is_whitespace() {
+                    while self.cur().is_some_and(char::is_whitespace) {
+                        self.bump();
+                    }
+                    Some(" ".to_owned())
+                } else {
+                    self.bump().map(|c| c.to_string())
+                };
+                if let Some(token) = token {
+                    parameters.last_mut().unwrap_or(&mut prefix).push(token);
+                }
             }
         }
         let body = self.read_group_raw().unwrap_or_default();
         Rc::make_mut(&mut self.macros).insert(
             macro_name,
             Rc::new(Macro::Defined {
-                args,
+                prefix,
+                parameters,
                 optional_default: None,
                 body,
             }),
@@ -325,12 +359,15 @@ impl Parser {
         self.read_control_sequence();
         let mut args = Vec::new();
         if let Macro::Defined {
-            args: count,
+            prefix,
+            parameters,
             optional_default,
             ..
         } = mac.as_ref()
         {
-            let mut mandatory = *count;
+            if !self.eat_macro_delimiter(prefix) {
+                return true;
+            }
             if let Some(default) = optional_default {
                 let first = if self.cur() == Some('[') {
                     self.read_optional_raw().unwrap_or_default()
@@ -338,14 +375,19 @@ impl Parser {
                     default.clone()
                 };
                 args.push(first);
-                mandatory = mandatory.saturating_sub(1);
             }
-            for _ in 0..mandatory {
-                match self.read_macro_arg() {
+            for delimiter in parameters
+                .iter()
+                .skip(usize::from(optional_default.is_some()))
+            {
+                match self.read_delimited_arg(delimiter) {
                     Some(a) => args.push(a),
                     None => args.push(String::new()),
                 }
             }
+        }
+        if self.expansions.calls.get() == 0 {
+            return true;
         }
         let call = (name, Rc::clone(mac), args);
         if self.expansions.active.borrow().contains(&call) {
@@ -360,7 +402,9 @@ impl Parser {
             return true;
         };
         self.expansions.characters.set(left);
-        self.expansions.calls.set(self.expansions.calls.get() - 1);
+        self.expansions
+            .calls
+            .set(self.expansions.calls.get().saturating_sub(1));
         if !expanded.is_empty() {
             self.expansions.active.borrow_mut().insert(call.clone());
             let mut frame = Frame::new(
@@ -375,6 +419,102 @@ impl Parser {
             self.frames.push(frame);
         }
         true
+    }
+
+    fn eat_macro_delimiter(&mut self, delimiter: &[String]) -> bool {
+        // Bound repeated prefix matches with the shared expansion allowance.
+        let mut remaining = self.expansions.calls.get();
+        let mut length = 0;
+        let matches = delimiter.iter().all(|token| {
+            if token == " " {
+                if !self.at(length).is_some_and(char::is_whitespace) {
+                    return false;
+                }
+            } else {
+                for character in token.chars() {
+                    if remaining == 0 {
+                        return false;
+                    }
+                    remaining -= 1;
+                    if self.at(length) != Some(character) {
+                        return false;
+                    }
+                    length += 1;
+                }
+            }
+            let control_word = token.strip_prefix('\\').is_some_and(|name| {
+                !name.is_empty() && name.chars().all(|c| c.is_ascii_alphabetic())
+            });
+            if control_word && self.at(length).is_some_and(|c| c.is_ascii_alphabetic()) {
+                return false;
+            }
+            if control_word || token == " " {
+                while self.at(length).is_some_and(char::is_whitespace) {
+                    if remaining == 0 {
+                        return false;
+                    }
+                    remaining -= 1;
+                    length += 1;
+                }
+            }
+            true
+        });
+        self.expansions.calls.set(remaining);
+        if !matches {
+            return false;
+        }
+        let retained_brace = usize::from(delimiter.last().is_some_and(|token| token == "{"));
+        self.advance_chars(length.saturating_sub(retained_brace));
+        true
+    }
+
+    fn read_delimited_arg(&mut self, delimiter: &[String]) -> Option<String> {
+        if delimiter.is_empty() {
+            return self.read_macro_arg();
+        }
+        let mut argument = String::new();
+        while let Some(character) = self.cur() {
+            if self.eat_macro_delimiter(delimiter) {
+                return Some(argument);
+            }
+            if self.expansions.calls.get() == 0 {
+                return None;
+            }
+            match character {
+                '{' => {
+                    let group = self.read_group_raw()?;
+                    if argument.is_empty() && self.eat_macro_delimiter(delimiter) {
+                        return Some(group);
+                    }
+                    argument.push('{');
+                    argument.push_str(&group);
+                    argument.push('}');
+                }
+                '\\' => {
+                    let name = self.read_control_sequence()?;
+                    argument.push('\\');
+                    argument.push_str(&name);
+                    if name.chars().all(|c| c.is_ascii_alphabetic())
+                        && self.cur().is_some_and(|c| c.is_ascii_alphabetic())
+                    {
+                        argument.push(' ');
+                    }
+                }
+                '%' => {
+                    while let Some(character) = self.bump() {
+                        argument.push(character);
+                        if character == '\n' {
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    argument.push(character);
+                    self.bump();
+                }
+            }
+        }
+        None
     }
 
     pub(super) fn expand_math(&self, source: &str) -> String {

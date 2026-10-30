@@ -147,7 +147,8 @@ enum Stop<'a> {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Macro {
     Defined {
-        args: usize,
+        prefix: Vec<String>,
+        parameters: Vec<Vec<String>>,
         optional_default: Option<String>,
         body: String,
     },

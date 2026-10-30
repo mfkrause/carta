@@ -665,6 +665,80 @@ fn math_expands_macros_and_keeps_control_word_boundaries() {
 }
 
 #[test]
+fn delimited_macros_read_complete_arguments_and_preserve_groups() {
+    for (source, expected) in [
+        (
+            r"\def\pair#1,#2;{#2 and #1}\pair first,second;",
+            "second and first",
+        ),
+        (r"\def\word#1END{[#1]}\word Hello END", "[Hello ]"),
+        (r"\def\pair#1,#2;{[#1][#2]}\pair {a,b},c;", "[a,b][c]"),
+        (r"\def\pair#1,#2;{[#1][#2]}\pair ,;", "[][]"),
+        (r"\def\word#1,#2;{[#1][#2]}\word a\,b,c;", "[a\u{2006}b][c]"),
+        (r"\def\word#1;{[#1]}\word {a}{b};", "[ab]"),
+        (r"\def\word#1 #2;{#2 #1}\word first second;", "second first"),
+        (
+            r"\def\word#1,#2;{#1:#2}\let\alias\word\def\word{changed}\alias first,second;",
+            "first:second",
+        ),
+    ] {
+        assert_eq!(plain_text(source), expected, "{source}");
+    }
+    assert_eq!(
+        parse(r"\def\word#1END{#1}$\word {a{b}}END$"),
+        parse("$a{b}$")
+    );
+    assert_eq!(
+        parse(r"\def\word#1;{[#1]}$\word {a}{b};$"),
+        parse("$[{a}{b}]$")
+    );
+    assert_eq!(
+        parse("\\def\\word#1,#2;{#1:#2}$\\word a% comment\nb,c;$"),
+        parse("$a% comment\nb:c$")
+    );
+}
+
+#[test]
+fn macro_delimiters_match_tokens_without_expansion() {
+    for (source, expanded) in [
+        (r"\def\word pre#1;{[#1]}\word prevalue;", "[value]"),
+        (r"\def\word#1END{[#1]}\word aENDx", "[a]x"),
+        (r"\def\word#1\stop{[#1]}\word hello\stop", "[hello]"),
+        (
+            r"\def\word#1\stop{#1}$\word \stopping\stop$",
+            r"$\stopping$",
+        ),
+        (
+            r"\def\word\start x#1\stop{[#1]}\word\start xvalue\stop",
+            "[value]",
+        ),
+        (
+            "\\def\\word#1 #2;{#2 #1}\\word first\nsecond;",
+            "second first",
+        ),
+        (r"\def\word#1#{[#1]}\word hello{world}", "[hello]{world}"),
+        (
+            r"\def\word#1#{[#1]}$\word hello{world}$",
+            "$[hello]{world}$",
+        ),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+}
+
+#[test]
+fn delimiter_matching_uses_the_expansion_work_allowance() {
+    let source = format!(
+        r"\def\word#1{}b{{expanded}}\word {}b kept",
+        "a".repeat(500),
+        "a".repeat(3000)
+    );
+    let text = plain_text(&source);
+    assert!(!text.contains("expanded"));
+    assert!(text.ends_with("kept"));
+}
+
+#[test]
 fn macro_optional_argument_defaults_when_absent() {
     assert_eq!(
         plain_text("\\newcommand{\\x}[2][d]{#1#2}\n\n\\x{B}\n"),

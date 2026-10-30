@@ -164,8 +164,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `html` ✅
 
 ### `latex` ✅
-- Delimited macro parameters, `\csname`/`\expandafter`, catcode changes, and multi-optional macros
-  are unsupported. Expansion has a work allowance based on the source length.
+- `\csname`/`\expandafter`, catcode changes, and multi-optional macros are unsupported. Expansion
+  has a work allowance based on the source length.
 
 ### `typst` ✅
 ### `org` ✅
