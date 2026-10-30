@@ -29,6 +29,37 @@ fn escape_multibyte_neighbors_survive_the_verbatim_copy() {
 }
 
 #[test]
+fn smart_punctuation_keeps_literal_dash_and_dot_runs() {
+    for (text, expected) in [
+        ("a--b", "a\\--b"),
+        ("a---b", "a\\-\\--b"),
+        ("a...b", "a\\...b"),
+        ("a....b", "a\\.\\...b"),
+        ("\u{e9}...x--y", "\u{e9}\\...x\\--y"),
+    ] {
+        assert_eq!(escape(text, true), expected);
+        assert_eq!(escape(text, false), text);
+    }
+    assert_eq!(escape("\u{2013} \u{2014} \u{2026}", true), "-- --- ...");
+}
+
+#[test]
+fn smart_punctuation_leaves_code_literal() {
+    let mut options = WriterOptions::default();
+    options.extensions.insert(Extension::Smart);
+    let document = Document {
+        blocks: vec![
+            Block::Para(vec![Inline::Str("-- ...".into())]),
+            Block::CodeBlock(Box::default(), "-- ...".into()),
+        ],
+        ..Document::default()
+    };
+    let output = RstWriter.write(&document, &options).unwrap();
+    assert!(output.contains("\\-- \\..."));
+    assert!(output.contains("-- ..."));
+}
+
+#[test]
 fn all_single_line_units_join_tightly() {
     let joined = join_loose_items(vec![unit(true, "a"), unit(true, "b"), unit(true, "c")]);
     assert_eq!(joined, "a\nb\nc");

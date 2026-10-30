@@ -713,9 +713,12 @@ fn is_safe_preceder(ch: char) -> bool {
 /// doubled. A `*`, backtick, or `|` is escaped where it could open or close inline markup given its
 /// neighbors. A `_` is a reference marker: it is escaped everywhere except where it is buried directly
 /// before an alphanumeric and is not itself opening at a word boundary.
+/// Smart punctuation uses ASCII notation and protects literal dash and dot runs.
 pub(super) fn escape(text: &str, smart: bool) -> Text {
-    let is_trigger =
-        |byte: u8| matches!(byte, b'\\' | b'*' | b'`' | b'|' | b'_') || (smart && byte >= 0x80);
+    let is_trigger = |byte: u8| {
+        matches!(byte, b'\\' | b'*' | b'`' | b'|' | b'_')
+            || (smart && (byte >= 0x80 || matches!(byte, b'-' | b'.')))
+    };
     let mut out = Text::with_capacity(text.len());
     let mut prev: Option<char> = None;
     let mut rest = text;
@@ -732,6 +735,8 @@ pub(super) fn escape(text: &str, smart: bool) -> Text {
         let next = chars.clone().next();
         match ch {
             '\\' => out.push_str("\\\\"),
+            '-' if smart && next == Some('-') => out.push_str("\\-"),
+            '.' if smart && chars.as_str().starts_with("..") => out.push_str("\\."),
             '*' | '`' | '|' => {
                 if flanking_escape(prev, next) {
                     out.push('\\');

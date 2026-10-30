@@ -359,7 +359,7 @@ Notes list gaps and limitations only.
 | Filters (Lua) | ❌ | — |
 | Data directory (`--data-dir`) | ✅ | — |
 | Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no webtex or default plain-HTML renderer yet. |
-| Writer extension toggles | ✅ | `rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart`. |
+| Writer extension toggles | ✅ | — |
 | Embed resources / extract media | ✅ | — |
 | Filename format inference | ✅ | — |
 | Multiple inputs / defaults files (`--defaults`) | 🚧 | Multiple binary inputs, `--file-scope`, and defaults files are not supported. |

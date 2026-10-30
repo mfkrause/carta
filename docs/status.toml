@@ -896,7 +896,6 @@ notes = "With no method given, HTML math keeps the verbatim TeX in a math span r
 [[feature]]
 name = "Writer extension toggles"
 status = "usable"
-notes = "`rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart`."
 
 [[feature]]
 name = "Embed resources / extract media"
