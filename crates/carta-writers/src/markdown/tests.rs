@@ -275,6 +275,17 @@ mod escaping {
     }
 
     #[test]
+    fn legacy_dashes_use_the_selected_smart_spelling() {
+        let mut extensions = presets::MARKDOWN;
+        extensions.insert(Extension::OldDashes);
+        let paragraph = || vec![Block::Para(vec![s("x — y – 2 1–2")])];
+        assert_eq!(render_with(paragraph(), extensions), "x -- y – 2 1-2");
+        extensions.remove(Extension::Smart);
+        assert_eq!(render_with(paragraph(), extensions), "x — y – 2 1–2");
+        assert_eq!(render(paragraph()), "x --- y -- 2 1--2");
+    }
+
+    #[test]
     fn a_leading_ordered_marker_is_escaped_only_when_a_list_would_open() {
         assert_eq!(
             render(vec![Block::Para(vec![s("1."), Inline::Space, s("Item")])]),

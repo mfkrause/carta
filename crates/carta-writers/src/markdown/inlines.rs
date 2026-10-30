@@ -418,7 +418,7 @@ impl State {
     pub(super) fn escape_str(&self, text: &str) -> String {
         let downgraded;
         let text = if self.config.has(Extension::Smart) {
-            downgraded = downgrade_smart(text);
+            downgraded = downgrade_smart(text, self.config.has(Extension::OldDashes));
             downgraded.as_str()
         } else {
             text
@@ -541,12 +541,24 @@ fn starts_heading(text: &str) -> bool {
 
 /// Replace smart-punctuation glyphs with their ASCII equivalents for a dialect that does not write
 /// them: ellipsis, en/em dashes, and curly quotes.
-fn downgrade_smart(text: &str) -> String {
+fn downgrade_smart(text: &str, old_dashes: bool) -> String {
     let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
+    for (position, ch) in text.char_indices() {
         match ch {
             '…' => out.push_str("..."),
-            '—' => out.push_str("---"),
+            '—' => out.push_str(if old_dashes { "--" } else { "---" }),
+            '–' if old_dashes => {
+                // A single hyphen forms an en dash only before an ASCII digit.
+                if text
+                    .as_bytes()
+                    .get(position + ch.len_utf8())
+                    .is_some_and(u8::is_ascii_digit)
+                {
+                    out.push('-');
+                } else {
+                    out.push(ch);
+                }
+            }
             '–' => out.push_str("--"),
             '“' | '”' => out.push('"'),
             '‘' | '’' => out.push('\''),

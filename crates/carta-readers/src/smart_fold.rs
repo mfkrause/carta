@@ -13,6 +13,7 @@ pub(crate) fn fold_ellipsis_run(len: usize) -> String {
 /// become an em dash (U+2014), a remaining two a single en dash (U+2013), a remaining one a literal
 /// hyphen.
 #[cfg(any(
+    feature = "commonmark",
     feature = "rst",
     feature = "dokuwiki",
     feature = "opml",

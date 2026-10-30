@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::smart_fold::fold_dash_run_greedy;
 use carta_ast::{Attr, Citation, CitationMode, Inline, MathType};
 use carta_core::Extension;
 
@@ -744,20 +745,33 @@ impl InlineParser<'_> {
         }));
     }
 
-    /// Replace a run of two or more `-` with em/en dashes; a lone `-` stays literal. A run folds
-    /// into the fewest dashes that reproduce its length: groups of three become em dashes (U+2014)
-    /// and groups of two become en dashes (U+2013), preferring em dashes for any odd remainder.
+    /// Fold hyphen runs using the active dialect's dash convention.
     pub(super) fn smart_dash(&mut self) {
         let mut len = 0;
         while self.peek() == Some('-') {
             self.pos += 1;
             len += 1;
         }
+        if self.notes.markdown && self.ext.contains(Extension::OldDashes) {
+            self.push_str(&"\u{2014}".repeat(len / 2));
+            if len % 2 == 1 {
+                self.push_text(if self.peek().is_some_and(|ch| ch.is_ascii_digit()) {
+                    '\u{2013}'
+                } else {
+                    '-'
+                });
+            }
+            return;
+        }
         if len == 1 {
             self.push_text('-');
             return;
         }
-        let out = fold_dash_run_thirds(len);
+        let out = if self.notes.markdown {
+            fold_dash_run_greedy(len)
+        } else {
+            fold_dash_run_thirds(len)
+        };
         self.push_str(&out);
     }
 

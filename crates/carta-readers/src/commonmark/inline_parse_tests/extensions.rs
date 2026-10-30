@@ -2,6 +2,28 @@
 
 use super::*;
 
+#[test]
+fn legacy_dashes_pair_hyphens_and_bind_numeric_ranges() {
+    let extensions = exts(&[Extension::Smart, Extension::OldDashes]);
+    assert_eq!(
+        pm("a-b|1-2|-2|a--b|a---b|1---2|a-----b|x-٢", extensions),
+        vec![str("a-b|1–2|–2|a—b|a—-b|1—–2|a——-b|x-٢")]
+    );
+    assert_eq!(
+        pm(r"`1-2`|1\-2|a--b", extensions),
+        vec![code("1-2"), str("|1-2|a—b")]
+    );
+    assert_eq!(
+        pm("a---b", exts(&[Extension::OldDashes])),
+        vec![str("a---b")]
+    );
+    assert_eq!(
+        pm("a----b|a-------b", exts(&[Extension::Smart])),
+        vec![str("a—-b|a——-b")]
+    );
+    assert_eq!(pe("a----b", extensions), vec![str("a––b")]);
+}
+
 // Extension delimiters
 
 #[test]

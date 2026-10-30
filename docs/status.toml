@@ -780,7 +780,6 @@ recognized-not-modeled = [
   "wikilinks_title_before_pipe",
   "ascii_identifiers",
   "mmd_link_attributes",
-  "old_dashes",
   "east_asian_line_breaks",
   "four_space_rule",
   "literate_haskell",
