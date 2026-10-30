@@ -268,8 +268,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   nonexistent target) yields a dangling reference.
 
 ### `ipynb` ✅
-- Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
-- Standalone (`-s`), TOC, and section numbering are no-ops.
 
 ### `odt` ✅
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must

@@ -1041,10 +1041,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-ipynb",
-        "gaps": [
-          "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",
-          "Standalone (`-s`), TOC, and section numbering are no-ops."
-        ]
+        "gaps": []
       }
     },
     {

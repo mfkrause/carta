@@ -529,8 +529,6 @@ write-feature = "write-ipynb"
 read-gaps = [
 ]
 write-gaps = [
-  "Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.",
-  "Standalone (`-s`), TOC, and section numbering are no-ops.",
 ]
 
 [[format]]
