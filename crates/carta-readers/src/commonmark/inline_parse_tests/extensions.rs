@@ -27,6 +27,61 @@ fn legacy_dashes_pair_hyphens_and_bind_numeric_ranges() {
 // Extension delimiters
 
 #[test]
+fn ignored_soft_breaks_keep_explicit_spaces_and_hard_breaks() {
+    let extensions = exts(&[Extension::IgnoreLineBreaks, Extension::EscapedLineBreaks]);
+    assert_eq!(pm("one\ntwo\nthree", extensions), vec![str("onetwothree")]);
+    for source in ["one \ntwo", "one\n two", "one\t\ntwo", "one\n\ttwo"] {
+        assert_eq!(
+            pm(source, extensions),
+            vec![str("one"), Inline::Space, str("two")],
+            "{source:?}"
+        );
+    }
+    for source in ["one  \ntwo", "one\\\ntwo"] {
+        assert_eq!(
+            pm(source, extensions),
+            vec![str("one"), Inline::LineBreak, str("two")]
+        );
+    }
+    assert_eq!(
+        pm(
+            "one\ntwo",
+            exts(&[Extension::IgnoreLineBreaks, Extension::HardLineBreaks])
+        ),
+        vec![str("one"), Inline::LineBreak, str("two")]
+    );
+    assert_eq!(
+        pm("one\ntwo", no_ext()),
+        vec![str("one"), Inline::SoftBreak, str("two")]
+    );
+    assert_eq!(pm("`one\ntwo`", extensions), vec![code("one two")]);
+}
+
+#[test]
+fn ignored_breaks_rejoin_adjacent_formatting_and_keep_link_boundaries() {
+    let extensions = exts(&[Extension::IgnoreLineBreaks]);
+    assert_eq!(
+        pm("*one*\n*two*", extensions),
+        vec![Inline::Emph(vec![str("one"), str("two")])]
+    );
+    assert_eq!(
+        pm("**one**\n**two**", extensions),
+        vec![Inline::Strong(vec![str("one"), str("two")])]
+    );
+    assert_eq!(
+        pm("*one\ntwo*", extensions),
+        vec![Inline::Emph(vec![str("onetwo")])]
+    );
+    assert_eq!(
+        pm("[one](first)\n[two](second)", extensions),
+        vec![
+            link(vec![str("one")], "first"),
+            link(vec![str("two")], "second")
+        ]
+    );
+}
+
+#[test]
 fn strikeout_double_tilde() {
     assert_eq!(
         pe("~~a~~", exts(&[Extension::Strikeout])),

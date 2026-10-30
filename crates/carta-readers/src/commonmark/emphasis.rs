@@ -198,7 +198,7 @@ pub(super) fn process_emphasis(
         {
             inner.push(std::mem::replace(slot, Node::Empty));
         }
-        let content = collapse(inner);
+        let content = collapse(inner, ext.contains(Extension::IgnoreLineBreaks));
         let wrapped = wrap_emphasis(closer_ch, use_count, content);
         // Opener and closer are separate runs, so this slot is never the closer's own node.
         if let Some(slot) = nodes.get_mut(opener_ni + 1) {
@@ -319,7 +319,7 @@ pub(super) fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: boo
         let inner: Vec<Node> = nodes.drain(opener_ni + 1..current).collect();
         let mut inner = inner;
         process_emphasis(&mut inner, 0, ext, markdown);
-        let content = collapse(inner);
+        let content = collapse(inner, ext.contains(Extension::IgnoreLineBreaks));
         let span = Inline::Span(
             Box::new(Attr {
                 id: carta_ast::Text::default(),

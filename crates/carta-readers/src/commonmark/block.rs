@@ -784,6 +784,14 @@ impl Parser {
 
     pub(super) fn append_line(&mut self, index: usize, cursor: &Cursor) {
         if let Some(node) = self.nodes.get_mut(index) {
+            if matches!(node.kind, Kind::Paragraph)
+                && !node.text.is_empty()
+                && !cursor.remaining().starts_with([' ', '\t'])
+            {
+                // Inline code and raw markup need the indentation consumed by block detection.
+                node.text
+                    .extend(std::iter::repeat_n(' ', cursor.noted_indent()));
+            }
             node.text.push_str(cursor.remaining());
             node.text.push('\n');
         }

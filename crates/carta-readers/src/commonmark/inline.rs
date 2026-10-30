@@ -70,7 +70,7 @@ fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -
         resolve_mark(&mut nodes, ext, markdown);
     }
     process_emphasis(&mut nodes, 0, ext, markdown);
-    collapse(nodes)
+    collapse(nodes, ext.contains(Extension::IgnoreLineBreaks))
 }
 
 /// The character ending just before byte offset `at`, or `None` at the start of `text`.
@@ -322,7 +322,7 @@ impl InlineParser<'_> {
 
 /// Collapse the node list into final inlines: leftover delimiters become text, adjacent text is
 /// merged, and text is split into `Str`/`Space` runs.
-pub(super) fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
+pub(super) fn collapse(nodes: Vec<Node>, merge_styles: bool) -> Vec<Inline> {
     let mut text = String::new();
     let mut out: Vec<Inline> = Vec::new();
     let flush = |text: &mut String, out: &mut Vec<Inline>| {
@@ -347,6 +347,14 @@ pub(super) fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
                     match (previous, &mut inline) {
                         (Inline::Superscript(previous), Inline::Superscript(content))
                         | (Inline::Subscript(previous), Inline::Subscript(content)) => {
+                            previous.append(content);
+                            continue;
+                        }
+                        (Inline::Emph(previous), Inline::Emph(content))
+                        | (Inline::Strong(previous), Inline::Strong(content))
+                        | (Inline::Strikeout(previous), Inline::Strikeout(content))
+                            if merge_styles =>
+                        {
                             previous.append(content);
                             continue;
                         }

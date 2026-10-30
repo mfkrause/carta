@@ -3,6 +3,62 @@
 use super::*;
 
 #[test]
+fn ignored_breaks_keep_text_indent_after_container_markers() {
+    let extensions = &[Extension::IgnoreLineBreaks];
+    let joined = || vec![Inline::Str("onetwo".into())];
+    let separated = || {
+        vec![
+            Inline::Str("one".into()),
+            Inline::Space,
+            Inline::Str("two".into()),
+        ]
+    };
+    assert_eq!(
+        read_markdown("one\n two", extensions).blocks,
+        vec![Block::Para(separated())]
+    );
+    assert_eq!(
+        read_markdown("- one\n  two", extensions).blocks,
+        vec![Block::BulletList(vec![vec![Block::Plain(joined())]])]
+    );
+    assert_eq!(
+        read_markdown("- one\n   two", extensions).blocks,
+        vec![Block::BulletList(vec![vec![Block::Plain(separated())]])]
+    );
+    assert_eq!(
+        read_markdown("> one\n>  two", extensions).blocks,
+        vec![Block::BlockQuote(vec![Block::Para(separated())])]
+    );
+    assert_eq!(
+        read_markdown("> one\n> two", extensions).blocks,
+        vec![Block::BlockQuote(vec![Block::Para(joined())])]
+    );
+}
+
+#[test]
+fn paragraph_continuations_keep_indent_in_code_and_raw_tex() {
+    for extensions in [
+        vec![Extension::RawTex],
+        vec![Extension::RawTex, Extension::IgnoreLineBreaks],
+    ] {
+        assert_eq!(
+            read_markdown("`one\n  two`", &extensions).blocks,
+            vec![Block::Para(vec![Inline::Code(
+                Box::default(),
+                "one   two".into()
+            )])]
+        );
+        assert_eq!(
+            read_markdown("\\textbf{one\n  two}", &extensions).blocks,
+            vec![Block::Para(vec![Inline::RawInline(
+                carta_ast::Format("tex".into()),
+                "\\textbf{one\n  two}".into()
+            )])]
+        );
+    }
+}
+
+#[test]
 fn a_greedy_paragraph_folds_a_following_block_quote_heading_and_break() {
     let toggles = &[
         Extension::BlankBeforeBlockquote,

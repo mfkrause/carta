@@ -784,7 +784,6 @@ recognized-not-modeled = [
   "literate_haskell",
   "rebase_relative_paths",
   "gutenberg",
-  "ignore_line_breaks",
   "raw_markdown",
 ]
 

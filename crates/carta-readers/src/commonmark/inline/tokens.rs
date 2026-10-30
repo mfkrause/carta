@@ -693,19 +693,29 @@ impl InlineParser<'_> {
     pub(super) fn line_ending(&mut self) {
         let hard = matches!(self.nodes.last(), Some(Node::Text(t)) if t.ends_with("  "));
         let backslash_hard = matches!(self.nodes.last(), Some(Node::LineBreak));
+        let ignore = self.ext.contains(Extension::IgnoreLineBreaks);
+        let separated =
+            matches!(self.nodes.last(), Some(Node::Text(text)) if text.ends_with([' ', '\t']));
         if let Some(Node::Text(text)) = self.nodes.last_mut() {
-            let keep = text.trim_end_matches(' ').len();
+            let keep = text
+                .trim_end_matches(|ch| ch == ' ' || (ignore && ch == '\t'))
+                .len();
             text.truncate(keep);
             if text.is_empty() {
                 self.nodes.pop();
             }
         }
         self.pos += 1;
+        let indent_start = self.pos;
         while matches!(self.peek(), Some(' ' | '\t')) {
             self.pos += 1;
         }
         if hard || backslash_hard || self.ext.contains(Extension::HardLineBreaks) {
             self.nodes.push(Node::LineBreak);
+        } else if ignore {
+            if separated || self.pos > indent_start {
+                self.push_text(' ');
+            }
         } else {
             self.nodes.push(Node::SoftBreak);
         }
