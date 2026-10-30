@@ -110,6 +110,7 @@ s = ''.join(out)
 s = re.sub(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', 'TIMESTAMP', s)
 # fold both spellings of the free automatic list-style name so only structure and wiring compare
 s = re.sub(r'Pandoc_5f_Numbering_5f_(\d+)', r'AUTOLIST_\1', s)
+s = re.sub(r'"Numbering_5f_(\d+)"', r'"AUTOLIST_\1"', s)
 s = re.sub(r'"L(\d+)"', r'"AUTOLIST_\1"', s)
 s = re.sub(r'><', '>\n<', s)
 sys.stdout.write(s + '\n')
