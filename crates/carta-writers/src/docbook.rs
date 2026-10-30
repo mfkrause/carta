@@ -6,8 +6,9 @@ use std::fmt::Write as _;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
-    ListAttributes, ListNumberStyle, MathType, Row, Table, Target, Text,
+    ListAttributes, ListNumberStyle, MathType, MetaValue, Row, Table, Target, Text, to_plain_text,
 };
+use carta_core::template::Value;
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
@@ -77,6 +78,63 @@ impl Writer for DocbookWriter {
 
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.docbook"))
+    }
+
+    fn render_authors(
+        &self,
+        authors: &MetaValue,
+        options: &WriterOptions,
+    ) -> Result<Option<Value>> {
+        let authors = match authors {
+            MetaValue::MetaList(authors) => authors.as_slice(),
+            author => std::slice::from_ref(author),
+        };
+        let mut rendered = Vec::with_capacity(authors.len());
+        for author in authors {
+            let text;
+            let inlines = match author {
+                MetaValue::MetaString(value) => {
+                    text = [Inline::Str(value.clone())];
+                    &text
+                }
+                MetaValue::MetaInlines(inlines) => inlines.as_slice(),
+                MetaValue::MetaBlocks(blocks) => match blocks.as_slice() {
+                    [Block::Para(inlines) | Block::Plain(inlines)] => inlines.as_slice(),
+                    _ => return Ok(None),
+                },
+                _ => return Ok(None),
+            };
+            let name = if inlines.iter().all(|inline| {
+                matches!(
+                    inline,
+                    Inline::Str(_) | Inline::Space | Inline::SoftBreak | Inline::LineBreak
+                )
+            }) {
+                let name = to_plain_text(inlines)
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let (first, last) = match name.split_once(',') {
+                    Some((last, first)) => (first.trim(), last.trim()),
+                    None => name
+                        .rsplit_once(char::is_whitespace)
+                        .unwrap_or(("", name.as_str())),
+                };
+                format!(
+                    "<personname>\n  <firstname>{}</firstname>\n  <surname>{}</surname>\n</personname>",
+                    escaped(first),
+                    escaped(last)
+                )
+            } else {
+                // A phrase permits general inline markup inside a personal name.
+                format!(
+                    "<personname><phrase>{}</phrase></personname>",
+                    self.render_meta_inlines(inlines, options)?
+                )
+            };
+            rendered.push(Value::Str(name));
+        }
+        Ok(Some(Value::List(rendered)))
     }
 
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {

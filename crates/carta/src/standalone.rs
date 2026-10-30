@@ -104,8 +104,16 @@ fn build_context(
     for (key, value) in &document.meta {
         scoped.slot = template.slot(key).unwrap_or_default();
         let options = &scoped;
+        let authors = if key == "author" {
+            writer.render_authors(value, options)?
+        } else {
+            None
+        };
         // Flattening writers render both forms; others differ only in trailing newlines.
-        let (context_value, json) = if writer.flatten_block_metadata() {
+        let (context_value, json) = if let Some(authors) = authors {
+            let json = value_to_json(&authors);
+            (authors, json)
+        } else if writer.flatten_block_metadata() {
             let context_value = meta_to_value(value, writer, options, BlockMode::Inline)?;
             let json_value = meta_to_value(
                 value,

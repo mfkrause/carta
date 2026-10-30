@@ -586,6 +586,16 @@ pub trait Writer {
         false
     }
 
+    /// Renders format-specific author values, or keeps ordinary metadata rendering with `None`.
+    #[cfg(feature = "template")]
+    fn render_authors(
+        &self,
+        _authors: &carta_ast::MetaValue,
+        _options: &WriterOptions,
+    ) -> Result<Option<template::Value>> {
+        Ok(None)
+    }
+
     /// A title presentation the template language cannot express from individual variables: an
     /// underlined title for reStructuredText, say, whose rule length depends on the rendered title
     /// width. Exposed to the template as the `titleblock` variable. `None` (the default) when the

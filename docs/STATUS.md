@@ -275,11 +275,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - `styles.xml` is authored with a neutral style-name scheme; no reference-document engine ships.
 
 ### `rtf` ✅
-
 ### `docbook` (+ `docbook5`) ✅
-- A standalone document lists each author as plain text rather than splitting the name into a
-  `personname` element.
-
 ### `json` ✅
 ### `native` ✅
 ### `opml` ✅

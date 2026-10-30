@@ -1154,9 +1154,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-docbook",
-        "gaps": [
-          "A standalone document lists each author as plain text rather than splitting the name into a `personname` element."
-        ]
+        "gaps": []
       }
     },
     {

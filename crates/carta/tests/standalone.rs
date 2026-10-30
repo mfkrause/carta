@@ -544,6 +544,106 @@ fn tex_packages_cover_metadata_and_template_variables() {
 
 #[cfg(feature = "write-docbook")]
 #[test]
+fn docbook_authors_use_name_elements() {
+    use carta::ast::{Block, Inline};
+    let inlines = vec![
+        Inline::Str("Jane".into()),
+        Inline::Space,
+        Inline::Str("Doe".into()),
+    ];
+    for author in [
+        MetaValue::MetaString("Jane Doe".into()),
+        MetaValue::MetaInlines(inlines.clone()),
+        MetaValue::MetaBlocks(vec![Block::Para(inlines)]),
+    ] {
+        let mut options = WriterOptions::default();
+        options.standalone = true;
+        options.metadata.insert("author".to_owned(), author);
+        let output = convert_text(
+            "markdown",
+            "docbook",
+            "Saved text.",
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        assert!(output.contains("<personname>\n          <firstname>Jane</firstname>\n          <surname>Doe</surname>\n        </personname>"), "{output}");
+        options.template = Some("$meta-json$".into());
+        let output = convert_text(
+            "markdown",
+            "docbook",
+            "Saved text.",
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        let metadata: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(
+            metadata["author"],
+            serde_json::json!([
+                "<personname>\n  <firstname>Jane</firstname>\n  <surname>Doe</surname>\n</personname>"
+            ])
+        );
+    }
+}
+
+#[cfg(feature = "write-docbook")]
+#[test]
+fn docbook_authors_keep_name_order_and_inline_markup() {
+    use carta::ast::Inline;
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.metadata.insert(
+        "author".to_owned(),
+        MetaValue::MetaList(vec![
+            MetaValue::MetaString("Doe, Jane".into()),
+            MetaValue::MetaInlines(vec![
+                Inline::Str("Jane".into()),
+                Inline::Space,
+                Inline::Emph(vec![Inline::Str("Doe".into())]),
+            ]),
+            MetaValue::MetaInlines(vec![Inline::Code(Box::default(), "Jane Doe".into())]),
+            MetaValue::MetaString("Jane & Doe".into()),
+        ]),
+    );
+    let output = convert_text(
+        "markdown",
+        "docbook",
+        "Saved text.",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert_eq!(output.matches("<personname>").count(), 4);
+    assert!(output.contains("<firstname>Jane</firstname>"));
+    assert!(output.contains("<surname>Doe</surname>"));
+    assert!(output.contains("<firstname>Jane &amp;</firstname>"));
+    assert!(!output.contains("&amp;amp;"));
+    assert!(
+        output.contains("<personname><phrase>Jane <emphasis>Doe</emphasis></phrase></personname>")
+    );
+    assert!(
+        output.contains("<personname><phrase><literal>Jane Doe</literal></phrase></personname>")
+    );
+    options.template = Some("$author$".into());
+    options
+        .variables
+        .push(("author".to_owned(), "Chosen name".to_owned()));
+    assert_eq!(
+        convert_text(
+            "markdown",
+            "docbook",
+            "Saved text.",
+            &ReaderOptions::default(),
+            &options
+        )
+        .unwrap(),
+        "Chosen name"
+    );
+}
+
+#[cfg(feature = "write-docbook")]
+#[test]
 fn a_filled_value_wraps_for_the_place_its_template_seats_it() {
     let mut options = WriterOptions::default();
     options.standalone = true;

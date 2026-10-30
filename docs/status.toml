@@ -590,7 +590,6 @@ write = "usable"
 read-feature = "read-docbook"
 write-feature = "write-docbook"
 write-gaps = [
-  "A standalone document lists each author as plain text rather than splitting the name into a `personname` element.",
 ]
 
 [[format]]
