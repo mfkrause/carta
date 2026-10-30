@@ -651,3 +651,30 @@ fn native_divs_without_parsed_html_need_a_block_boundary() {
         assert!(matches!(out.as_slice(), [IrBlock::Para(_)]), "{out:?}");
     }
 }
+
+#[test]
+fn bare_markdown_fence_languages_are_normalized() {
+    for (language, expected) in [
+        ("Rust", "rust"),
+        ("C++", "cpp"),
+        ("Objective-C", "objectivec"),
+        ("Foo-Bar", "foo-bar"),
+    ] {
+        let source = format!("```{language}\nx\n```\n");
+        let out = blocks(&source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::CodeBlock(attr, _)] if attr.classes == [expected]),
+            "{out:?}"
+        );
+        let commonmark = parse(&source, carta_core::Extensions::empty(), false).0;
+        assert!(
+            matches!(commonmark.as_slice(), [IrBlock::CodeBlock(attr, _)] if attr.classes == [language]),
+            "{commonmark:?}"
+        );
+    }
+    let out = blocks("```{.Rust .MyClass}\nx\n```\n");
+    assert!(
+        matches!(out.as_slice(), [IrBlock::CodeBlock(attr, _)] if attr.classes == ["Rust", "MyClass"]),
+        "{out:?}"
+    );
+}

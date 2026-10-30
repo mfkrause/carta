@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use carta_ast::{Attr, ListNumberStyle};
+use carta_ast::{Attr, ListNumberStyle, Text};
 use carta_core::{Extension, Extensions};
 
 use super::block::ListInfo;
@@ -353,6 +353,17 @@ pub(super) fn fence_attr(info: &str, extensions: Extensions, markdown: bool) -> 
     if info.is_empty() {
         return Some(Attr::default());
     }
+    let language_class = |language: &str| -> Text {
+        if !markdown {
+            return language.into();
+        }
+        let lower = language.to_lowercase();
+        match lower.as_str() {
+            "c++" => "cpp".into(),
+            "objective-c" => "objectivec".into(),
+            _ => lower.into(),
+        }
+    };
     let fallback = || {
         (!markdown
             || !info
@@ -362,7 +373,7 @@ pub(super) fn fence_attr(info: &str, extensions: Extensions, markdown: bool) -> 
             classes: info
                 .split_whitespace()
                 .next()
-                .map(Into::into)
+                .map(language_class)
                 .into_iter()
                 .collect(),
             ..Attr::default()
@@ -394,7 +405,7 @@ pub(super) fn fence_attr(info: &str, extensions: Extensions, markdown: bool) -> 
     }
     if !language.is_empty() {
         if markdown {
-            attributes.classes.insert(0, language.into());
+            attributes.classes.insert(0, language_class(language));
         } else {
             attributes.classes.push(language.into());
         }
