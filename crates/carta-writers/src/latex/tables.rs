@@ -5,10 +5,10 @@ use std::fmt::Write as _;
 use carta_ast::{Alignment, Block, Cell, ColWidth, Inline, Row, Table};
 use carta_core::{WrapMode, budget};
 
-use crate::common::{Piece, display_width, fill};
+use crate::common::{Piece, display_width};
 use crate::grid;
 
-use super::{Dialect, Hl, inline_pieces, render_blocks, to_label};
+use super::{Dialect, Hl, InlineLayout, inline_pieces, render_blocks, to_label};
 
 const NESTED_CAPTION: &str = concat!(
     "\\expandafter\\def\\csname @captype\\endcsname{table}",
@@ -548,8 +548,7 @@ fn cell_content(
                 {
                     stacked_cell(inlines, width, dialect, wrap, smart, hl)
                 } else {
-                    let text =
-                        flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart, hl));
+                    let text = inline_pieces(inlines, width, dialect, wrap, smart, hl).flatten();
                     text.trim_start_matches(' ').to_owned()
                 }
             }
@@ -572,7 +571,7 @@ fn stacked_cell(
 ) -> String {
     let mut boxes = String::new();
     for segment in inlines.split(|inline| matches!(inline, Inline::LineBreak)) {
-        let text = flatten_pieces(&inline_pieces(segment, width, dialect, wrap, smart, hl));
+        let text = inline_pieces(segment, width, dialect, wrap, smart, hl).flatten();
         boxes.push_str("\\hbox{\\strut ");
         boxes.push_str(&text);
         boxes.push('}');
@@ -597,19 +596,6 @@ fn simple_cell_has_break(cell: &Cell) -> bool {
         [Block::Plain(inlines) | Block::Para(inlines)]
             if inlines.iter().any(|inline| matches!(inline, Inline::LineBreak))
     )
-}
-
-/// Flatten layout pieces to a string, keeping hard breaks as newlines.
-pub(super) fn flatten_pieces(pieces: &[Piece]) -> String {
-    let mut out = String::new();
-    for piece in pieces {
-        match piece {
-            Piece::Text(text) => out.push_str(text),
-            Piece::Space | Piece::Soft => out.push(' '),
-            Piece::Hard => out.push('\n'),
-        }
-    }
-    out
 }
 
 /// A cell's effective alignment: its own when set, otherwise its starting column's.
@@ -671,13 +657,14 @@ fn table_caption(
         .map(|inlines| {
             format!(
                 "[{}]",
-                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart, hl))
+                inline_pieces(inlines, width, dialect, wrap, smart, hl).flatten()
             )
         })
         .unwrap_or_default();
     // The enclosing longtable replaces \caption, so nested captions call the class handler.
     let command = if nested { NESTED_CAPTION } else { "\\caption" };
-    let mut pieces = vec![Piece::text(format!("{command}{short}{{"))];
+    let mut pieces = InlineLayout::default();
+    pieces.push(Piece::text(format!("{command}{short}{{")));
     let mut first = true;
     for inlines in crate::common::caption_runs(&caption.long) {
         if !first {
@@ -685,7 +672,7 @@ fn table_caption(
             pieces.push(Piece::Hard);
         }
         first = false;
-        pieces.extend(inline_pieces(inlines, width, dialect, wrap, smart, hl));
+        pieces.append(inline_pieces(inlines, width, dialect, wrap, smart, hl));
     }
     let mut close = String::from("}");
     if !table.attr.id.is_empty() {
@@ -695,5 +682,5 @@ fn table_caption(
         close.push_str("\\tabularnewline");
     }
     pieces.push(Piece::text(close));
-    Some(fill(&pieces, width, wrap))
+    Some(pieces.render(width, wrap))
 }

@@ -474,6 +474,85 @@ fn footnote_with_code_block_closes_on_own_line() {
 }
 
 #[test]
+fn footnote_continuations_indent_without_indenting_following_text() {
+    let mut body = Vec::new();
+    for word in "alpha beta gamma delta epsilon zeta eta theta".split_whitespace() {
+        if !body.is_empty() {
+            body.push(Inline::Space);
+        }
+        body.push(Inline::Str(word.into()));
+    }
+    let blocks = vec![Block::Para(vec![
+        Inline::Str("A".into()),
+        Inline::Space,
+        Inline::Str("note".into()),
+        Inline::Note(vec![Block::Para(body)]),
+        Inline::Space,
+        Inline::Str("follows.".into()),
+    ])];
+    for (width, expected) in [
+        (
+            20,
+            "A\nnote\\footnote{alpha\n  beta gamma delta\n  epsilon zeta eta\n  theta} follows.",
+        ),
+        (
+            17,
+            "A\nnote\\footnote{alpha\n  beta gamma\n  delta epsilon\n  zeta eta theta}\nfollows.",
+        ),
+    ] {
+        assert_eq!(render_columns(blocks.clone(), width), expected);
+    }
+}
+
+#[test]
+fn footnote_code_keeps_its_spaces_between_indented_paragraphs() {
+    let output = render_columns(
+        vec![Block::Para(vec![Inline::Note(vec![
+            Block::Para(str_inlines("first")),
+            Block::CodeBlock(Box::default(), "  alpha\n    beta\n".into()),
+            Block::Para(str_inlines("ending")),
+        ])])],
+        20,
+    );
+    assert!(
+        output.contains("\\begin{Verbatim}\n  alpha\n    beta\n\\end{Verbatim}"),
+        "{output}"
+    );
+    assert!(output.ends_with("\n\n  ending}"), "{output}");
+}
+
+#[test]
+fn heading_prefixes_preserve_note_indentation() {
+    let output = render_columns(
+        vec![Block::Header(
+            1,
+            Box::default(),
+            vec![Inline::Str("B".into()), Inline::Note(long_paragraph())],
+        )],
+        35,
+    );
+    assert!(
+        output.starts_with("\\section[B]{\\texorpdfstring{B\\footnote{alpha"),
+        "{output}"
+    );
+    assert!(
+        output.contains("\n  beta gamma delta epsilon zeta eta\n"),
+        "{output}"
+    );
+}
+
+#[test]
+fn deeply_nested_notes_keep_every_note() {
+    let mut inline = Inline::Str("leaf".into());
+    for _ in 0..5_000 {
+        inline = Inline::Note(vec![Block::Para(vec![inline])]);
+    }
+    let output = render(vec![Block::Para(vec![inline])]);
+    assert_eq!(output.matches("\\footnote{").count(), 5_000);
+    assert!(output.contains("leaf"));
+}
+
+#[test]
 fn nested_captioned_tables_do_not_copy_page_headers() {
     use carta_ast::{Alignment, Caption, Cell, ColSpec, ColWidth, Row, Table, TableHead};
 

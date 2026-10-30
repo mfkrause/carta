@@ -7,6 +7,88 @@ use carta_core::WrapMode;
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
 
+/// A change to the continuation indentation within an inline range.
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(not(feature = "latex"), allow(dead_code))]
+pub(crate) enum Indent {
+    /// Add columns to the enclosing indentation.
+    Add(usize),
+    /// Keep literal content at the left margin.
+    Reset,
+}
+
+impl Indent {
+    pub(crate) fn apply(self, current: usize) -> usize {
+        match self {
+            Self::Add(columns) => current.saturating_add(columns),
+            Self::Reset => 0,
+        }
+    }
+}
+
+/// An indentation scope over a half-open range of inline pieces.
+#[derive(Debug, Clone)]
+pub(crate) struct IndentScope {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) indent: Indent,
+}
+
+/// Resolve nested scopes, ordered by start, to one indentation value per piece.
+pub(crate) fn scope_indents(scopes: &[IndentScope], count: usize) -> Vec<usize> {
+    if scopes.is_empty() {
+        return Vec::new();
+    }
+    let mut indents = Vec::with_capacity(count);
+    let mut stack: Vec<(usize, usize)> = Vec::new();
+    let mut current = 0;
+    let mut next = 0;
+    for index in 0..count {
+        while let Some(&(end, previous)) = stack.last() {
+            if end > index {
+                break;
+            }
+            current = previous;
+            stack.pop();
+        }
+        while let Some(scope) = scopes.get(next) {
+            if scope.start > index {
+                break;
+            }
+            next += 1;
+            if scope.end > index {
+                stack.push((scope.end, current));
+                current = scope.indent.apply(current);
+            }
+        }
+        indents.push(current);
+    }
+    indents
+}
+
+/// Fill inline pieces with nested continuation indents, ordered by scope start.
+#[cfg(feature = "latex")]
+pub(crate) fn fill_indented(
+    pieces: &[Piece],
+    scopes: &[IndentScope],
+    width: usize,
+    wrap: WrapMode,
+) -> String {
+    let width = match wrap {
+        WrapMode::Auto => width.max(1),
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
+    fill_core(
+        pieces,
+        width,
+        0,
+        matches!(wrap, WrapMode::Preserve),
+        false,
+        &[],
+        scopes,
+    )
+}
+
 /// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, a
 /// soft line break from the source, or a forced line break.
 #[cfg_attr(
@@ -66,7 +148,6 @@ impl Piece {
         feature = "asciidoc",
         feature = "commonmark",
         feature = "gfm",
-        feature = "latex",
         feature = "markdown",
         feature = "org",
         feature = "plain",
@@ -86,7 +167,6 @@ pub(crate) fn fill(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
         feature = "asciidoc",
         feature = "commonmark",
         feature = "gfm",
-        feature = "latex",
         feature = "markdown",
         feature = "org",
         feature = "plain",
@@ -111,6 +191,7 @@ pub(crate) fn fill_offset(
         initial,
         matches!(wrap, WrapMode::Preserve),
         false,
+        &[],
         &[],
     )
 }
@@ -141,6 +222,7 @@ pub(crate) fn fill_groups(
         matches!(wrap, WrapMode::Preserve),
         keep_leading,
         groups,
+        &[],
     )
 }
 
@@ -169,6 +251,7 @@ pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
         matches!(wrap, WrapMode::Preserve),
         true,
         &[],
+        &[],
     )
 }
 
@@ -189,6 +272,7 @@ pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
         0,
         matches!(wrap, WrapMode::Preserve),
         false,
+        &[],
         &[],
     )
 }
@@ -219,6 +303,7 @@ pub(crate) fn fill_into(
         matches!(wrap, WrapMode::Preserve),
         false,
         &[],
+        &[],
     );
 }
 
@@ -233,7 +318,7 @@ pub(crate) fn fill_into(
 pub(crate) fn fill_lines(pieces: &[Piece], width: usize) -> Vec<String> {
     let width = width.max(1);
     let mut sink = LineVecSink::default();
-    fill_pieces(&mut sink, pieces, width, 0, false, false, &[]);
+    fill_pieces(&mut sink, pieces, width, 0, false, false, &[], &[]);
     sink.finish()
 }
 
@@ -275,7 +360,7 @@ impl Sink for LineVecSink {
 /// out under a marker keeps the gap the source put between the marker position and its first word.
 /// `groups` names disjoint, ascending half-open index ranges that are placed atomically (see
 /// [`fill_groups`]).
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 fn fill_pieces<S: Sink>(
     sink: &mut S,
     pieces: &[Piece],
@@ -284,6 +369,7 @@ fn fill_pieces<S: Sink>(
     preserve_softs: bool,
     keep_leading: bool,
     groups: &[(usize, usize)],
+    scopes: &[IndentScope],
 ) {
     let mut column = initial;
     let mut at_line_start = initial == 0 && !keep_leading;
@@ -293,6 +379,8 @@ fn fill_pieces<S: Sink>(
     let mut word_width = 0;
     let mut next_group = 0;
     let mut index = 0;
+    let indents = scope_indents(scopes, pieces.len());
+    let mut word_indent = 0;
     while index < pieces.len() {
         if let Some(&(start, end)) = groups.get(next_group) {
             if index >= end {
@@ -309,6 +397,7 @@ fn fill_pieces<S: Sink>(
                     &word,
                     word_width,
                     width,
+                    word_indent,
                 );
                 word.clear();
                 word_width = 0;
@@ -329,6 +418,9 @@ fn fill_pieces<S: Sink>(
         }
         match pieces.get(index) {
             Some(Piece::Text(text)) => {
+                if word.is_empty() {
+                    word_indent = indents.get(index).copied().unwrap_or(0);
+                }
                 let text = text.as_ref();
                 word.push(text);
                 word_width += display_width(text);
@@ -343,6 +435,7 @@ fn fill_pieces<S: Sink>(
                     &word,
                     word_width,
                     width,
+                    word_indent,
                 );
                 word.clear();
                 word_width = 0;
@@ -362,6 +455,7 @@ fn fill_pieces<S: Sink>(
                     &word,
                     word_width,
                     width,
+                    word_indent,
                 );
                 word.clear();
                 word_width = 0;
@@ -376,6 +470,7 @@ fn fill_pieces<S: Sink>(
                     &word,
                     word_width,
                     width,
+                    word_indent,
                 );
                 word.clear();
                 word_width = 0;
@@ -398,6 +493,7 @@ fn fill_pieces<S: Sink>(
         &word,
         word_width,
         width,
+        word_indent,
     );
 }
 
@@ -500,6 +596,7 @@ fn fill_core(
     preserve_softs: bool,
     keep_leading: bool,
     groups: &[(usize, usize)],
+    scopes: &[IndentScope],
 ) -> String {
     let mut out = String::new();
     let mut sink = LineSink::plain(&mut out);
@@ -511,6 +608,7 @@ fn fill_core(
         preserve_softs,
         keep_leading,
         groups,
+        scopes,
     );
     out
 }
@@ -534,7 +632,7 @@ fn place_group<S: Sink>(
     preserve_softs: bool,
     width: usize,
 ) {
-    let rendered = fill_core(inner, width, 0, preserve_softs, false, &[]);
+    let rendered = fill_core(inner, width, 0, preserve_softs, false, &[], &[]);
     let first_line = rendered.split('\n').next().map_or(0, display_width);
     let multiline = rendered.contains('\n');
     let start_col = if *at_line_start {
@@ -555,7 +653,7 @@ fn place_group<S: Sink>(
         sink.write(&rendered);
         *column = line_end_column(&rendered, start_col);
     } else {
-        let refolded = fill_core(inner, width, start_col, preserve_softs, false, &[]);
+        let refolded = fill_core(inner, width, start_col, preserve_softs, false, &[], &[]);
         sink.write(&refolded);
         *column = line_end_column(&refolded, start_col);
     }
@@ -578,6 +676,7 @@ fn line_end_column(rendered: &str, start_col: usize) -> usize {
 /// several paragraphs) does. Such a word's first line is what must fit after the preceding space,
 /// and its last line sets the column the following text continues from; only its first line shares
 /// the line it lands on, so the rest cannot push later words off the column.
+#[allow(clippy::too_many_arguments)]
 fn place_word<S: Sink>(
     sink: &mut S,
     column: &mut usize,
@@ -586,16 +685,24 @@ fn place_word<S: Sink>(
     word: &[&str],
     word_width: usize,
     width: usize,
+    indent: usize,
 ) {
     if word.is_empty() {
         return;
     }
     let (first_line, multiline, last_line) = word_line_metrics(word, word_width);
     if *at_line_start {
+        if indent > 0 {
+            sink.write(&" ".repeat(indent));
+            *column += indent;
+        }
         *at_line_start = false;
     } else if pending_space && *column > 0 && *column + 1 + first_line > width {
         sink.newline();
-        *column = 0;
+        *column = indent;
+        if indent > 0 {
+            sink.write(&" ".repeat(indent));
+        }
         *at_line_start = false;
     } else if pending_space {
         sink.write(" ");
@@ -688,6 +795,32 @@ pub(crate) fn quote_block(body: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "latex")]
+    #[test]
+    fn inline_scope_indents_only_wrapped_body_lines() {
+        let pieces = vec![
+            Piece::text("A"),
+            Piece::Space,
+            Piece::text("note\\footnote{"),
+            Piece::text("alpha"),
+            Piece::Space,
+            Piece::text("beta"),
+            Piece::Space,
+            Piece::text("gamma}"),
+            Piece::Space,
+            Piece::text("tail"),
+        ];
+        let scopes = vec![IndentScope {
+            start: 3,
+            end: 8,
+            indent: Indent::Add(2),
+        }];
+        assert_eq!(
+            fill_indented(&pieces, &scopes, 20, WrapMode::Auto),
+            "A\nnote\\footnote{alpha\n  beta gamma} tail"
+        );
+    }
 
     #[test]
     fn fill_wraps_at_column_boundary() {
@@ -868,7 +1001,16 @@ mod tests {
             let expected = fill_groups(&pieces, &groups, width, 0, false, WrapMode::Auto);
             let mut out = String::new();
             let mut sink = LineSink::plain(&mut out);
-            fill_pieces(&mut sink, &pieces, width.max(1), 0, false, false, &groups);
+            fill_pieces(
+                &mut sink,
+                &pieces,
+                width.max(1),
+                0,
+                false,
+                false,
+                &groups,
+                &[],
+            );
             assert_eq!(out, expected);
         }
     }

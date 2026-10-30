@@ -10,8 +10,8 @@ use carta_ast::{
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, checkbox_state, fill, list_is_tight, numeral,
-    strip_checkbox, wrap_delim,
+    FILL_COLUMN, Piece, attribute_value, checkbox_state, list_is_tight, numeral, strip_checkbox,
+    wrap_delim,
 };
 
 mod code;
@@ -22,8 +22,8 @@ mod tables;
 use self::code::code_block;
 pub(crate) use self::code::{Hl, code_highlighting};
 use self::escaping::{EscapeMode, escape_smart, is_latex_format};
-use self::inline::{push_inlines, trim_number};
-use self::tables::{flatten_pieces, render_table};
+use self::inline::{InlineLayout, push_inlines, trim_number};
+use self::tables::render_table;
 
 /// Renders a document to a LaTeX fragment.
 #[derive(Debug, Default, Clone, Copy)]
@@ -156,8 +156,9 @@ pub(crate) fn render_titled_open(
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
-    let mut pieces = vec![Piece::text(prefix.to_owned())];
-    pieces.extend(inline_pieces(
+    let mut pieces = InlineLayout::default();
+    pieces.push(Piece::text(prefix.to_owned()));
+    pieces.append(inline_pieces(
         inlines,
         FILL_COLUMN,
         dialect,
@@ -166,7 +167,7 @@ pub(crate) fn render_titled_open(
         hl,
     ));
     pieces.push(Piece::text("}"));
-    fill(&pieces, FILL_COLUMN, wrap)
+    pieces.render(FILL_COLUMN, wrap)
 }
 
 /// The anchor markup for an element carrying an identifier, exposed for slide-level scaffolding.
@@ -262,32 +263,34 @@ fn header(
     let star = if unnumbered { "*" } else { "" };
     let inner = inline_pieces_in(inlines, width, dialect, wrap, smart, true, hl);
 
-    let mut content = vec![Piece::text(format!("\\{command}{star}"))];
+    let mut content = InlineLayout::default();
+    content.push(Piece::text(format!("\\{command}{star}")));
     if let Some(short) = short_title(inlines, width, dialect, wrap, smart, hl) {
         content.push(Piece::text(format!("[{short}]")));
     }
     content.push(Piece::text("{"));
     if needs_texorpdfstring(inlines) {
         content.push(Piece::text("\\texorpdfstring{"));
-        content.extend(inner.iter().cloned());
+        content.append(inner.clone());
         let pdf = escape_smart(&to_plain_text(inlines), EscapeMode::Text, smart);
         content.push(Piece::text(format!("}}{{{pdf}}}")));
     } else {
-        content.extend(inner.iter().cloned());
+        content.append(inner.clone());
     }
     content.push(Piece::text("}"));
     if !attr.id.is_empty() {
         content.push(Piece::text(format!("\\label{{{}}}", to_label(&attr.id))));
     }
-    let heading = fill(&content, width, wrap);
+    let heading = content.render(width, wrap);
 
     if unnumbered {
-        let mut toc = vec![Piece::text(format!(
+        let mut toc = InlineLayout::default();
+        toc.push(Piece::text(format!(
             "\\addcontentsline{{toc}}{{{command}}}{{"
-        ))];
-        toc.extend(inner);
+        )));
+        toc.append(inner);
         toc.push(Piece::text("}"));
-        format!("{heading}\n{}", fill(&toc, width, wrap))
+        format!("{heading}\n{}", toc.render(width, wrap))
     } else {
         heading
     }
@@ -744,7 +747,7 @@ fn line_block(
                 }
                 pieces.push(Piece::text("\\\\"));
             }
-            let rendered = fill(&pieces, width, wrap);
+            let rendered = pieces.render(width, wrap);
             // A line opening on a non-breaking space carries no glyph to set its height.
             if !only_empty_so_far && rendered.starts_with('~') {
                 out.push_str("\\strut ");
@@ -929,9 +932,7 @@ fn short_title(
     if visible.len() == inlines.len() || visible.is_empty() {
         return None;
     }
-    Some(flatten_pieces(&inline_pieces(
-        &visible, width, dialect, wrap, smart, hl,
-    )))
+    Some(inline_pieces(&visible, width, dialect, wrap, smart, hl).flatten())
 }
 
 /// Whether an inline expands to a construct invalid in a heading's movable short-title argument: a
@@ -962,11 +963,7 @@ fn inlines_to_string(
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
-    fill(
-        &inline_pieces(inlines, width, dialect, wrap, smart, hl),
-        width,
-        wrap,
-    )
+    inline_pieces(inlines, width, dialect, wrap, smart, hl).render(width, wrap)
 }
 
 fn inline_pieces(
@@ -976,7 +973,7 @@ fn inline_pieces(
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
-) -> Vec<Piece> {
+) -> InlineLayout {
     inline_pieces_in(inlines, width, dialect, wrap, smart, false, hl)
 }
 
@@ -991,8 +988,8 @@ fn inline_pieces_in(
     smart: bool,
     in_header: bool,
     hl: Hl<'_>,
-) -> Vec<Piece> {
-    let mut out = Vec::new();
+) -> InlineLayout {
+    let mut out = InlineLayout::default();
     push_inlines(
         inlines, &mut out, width, dialect, wrap, smart, in_header, false, hl,
     );
