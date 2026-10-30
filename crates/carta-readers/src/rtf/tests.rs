@@ -43,6 +43,30 @@ fn plain_paragraph_splits_words() {
 }
 
 #[test]
+fn control_word_punctuation_does_not_consume_text() {
+    for (source, expected) in [
+        (r"\emdash-tail", "—-tail"),
+        (r"\u8212-tail", "—tail"),
+        (r"\u233?b", "éb"),
+        (r"\uc0\u233?b", "é?b"),
+        (r"\u-10179?\u-8704?end", "😀end"),
+    ] {
+        assert_eq!(
+            read(&format!("{{\\rtf1 {source}}}")).blocks,
+            vec![para(vec![s(expected)])]
+        );
+    }
+    assert_eq!(
+        read(r#"{\rtf1 \u8220"quoted\u8221" and}"#).blocks,
+        vec![para(vec![s("“quoted”"), Inline::Space, s("and")])]
+    );
+    assert_eq!(
+        read(r"{\rtf1\b,bold\b0}").blocks,
+        vec![para(vec![Inline::Strong(vec![s(",bold")])])]
+    );
+}
+
+#[test]
 fn escaped_controls_become_spaces_and_breaks() {
     assert_eq!(
         read(r"{\rtf1{\fonttbl{\f0\fmodern Courier;}}\f0 a\'09b\'0ac\'0d}").blocks,

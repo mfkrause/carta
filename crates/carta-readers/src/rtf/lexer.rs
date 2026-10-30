@@ -68,15 +68,6 @@ pub(super) fn tokenize(input: &str) -> Vec<Token> {
     tokens
 }
 
-/// Whether `c` is the delimiter that ends a control word and is consumed with it. A space always
-/// qualifies; any other single printable punctuation mark does too, except the three characters that
-/// open their own token (`{` and `}` begin and end groups, `\` starts the next control sequence) and
-/// letters or digits, which would extend the word or its numeric parameter instead.
-fn is_control_delimiter(c: char) -> bool {
-    c == ' '
-        || (c.is_ascii_graphic() && !c.is_ascii_alphanumeric() && !matches!(c, '{' | '}' | '\\'))
-}
-
 /// Lexes one backslash-introduced token starting at `start` (the backslash). Returns the index just
 /// past what was consumed.
 fn lex_backslash(chars: &[char], start: usize, tokens: &mut Vec<Token>) -> usize {
@@ -106,8 +97,7 @@ fn lex_backslash(chars: &[char], start: usize, tokens: &mut Vec<Token>) -> usize
             } else {
                 None
             };
-            // A delimiter is absorbed with the word unless it begins another token.
-            if matches!(chars.get(i), Some(&c) if is_control_delimiter(c)) {
+            if chars.get(i) == Some(&' ') {
                 i += 1;
             }
             // Capture binary bytes before brace parsing so payload delimiters cannot change nesting.
