@@ -410,3 +410,35 @@ fn four_column_lists_account_for_quote_and_task_prefixes() {
         );
     }
 }
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-markdown",
+    feature = "write-gfm"
+))]
+#[test]
+fn wrapped_footnotes_keep_all_text_inside_the_definition() {
+    let source = "body[^a]\n\n[^a]: a b c d e f g h i j k l m n o p\n\n    second paragraph\n";
+    let mut options = WriterOptions::default();
+    options.columns = Some(12);
+    for format in ["markdown", "gfm"] {
+        let output = convert_text(
+            "markdown",
+            format,
+            source,
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            "body[^1]\n\n[^1]: a b c\n    d e f g\n    h i j k\n    l m n o\n    p\n\n    second\n    paragraph"
+        );
+        let (restored, _) =
+            carta::read_document("markdown", output.as_bytes(), &ReaderOptions::default()).unwrap();
+        assert!(matches!(
+            restored.blocks.as_slice(),
+            [carta::ast::Block::Para(_)]
+        ));
+    }
+}

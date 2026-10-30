@@ -834,7 +834,7 @@ impl NotesHost for State {
         self.notes().push(String::new());
         let marker = format!("[^{}]", index + 1);
         let label = format!("{marker}:");
-        let body = self.note_body(blocks, 4);
+        let body = self.note_body(blocks, label.len() + 1);
         let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
         let rendered = if body.is_empty() {
             label
@@ -849,23 +849,28 @@ impl NotesHost for State {
         marker
     }
 
-    fn note_body(&mut self, blocks: &[Block], _initial: usize) -> String {
-        let width = self.base_width();
+    fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
+        let width = self.base_width().saturating_sub(4);
+        let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
         let rendered: Vec<(bool, String)> = blocks
             .iter()
             .enumerate()
             .map(|(position, block)| {
                 let is_plain = matches!(block, Block::Plain(_));
-                let text = self.render_block(block, width);
-                let text = if position == 0 {
-                    text
+                let text = if position == 0 && starts_inline {
+                    self.note_block_offset(block, width, initial.saturating_sub(4))
                 } else {
-                    indent_block(&text, "    ", "    ")
+                    self.render_block(block, width)
                 };
                 (is_plain, text)
             })
             .collect();
-        crate::common::join_loose(rendered)
+        let body = crate::common::join_loose(rendered);
+        if starts_inline {
+            indent_block(&body, "", "    ")
+        } else {
+            body
+        }
     }
 }
 
