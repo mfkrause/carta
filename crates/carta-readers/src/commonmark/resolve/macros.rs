@@ -211,6 +211,7 @@ pub(super) fn resolve(
         defined: &defined,
         by_id: &empty,
         macros: Some(&scratch),
+        directory: None,
         in_definition: false,
         markdown,
         examples,

@@ -11,6 +11,7 @@ mod html_block;
 mod html_element;
 mod identifiers;
 mod inline;
+mod origin;
 mod postprocess;
 mod resolve;
 pub(crate) mod scan;
@@ -42,7 +43,15 @@ impl Reader for CommonmarkReader {
         let frontmatter::FrontMatter { meta, body } =
             frontmatter::extract(&normalized, options, macros.as_ref())?;
         let source = body.as_deref().unwrap_or(&normalized);
-        let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
+        let skipped_lines = normalized
+            .strip_suffix(source)
+            .unwrap_or_default()
+            .bytes()
+            .filter(|byte| *byte == b'\n')
+            .count();
+        let directories = origin::directories(input, options, skipped_lines);
+        let (ir, refs, footnotes, examples) =
+            block::parse_with_directories(source, ext, options.greedy_paragraphs, directories);
         let blocks = resolve::resolve_document(
             &ir,
             refs,
@@ -75,6 +84,8 @@ pub(crate) enum IrBlock {
     RawBlock(Format, String),
     /// Source position of a separately stored footnote definition.
     FootnoteDefinition(String),
+    /// The directory inherited by relative links in this block.
+    SourceDirectory(std::rc::Rc<std::path::PathBuf>, Box<IrBlock>),
     ThematicBreak,
     /// A fenced div: its attributes and the recursively-parsed block content.
     Div(Attr, Vec<IrBlock>),
@@ -114,11 +125,39 @@ pub(crate) enum IrBlock {
 pub(crate) struct IrCaption {
     text: String,
     before: bool,
+    directory: Option<std::rc::Rc<std::path::PathBuf>>,
 }
 
 impl IrBlock {
+    fn content(&self) -> &Self {
+        let mut block = self;
+        while let Self::SourceDirectory(_, child) = block {
+            block = child;
+        }
+        block
+    }
+
+    fn content_mut(&mut self) -> &mut Self {
+        let mut block = self;
+        while let Self::SourceDirectory(_, child) = block {
+            block = child;
+        }
+        block
+    }
+
+    fn directory(&self) -> Option<std::rc::Rc<std::path::PathBuf>> {
+        if let Self::SourceDirectory(directory, _) = self {
+            Some(std::rc::Rc::clone(directory))
+        } else {
+            None
+        }
+    }
+
     fn take_children(&mut self, pending: &mut Vec<Vec<Self>>) {
         match self {
+            Self::SourceDirectory(_, child) => {
+                pending.push(vec![std::mem::replace(child.as_mut(), Self::ThematicBreak)]);
+            }
             Self::Div(_, children) | Self::BlockQuote(children) => {
                 if !children.is_empty() {
                     pending.push(std::mem::take(children));
@@ -165,12 +204,14 @@ impl Drop for IrBlock {
 pub(crate) struct IrDefItem {
     pub term: String,
     pub definitions: Vec<Vec<IrBlock>>,
+    pub directory: Option<std::rc::Rc<std::path::PathBuf>>,
 }
 
 /// A resolved link reference definition with its destination, title, and attributes.
 #[derive(Debug, Clone)]
 pub(crate) struct LinkDef {
     pub url: String,
+    pub directory: Option<std::rc::Rc<std::path::PathBuf>>,
     pub title: String,
     pub attr: Attr,
 }
@@ -195,12 +236,18 @@ pub(crate) type ExampleMap = BTreeMap<String, i32>;
 /// metadata block.
 fn parse_meta_blocks(
     text: &str,
-    extensions: Extensions,
-    greedy_paragraphs: bool,
+    options: &ReaderOptions,
     macros: Option<&resolve::macros::Context<'_>>,
 ) -> Vec<Block> {
+    let extensions = options.extensions;
+    let greedy_paragraphs = options.greedy_paragraphs;
     let normalized = normalize(text);
-    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, greedy_paragraphs);
+    let (ir, refs, footnotes, examples) = block::parse_with_directories(
+        &normalized,
+        extensions,
+        greedy_paragraphs,
+        origin::constant(origin::first_directory(options)),
+    );
     resolve::resolve_document(
         &ir,
         refs,
@@ -222,13 +269,18 @@ fn parse_table_cell(
     extensions: Extensions,
     greedy_paragraphs: bool,
     macros: Option<&resolve::macros::Context<'_>>,
+    directory: Option<&std::path::Path>,
 ) -> Vec<Block> {
     if text.is_empty() {
         return Vec::new();
     }
     let normalized = normalize(text);
-    let (mut ir, refs, footnotes, examples) =
-        block::parse(&normalized, extensions, greedy_paragraphs);
+    let (mut ir, refs, footnotes, examples) = block::parse_with_directories(
+        &normalized,
+        extensions,
+        greedy_paragraphs,
+        origin::constant(directory),
+    );
     if tight {
         postprocess::demote_loose_paragraphs(&mut ir);
     }

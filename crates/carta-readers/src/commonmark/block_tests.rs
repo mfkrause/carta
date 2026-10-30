@@ -456,6 +456,7 @@ fn caption_attributes_are_inert_without_the_extension() {
         "c {#t}",
         presets::COMMONMARK,
         false,
+        None,
     ));
     let (attr, caption) = match table.first() {
         Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),

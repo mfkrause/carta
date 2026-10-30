@@ -10,6 +10,7 @@ mod greedy_paragraphs;
 mod identifiers_references;
 mod line_blocks_definitions;
 mod metadata_tables_markdown;
+mod origin;
 mod tex;
 
 fn blocks(input: &str) -> Vec<Block> {

@@ -265,19 +265,6 @@ toggle naming anything outside that set is rejected.
 `space_in_atx_header`, `all_symbols_escapable`, `spaced_reference_links`, `short_subsuperscripts`,
 `mmd_title_block`, `mmd_header_identifiers`, `abbreviations`, `markdown_attribute`.
 
-### Known parity gaps
-
-Constructs the supported extensions read, each with one narrow case that still diverges.
-
-| Extension(s) | Gap |
-| --- | --- |
-
-### Not yet implemented
-
-These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but
-the reader does not yet branch on the construct (notable, non-exhaustive): `rebase_relative_paths`.
-(`shortcut_reference_links` is already covered by the CommonMark engine.)
-
 ---
 
 ## Cross-cutting features

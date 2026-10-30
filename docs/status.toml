@@ -769,7 +769,6 @@ supported = [
   "markdown_attribute",
 ]
 recognized-not-modeled = [
-  "rebase_relative_paths",
 ]
 
 [[feature]]

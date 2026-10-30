@@ -63,9 +63,7 @@
     "abbreviations",
     "markdown_attribute"
   ],
-  "recognizedNotModeled": [
-    "rebase_relative_paths"
-  ],
+  "recognizedNotModeled": [],
   "gaps": [],
   "byFormat": {
     "asciidoc": {

@@ -224,7 +224,11 @@ pub(super) fn find_citation_key(text: &str, range: std::ops::Range<usize>) -> Op
 
 pub(super) fn def_target(def: &LinkDef) -> Target {
     Target {
-        url: def.url.clone().into(),
+        url: super::super::origin::rebase(
+            &def.url,
+            def.directory.as_deref().map(std::path::PathBuf::as_path),
+        )
+        .into(),
         title: def.title.clone().into(),
     }
 }

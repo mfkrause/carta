@@ -17,6 +17,13 @@ impl Parser {
                 if consumed > 0
                     && let Some(node) = self.nodes.get_mut(index)
                 {
+                    node.source_line += node
+                        .text
+                        .get(..consumed)
+                        .unwrap_or_default()
+                        .bytes()
+                        .filter(|byte| *byte == b'\n')
+                        .count();
                     node.text.drain(..consumed);
                 }
             }
@@ -108,7 +115,12 @@ impl Parser {
     /// Pull leading definitions off `text` and return what remains. Link reference definitions are
     /// always eligible; an abbreviation definition (`abbreviations`) requires its host paragraph to
     /// begin flush at the container's left edge, so `column_zero` gates it.
-    pub(super) fn extract_refs(&mut self, text: &str, column_zero: bool) -> String {
+    pub(super) fn extract_refs(
+        &mut self,
+        text: &str,
+        column_zero: bool,
+        directory: Option<&std::rc::Rc<std::path::PathBuf>>,
+    ) -> String {
         let abbreviations = column_zero && self.extensions.contains(Extension::Abbreviations);
         let mut remaining = text;
         loop {
@@ -117,7 +129,10 @@ impl Parser {
                 self.greedy_paragraphs,
                 self.extensions.contains(Extension::MmdLinkAttributes),
             ) {
-                self.refs.entry(label).or_insert(def);
+                self.refs.entry(label).or_insert(super::super::LinkDef {
+                    directory: directory.cloned(),
+                    ..def
+                });
                 remaining = rest;
                 continue;
             }
@@ -134,6 +149,7 @@ impl Parser {
     /// so the caller can strip them from the node's buffer in place. Behaves as [`Self::extract_refs`]
     /// but reports the consumed prefix length rather than copying the remainder.
     pub(super) fn extract_leading_definitions(&mut self, index: usize, column_zero: bool) -> usize {
+        let directory = self.directory_for(index);
         let abbreviations = column_zero && self.extensions.contains(Extension::Abbreviations);
         let greedy = self.greedy_paragraphs;
         let Some(node) = self.nodes.get(index) else {
@@ -142,11 +158,12 @@ impl Parser {
         let text = node.text.as_str();
         let mut remaining = text;
         loop {
-            if let Some((label, def, rest)) = scan::parse_link_reference_definition(
+            if let Some((label, mut def, rest)) = scan::parse_link_reference_definition(
                 remaining,
                 greedy,
                 self.extensions.contains(Extension::MmdLinkAttributes),
             ) {
+                def.directory.clone_from(&directory);
                 self.refs.entry(label).or_insert(def);
                 remaining = rest;
                 continue;
@@ -187,19 +204,24 @@ impl Parser {
                     self.raw_tex_format(),
                     node.text.get(..*valid_end).unwrap_or_default().to_owned(),
                 ));
-                out.push(IrBlock::Para(
-                    node.text
-                        .get(*valid_end..)
-                        .unwrap_or_default()
-                        .trim()
-                        .to_owned(),
-                ));
+                out.push(
+                    self.in_directory(
+                        child,
+                        IrBlock::Para(
+                            node.text
+                                .get(*valid_end..)
+                                .unwrap_or_default()
+                                .trim()
+                                .to_owned(),
+                        ),
+                    ),
+                );
                 continue;
             }
             if let Some(Kind::HtmlElement(info)) = self.kind(child)
                 && !info.as_div
             {
-                out.push(IrBlock::RawHtml(info.raw_open.clone()));
+                out.push(self.in_directory(child, IrBlock::RawHtml(info.raw_open.clone())));
                 let mut content = self.build_children(child);
                 if info.tighten_last {
                     tighten_last_block(&mut content);
@@ -207,7 +229,7 @@ impl Parser {
                 out.append(&mut content);
                 // An element left open at end of input has no close tag; emit one only when present.
                 if !info.raw_close.is_empty() {
-                    out.push(IrBlock::RawHtml(info.raw_close.clone()));
+                    out.push(self.in_directory(child, IrBlock::RawHtml(info.raw_close.clone())));
                 }
                 continue;
             }
@@ -216,6 +238,32 @@ impl Parser {
             }
         }
         out
+    }
+
+    pub(super) fn directory_for(&self, index: usize) -> Option<std::rc::Rc<std::path::PathBuf>> {
+        let line = self.nodes.get(index)?.source_line;
+        self.directory_at(line)
+    }
+
+    fn directory_at(&self, line: usize) -> Option<std::rc::Rc<std::path::PathBuf>> {
+        self.directories
+            .range(..=line)
+            .next_back()
+            .map(|(_, directory)| std::rc::Rc::clone(directory))
+    }
+
+    fn in_directory(&self, index: usize, mut block: IrBlock) -> IrBlock {
+        if let IrBlock::TextTable(table) = &mut block {
+            let base = self.nodes.get(index).map_or(0, |node| node.source_line);
+            for row in table.head.iter_mut().chain(table.body.iter_mut()) {
+                row.directory = self.directory_at(base.saturating_add(row.source_line));
+            }
+        }
+        if let Some(directory) = self.directory_for(index) {
+            IrBlock::SourceDirectory(directory, Box::new(block))
+        } else {
+            block
+        }
     }
 
     fn raw_tex_format(&self) -> Format {
@@ -344,7 +392,7 @@ impl Parser {
             }
             Kind::List(info) => self.build_list(index, info),
         };
-        Some(block)
+        Some(self.in_directory(index, block))
     }
 
     /// Finalizes raw HTML text, dropping its final newline in Markdown.
@@ -438,6 +486,7 @@ impl Parser {
                 items.push(IrDefItem {
                     term: term.clone(),
                     definitions,
+                    directory: self.directory_for(item_index),
                 });
             }
         }

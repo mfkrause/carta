@@ -332,6 +332,7 @@ impl Parser {
         {
             return None;
         }
+        let term_line = term_node.source_line;
         let term = term_node.text.trim().to_owned();
         let tight = !term_node.last_line_blank;
         let previous = self
@@ -353,7 +354,11 @@ impl Parser {
                 self.append_child(container, Node::new(Kind::DefinitionList))
             }
         };
-        Some(self.append_child(list, Node::new(Kind::DefinitionItem { term, tight })))
+        let item = self.append_child(list, Node::new(Kind::DefinitionItem { term, tight }));
+        if let Some(node) = self.nodes.get_mut(item) {
+            node.source_line = term_line;
+        }
+        Some(item)
     }
 
     /// Reopen a definition list to accept a further term, closing the entry it last held so the new

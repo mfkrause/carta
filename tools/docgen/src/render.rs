@@ -159,28 +159,32 @@ fn extensions(out: &mut String, status: &Status) {
         code_list(status.extensions.supported.iter().map(String::as_str))
     )));
 
-    out.push_str("\n\n### Known parity gaps\n\n");
-    out.push_str(PARITY_GAPS_INTRO);
-    out.push_str("\n\n| Extension(s) | Gap |\n| --- | --- |\n");
-    for gap in &status.extensions.gaps {
-        out.push_str(&format!(
-            "| {} | {} |\n",
-            code_list(gap.names.iter().map(String::as_str)),
-            gap.description
-        ));
+    if !status.extensions.gaps.is_empty() {
+        out.push_str("\n\n### Known parity gaps\n\n");
+        out.push_str(PARITY_GAPS_INTRO);
+        out.push_str("\n\n| Extension(s) | Gap |\n| --- | --- |\n");
+        for gap in &status.extensions.gaps {
+            out.push_str(&format!(
+                "| {} | {} |\n",
+                code_list(gap.names.iter().map(String::as_str)),
+                gap.description
+            ));
+        }
     }
 
-    out.push_str("\n### Not yet implemented\n\n");
-    out.push_str(&wrap(&format!(
-        "{NOT_MODELED_INTRO} {}.\n{NOT_MODELED_NOTE}",
-        code_list(
-            status
-                .extensions
-                .recognized_not_modeled
-                .iter()
-                .map(String::as_str)
-        )
-    )));
+    if !status.extensions.recognized_not_modeled.is_empty() {
+        out.push_str("\n\n### Not yet implemented\n\n");
+        out.push_str(&wrap(&format!(
+            "{NOT_MODELED_INTRO} {}.\n{NOT_MODELED_NOTE}",
+            code_list(
+                status
+                    .extensions
+                    .recognized_not_modeled
+                    .iter()
+                    .map(String::as_str)
+            )
+        )));
+    }
     out.push_str("\n\n");
 }
 
@@ -245,4 +249,35 @@ fn wrap_with(text: &str, first_prefix: &str, continuation: &str) -> String {
         wrapped.push(line);
     }
     wrapped.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extensions;
+    use crate::model::{ExtensionGap, Status};
+
+    #[test]
+    fn extension_sections_require_remaining_gaps() {
+        let mut status: Status = toml::from_str(include_str!("../../../docs/status.toml")).unwrap();
+        status.extensions.gaps.clear();
+        status.extensions.recognized_not_modeled.clear();
+        let mut output = String::new();
+        extensions(&mut output, &status);
+        assert!(!output.contains("### Known parity gaps"));
+        assert!(!output.contains("### Not yet implemented"));
+        status.extensions.gaps.push(ExtensionGap {
+            names: vec!["sample_toggle".into()],
+            description: "Missing output.".into(),
+        });
+        status
+            .extensions
+            .recognized_not_modeled
+            .push("other_toggle".into());
+        output.clear();
+        extensions(&mut output, &status);
+        assert!(output.contains("### Known parity gaps"));
+        assert!(output.contains("Missing output."));
+        assert!(output.contains("### Not yet implemented"));
+        assert!(output.contains("`other_toggle`"));
+    }
 }

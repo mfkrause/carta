@@ -563,7 +563,8 @@ impl<'a> InlineParser<'a> {
             } else {
                 scan_inline_target(self.text, self.pos)
             };
-            if let Some((target, next)) = scanned {
+            if let Some((mut target, next)) = scanned {
+                target.url = super::super::origin::rebase(&target.url, self.notes.directory).into();
                 return Explicit::Target(target, next, Attr::default());
             }
         }

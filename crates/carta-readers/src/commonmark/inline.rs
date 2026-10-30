@@ -132,15 +132,19 @@ fn parse_inlines_shared(
 pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) -> Vec<Inline> {
     let definitions = super::FootnoteDefs::new();
     let macros = super::resolve::macros::Context::for_source(text, ext, &definitions);
-    parse_meta_inlines_with_macros(text, ext, markdown, macros.as_ref())
+    let mut options = carta_core::ReaderOptions::default();
+    options.extensions = ext;
+    options.greedy_paragraphs = markdown;
+    parse_meta_inlines_with_options(text, &options, macros.as_ref())
 }
 
-pub(super) fn parse_meta_inlines_with_macros(
+pub(super) fn parse_meta_inlines_with_options(
     text: &str,
-    ext: Extensions,
-    markdown: bool,
+    options: &carta_core::ReaderOptions,
     macros: Option<&super::resolve::macros::Context<'_>>,
 ) -> Vec<Inline> {
+    let ext = options.extensions;
+    let markdown = options.greedy_paragraphs;
     let defined = BTreeSet::new();
     let by_id = BTreeMap::new();
     let examples = ExampleMap::new();
@@ -151,6 +155,7 @@ pub(super) fn parse_meta_inlines_with_macros(
         defined: &defined,
         by_id: &by_id,
         macros,
+        directory: super::origin::first_directory(options),
         in_definition: false,
         markdown,
         examples: &examples,

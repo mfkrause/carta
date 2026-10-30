@@ -23,6 +23,7 @@ fn no_notes() -> RefContext<'static> {
         defined: &NO_DEFINED,
         by_id: &NO_BY_ID,
         macros: None,
+        directory: None,
         in_definition: false,
         markdown: false,
         examples: &NO_EXAMPLES,
@@ -49,6 +50,7 @@ fn ref_map(entries: &[(&str, &str)]) -> RefMap {
         m.insert(
             k.to_string(),
             LinkDef {
+                directory: None,
                 url: v.to_string(),
                 title: String::new(),
                 attr: Attr::default(),

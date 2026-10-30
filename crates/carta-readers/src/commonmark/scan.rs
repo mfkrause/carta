@@ -632,6 +632,7 @@ pub(crate) fn parse_link_reference_definition(
         return None;
     }
     let def = LinkDef {
+        directory: None,
         url: unescape_string(&url),
         title: unescape_string(&title),
         attr: carta_ast::Attr::default(),

@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use carta_ast::{Inline, MetaValue};
 use carta_core::{Error, Extension, ReaderOptions, Result};
 
-use super::inline::parse_meta_inlines_with_macros as parse_meta_inlines;
+use super::inline::parse_meta_inlines_with_options as parse_meta_inlines;
 use super::parse_meta_blocks;
 use super::resolve::macros::Context;
 use crate::yaml::{self, Scalar, Yaml};
@@ -161,18 +161,12 @@ fn json_to_meta(
     match value {
         serde_json::Value::Null => MetaValue::MetaString(carta_ast::Text::default()),
         serde_json::Value::Bool(b) => MetaValue::MetaBool(b),
-        serde_json::Value::Number(n) => MetaValue::MetaInlines(parse_meta_inlines(
-            &n.to_string(),
-            options.extensions,
-            options.greedy_paragraphs,
-            macros,
-        )),
-        serde_json::Value::String(s) => MetaValue::MetaInlines(parse_meta_inlines(
-            &s,
-            options.extensions,
-            options.greedy_paragraphs,
-            macros,
-        )),
+        serde_json::Value::Number(n) => {
+            MetaValue::MetaInlines(parse_meta_inlines(&n.to_string(), options, macros))
+        }
+        serde_json::Value::String(s) => {
+            MetaValue::MetaInlines(parse_meta_inlines(&s, options, macros))
+        }
         serde_json::Value::Array(items) => MetaValue::MetaList(
             items
                 .into_iter()
@@ -216,12 +210,7 @@ fn scalar_to_meta(
 ) -> MetaValue {
     match scalar {
         Scalar::Plain(text) => plain_scalar_to_meta(&text, options, macros),
-        Scalar::Quoted(text) => MetaValue::MetaInlines(parse_meta_inlines(
-            &text,
-            options.extensions,
-            options.greedy_paragraphs,
-            macros,
-        )),
+        Scalar::Quoted(text) => MetaValue::MetaInlines(parse_meta_inlines(&text, options, macros)),
         Scalar::Block(text) => text_to_meta(&text, options, macros),
     }
 }
@@ -238,38 +227,18 @@ fn plain_scalar_to_meta(
         return MetaValue::MetaBool(value);
     }
     if let Some(canonical) = yaml::canonicalize_number(text) {
-        return MetaValue::MetaInlines(parse_meta_inlines(
-            &canonical,
-            options.extensions,
-            options.greedy_paragraphs,
-            macros,
-        ));
+        return MetaValue::MetaInlines(parse_meta_inlines(&canonical, options, macros));
     }
-    MetaValue::MetaInlines(parse_meta_inlines(
-        text,
-        options.extensions,
-        options.greedy_paragraphs,
-        macros,
-    ))
+    MetaValue::MetaInlines(parse_meta_inlines(text, options, macros))
 }
 
 /// Text whose trailing newline survived block-scalar chomping is parsed as block-level markdown;
 /// otherwise it is inline markdown.
 fn text_to_meta(text: &str, options: &ReaderOptions, macros: Option<&Context<'_>>) -> MetaValue {
     if text.ends_with('\n') {
-        MetaValue::MetaBlocks(parse_meta_blocks(
-            text,
-            options.extensions,
-            options.greedy_paragraphs,
-            macros,
-        ))
+        MetaValue::MetaBlocks(parse_meta_blocks(text, options, macros))
     } else {
-        MetaValue::MetaInlines(parse_meta_inlines(
-            text,
-            options.extensions,
-            options.greedy_paragraphs,
-            macros,
-        ))
+        MetaValue::MetaInlines(parse_meta_inlines(text, options, macros))
     }
 }
 
@@ -422,8 +391,7 @@ fn insert_field(
             for chunk in line.split(';') {
                 authors.push(MetaValue::MetaInlines(parse_meta_inlines(
                     chunk.trim(),
-                    options.extensions,
-                    options.greedy_paragraphs,
+                    options,
                     macros,
                 )));
             }
@@ -435,12 +403,7 @@ fn insert_field(
     if !text.trim().is_empty() {
         meta.insert(
             label.to_owned(),
-            MetaValue::MetaInlines(parse_meta_inlines(
-                &text,
-                options.extensions,
-                options.greedy_paragraphs,
-                macros,
-            )),
+            MetaValue::MetaInlines(parse_meta_inlines(&text, options, macros)),
         );
     }
 }

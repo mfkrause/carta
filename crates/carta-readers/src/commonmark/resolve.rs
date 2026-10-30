@@ -35,6 +35,7 @@ pub(super) struct RefContext<'a> {
     pub(super) defined: &'a BTreeSet<String>,
     pub(super) by_id: &'a BTreeMap<String, Vec<Block>>,
     pub(super) macros: Option<&'a macros::Context<'a>>,
+    pub(super) directory: Option<&'a std::path::Path>,
     pub(super) in_definition: bool,
     /// The markdown dialect, where a backslash-escaped space becomes a non-breaking space, a
     /// superscript or subscript span may not hold an unescaped space, and a code span's content is
@@ -76,11 +77,10 @@ pub(super) fn cite_budget_for(source_len: usize) -> Cell<usize> {
 /// belongs to a different occurrence.
 pub(super) type HeaderParseCache = BTreeMap<String, VecDeque<Vec<Inline>>>;
 
-/// Whether a heading's raw content parses identically under every `RefContext` this reader ever
-/// builds. Reference links, footnote references, and citations are the only inline constructs
-/// that consult `RefContext`'s reference-scoped fields (`by_id`, `defined`'s effect on notes,
-/// `cite_count`, and `refs` itself), and they are triggered only by `[`, `^`, and `@`
-/// respectively. Content with none of those characters is safe to parse once and reuse.
+/// Whether a heading can share its parsed inlines across contexts.
+///
+/// Headings without `[`, `@`, or `^` have no reference links, notes, citations, or relative link
+/// targets. Their inline parse does not depend on reference or source-directory context.
 pub(super) fn heading_content_is_context_independent(content: &str) -> bool {
     !content.contains(['[', '@', '^'])
 }
@@ -128,6 +128,7 @@ pub(super) fn resolve_document(
             defined: &defined,
             by_id: &empty,
             macros: None,
+            directory: None,
             in_definition: false,
             markdown,
             examples,
@@ -140,6 +141,7 @@ pub(super) fn resolve_document(
         defined: &defined,
         by_id: &empty,
         macros: None,
+        directory: None,
         in_definition: true,
         markdown,
         examples,
@@ -159,6 +161,7 @@ pub(super) fn resolve_document(
         defined: &defined,
         by_id: &by_id,
         macros: None,
+        directory: None,
         in_definition: false,
         markdown,
         examples,
@@ -222,12 +225,28 @@ fn gather_headers_nested(
 ) {
     for block in ir {
         match block {
+            IrBlock::SourceDirectory(directory, child) => {
+                let notes = RefContext {
+                    directory: Some(directory.as_path()),
+                    ..notes
+                };
+                gather_expanded_headers(
+                    std::slice::from_ref(child.as_ref()),
+                    refs,
+                    notes,
+                    ext,
+                    numbering,
+                    cache,
+                    expanded,
+                );
+            }
             IrBlock::Heading(_, text) => {
                 let (content, attr) = split_header_attr(text, ext);
                 let inlines = parse_inlines(content, refs, notes, ext);
                 let expanded_inlines = expanded.pop_front();
                 let id = numbering.id_for(&attr.id, expanded_inlines.as_ref().unwrap_or(&inlines));
                 refs.entry(normalize_label(content)).or_insert(LinkDef {
+                    directory: None,
                     url: format!("#{id}"),
                     title: String::new(),
                     attr: Attr::default(),
@@ -237,6 +256,7 @@ fn gather_headers_nested(
                     && !label.trim().is_empty()
                 {
                     refs.entry(normalize_label(label)).or_insert(LinkDef {
+                        directory: None,
                         url: format!("#{id}"),
                         title: String::new(),
                         attr: Attr::default(),
@@ -315,6 +335,13 @@ fn resolve_block_nested(
     out: &mut Vec<Block>,
 ) {
     match block {
+        IrBlock::SourceDirectory(directory, child) => {
+            let notes = RefContext {
+                directory: Some(directory.as_path()),
+                ..notes
+            };
+            resolve_block(child, refs, notes, ext, cache, out);
+        }
         IrBlock::Para(text) => {
             let inlines = resolve_inlines(text, refs, notes, ext);
             out.push(para_or_figure(inlines, ext));
@@ -374,20 +401,9 @@ fn resolve_block_nested(
                 .map(|line| resolve_inlines(line, refs, notes, ext))
                 .collect(),
         )),
-        IrBlock::DefinitionList(items) => out.push(Block::DefinitionList(
-            items
-                .iter()
-                .map(|item| {
-                    let term = resolve_inlines(&item.term, refs, notes, ext);
-                    let definitions = item
-                        .definitions
-                        .iter()
-                        .map(|blocks| resolve_blocks(blocks, refs, notes, ext, cache))
-                        .collect();
-                    (term, definitions)
-                })
-                .collect(),
-        )),
+        IrBlock::DefinitionList(items) => {
+            out.push(resolve_definition_list(items, refs, notes, ext, cache));
+        }
         IrBlock::BulletList(items) => resolve_bullet_list(items, refs, notes, ext, cache, out),
         IrBlock::OrderedList(attrs, items) => out.push(Block::OrderedList(
             attrs.clone(),
@@ -415,6 +431,37 @@ fn resolve_block_nested(
         IrBlock::GridTable(table) => out.push(resolve_grid_table(table, refs, notes, ext)),
         IrBlock::TextTable(table) => out.push(resolve_text_table(table, refs, notes, ext)),
     }
+}
+
+fn resolve_definition_list(
+    items: &[super::IrDefItem],
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+    cache: &mut HeaderParseCache,
+) -> Block {
+    Block::DefinitionList(
+        items
+            .iter()
+            .map(|item| {
+                let term_notes = RefContext {
+                    directory: item
+                        .directory
+                        .as_deref()
+                        .map(std::path::PathBuf::as_path)
+                        .or(notes.directory),
+                    ..notes
+                };
+                let term = resolve_inlines(&item.term, refs, term_notes, ext);
+                let definitions = item
+                    .definitions
+                    .iter()
+                    .map(|blocks| resolve_blocks(blocks, refs, notes, ext, cache))
+                    .collect();
+                (term, definitions)
+            })
+            .collect(),
+    )
 }
 
 fn resolve_raw_block(format: &carta_ast::Format, text: &str, notes: RefContext) -> Block {
@@ -495,12 +542,12 @@ fn resolve_table(
     };
     let early_caption = caption
         .filter(|caption| caption.before)
-        .map(|caption| make_caption(&caption.text, refs, notes, ext));
+        .map(|caption| make_caption(caption, refs, notes, ext));
     let head = vec![make_row(header)];
     let body = rows.iter().map(|cells| make_row(cells)).collect();
     let caption = early_caption.unwrap_or_else(|| {
         caption.map_or_else(Caption::default, |caption| {
-            make_caption(&caption.text, refs, notes, ext)
+            make_caption(caption, refs, notes, ext)
         })
     });
     Block::Table(Box::new(Table {
@@ -523,8 +570,21 @@ fn resolve_table(
 
 /// Build a table caption from its text. Caption text that parses to nothing (an attribute-only or
 /// bare caption line) yields an empty block list, not a `Plain` wrapping an empty inline list.
-fn make_caption(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Caption {
-    let inlines = resolve_inlines(text, refs, notes, ext);
+fn make_caption(
+    caption: &super::IrCaption,
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+) -> Caption {
+    let notes = RefContext {
+        directory: caption
+            .directory
+            .as_deref()
+            .map(std::path::PathBuf::as_path)
+            .or(notes.directory),
+        ..notes
+    };
+    let inlines = resolve_inlines(&caption.text, refs, notes, ext);
     Caption {
         short: None,
         long: if inlines.is_empty() {
@@ -581,7 +641,7 @@ fn resolve_grid_table(
         .caption
         .as_ref()
         .filter(|caption| caption.before)
-        .map(|caption| make_caption(&caption.text, refs, notes, ext));
+        .map(|caption| make_caption(caption, refs, notes, ext));
     let head = table.head.iter().map(make_row).collect();
     let body = table.body.iter().map(make_row).collect();
     let foot = table.foot.iter().map(make_row).collect();
@@ -590,7 +650,7 @@ fn resolve_grid_table(
             .caption
             .as_ref()
             .map_or_else(Caption::default, |caption| {
-                make_caption(&caption.text, refs, notes, ext)
+                make_caption(caption, refs, notes, ext)
             })
     });
     Block::Table(Box::new(Table {
@@ -636,30 +696,37 @@ fn resolve_text_table(
             },
         })
         .collect();
-    let make_row = |cells: &[String]| Row {
-        attr: Attr::default(),
-        cells: cells
-            .iter()
-            .map(|text| make_cell(text, refs, notes, ext))
-            .collect(),
+    let make_row = |row: &super::texttable::Row| {
+        let notes = RefContext {
+            directory: row
+                .directory
+                .as_deref()
+                .map(std::path::PathBuf::as_path)
+                .or(notes.directory),
+            ..notes
+        };
+        Row {
+            attr: Attr::default(),
+            cells: row
+                .cells
+                .iter()
+                .map(|text| make_cell(text, refs, notes, ext))
+                .collect(),
+        }
     };
     let early_caption = table
         .caption
         .as_ref()
         .filter(|caption| caption.before)
-        .map(|caption| make_caption(&caption.text, refs, notes, ext));
-    let head_rows = if table.head.is_empty() {
-        Vec::new()
-    } else {
-        vec![make_row(&table.head)]
-    };
-    let body = table.body.iter().map(|cells| make_row(cells)).collect();
+        .map(|caption| make_caption(caption, refs, notes, ext));
+    let head_rows = table.head.iter().map(make_row).collect();
+    let body = table.body.iter().map(make_row).collect();
     let caption = early_caption.unwrap_or_else(|| {
         table
             .caption
             .as_ref()
             .map_or_else(Caption::default, |caption| {
-                make_caption(&caption.text, refs, notes, ext)
+                make_caption(caption, refs, notes, ext)
             })
     });
     Block::Table(Box::new(Table {
@@ -688,7 +755,14 @@ fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, notes: RefContext) 
         align: Alignment::AlignDefault,
         row_span: 1,
         col_span: 1,
-        content: super::parse_table_cell(&cell.text, cell.tight, ext, notes.markdown, notes.macros),
+        content: super::parse_table_cell(
+            &cell.text,
+            cell.tight,
+            ext,
+            notes.markdown,
+            notes.macros,
+            notes.directory,
+        ),
     }
 }
 
@@ -761,6 +835,8 @@ fn resolve_item(
 /// marker replaced by its checkbox character; otherwise `None`.
 fn task_marker_block(block: &IrBlock) -> Option<IrBlock> {
     match block {
+        IrBlock::SourceDirectory(directory, child) => task_marker_block(child)
+            .map(|block| IrBlock::SourceDirectory(std::rc::Rc::clone(directory), Box::new(block))),
         IrBlock::Para(text) => task_marker_replacement(text).map(IrBlock::Para),
         IrBlock::Plain(text) => task_marker_replacement(text).map(IrBlock::Plain),
         _ => None,

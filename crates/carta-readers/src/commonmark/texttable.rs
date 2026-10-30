@@ -12,9 +12,9 @@ use carta_core::{Extension, Extensions};
 pub(crate) struct TextTable {
     pub columns: Vec<Column>,
     /// Header cells, one per column; empty when the table has no header row.
-    pub head: Vec<Cell>,
+    pub head: Option<Row>,
     /// Body rows, each a cell per column.
-    pub body: Vec<Vec<Cell>>,
+    pub body: Vec<Row>,
     pub caption: Option<super::IrCaption>,
     /// Attributes attached via the caption line when `table_attributes` is enabled.
     pub attr: carta_ast::Attr,
@@ -31,6 +31,24 @@ pub(crate) struct Column {
 /// A cell's raw text: physical lines joined with `\n`, each break becoming a soft break when the
 /// inline phase parses the text.
 pub(crate) type Cell = String;
+
+/// A row's cells and the source line at which its content starts.
+#[derive(Debug, Clone)]
+pub(crate) struct Row {
+    pub cells: Vec<Cell>,
+    pub source_line: usize,
+    pub directory: Option<std::rc::Rc<std::path::PathBuf>>,
+}
+
+impl Row {
+    fn new(cells: Vec<Cell>, source_line: usize) -> Self {
+        Self {
+            cells,
+            source_line,
+            directory: None,
+        }
+    }
+}
 
 /// Whether `line` is a dash ruling: after trimming, a non-empty run of `-` and spaces with at least
 /// one dash.
@@ -100,7 +118,7 @@ fn parse_headed(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
 
     let mut body = Vec::new();
     let mut consumed = 2;
-    for &line in lines.get(2..).unwrap_or(&[]) {
+    for (offset, &line) in lines.get(2..).unwrap_or(&[]).iter().enumerate() {
         consumed += 1;
         if is_dash_line(line) {
             break;
@@ -108,7 +126,7 @@ fn parse_headed(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
         if line.trim().is_empty() {
             return None;
         }
-        body.push(slice_row(line, &starts));
+        body.push(Row::new(slice_row(line, &starts), offset + 2));
     }
     if body.is_empty() {
         return None;
@@ -118,7 +136,7 @@ fn parse_headed(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
     Some((
         TextTable {
             columns,
-            head: slice_row(header, &starts),
+            head: Some(Row::new(slice_row(header, &starts), 0)),
             body,
             caption: None,
             attr: carta_ast::Attr::default(),
@@ -146,7 +164,7 @@ fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize
     let mut body = Vec::new();
     let mut consumed = 1;
     let mut closed = false;
-    for &line in lines.get(1..).unwrap_or(&[]) {
+    for (offset, &line) in lines.get(1..).unwrap_or(&[]).iter().enumerate() {
         consumed += 1;
         if is_dash_line(line) {
             closed = true;
@@ -155,7 +173,7 @@ fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize
         if line.trim().is_empty() {
             return None;
         }
-        body.push(slice_row(line, &starts));
+        body.push(Row::new(slice_row(line, &starts), offset + 1));
     }
     if !closed || body.is_empty() {
         return None;
@@ -166,7 +184,7 @@ fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize
     Some((
         TextTable {
             columns,
-            head: Vec::new(),
+            head: None,
             body,
             caption: None,
             attr: carta_ast::Attr::default(),
@@ -213,11 +231,12 @@ fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)
         _ => (Vec::new(), 1),
     };
 
-    let mut body_rows: Vec<Vec<&str>> = Vec::new();
+    let mut body_rows: Vec<(usize, Vec<&str>)> = Vec::new();
     let mut current: Vec<&str> = Vec::new();
+    let mut row_start = body_start;
     let mut closed = false;
     let mut consumed = body_start;
-    for &line in lines.get(body_start..).unwrap_or(&[]) {
+    for (offset, &line) in lines.get(body_start..).unwrap_or(&[]).iter().enumerate() {
         consumed += 1;
         if is_dash_line(line) {
             closed = true;
@@ -225,14 +244,17 @@ fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)
         }
         if line.trim().is_empty() {
             if !current.is_empty() {
-                body_rows.push(std::mem::take(&mut current));
+                body_rows.push((row_start, std::mem::take(&mut current)));
             }
             continue;
+        }
+        if current.is_empty() {
+            row_start = body_start + offset;
         }
         current.push(line);
     }
     if !current.is_empty() {
-        body_rows.push(current);
+        body_rows.push((row_start, current));
     }
     if !closed || body_rows.is_empty() {
         return None;
@@ -241,17 +263,13 @@ fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)
     let reference = header_lines
         .first()
         .copied()
-        .or_else(|| body_rows.first().and_then(|row| row.first().copied()))
+        .or_else(|| body_rows.first().and_then(|(_, row)| row.first().copied()))
         .unwrap_or("");
     let columns = column_specs_multiline(&runs, reference);
-    let head = if header_lines.is_empty() {
-        Vec::new()
-    } else {
-        slice_group(&header_lines, &starts)
-    };
+    let head = (!header_lines.is_empty()).then(|| Row::new(slice_group(&header_lines, &starts), 1));
     let body = body_rows
         .iter()
-        .map(|row| slice_group(row, &starts))
+        .map(|(line, row)| Row::new(slice_group(row, &starts), *line))
         .collect();
     Some((
         TextTable {
@@ -418,7 +436,7 @@ mod tests {
         table
             .body
             .get(row)
-            .and_then(|cells| cells.get(col))
+            .and_then(|row| row.cells.get(col))
             .map(String::as_str)
             .expect("cell present")
     }
@@ -426,7 +444,8 @@ mod tests {
     fn head_cell(table: &TextTable, col: usize) -> &str {
         table
             .head
-            .get(col)
+            .as_ref()
+            .and_then(|row| row.cells.get(col))
             .map(String::as_str)
             .expect("header cell present")
     }
@@ -477,7 +496,7 @@ mod tests {
         assert_eq!(head_cell(&table, 2), "Center");
         assert_eq!(cell(&table, 0, 1), "12");
         assert!(matches!(align(&table, 0), Alignment::AlignDefault));
-        assert!(table.head.iter().all(|_| true) && table.columns.iter().all(|c| c.width.is_none()));
+        assert!(table.head.is_some() && table.columns.iter().all(|c| c.width.is_none()));
     }
 
     #[test]
@@ -509,7 +528,7 @@ mod tests {
         let closed = ["--- ---", "1 2", "---"];
         let (table, consumed) = parse(&closed, SIMPLE).expect("table");
         assert_eq!(consumed, 3);
-        assert!(table.head.is_empty());
+        assert!(table.head.is_none());
         assert_eq!(cell(&table, 0, 0), "1 2");
         assert_eq!(cell(&table, 0, 1), "");
         let open = ["--- ---", "1 2"];
@@ -582,7 +601,7 @@ mod tests {
         ];
         let (table, consumed) = parse(&lines, MULTILINE).expect("table");
         assert_eq!(consumed, lines.len());
-        assert!(table.head.is_empty());
+        assert!(table.head.is_none());
         assert!(matches!(align(&table, 0), Alignment::AlignCenter));
         assert_eq!(table.body.len(), 2);
         assert_eq!(cell(&table, 0, 0), "a\ncont");
@@ -622,7 +641,7 @@ mod tests {
         let lines = ["----- -----", "a     b", "c     d", "-----------"];
         let (table, _) = parse(&lines, BOTH).expect("table");
         assert_eq!(table.body.len(), 2);
-        assert!(table.head.is_empty());
+        assert!(table.head.is_none());
         assert!(table.columns.iter().all(|column| column.width.is_none()));
     }
 }

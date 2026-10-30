@@ -1752,3 +1752,52 @@ fn standalone_literate_code_defines_its_environment() {
         );
     }
 }
+
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn rebased_inputs_keep_cross_file_links_and_embed_their_own_images() {
+    let directory = input_directory("rebased-input-resources");
+    let first = directory.join("first # percent");
+    let second = directory.join("second");
+    fs::create_dir_all(&first).unwrap();
+    fs::create_dir_all(&second).unwrap();
+    fs::write(
+        first.join("doc.md"),
+        "[shared] [local](local.md)\n\n![first](image.png)",
+    )
+    .unwrap();
+    fs::write(
+        second.join("doc.md"),
+        "[shared]: shared.md\n\n![second](image.png)",
+    )
+    .unwrap();
+    fs::write(first.join("image.png"), b"A").unwrap();
+    fs::write(second.join("image.png"), b"B").unwrap();
+    let output = run_in(
+        &directory,
+        &[
+            "-f",
+            "markdown+rebase_relative_paths",
+            "-t",
+            "html",
+            "--embed-resources",
+            "--wrap=none",
+            "first # percent/doc.md",
+            "second/doc.md",
+        ],
+        "",
+    );
+    assert!(output.success, "{}", output.stderr);
+    for expected in [
+        "href=\"second/shared.md\"",
+        "href=\"first%20%23%20percent/local.md\"",
+        "src=\"data:image/png;base64,QQ==\"",
+        "src=\"data:image/png;base64,Qg==\"",
+    ] {
+        assert!(
+            output.stdout.contains(expected),
+            "{expected}: {}",
+            output.stdout
+        );
+    }
+}

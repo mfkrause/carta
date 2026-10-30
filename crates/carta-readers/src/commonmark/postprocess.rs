@@ -17,6 +17,7 @@ pub(super) fn tighten_last_block(blocks: &mut [IrBlock]) {
     if let Some(block) = blocks
         .iter_mut()
         .rfind(|block| !matches!(block, IrBlock::FootnoteDefinition(_)))
+        .map(IrBlock::content_mut)
         && let IrBlock::Para(text) = block
     {
         *block = IrBlock::Plain(std::mem::take(text));
@@ -25,7 +26,7 @@ pub(super) fn tighten_last_block(blocks: &mut [IrBlock]) {
 
 /// In a tight list, item paragraphs render as `Plain` rather than `Para`.
 pub(crate) fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
-    for block in blocks {
+    for block in blocks.iter_mut().map(IrBlock::content_mut) {
         if let IrBlock::Para(text) = block {
             *block = IrBlock::Plain(std::mem::take(text));
         }
@@ -45,7 +46,7 @@ pub(super) fn attach_table_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) 
 
 fn attach_table_captions_nested(blocks: &mut Vec<IrBlock>, ext: Extensions) {
     for block in blocks.iter_mut() {
-        match block {
+        match block.content_mut() {
             IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {
                 attach_table_captions(children, ext);
             }
@@ -73,6 +74,7 @@ fn attach_table_captions_nested(blocks: &mut Vec<IrBlock>, ext: Extensions) {
             i += 1;
             continue;
         };
+        let directory = blocks.get(i).and_then(IrBlock::directory);
         let previous = blocks.get(..i).and_then(|prefix| {
             prefix
                 .iter()
@@ -84,9 +86,11 @@ fn attach_table_captions_nested(blocks: &mut Vec<IrBlock>, ext: Extensions) {
             .skip(i + 1)
             .find(|(_, block)| !matches!(block, IrBlock::FootnoteDefinition(_)))
             .map(|(index, _)| index);
-        let attached = previous
-            .is_some_and(|index| set_table_caption(blocks, index, &caption, ext, false))
-            || next.is_some_and(|index| set_table_caption(blocks, index, &caption, ext, true));
+        let attached = previous.is_some_and(|index| {
+            set_table_caption(blocks, index, &caption, ext, false, directory.clone())
+        }) || next.is_some_and(|index| {
+            set_table_caption(blocks, index, &caption, ext, true, directory.clone())
+        });
         if attached {
             blocks.remove(i);
         } else {
@@ -98,7 +102,7 @@ fn attach_table_captions_nested(blocks: &mut Vec<IrBlock>, ext: Extensions) {
 /// The caption text of a paragraph block led by a `Table:`/`table:`/`:` marker, with the marker
 /// stripped; `None` for any other block.
 fn caption_text(block: Option<&IrBlock>) -> Option<String> {
-    let IrBlock::Para(text) = block? else {
+    let IrBlock::Para(text) = block?.content() else {
         return None;
     };
     let (first, rest) = match text.split_once('\n') {
@@ -134,8 +138,9 @@ pub(super) fn set_table_caption(
     text: &str,
     ext: Extensions,
     before: bool,
+    directory: Option<std::rc::Rc<std::path::PathBuf>>,
 ) -> bool {
-    let (caption_slot, attr_slot) = match blocks.get_mut(index) {
+    let (caption_slot, attr_slot) = match blocks.get_mut(index).map(IrBlock::content_mut) {
         Some(IrBlock::Table { caption, attr, .. }) => (caption, attr),
         Some(IrBlock::TextTable(table)) => (&mut table.caption, &mut table.attr),
         Some(IrBlock::GridTable(table)) => (&mut table.caption, &mut table.attr),
@@ -152,6 +157,7 @@ pub(super) fn set_table_caption(
     *caption_slot = Some(super::IrCaption {
         text: body.to_owned(),
         before,
+        directory,
     });
     if let Some(parsed) = parsed {
         *attr_slot = parsed;

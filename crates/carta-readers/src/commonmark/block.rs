@@ -28,12 +28,28 @@ mod tex_definition;
 
 /// Parse the normalized input into the block tree plus the collected link, footnote, and example
 /// references.
+#[cfg(test)]
 pub(crate) fn parse(
     input: &str,
     extensions: Extensions,
     greedy_paragraphs: bool,
 ) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
+    parse_with_directories(
+        input,
+        extensions,
+        greedy_paragraphs,
+        super::origin::Directories::new(),
+    )
+}
+
+pub(super) fn parse_with_directories(
+    input: &str,
+    extensions: Extensions,
+    greedy_paragraphs: bool,
+    directories: super::origin::Directories,
+) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
     let mut parser = Parser::new(extensions, greedy_paragraphs);
+    parser.directories = directories;
     let lines = split_lines(input);
     if greedy_paragraphs {
         parser.fence_close_candidates = build_fence_close_candidates(&lines);
@@ -274,6 +290,7 @@ struct Node {
     parent: usize,
     children: Vec<usize>,
     text: String,
+    source_line: usize,
     /// The visual column this block's first line began at, before its leading indentation was
     /// consumed. Recorded for paragraphs so a dash ruling on the next line can read a headed
     /// table's column alignment against the header's true position; zero for every other block.
@@ -299,6 +316,7 @@ impl Node {
             parent: 0,
             children: Vec::new(),
             text: String::new(),
+            source_line: 0,
             indent: 0,
             as_plain: false,
             last_line_blank: false,
@@ -347,6 +365,7 @@ struct Parser {
     html_closing_lines: [Option<usize>; 6],
     last_html_close_line: Option<usize>,
     source_line: usize,
+    directories: super::origin::Directories,
     skip_lines: usize,
 }
 
@@ -362,6 +381,7 @@ impl Parser {
             html_closing_lines: [None; 6],
             last_html_close_line: None,
             source_line: 0,
+            directories: super::origin::Directories::new(),
             skip_lines: 0,
         }
     }
@@ -388,6 +408,7 @@ impl Parser {
     pub(super) fn append_child(&mut self, parent: usize, mut node: Node) -> usize {
         let index = self.nodes.len();
         node.parent = parent;
+        node.source_line = self.source_line;
         self.nodes.push(node);
         if let Some(parent_node) = self.nodes.get_mut(parent) {
             parent_node.children.push(index);
@@ -608,7 +629,8 @@ impl Parser {
                 if !multiline_body {
                     let only_definitions = body.trim().is_empty();
                     let column_zero = self.nodes.get(para).is_some_and(|node| node.indent == 0);
-                    let remaining = self.extract_refs(&text, column_zero);
+                    let directory = self.directory_for(para);
+                    let remaining = self.extract_refs(&text, column_zero, directory.as_ref());
                     if let Some(node) = self.nodes.get_mut(para) {
                         node.text = remaining;
                     }

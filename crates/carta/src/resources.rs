@@ -27,7 +27,8 @@ pub(super) fn resource_search_path(cli: &Cli) -> Vec<PathBuf> {
 /// reference is read directly. Returns the bytes, or `None` when no directory holds the file (or the
 /// reference is not a readable local path), leaving the reference as written.
 pub(super) fn resolve_resource(reference: &str, search_path: &[PathBuf]) -> Option<Vec<u8>> {
-    let reference = Path::new(reference);
+    let decoded = media::percent_decode(reference).unwrap_or_else(|| reference.to_owned());
+    let reference = Path::new(&decoded);
     if reference.is_absolute() {
         return fs::read(reference).ok();
     }
