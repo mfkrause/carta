@@ -77,6 +77,28 @@
         "auto_identifiers"
       ]
     },
+    "asciidoc_legacy": {
+      "accepted": [
+        "ascii_identifiers",
+        "auto_identifiers",
+        "east_asian_line_breaks",
+        "gfm_auto_identifiers"
+      ],
+      "enabled": [
+        "auto_identifiers"
+      ]
+    },
+    "asciidoctor": {
+      "accepted": [
+        "ascii_identifiers",
+        "auto_identifiers",
+        "east_asian_line_breaks",
+        "gfm_auto_identifiers"
+      ],
+      "enabled": [
+        "auto_identifiers"
+      ]
+    },
     "beamer": {
       "accepted": [
         "ascii_identifiers",

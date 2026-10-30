@@ -272,14 +272,14 @@ name = "asciidoc_legacy"
 title = "AsciiDoc legacy"
 family = "lightweight"
 read = "not-applicable"
-write = "not-started"
+write = "usable"
 
 [[format]]
 name = "asciidoctor"
 title = "Asciidoctor"
 family = "lightweight"
 read = "not-applicable"
-write = "not-started"
+write = "usable"
 
 [[format]]
 name = "haddock"

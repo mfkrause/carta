@@ -57,8 +57,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 | Format | Reader | Writer |
 | --- | :---: | :---: |
 | AsciiDoc (`asciidoc`) | ❌ | ✅ |
-| AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ❌ |
-| Asciidoctor (`asciidoctor`) | ➖ | ❌ |
+| AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ✅ |
+| Asciidoctor (`asciidoctor`) | ➖ | ✅ |
 | Haddock (`haddock`) | ❌ | ❌ |
 | Muse (`muse`) | ❌ | ❌ |
 | Org mode (`org`) | ✅ | ✅ |
@@ -212,6 +212,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `typst` ✅
 ### `asciidoc` ✅
+### `asciidoc_legacy` ✅
+### `asciidoctor` ✅
 ### `org` ✅
 ### `rst` ✅
 ### `dokuwiki` ✅
@@ -234,11 +236,11 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `opml` ✅
 ### `plain` ✅
 
-**Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
-`_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,
-`docbook4`, `dzslides`, `fb2`, `haddock`, `icml`, `jats` (+ `_archiving`, `_articleauthoring`,
-`_publishing`), `markua`, `ms`, `muse`, `opendocument`, `pptx`, `s5`, `slideous`, `slidy`, `tei`,
-`texinfo`, `textile`, `vimdoc`, `xml`, `xwiki`, `zimwiki`.
+**Not started:** `ansi`, `bbcode` (+ `_fluxbb`, `_hubzilla`, `_phpbb`, `_steam`, `_xenforo`),
+`biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`, `docbook4`, `dzslides`, `fb2`,
+`haddock`, `icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`,
+`muse`, `opendocument`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`, `vimdoc`,
+`xml`, `xwiki`, `zimwiki`.
 
 ---
 

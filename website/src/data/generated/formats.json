@@ -538,8 +538,8 @@
         "gaps": []
       },
       "write": {
-        "status": "not-started",
-        "ships": false,
+        "status": "usable",
+        "ships": true,
         "feature": null,
         "gaps": []
       }
@@ -556,8 +556,8 @@
         "gaps": []
       },
       "write": {
-        "status": "not-started",
-        "ships": false,
+        "status": "usable",
+        "ships": true,
         "feature": null,
         "gaps": []
       }
