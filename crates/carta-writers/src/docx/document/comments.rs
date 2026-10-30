@@ -29,6 +29,7 @@ pub(super) fn open_comment(
         initials: attr_value(attr, "initials").map(str::to_owned),
         body: body.to_vec(),
         language: props.language.clone(),
+        right_to_left: props.right_to_left,
     });
 }
 
@@ -47,6 +48,7 @@ pub(super) fn close_comment(attr: &Attr, props: &RunProps, out: &mut Element) {
 pub(super) fn render_comment_entry(comment: &Comment, ctx: &mut Ctx) -> Element {
     let mut properties = RunProps::default();
     properties.language.clone_from(&comment.language);
+    properties.right_to_left = comment.right_to_left;
     let mut element = Element::new("w:comment").attr("w:id", &comment.id);
     if let Some(author) = &comment.author {
         element = element.attr("w:author", author);
@@ -58,7 +60,12 @@ pub(super) fn render_comment_entry(comment: &Comment, ctx: &mut Ctx) -> Element 
         element = element.attr("w:initials", initials);
     }
     let mut para = Element::new("w:p");
-    para.push(paragraph_props(Some("CommentText"), None, None));
+    para.push(paragraph_props(
+        Some("CommentText"),
+        None,
+        None,
+        properties.right_to_left,
+    ));
     para.push(annotation_reference_run(&properties));
     render_runs(&comment.body, &properties, ctx, &mut para);
     element.child(para)

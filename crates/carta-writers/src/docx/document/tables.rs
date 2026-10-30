@@ -257,7 +257,12 @@ fn render_normal_cell(
     // Cells require a paragraph and must not end on a table; add filler as needed.
     if !wrote {
         if cell.content.is_empty() {
-            tc.push(Element::new("w:p").child(paragraph_props(Some("Compact"), None, None)));
+            tc.push(Element::new("w:p").child(paragraph_props(
+                Some("Compact"),
+                None,
+                None,
+                ctx.run_properties.right_to_left,
+            )));
         } else {
             tc.push(Element::new("w:p"));
         }

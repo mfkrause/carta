@@ -64,6 +64,7 @@ struct Comment {
     initials: Option<String>,
     body: Vec<Inline>,
     language: Option<Text>,
+    right_to_left: Option<bool>,
 }
 
 /// The optional writer behaviors selected by the document's extension set.
@@ -94,7 +95,7 @@ struct Ctx {
     next_bookmark_id: u32,
     plan: ListPlan,
     next_id: u32,
-    notes: Vec<(u32, Vec<Block>, Option<Text>)>,
+    notes: Vec<(u32, Vec<Block>, RunProps)>,
     run_properties: RunProps,
     comments: Vec<Comment>,
     next_insertion: u32,
@@ -202,10 +203,10 @@ pub(super) fn document_xml(
     // A note nested in a note appends mid-loop, so the growing queue is revisited until drained.
     let mut footnotes = Vec::new();
     let mut index = 0;
-    while let Some((id, note_blocks, language)) = ctx.notes.get(index).cloned() {
-        let previous = std::mem::replace(&mut ctx.run_properties.language, language);
+    while let Some((id, note_blocks, properties)) = ctx.notes.get(index).cloned() {
+        let previous = std::mem::replace(&mut ctx.run_properties, properties);
         let entry = render_footnote_entry(id, &note_blocks, &mut ctx);
-        ctx.run_properties.language = previous;
+        ctx.run_properties = previous;
         footnotes.push(entry);
         index += 1;
     }
@@ -384,7 +385,7 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
             ctx.prev_paragraph = false;
         }
         Block::HorizontalRule => {
-            body.push(horizontal_rule());
+            body.push(horizontal_rule(ctx.run_properties.right_to_left));
             ctx.prev_paragraph = false;
         }
     }
@@ -436,7 +437,12 @@ fn render_split_paragraph(inlines: &[Inline], body: &mut Element, ctx: &mut Ctx)
                         flush_text_segment(&mut segment, body, ctx);
                         let style = body_style(ctx.prev_paragraph);
                         let mut para = Element::new("w:p");
-                        para.push(paragraph_props(Some(style), None, None));
+                        para.push(paragraph_props(
+                            Some(style),
+                            None,
+                            None,
+                            ctx.run_properties.right_to_left,
+                        ));
                         para.push_raw(&fragment);
                         body.push(para);
                         ctx.prev_paragraph = false;
@@ -482,7 +488,12 @@ fn styled_flow_with_display(
                 Some(fragment) => {
                     flush_styled_segment(style, jc, &mut segment, ctx, out);
                     let mut para = Element::new("w:p");
-                    para.push(paragraph_props(Some(style), None, jc));
+                    para.push(paragraph_props(
+                        Some(style),
+                        None,
+                        jc,
+                        ctx.run_properties.right_to_left,
+                    ));
                     para.push_raw(&fragment);
                     out.push(para);
                     emitted = true;
@@ -657,7 +668,7 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
             ));
         }
         Block::LineBlock(lines) => out.push(line_block_paragraph(style.para, lines, ctx)),
-        Block::HorizontalRule => out.push(horizontal_rule()),
+        Block::HorizontalRule => out.push(horizontal_rule(ctx.run_properties.right_to_left)),
         Block::Figure(attr, caption, blocks) => {
             render_figure(attr.id.as_str(), caption, blocks, out, ctx);
         }
@@ -737,7 +748,12 @@ fn styled_paragraph(
     ctx: &mut Ctx,
 ) -> Element {
     let mut para = Element::new("w:p");
-    para.push(paragraph_props(style, numbering, jc));
+    para.push(paragraph_props(
+        style,
+        numbering,
+        jc,
+        ctx.run_properties.right_to_left,
+    ));
     let properties = ctx.run_properties.clone();
     render_runs(inlines, &properties, ctx, &mut para);
     para
@@ -749,6 +765,7 @@ fn paragraph_props(
     style: Option<&str>,
     numbering: Option<(u32, u32)>,
     jc: Option<&str>,
+    right_to_left: Option<bool>,
 ) -> Element {
     let mut properties = Element::new("w:pPr");
     if let Some(style) = style {
@@ -760,6 +777,13 @@ fn paragraph_props(
                 .child(Element::new("w:ilvl").attr("w:val", &level.to_string()))
                 .child(Element::new("w:numId").attr("w:val", &num_id.to_string())),
         );
+    }
+    if let Some(right_to_left) = right_to_left {
+        let mut property = Element::new("w:bidi");
+        if !right_to_left {
+            property = property.attr("w:val", "0");
+        }
+        properties.push(property);
     }
     if let Some(jc) = jc {
         properties.push(Element::new("w:jc").attr("w:val", jc));

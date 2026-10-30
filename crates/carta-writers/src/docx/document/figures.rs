@@ -25,7 +25,12 @@ pub(super) fn render_figure(
     {
         out.push(
             Element::new("w:p")
-                .child(paragraph_props(Some("CaptionedFigure"), None, None))
+                .child(paragraph_props(
+                    Some("CaptionedFigure"),
+                    None,
+                    None,
+                    ctx.run_properties.right_to_left,
+                ))
                 .child(Element::new("w:r").child(drawing)),
         );
         render_figure_caption(caption, out, ctx);
@@ -206,7 +211,12 @@ fn numbered_caption(
     let properties = ctx.run_properties.clone();
 
     let mut para = Element::new("w:p");
-    para.push(paragraph_props(Some(style), None, None));
+    para.push(paragraph_props(
+        Some(style),
+        None,
+        None,
+        ctx.run_properties.right_to_left,
+    ));
     para.push(
         Element::new("w:bookmarkStart")
             .attr("w:id", &mark.to_string())
@@ -264,7 +274,12 @@ pub(super) fn render_footnote_entry(id: u32, blocks: &[Block], ctx: &mut Ctx) ->
     let rest: &[Block] = if let Some(Block::Para(inlines) | Block::Plain(inlines)) = blocks.first()
     {
         let mut para = Element::new("w:p");
-        para.push(paragraph_props(Some("FootnoteText"), None, None));
+        para.push(paragraph_props(
+            Some("FootnoteText"),
+            None,
+            None,
+            ctx.run_properties.right_to_left,
+        ));
         para.push(footnote_marker_run(&properties));
         para.push(text_run(&properties, " "));
         render_runs(inlines, &properties, ctx, &mut para);
@@ -274,7 +289,12 @@ pub(super) fn render_footnote_entry(id: u32, blocks: &[Block], ctx: &mut Ctx) ->
         // A note whose first block is not a paragraph gets a standalone marker paragraph.
         footnote.push(
             Element::new("w:p")
-                .child(paragraph_props(Some("FootnoteText"), None, None))
+                .child(paragraph_props(
+                    Some("FootnoteText"),
+                    None,
+                    None,
+                    ctx.run_properties.right_to_left,
+                ))
                 .child(footnote_marker_run(&properties)),
         );
         blocks

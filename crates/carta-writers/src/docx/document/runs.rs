@@ -24,7 +24,12 @@ pub(super) fn code_paragraph(
     properties: &RunProps,
 ) -> Element {
     let mut para = Element::new("w:p");
-    para.push(paragraph_props(Some("SourceCode"), numbering, None));
+    para.push(paragraph_props(
+        Some("SourceCode"),
+        numbering,
+        None,
+        properties.right_to_left,
+    ));
     #[cfg(feature = "highlight")]
     if let Some(runs) = highlighted_code_runs(attr, code, hl, properties) {
         for run in runs {
@@ -103,6 +108,7 @@ fn highlighted_inline_runs(
             runs.push(break_run(&RunProps {
                 deletion: properties.deletion,
                 language: properties.language.clone(),
+                right_to_left: properties.right_to_left,
                 ..RunProps::default()
             }));
         }
@@ -111,6 +117,7 @@ fn highlighted_inline_runs(
                 style: Some(Cow::Owned(format!("{}Tok", token.kind.style_key()))),
                 deletion: properties.deletion,
                 language: properties.language.clone(),
+                right_to_left: properties.right_to_left,
                 ..RunProps::default()
             };
             runs.push(text_run(&props, &token.text));
@@ -123,7 +130,12 @@ fn highlighted_inline_runs(
 /// runs in the surrounding paragraph style.
 pub(super) fn line_block_paragraph(style: &str, lines: &[Vec<Inline>], ctx: &mut Ctx) -> Element {
     let mut para = Element::new("w:p");
-    para.push(paragraph_props(Some(style), None, None));
+    para.push(paragraph_props(
+        Some(style),
+        None,
+        None,
+        ctx.run_properties.right_to_left,
+    ));
     let properties = ctx.run_properties.clone();
     let mut first = true;
     for line in lines {
@@ -137,14 +149,18 @@ pub(super) fn line_block_paragraph(style: &str, lines: &[Vec<Inline>], ctx: &mut
 }
 
 /// A thematic break, rendered as a paragraph holding a full-width horizontal-rule drawing.
-pub(super) fn horizontal_rule() -> Element {
+pub(super) fn horizontal_rule(right_to_left: Option<bool>) -> Element {
     let rect = Element::new("v:rect")
         .attr("style", "width:0;height:1.5pt")
         .attr("o:hralign", "center")
         .attr("o:hrstd", "t")
         .attr("o:hr", "t");
     let run = Element::new("w:r").child(Element::new("w:pict").child(rect));
-    Element::new("w:p").child(run)
+    let mut paragraph = Element::new("w:p");
+    if right_to_left.is_some() {
+        paragraph.push(paragraph_props(None, None, None, right_to_left));
+    }
+    paragraph.child(run)
 }
 
 /// The run properties accumulated down a chain of nested inline formatting. Rendered in the fixed
@@ -154,6 +170,7 @@ pub(super) fn horizontal_rule() -> Element {
 pub(super) struct RunProps {
     style: Option<Cow<'static, str>>,
     pub(super) language: Option<Text>,
+    pub(super) right_to_left: Option<bool>,
     bold: bool,
     italic: bool,
     smallcaps: bool,
@@ -171,6 +188,7 @@ impl RunProps {
     fn is_empty(&self) -> bool {
         self.style.is_none()
             && self.language.is_none()
+            && self.right_to_left.is_none()
             && !self.bold
             && !self.italic
             && !self.smallcaps
@@ -234,6 +252,13 @@ impl RunProps {
         if let Some((_, language)) = attr.attributes.iter().find(|(name, _)| name == "lang") {
             properties.language = Some(language.clone());
         }
+        if let Some((_, direction)) = attr.attributes.iter().find(|(name, _)| name == "dir") {
+            match direction.as_str() {
+                "rtl" => properties.right_to_left = Some(true),
+                "ltr" => properties.right_to_left = Some(false),
+                _ => {}
+            }
+        }
         properties
     }
 
@@ -283,6 +308,13 @@ impl RunProps {
         }
         if let Some(value) = self.vert_align {
             rpr.push(Element::new("w:vertAlign").attr("w:val", value));
+        }
+        if let Some(right_to_left) = self.right_to_left {
+            let mut property = Element::new("w:rtl");
+            if !right_to_left {
+                property = property.attr("w:val", "0");
+            }
+            rpr.push(property);
         }
         if let Some(language) = &self.language {
             rpr.push(Element::new("w:lang").attr("w:val", language.as_str()));
@@ -545,7 +577,15 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let id = ctx.next_id;
                 ctx.next_id = ctx.next_id.saturating_add(1);
-                ctx.notes.push((id, blocks.clone(), props.language.clone()));
+                ctx.notes.push((
+                    id,
+                    blocks.clone(),
+                    RunProps {
+                        language: props.language.clone(),
+                        right_to_left: props.right_to_left,
+                        ..RunProps::default()
+                    },
+                ));
                 out.push(footnote_reference_run(id, props));
             }
         }
@@ -618,7 +658,7 @@ mod tests {
     #[cfg(feature = "highlight")]
     #[test]
     #[allow(clippy::arc_with_non_send_sync)]
-    fn highlighted_runs_keep_the_enclosing_language() {
+    fn highlighted_runs_keep_language_and_direction() {
         let highlighter = Some(std::sync::Arc::new(carta_highlight::Highlighter::new()));
         let attr = Attr {
             classes: vec!["rust".into()],
@@ -626,6 +666,7 @@ mod tests {
         };
         let properties = RunProps {
             language: Some("fr".into()),
+            right_to_left: Some(true),
             ..RunProps::default()
         };
         let code = "let first = 1;\nlet second = 2;";
@@ -634,10 +675,10 @@ mod tests {
             highlighted_inline_runs(&attr, code, &highlighter, &properties).unwrap(),
         ] {
             assert!(!runs.is_empty());
-            assert!(
-                runs.iter()
-                    .all(|run| run.render().contains("<w:lang w:val=\"fr\" />"))
-            );
+            assert!(runs.iter().all(|run| {
+                let xml = run.render();
+                xml.contains("<w:lang w:val=\"fr\" />") && xml.contains("<w:rtl />")
+            }));
         }
     }
 }

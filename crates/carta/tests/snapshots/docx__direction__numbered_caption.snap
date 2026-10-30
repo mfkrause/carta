@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/docx.rs
+expression: "format!(\"<w:p>{caption}</w:p>\")"
+---
+<w:p>
+<w:pPr>
+<w:pStyle w:val="TableCaption" />
+<w:bidi />
+</w:pPr>
+<w:bookmarkStart w:id="1" w:name="table1" />
+<w:r>
+<w:rPr>
+<w:rtl />
+</w:rPr>
+<w:t xml:space="preserve">Table </w:t>
+</w:r>
+<w:fldSimple w:instr="SEQ Table \* ARABIC ">
+<w:r>
+<w:t>1</w:t>
+</w:r>
+</w:fldSimple>
+<w:bookmarkEnd w:id="1" />
+<w:r>
+<w:rPr>
+<w:rtl />
+</w:rPr>
+<w:t xml:space="preserve">: caption</w:t>
+</w:r>
+</w:p>
