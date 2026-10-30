@@ -187,14 +187,7 @@ impl Parser {
         if name == "def" {
             self.parse_def();
         } else if name == "let" {
-            // `\let\a\b` / `\let\a=\b`: operands consumed, binding not modelled
-            let _ = self.take_defined_name();
-            if self.cur() == Some('=') {
-                self.bump();
-            }
-            if self.peek_control_word().is_some() {
-                self.consume_control_word();
-            }
+            self.parse_let();
         } else if let Some(macro_name) = self.take_defined_name() {
             let args = self
                 .read_optional_raw()
@@ -205,7 +198,7 @@ impl Parser {
             let body = self.read_group_raw().unwrap_or_default();
             Rc::make_mut(&mut self.macros).insert(
                 macro_name,
-                Rc::new(Macro {
+                Rc::new(Macro::Defined {
                     args,
                     optional_default,
                     body,
@@ -234,10 +227,48 @@ impl Parser {
             let raw = self.read_group_raw()?;
             Some(raw.trim().trim_start_matches('\\').to_owned())
         } else if self.cur() == Some('\\') {
-            Some(self.consume_control_word())
+            self.read_control_sequence()
         } else {
             None
         }
+    }
+
+    fn read_control_sequence(&mut self) -> Option<String> {
+        if self.cur() != Some('\\') {
+            return None;
+        }
+        if self.peek_control_word().is_some() {
+            Some(self.consume_control_word())
+        } else {
+            self.bump();
+            self.bump().map(|c| c.to_string())
+        }
+    }
+
+    pub(super) fn parse_let(&mut self) {
+        self.skip_block_ws();
+        let Some(name) = self.read_control_sequence() else {
+            return;
+        };
+        self.skip_block_ws();
+        if self.cur() == Some('=') {
+            self.bump();
+            self.skip_block_ws();
+        }
+        let binding = if self.cur() == Some('\\') {
+            let Some(target) = self.read_control_sequence() else {
+                return;
+            };
+            self.macros
+                .get(&target)
+                .cloned()
+                .unwrap_or_else(|| Rc::new(Macro::Token(format!("\\{target}"))))
+        } else if let Some(character) = self.bump() {
+            Rc::new(Macro::Token(character.to_string()))
+        } else {
+            return;
+        };
+        Rc::make_mut(&mut self.macros).insert(name, binding);
     }
 
     pub(super) fn parse_def(&mut self) {
@@ -260,7 +291,7 @@ impl Parser {
         let body = self.read_group_raw().unwrap_or_default();
         Rc::make_mut(&mut self.macros).insert(
             macro_name,
-            Rc::new(Macro {
+            Rc::new(Macro::Defined {
                 args,
                 optional_default: None,
                 body,
@@ -275,37 +306,55 @@ impl Parser {
             return false;
         }
         self.drop_exhausted_frames();
+        if self.frames.last().is_some_and(|frame| frame.fixed_token) {
+            return false;
+        }
         let parent = self.frames.last().and_then(|frame| frame.expansion.clone());
-        let Some(name) = self.peek_control_word() else {
+        let name = self.peek_control_word().or_else(|| {
+            (self.cur() == Some('\\'))
+                .then(|| self.at(1).map(|c| c.to_string()))
+                .flatten()
+        });
+        let Some(name) = name else {
             return false;
         };
         let macros = Rc::clone(&self.macros);
         let Some(mac) = macros.get(&name) else {
             return false;
         };
-        self.consume_control_word();
+        self.read_control_sequence();
         let mut args = Vec::new();
-        let mut mandatory = mac.args;
-        if let Some(default) = &mac.optional_default {
-            let first = if self.cur() == Some('[') {
-                self.read_optional_raw().unwrap_or_default()
-            } else {
-                default.clone()
-            };
-            args.push(first);
-            mandatory = mandatory.saturating_sub(1);
-        }
-        for _ in 0..mandatory {
-            match self.read_macro_arg() {
-                Some(a) => args.push(a),
-                None => args.push(String::new()),
+        if let Macro::Defined {
+            args: count,
+            optional_default,
+            ..
+        } = mac.as_ref()
+        {
+            let mut mandatory = *count;
+            if let Some(default) = optional_default {
+                let first = if self.cur() == Some('[') {
+                    self.read_optional_raw().unwrap_or_default()
+                } else {
+                    default.clone()
+                };
+                args.push(first);
+                mandatory = mandatory.saturating_sub(1);
+            }
+            for _ in 0..mandatory {
+                match self.read_macro_arg() {
+                    Some(a) => args.push(a),
+                    None => args.push(String::new()),
+                }
             }
         }
         let call = (name, Rc::clone(mac), args);
         if self.expansions.active.borrow().contains(&call) {
             return true;
         }
-        let expanded = substitute_macro(&mac.body, &call.2);
+        let expanded = match mac.as_ref() {
+            Macro::Defined { body, .. } => substitute_macro(body, &call.2),
+            Macro::Token(token) => token.clone(),
+        };
         let Some(left) = self.expansions.characters.get().checked_sub(expanded.len()) else {
             self.expansions.calls.set(0);
             return true;
@@ -314,16 +363,60 @@ impl Parser {
         self.expansions.calls.set(self.expansions.calls.get() - 1);
         if !expanded.is_empty() {
             self.expansions.active.borrow_mut().insert(call.clone());
-            self.frames.push(Frame::new(
+            let mut frame = Frame::new(
                 &expanded,
                 Some(Rc::new(Expansion {
                     call,
                     state: Rc::clone(&self.expansions),
                     parent,
                 })),
-            ));
+            );
+            frame.fixed_token = matches!(mac.as_ref(), Macro::Token(_));
+            self.frames.push(frame);
         }
         true
+    }
+
+    pub(super) fn expand_math(&self, source: &str) -> String {
+        if !self.ext.contains(Extension::LatexMacros) || self.macros.is_empty() {
+            return source.to_owned();
+        }
+        let mut parser = self.child(source, false);
+        let mut output = String::new();
+        let mut control_word = false;
+        while let Some(character) = parser.cur() {
+            if character == '\\' {
+                if parser.try_expand_macro() {
+                    continue;
+                }
+                output.push('\\');
+                if let Some(name) = parser.peek_control_word() {
+                    parser.advance_chars(name.len() + 1);
+                    output.push_str(&name);
+                    control_word = true;
+                    continue;
+                }
+                parser.bump();
+                if let Some(symbol) = parser.bump() {
+                    output.push(symbol);
+                }
+            } else if character == '%' {
+                while let Some(character) = parser.bump() {
+                    output.push(character);
+                    if character == '\n' {
+                        break;
+                    }
+                }
+            } else {
+                if control_word && character.is_ascii_alphabetic() {
+                    output.push(' ');
+                }
+                output.push(character);
+                parser.bump();
+            }
+            control_word = false;
+        }
+        output
     }
 
     /// Reads a single macro argument: a braced group, or the next single token.
@@ -334,7 +427,7 @@ impl Parser {
         if self.cur() == Some('{') {
             self.read_group_raw()
         } else if self.cur() == Some('\\') {
-            Some(format!("\\{}", self.consume_control_word()))
+            self.read_control_sequence().map(|name| format!("\\{name}"))
         } else {
             self.bump().map(|c| c.to_string())
         }

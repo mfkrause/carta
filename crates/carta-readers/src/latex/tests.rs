@@ -555,6 +555,116 @@ fn simple_macro_expands_to_its_body() {
 }
 
 #[test]
+fn let_copies_macro_arguments_and_current_definition() {
+    assert_eq!(
+        plain_text(
+            r"\newcommand{\word}[2][Hello]{#1 #2}\let\alias\word\renewcommand{\word}{changed}\alias{reader} \alias[Dear]{writer} \word"
+        ),
+        "Hello reader Dear writer changed"
+    );
+    assert_eq!(
+        plain_text(
+            r"\newcommand{\word}{first}\let\alias=\word\renewcommand{\word}{second}\alias\word"
+        ),
+        "firstsecond"
+    );
+}
+
+#[test]
+fn let_preserves_builtin_and_undefined_token_meanings() {
+    assert_eq!(
+        parse(r"\let\alias=\textbf\let\copy\alias\renewcommand{\textbf}[1]{changed}\copy{bold}"),
+        parse(r"\textbf{bold}")
+    );
+    assert_eq!(plain_text(r"\let\alias=\LaTeX\alias text"), "LaTeXtext");
+    for (source, expanded) in [
+        (
+            r"Before \let\alias=\textbf\alias{bold} after.",
+            r"Before \textbf{bold} after.",
+        ),
+        (
+            r"\textit{\let\alias=\textbf\alias{bold}}",
+            r"\textit{\textbf{bold}}",
+        ),
+        (r"\let\alias=\section\alias{Title}", r"\section{Title}"),
+        (
+            r"\let\alias=\begin\alias{quote}word\end{quote}",
+            r"\begin{quote}word\end{quote}",
+        ),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+    assert!(
+        parse(r"\newcommand{\alias}{old}\let\alias=\unknown\newcommand{\unknown}{later}\alias")
+            .is_empty()
+    );
+    let mut extensions = latex_defaults();
+    extensions.insert(Extension::RawTex);
+    assert_eq!(
+        parse_ext(
+            r"\let\alias=\unknown\newcommand{\unknown}{later}\alias",
+            extensions
+        ),
+        parse_ext(r"\unknown", extensions)
+    );
+}
+
+#[test]
+fn let_accepts_character_tokens_and_control_symbols() {
+    assert_eq!(plain_text(r"\let\alias=a\alias\alias"), "aa");
+    assert_eq!(plain_text(r"\let\alias=\%\alias\alias"), "%%");
+    assert_eq!(plain_text(r"\let\!=a\!\!"), "aa");
+    assert_eq!(
+        plain_text(r"\newcommand{\show}[1]{[#1]}\let\alias\show\alias\%"),
+        "[%]"
+    );
+    assert_eq!(
+        plain_text("\\let\\alias % target\n = % value\n a\\alias\\alias"),
+        "aa"
+    );
+}
+
+#[test]
+fn let_definition_keeps_its_source_when_expansion_is_disabled() {
+    let source = r"\let\alias=\textbf";
+    assert_eq!(
+        parse_ext(source, Extensions::empty()),
+        vec![Block::RawBlock(Format("latex".into()), source.into())]
+    );
+}
+
+#[test]
+fn math_expands_macros_and_keeps_control_word_boundaries() {
+    for (source, expanded) in [
+        (r"\newcommand{\word}[1]{x+#1}$\word{y}$", "$x+y$"),
+        (
+            r"\let\alias=\alpha\newcommand{\alpha}{b}$\alias \alpha$",
+            r"$\alpha b$",
+        ),
+        (r"\newcommand{\word}{\alpha}$\word b$", r"$\alpha b$"),
+        (r"\newcommand{\word}{x}$\frac{\word}{y}$", r"$\frac{x}{y}$"),
+        (r"\let\alias=\alpha\[\alias\]", r"\[\alpha\]"),
+        (
+            r"\let\alias=\alpha\begin{equation}\alias\end{equation}",
+            r"\begin{equation}\alpha\end{equation}",
+        ),
+        (
+            r"\let\alias=\footnote\newcommand{\word}{note}Text\alias{\word}",
+            r"Text\footnote{note}",
+        ),
+    ] {
+        assert_eq!(parse(source), parse(expanded), "{source}");
+    }
+    assert_eq!(
+        parse_ext(r"\let\alias=\alpha $\alias$", Extensions::empty()),
+        vec![
+            Block::RawBlock(Format("latex".into()), r"\let\alias=\alpha ".into()),
+            Block::Para(vec![Inline::Math(MathType::InlineMath, r"\alias".into())]),
+        ]
+    );
+}
+
+#[test]
 fn macro_optional_argument_defaults_when_absent() {
     assert_eq!(
         plain_text("\\newcommand{\\x}[2][d]{#1#2}\n\n\\x{B}\n"),

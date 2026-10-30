@@ -386,6 +386,7 @@ impl Parser {
             return;
         }
         match name {
+            "let" if self.ext.contains(Extension::LatexMacros) => self.parse_let(),
             "textcolor" | "colorbox" => {
                 let color = self.read_group_raw().unwrap_or_default();
                 let inner = self.parse_group_inlines();
@@ -799,6 +800,7 @@ impl Parser {
             pos: frame.pos + 1,
             end,
             expansion: frame.expansion.clone(),
+            fixed_token: false,
         };
         frame.pos = end + usize::from(end < frame.end);
         Some(group)
@@ -851,6 +853,6 @@ impl Parser {
                 text.push(c);
             }
         }
-        text.trim().to_owned()
+        self.expand_math(text.trim())
     }
 }

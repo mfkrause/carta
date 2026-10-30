@@ -483,7 +483,8 @@ impl Parser {
     /// the aligned and numbered environments carry their `\begin`/`\end` wrapper inside the formula.
     pub(super) fn read_math_environment(&mut self, env: &str) -> Inline {
         self.consume_env_marker("\\begin");
-        let body = self.read_environment_source(env);
+        let source = self.read_environment_source(env);
+        let body = self.expand_math(&source);
         self.consume_env_marker("\\end");
         match env {
             "math" => Inline::Math(MathType::InlineMath, body.trim().into()),

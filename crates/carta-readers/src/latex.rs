@@ -143,14 +143,15 @@ enum Stop<'a> {
     Item(&'a str),
 }
 
-/// A user-defined macro: its argument count and replacement text, with `#1`…`#9` marking parameters.
-/// When `optional_default` is set, the first parameter is optional and takes this value unless the
-/// call supplies a `[…]` argument.
+/// A parameterized replacement or a token whose meaning is fixed by an alias.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Macro {
-    args: usize,
-    optional_default: Option<String>,
-    body: String,
+enum Macro {
+    Defined {
+        args: usize,
+        optional_default: Option<String>,
+        body: String,
+    },
+    Token(String),
 }
 
 /// One level of input the cursor reads from: a character buffer and a position within it. The
@@ -161,6 +162,7 @@ struct Frame {
     pos: usize,
     end: usize,
     expansion: Option<Rc<Expansion>>,
+    fixed_token: bool,
 }
 
 struct Source {
@@ -201,6 +203,7 @@ impl Frame {
             source,
             pos: 0,
             expansion,
+            fixed_token: false,
         }
     }
 }
@@ -552,31 +555,25 @@ impl Parser {
         if self.cur() != Some('\\') {
             return None;
         }
-        let mut i = 1;
-        let mut name = String::new();
-        while let Some(c) = self.at(i) {
-            if c.is_ascii_alphabetic() {
-                name.push(c);
-                i += 1;
-            } else {
-                break;
-            }
-        }
+        let frame = self
+            .frames
+            .iter()
+            .rev()
+            .find(|frame| frame.pos < frame.end)?;
+        let name: String = frame
+            .source
+            .chars
+            .get(frame.pos + 1..frame.end)?
+            .iter()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .collect();
         if name.is_empty() { None } else { Some(name) }
     }
 
     /// Consumes a `\name` control word and the spaces that follow it (which LaTeX absorbs).
     fn consume_control_word(&mut self) -> String {
-        self.bump(); // backslash
-        let mut name = String::new();
-        while let Some(c) = self.cur() {
-            if c.is_ascii_alphabetic() {
-                name.push(c);
-                self.bump();
-            } else {
-                break;
-            }
-        }
+        let name = self.peek_control_word().unwrap_or_default();
+        self.advance_chars(name.len() + 1);
         while matches!(self.cur(), Some(' ' | '\t')) {
             self.bump();
         }
