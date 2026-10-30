@@ -233,10 +233,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `jira` ✅
 ### `mediawiki` ✅
 ### `man` ✅
-
 ### `docx` ✅
-- `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
-  surrounding spacing differs.
 
 ### `epub` (+ `epub2`, `epub3`) ✅
 - EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`

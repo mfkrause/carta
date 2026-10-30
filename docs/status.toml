@@ -476,7 +476,6 @@ write-feature = "write-docx"
 read-gaps = [
 ]
 write-gaps = [
-  '''`\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the surrounding spacing differs.''',
 ]
 
 [[format]]

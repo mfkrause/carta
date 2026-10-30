@@ -14,7 +14,7 @@ use glyphs::{
     prime_marks,
 };
 use structures::{accent, binomial, border_box, delimited, fence, fraction, grid, matrix, radical};
-use wrappers::{styled_style, text};
+use wrappers::{relation, styled_style, text};
 
 mod glyphs;
 mod structures;
@@ -465,6 +465,8 @@ fn nucleus(body: &Body, style: Style, depth: usize, display: bool) -> Option<Vec
         Body::Styled(name, argument) => {
             if let Some(strike) = cancel_strike(name) {
                 Some(vec![cancel(strike, argument, style, depth)?])
+            } else if name == "mathrel" {
+                relation(argument, style, depth)
             } else if name == "boxed" {
                 Some(vec![border_box(argument, style, depth)?])
             } else if name == "overparen" || name == "underparen" {
@@ -695,8 +697,7 @@ fn negated(base: &str) -> Option<Vec<Element>> {
     })
 }
 
-/// Wrap a run in an operator-emulation box, giving the struck relation inside it relation spacing
-/// against its neighbours.
+/// Wraps a run in an operator-emulation box for relation spacing.
 fn operator_box(inner: Element) -> Element {
     Element::new("m:box")
         .child(Element::new("m:boxPr").child(Element::new("m:opEmu").attr("m:val", "on")))

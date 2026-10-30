@@ -3,8 +3,8 @@
 use super::super::parse::{Atom, Body};
 use super::super::symbols;
 use super::{
-    Element, Ink, Style, ZERO_WIDTH_SPACE, filler, leaf, lower_atom, non_empty, properties, run,
-    script_slot, style_value, wrap,
+    Element, Ink, Style, ZERO_WIDTH_SPACE, filler, leaf, lower_atom, non_empty, operator_box,
+    properties, run, script_slot, style_value, wrap,
 };
 
 /// Lower a control-sequence nucleus: an inter-atom spacing, a Greek letter, a symbol, or a named
@@ -82,9 +82,7 @@ pub(super) fn prime_marks(count: u8) -> String {
 
 /// The `:=` relation, boxed so the two glyphs set as one operator.
 pub(super) fn colon_equals(style: Style) -> Element {
-    Element::new("m:box")
-        .child(Element::new("m:boxPr").child(Element::new("m:opEmu").attr("m:val", "on")))
-        .child(wrap("m:e", vec![leaf(":=", Ink::Upright, style)]))
+    operator_box(leaf(":=", Ink::Upright, style))
 }
 
 /// An inter-atom spacing's glyph and whether it carries an upright style property. Unknown or

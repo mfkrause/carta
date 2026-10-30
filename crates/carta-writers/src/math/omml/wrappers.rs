@@ -1,7 +1,10 @@
 //! Styled-alphabet, math-class, and text-mode wrapper lowering for the OMML math backend.
 
-use super::super::parse::TextPiece;
-use super::{Element, Ink, ItalicAxis, Style, leaf, lower_seq, properties, run, style_value};
+use super::super::parse::{Atom, Body, TextPiece};
+use super::{
+    Element, Ink, ItalicAxis, Style, command_glyph, leaf, lower_seq, non_empty, operator_box,
+    properties, run, style_value,
+};
 
 /// The style a styled-alphabet or math-class wrapper imposes on its argument. A class wrapper sets
 /// its argument upright; an alphabet wrapper selects a script variant and bold/italic axes. An
@@ -79,6 +82,70 @@ pub(super) fn styled_style(name: &str, current: Style) -> Option<Style> {
         },
         _ => return None,
     })
+}
+
+/// Renders relation spacing for glyphs and text while preserving structured arguments.
+pub(super) fn relation(argument: &[Atom], style: Style, depth: usize) -> Option<Vec<Element>> {
+    let mut inner = argument;
+    while let [atom] = inner {
+        if atom.sub.is_some() || atom.sup.is_some() || !atom.siblings.is_empty() {
+            break;
+        }
+        let glyph = match &atom.body {
+            Body::Group(children) => {
+                inner = children;
+                continue;
+            }
+            Body::Styled(name, children)
+                if matches!(
+                    name.as_str(),
+                    "mathord"
+                        | "mathrel"
+                        | "mathop"
+                        | "mathbin"
+                        | "mathopen"
+                        | "mathclose"
+                        | "mathpunct"
+                ) =>
+            {
+                inner = children;
+                continue;
+            }
+            Body::Char(character) => character.to_string(),
+            Body::Command(name) => {
+                let Some((glyph, _)) = command_glyph(name) else {
+                    break;
+                };
+                glyph
+            }
+            Body::Text(name, pieces) => {
+                if let Some(mut inner_style) = text_style(name) {
+                    let mut word = String::new();
+                    for piece in pieces {
+                        match piece {
+                            TextPiece::Run(literal) => word.push_str(literal),
+                            TextPiece::Space(space) => word.push(space.codepoint()),
+                            TextPiece::Math(_) => {
+                                return lower_seq(argument, style, depth + 1, false).map(non_empty);
+                            }
+                        }
+                    }
+                    if !word.is_empty() {
+                        inner_style.normal_text = false;
+                        return Some(vec![operator_box(leaf(&word, Ink::Upright, inner_style))]);
+                    }
+                }
+                break;
+            }
+            _ => break,
+        };
+        if glyph.chars().count() == 1 && glyph.chars().all(char::is_alphabetic) {
+            let inner_style = styled_style("mathrel", style)?;
+            return Some(vec![operator_box(leaf(&glyph, Ink::Upright, inner_style))]);
+        }
+        break;
+    }
+    lower_seq(argument, style, depth + 1, false).map(non_empty)
 }
 
 /// Lower a text-mode wrapper. `\operatorname` folds to a single upright run; the `\text` family sets

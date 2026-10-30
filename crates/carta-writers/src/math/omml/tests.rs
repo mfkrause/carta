@@ -18,6 +18,26 @@ const INLINE: &[(&str, &str)] = &[
         "\\underparen{x}",
         "<m:oMath><m:limLow><m:e><m:r><m:t>x</m:t></m:r></m:e><m:lim><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>⏝</m:t></m:r></m:lim></m:limLow></m:oMath>",
     ),
+    (
+        "\\mathrel{{x}}",
+        "<m:oMath><m:box><m:boxPr><m:opEmu m:val=\"on\" /></m:boxPr><m:e><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>x</m:t></m:r></m:e></m:box></m:oMath>",
+    ),
+    (
+        "\\mathrel{xyz}",
+        "<m:oMath><m:r><m:t>x</m:t></m:r><m:r><m:t>y</m:t></m:r><m:r><m:t>z</m:t></m:r></m:oMath>",
+    ),
+    (
+        "\\mathrel{\\textbf{x y}}",
+        "<m:oMath><m:box><m:boxPr><m:opEmu m:val=\"on\" /></m:boxPr><m:e><m:r><m:rPr><m:sty m:val=\"b\" /></m:rPr><m:t>x y</m:t></m:r></m:e></m:box></m:oMath>",
+    ),
+    (
+        "\\mathrel{x_i}",
+        "<m:oMath><m:sSub><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sub><m:r><m:t>i</m:t></m:r></m:sub></m:sSub></m:oMath>",
+    ),
+    (
+        "\\mathrel{}",
+        "<m:oMath><m:r><m:t>\u{200B}</m:t></m:r></m:oMath>",
+    ),
     ("x", "<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>"),
     ("1", "<m:oMath><m:r><m:t>1</m:t></m:r></m:oMath>"),
     (
@@ -237,6 +257,7 @@ fn unconvertible_constructs_degrade_to_none() {
     assert_eq!(to_omml("\\thiscommanddoesnotexist", false), None);
     assert_eq!(to_omml("\\phantom{\\unknown}", false), None);
     assert_eq!(to_omml("\\not\\mid", false), None);
+    assert_eq!(to_omml("\\mathrel{\\unknown}", false), None);
 }
 
 #[test]

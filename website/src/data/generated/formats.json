@@ -949,9 +949,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-docx",
-        "gaps": [
-          "`\\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the surrounding spacing differs."
-        ]
+        "gaps": []
       }
     },
     {
