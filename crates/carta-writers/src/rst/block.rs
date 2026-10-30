@@ -2,7 +2,7 @@
 
 use carta_ast::{
     Attr, Block, Caption, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
-    MathType, Target, Text, slug, to_plain_text,
+    MathType, Target, Text, single_block_inlines, slug, to_plain_text,
 };
 
 use crate::common::{
@@ -266,30 +266,48 @@ impl State {
         blocks: &[Block],
         width: usize,
     ) -> String {
-        let image = find_image(blocks);
-        let url = image
-            .map(|(_, _, target)| target.url.clone())
-            .unwrap_or_default();
-        let mut directive = format!(".. figure:: {url}");
+        let Some((image_attr, alt, target)) = figure_image(blocks) else {
+            let body = self.blocks_to_string(blocks, width.saturating_sub(3), false);
+            let caption = self.blocks_to_string(&caption.long, width.saturating_sub(3), false);
+            let content = [body, caption]
+                .into_iter()
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            if content.is_empty() {
+                return if attr.id.is_empty() {
+                    String::new()
+                } else {
+                    format!(".. _{}:", attr.id)
+                };
+            }
+            let mut classes = vec!["figure"];
+            classes.extend(attr.classes.iter().map(Text::as_str));
+            let mut directive = format!(".. container:: {}", classes.join(" "));
+            if !attr.id.is_empty() {
+                directive.push_str("\n   :name: ");
+                directive.push_str(&attr.id);
+            }
+            return format!("{directive}\n\n{}", indent_block(&content, "   ", "   "));
+        };
+        let mut directive = format!(".. figure:: {}", target.url);
         if !attr.id.is_empty() {
-            directive.push_str("\n   name: ");
+            directive.push_str("\n   :name: ");
             directive.push_str(&attr.id);
         }
-        if let Some((image_attr, alt, target)) = image {
-            let alt_text = to_plain_text(alt);
-            let alt_text = if alt_text.is_empty() {
-                target.title.to_string()
-            } else {
-                alt_text
-            };
-            if !alt_text.is_empty() {
-                directive.push_str("\n   :alt: ");
-                directive.push_str(&alt_text);
-            }
-            for option in dimension_options(image_attr) {
-                directive.push_str("\n   ");
-                directive.push_str(&option);
-            }
+        let alt_text = to_plain_text(alt);
+        let alt_text = if alt_text.is_empty() {
+            target.title.to_string()
+        } else {
+            alt_text
+        };
+        if !alt_text.is_empty() {
+            directive.push_str("\n   :alt: ");
+            directive.push_str(&alt_text);
+        }
+        for option in dimension_options(image_attr) {
+            directive.push_str("\n   ");
+            directive.push_str(&option);
         }
         let caption_text = self.blocks_to_string(&caption.long, width.saturating_sub(3), false);
         if caption_text.is_empty() {
@@ -591,19 +609,12 @@ fn literal_directive(head: &str, text: &str) -> String {
     )
 }
 
-/// Find the first image among a figure's blocks, returning its attributes, alt inlines, and target.
-fn find_image(blocks: &[Block]) -> Option<(&Attr, &Vec<Inline>, &Target)> {
-    for block in blocks {
-        let (Block::Plain(inlines) | Block::Para(inlines)) = block else {
-            continue;
-        };
-        for inline in inlines {
-            if let Inline::Image(attr, alt, target) = inline {
-                return Some((attr, alt, target));
-            }
-        }
+/// A figure directive represents a single image that occupies the complete body.
+fn figure_image(blocks: &[Block]) -> Option<(&Attr, &[Inline], &Target)> {
+    match single_block_inlines(blocks) {
+        [Inline::Image(attr, alt, target)] => Some((attr, alt, target)),
+        _ => None,
     }
-    None
 }
 
 /// The `:width:`/`:height:` directive options built from an attribute's `width`/`height` entries.

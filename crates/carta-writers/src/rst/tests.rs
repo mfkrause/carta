@@ -330,3 +330,61 @@ fn only_the_first_math_directive_hands_a_spaced_run_back_the_flow() {
     let out = RstWriter.write(&broken, &WriterOptions::default()).unwrap();
     assert_eq!(out, "a\n\n.. math:: x\n\nb");
 }
+
+#[test]
+fn figures_keep_names_captions_and_non_image_content() {
+    let image = Inline::Image(
+        Box::default(),
+        vec![Inline::Str("Alt".into())],
+        Box::new(Target {
+            url: "image.png".into(),
+            title: "".into(),
+        }),
+    );
+    let paragraph = |text: &str| Block::Para(vec![Inline::Str(text.into())]);
+    for (blocks, expected) in [
+        (
+            Vec::new(),
+            ".. container:: figure\n   :name: named\n\n   Caption",
+        ),
+        (
+            vec![Block::Plain(vec![image.clone()])],
+            ".. figure:: image.png\n   :name: named\n   :alt: Alt\n\n   Caption",
+        ),
+        (
+            vec![
+                paragraph("Before"),
+                Block::Plain(vec![image.clone()]),
+                paragraph("After"),
+            ],
+            ".. container:: figure\n   :name: named\n\n   Before\n\n   |Alt|\n   After\n\n   Caption\n\n.. |Alt| image:: image.png",
+        ),
+        (
+            vec![Block::Para(vec![
+                Inline::Str("Before".into()),
+                Inline::Space,
+                image,
+            ])],
+            ".. container:: figure\n   :name: named\n\n   Before |Alt|\n\n   Caption\n\n.. |Alt| image:: image.png",
+        ),
+    ] {
+        let document = Document {
+            blocks: vec![Block::Figure(
+                Box::new(Attr {
+                    id: "named".into(),
+                    ..Attr::default()
+                }),
+                Box::new(carta_ast::Caption {
+                    long: vec![paragraph("Caption")],
+                    ..carta_ast::Caption::default()
+                }),
+                blocks,
+            )],
+            ..Document::default()
+        };
+        let output = RstWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap();
+        assert_eq!(output, expected);
+    }
+}
