@@ -64,3 +64,9 @@ datas = "datas"
 pard = "pard"
 pn = "pn"
 headerr = "headerr"
+# Localized caption labels.
+Tabel = "Tabel"
+Tabele = "Tabele"
+Descriptio = "Descriptio"
+# PostScript deferred bounding-box marker.
+atend = "atend"
