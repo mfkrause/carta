@@ -797,10 +797,6 @@ recognized-not-modeled = [
 
 [[extensions.gap]]
 names = ["markdown_in_html_blocks"]
-description = "A block-level HTML element (`<div>`, `<section>`, `<table>`, …) that interrupts an open paragraph tightens it to `Plain`. Two narrower forms still diverge: a raw-text element (`<pre>`, `<script>`) interrupting a paragraph leaves it as `Para` rather than `Plain`, and an inline-level construct (`<style>`, a comment, a doctype, or a processing instruction) interrupting a paragraph is folded into it as raw inline by the dialect, whereas carta opens a separate raw block."
-
-[[extensions.gap]]
-names = ["markdown_in_html_blocks"]
 description = "An HTML block left open at end of input (a `<!-- …` comment or a `<table>`/`<div>` with no close tag) is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block."
 
 [[extensions.gap]]

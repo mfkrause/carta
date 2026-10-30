@@ -161,11 +161,12 @@ fn is_email_autolink(text: &str) -> bool {
 /// Recognize raw inline HTML at `start` (an open/closing tag, comment, processing instruction,
 /// declaration, or CDATA section) per spec §6.6. Returns the verbatim text and the end position.
 pub(crate) fn scan_html_tag(text: &str, start: usize) -> Option<(String, usize)> {
-    let end = match_html(text, start)?;
+    let end = scan_html_tag_end(text, start)?;
     Some((text.get(start..end)?.to_owned(), end))
 }
 
-fn match_html(text: &str, start: usize) -> Option<usize> {
+/// The byte index past a complete raw inline HTML token.
+pub(crate) fn scan_html_tag_end(text: &str, start: usize) -> Option<usize> {
     if char_at(text, start) != Some('<') {
         return None;
     }

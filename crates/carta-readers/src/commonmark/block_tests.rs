@@ -458,3 +458,81 @@ fn caption_attributes_are_inert_without_the_extension() {
     assert!(attr.id.is_empty());
     assert_eq!(caption.as_deref(), Some("c {#t}"));
 }
+
+#[test]
+fn inline_html_stays_in_the_markdown_paragraph() {
+    for html in [
+        "<!--\n\n# hidden\n-->",
+        "<?pi\n\n# hidden\n?>",
+        "<style>\ninside\n</style>",
+        "<!DOCTYPE html>",
+    ] {
+        let source = format!("before\n{html}\nafter\n");
+        let out = blocks(&source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(text)] if text == source.trim_end()),
+            "{out:?}"
+        );
+    }
+}
+
+#[test]
+fn raw_text_html_blocks_tighten_the_markdown_paragraph() {
+    for tag in ["pre", "script", "textarea"] {
+        let source = format!("before\n<{tag}>\ninside\n</{tag}>\nafter\n");
+        let out = blocks(&source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Plain(before), IrBlock::RawHtml(_), IrBlock::Para(after)] if before == "before" && after == "after"),
+            "{out:?}"
+        );
+    }
+}
+
+#[test]
+fn inline_comments_keep_container_close_tags_literal() {
+    let out = blocks("<div>\nbefore\n<!--\n</div>\n-->\nafter\n</div>\n");
+    let [IrBlock::Div(_, content)] = out.as_slice() else {
+        panic!("expected one div: {out:?}");
+    };
+    assert!(
+        matches!(content.as_slice(), [IrBlock::Para(text)] if text == "before\n<!--\n</div>\n-->\nafter"),
+        "{content:?}"
+    );
+}
+
+#[test]
+fn closing_html_tags_keep_following_text_outside_the_raw_block() {
+    for tag in ["pre", "script", "style", "textarea", "div"] {
+        let source = format!("</{tag}>\nafter\n");
+        let out = blocks(&source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::RawHtml(tag), IrBlock::Para(after)] if tag == source.lines().next().unwrap() && after == "after"),
+            "{out:?}"
+        );
+    }
+}
+
+#[test]
+fn inline_tag_lines_stay_in_markdown_paragraphs() {
+    for source in ["<span>\nafter\n", "<custom>\nafter\n", "</span>\nafter\n"] {
+        let out = blocks(source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(text)] if text == source.trim_end()),
+            "{out:?}"
+        );
+    }
+}
+
+#[test]
+fn indented_inline_html_keeps_its_paragraph_open() {
+    for source in [
+        "  <!--\n\n# hidden\n-->\nafter\n",
+        "  <?pi\n\n# hidden\n?>\nafter\n",
+    ] {
+        let out = blocks(source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(text)] if text == source.trim()),
+            "{out:?}"
+        );
+    }
+}

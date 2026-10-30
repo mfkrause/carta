@@ -3,6 +3,18 @@
 //! raw line text.
 use carta_ast::Attr;
 
+/// Literal HTML content that can continue across physical lines.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum HtmlLiteral {
+    Comment,
+    ProcessingInstruction,
+    Cdata,
+    Pre,
+    Script,
+    Style,
+    Textarea,
+}
+
 /// A recognized open tag at the start of a line.
 pub(super) struct OpenTag {
     /// The lowercased tag name.
@@ -213,21 +225,12 @@ fn read_value(bytes: &[u8], start: usize) -> Option<(String, usize)> {
     }
 }
 
-/// Locate the first matching close tag `</name>` (with optional trailing whitespace before `>`)
-/// in `s`, returning its byte range. The name match is case-insensitive.
+/// Locates the close tag that balances an open element, ignoring nested tags and literal content.
 pub(super) fn find_close_tag(s: &str, tag: &str) -> Option<CloseTag> {
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes.get(i) == Some(&b'<')
-            && bytes.get(i + 1) == Some(&b'/')
-            && let Some(end) = close_tag_at(bytes, i, tag)
-        {
-            return Some(CloseTag { start: i, end });
-        }
-        i += 1;
-    }
-    None
+    let (_, end) = scan_depth(s, tag, 1, &mut None);
+    let end = end?;
+    let start = s.get(..end)?.rfind('<')?;
+    Some(CloseTag { start, end })
 }
 
 /// If a close tag for `tag` begins at `start`, return the index just past its `>`.
@@ -264,23 +267,80 @@ pub(super) fn parse_close_tag(s: &str) -> Option<usize> {
         i += 1;
     }
     let name = s.get(name_start..i)?.to_ascii_lowercase();
-    if !is_block_tag(&name) {
+    if !is_block_tag(&name) && !matches!(name.as_str(), "pre" | "script" | "style" | "textarea") {
         return None;
     }
     i = skip_ws(bytes, i);
     (bytes.get(i) == Some(&b'>')).then_some(i + 1)
 }
 
-/// Walk `s` from the given open-nesting `depth`, tracking only tags named `tag`: each non-self-
-/// closing open raises the depth, each close lowers it, and any other tag is skipped whole so a
-/// `>` inside its attributes cannot be miscounted. Returns the depth after `s` and, when a close
-/// brings the depth to zero within `s`, the byte offset just past that close tag.
-pub(super) fn scan_depth(s: &str, tag: &str, mut depth: usize) -> (usize, Option<usize>) {
+/// Counts nested tags and returns the end of the tag that closes the outer element.
+/// Pass `literal` between lines to keep literal HTML content out of the tag count.
+pub(super) fn scan_depth(
+    s: &str,
+    tag: &str,
+    mut depth: usize,
+    literal: &mut Option<HtmlLiteral>,
+) -> (usize, Option<usize>) {
     let bytes = s.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
+        if let Some(active) = literal {
+            let (terminator, ignore_case) = match active {
+                HtmlLiteral::Comment => ("-->", false),
+                HtmlLiteral::ProcessingInstruction => ("?>", false),
+                HtmlLiteral::Cdata => ("]]>", false),
+                HtmlLiteral::Pre => ("</pre>", true),
+                HtmlLiteral::Script => ("</script>", true),
+                HtmlLiteral::Style => ("</style>", true),
+                HtmlLiteral::Textarea => ("</textarea>", true),
+            };
+            let rest = s.get(i..).unwrap_or("");
+            let end = if ignore_case {
+                rest.as_bytes()
+                    .windows(terminator.len())
+                    .position(|candidate| candidate.eq_ignore_ascii_case(terminator.as_bytes()))
+            } else {
+                rest.find(terminator)
+            };
+            let Some(end) = end else {
+                break;
+            };
+            i += end + terminator.len();
+            *literal = None;
+            continue;
+        }
         if bytes.get(i) == Some(&b'<') {
-            if let Some(open) = parse_open_tag(s.get(i..).unwrap_or("")) {
+            let rest = s.get(i..).unwrap_or("");
+            let opening = if rest.starts_with("<!--") {
+                Some(HtmlLiteral::Comment)
+            } else if rest.starts_with("<?") {
+                Some(HtmlLiteral::ProcessingInstruction)
+            } else if rest.starts_with("<![CDATA[") {
+                Some(HtmlLiteral::Cdata)
+            } else {
+                None
+            };
+            if let Some(opening) = opening {
+                if let Some(end) = super::scan::scan_html_tag_end(s, i) {
+                    i = end;
+                    continue;
+                }
+                *literal = Some(opening);
+                break;
+            }
+            if let Some(name) = super::html_block::raw_text_tag(rest) {
+                *literal = match name {
+                    "pre" => Some(HtmlLiteral::Pre),
+                    "script" => Some(HtmlLiteral::Script),
+                    "style" => Some(HtmlLiteral::Style),
+                    "textarea" => Some(HtmlLiteral::Textarea),
+                    _ => None,
+                };
+                i = super::scan::scan_html_tag_end(s, i).unwrap_or(bytes.len());
+                continue;
+            }
+            if let Some(open) = parse_open_tag(rest) {
                 if open.tag == tag && !open.self_closing {
                     depth += 1;
                 }
@@ -292,6 +352,10 @@ pub(super) fn scan_depth(s: &str, tag: &str, mut depth: usize) -> (usize, Option
                 if depth == 0 {
                     return (0, Some(end));
                 }
+                i = end;
+                continue;
+            }
+            if let Some(end) = super::scan::scan_html_tag_end(s, i) {
                 i = end;
                 continue;
             }

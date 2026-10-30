@@ -265,12 +265,49 @@ fn parse_close_tag_matches_a_leading_block_close_tag() {
 
 #[test]
 fn scan_depth_balances_nested_same_name_tags() {
-    let (depth, close) = html_element::scan_depth("<div>a</div></div>", "div", 1);
+    let (depth, close) = html_element::scan_depth("<div>a</div></div>", "div", 1, &mut None);
     assert_eq!(depth, 0);
     assert_eq!(close, Some("<div>a</div>".len() + "</div>".len()));
-    assert_eq!(html_element::scan_depth("<div/>", "div", 1), (1, None));
     assert_eq!(
-        html_element::scan_depth("<td x=\">\">", "div", 1),
+        html_element::scan_depth("<div/>", "div", 1, &mut None),
         (1, None)
     );
+    assert_eq!(
+        html_element::scan_depth("<td x=\">\">", "div", 1, &mut None),
+        (1, None)
+    );
+}
+
+#[test]
+fn tag_depth_ignores_comments_across_lines() {
+    let mut literal = None;
+    assert_eq!(
+        html_element::scan_depth("<!--", "div", 1, &mut literal),
+        (1, None)
+    );
+    assert!(literal.is_some());
+    assert_eq!(
+        html_element::scan_depth("<div></div>", "div", 1, &mut literal),
+        (1, None)
+    );
+    assert_eq!(
+        html_element::scan_depth("--></div>", "div", 1, &mut literal),
+        (0, Some(9))
+    );
+    assert!(literal.is_none());
+}
+
+#[test]
+fn matching_close_tags_skip_nested_elements_and_literal_content() {
+    for source in [
+        "<div>x</div></div>",
+        "<!-- </div> --></div>",
+        "<?pi </div> ?></div>",
+        "<script>console.log(\"</div>\")</script></div>",
+        "<span title=\"</div>\">x</span></div>",
+    ] {
+        let found = html_element::find_close_tag(source, "div").unwrap();
+        assert_eq!(source.get(found.start..found.end), Some("</div>"));
+        assert_eq!(found.end, source.len());
+    }
 }

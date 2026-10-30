@@ -30,7 +30,7 @@ impl Parser {
             /// A single-line raw block holding `line[..end]`.
             Single(usize),
             /// A multi-line span with the given tag name and open-nesting depth after its first line.
-            Span(String, usize),
+            Span(String, usize, Option<html_element::HtmlLiteral>),
         }
         let interrupts = self.extensions.contains(Extension::MarkdownAttribute);
         let max_indent = if interrupts { 3 } else { 0 };
@@ -40,20 +40,23 @@ impl Parser {
         let line = cursor.remaining().to_owned();
         let opener = if let Some(open) = html_element::parse_open_tag(&line) {
             let after_tag = line.get(open.len..).unwrap_or("");
+            let mut literal = None;
             let (line_depth, same_line) = if open.self_closing {
                 (0, None)
             } else {
-                html_element::scan_depth(after_tag, &open.tag, 1)
+                html_element::scan_depth(after_tag, &open.tag, 1, &mut literal)
             };
             match same_line {
                 Some(offset) => Opener::Single(open.len + offset),
                 // Self-closing/void, or no balanced close ahead: the tag alone is the raw block.
                 None if line_depth == 0
-                    || !self.raw_html_span_closes(container, line_depth, &open.tag, following) =>
+                    || !self.raw_html_span_closes(
+                        container, line_depth, &open.tag, following, literal,
+                    ) =>
                 {
                     Opener::Single(open.len)
                 }
-                None => Opener::Span(open.tag, line_depth),
+                None => Opener::Span(open.tag, line_depth, literal),
             }
         } else if let Some(len) = html_element::parse_close_tag(&line) {
             Opener::Single(len)
@@ -73,8 +76,12 @@ impl Parser {
         }
         match opener {
             Opener::Single(end) => Some(self.emit_raw_html_leaf(container, &line, end)),
-            Opener::Span(tag, depth) => {
-                let kind = Kind::RawHtmlSpan { tag, depth };
+            Opener::Span(tag, depth, literal) => {
+                let kind = Kind::RawHtmlSpan {
+                    tag,
+                    depth,
+                    literal,
+                };
                 let parent = self.place(container, &kind);
                 let index = self.append_child(parent, Node::new(kind));
                 self.append_text(index, &line);
@@ -92,6 +99,7 @@ impl Parser {
         let kind = Kind::RawHtmlSpan {
             tag: String::new(),
             depth: 0,
+            literal: None,
         };
         let parent = self.place(container, &kind);
         let index = self.append_child(parent, Node::new(kind));
@@ -111,6 +119,7 @@ impl Parser {
         depth: usize,
         tag: &str,
         following: &[&str],
+        mut literal: Option<html_element::HtmlLiteral>,
     ) -> bool {
         let path = self.container_path(container);
         let mut depth = depth;
@@ -119,7 +128,8 @@ impl Parser {
             if !self.strip_container_path(&path, &mut cursor) {
                 return false;
             }
-            let (next, close) = html_element::scan_depth(cursor.remaining(), tag, depth);
+            let (next, close) =
+                html_element::scan_depth(cursor.remaining(), tag, depth, &mut literal);
             if close.is_some() {
                 return true;
             }
@@ -220,15 +230,16 @@ impl Parser {
         index: usize,
         tag: &str,
         depth: usize,
+        mut literal: Option<html_element::HtmlLiteral>,
         cursor: &mut Cursor,
     ) {
         let line = cursor.remaining();
-        let (new_depth, close) = html_element::scan_depth(line, tag, depth);
+        let (new_depth, close) = html_element::scan_depth(line, tag, depth, &mut literal);
         if let Some(offset) = close {
             let kept = line.get(..offset).unwrap_or(line).to_owned();
             let rest = line.get(offset..).unwrap_or("").to_owned();
             self.append_text(index, &kept);
-            self.set_raw_html_depth(index, 0);
+            self.set_raw_html_state(index, 0, literal);
             self.close(index);
             if !rest.trim().is_empty() {
                 self.process_line(&rest, &[], None);
@@ -236,15 +247,21 @@ impl Parser {
         } else {
             self.append_text(index, line);
             self.append_text(index, "\n");
-            self.set_raw_html_depth(index, new_depth);
+            self.set_raw_html_state(index, new_depth, literal);
         }
     }
 
-    pub(super) fn set_raw_html_depth(&mut self, index: usize, value: usize) {
+    pub(super) fn set_raw_html_state(
+        &mut self,
+        index: usize,
+        value: usize,
+        content: Option<html_element::HtmlLiteral>,
+    ) {
         if let Some(node) = self.nodes.get_mut(index)
-            && let Kind::RawHtmlSpan { depth, .. } = &mut node.kind
+            && let Kind::RawHtmlSpan { depth, literal, .. } = &mut node.kind
         {
             *depth = value;
+            *literal = content;
         }
     }
 }

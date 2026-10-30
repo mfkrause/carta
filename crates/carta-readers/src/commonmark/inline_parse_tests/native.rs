@@ -224,3 +224,20 @@ fn mark_run_pairs_once_and_leaves_excess_literal() {
     );
     assert_eq!(pe("==x====", on), vec![mark(vec![str("x")]), str("==")]);
 }
+
+#[test]
+fn declarations_stay_literal_in_markdown_paragraphs() {
+    let source = "<!DOCTYPE html>";
+    let extensions = Extensions::from_list(&[Extension::RawHtml]);
+    assert_eq!(
+        pm(source, extensions),
+        vec![str("<!DOCTYPE"), Inline::Space, str("html>")]
+    );
+    assert_eq!(
+        pe(source, extensions),
+        vec![Inline::RawInline(
+            carta_ast::Format("html".into()),
+            source.into()
+        )]
+    );
+}

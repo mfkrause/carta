@@ -2,8 +2,8 @@
 
 use super::{
     Cursor, DivInfo, Extension, ItemInfo, Kind, ListMarkerParse, ListNumberDelim, ListNumberStyle,
-    Node, Parser, TAB_STOP, continues_ordered, demote_lone_roman, div_open_fence, grid, html_block,
-    list_info, scan, strip_atx_closing, table, texttable,
+    Node, ParagraphFold, Parser, TAB_STOP, continues_ordered, demote_lone_roman, div_open_fence,
+    grid, html_block, html_element, list_info, scan, strip_atx_closing, table, texttable,
 };
 
 impl Parser {
@@ -93,7 +93,7 @@ impl Parser {
                 } else {
                     // No code block opens: the fence folds into a paragraph up to its close.
                     if self.greedy_paragraphs {
-                        self.fence_fold = Some(fence);
+                        self.paragraph_fold = Some(ParagraphFold::Fence(fence));
                     }
                     cursor.reset_to(fence_checkpoint);
                 }
@@ -108,14 +108,46 @@ impl Parser {
             {
                 return Some(block);
             }
-            // Kinds 6/7 were handled above; only container-agnostic kinds form a raw block here.
+            if self.greedy_paragraphs
+                && !in_paragraph
+                && let Some(end) = html_element::parse_close_tag(cursor.remaining())
+            {
+                if indent > 0 {
+                    return None;
+                }
+                let line = cursor.rest();
+                cursor.advance_chars(line.len());
+                return Some(self.emit_raw_html_leaf(container, &line, end));
+            }
             if let Some(kind) = html_block::classify(cursor.remaining(), !in_paragraph)
                 && !(self.markdown_raw_html() && matches!(kind, 6 | 7))
+                && !(self.greedy_paragraphs && kind == 7)
             {
+                let markdown_in_html = self.extensions.contains(Extension::MarkdownInHtmlBlocks);
+                let inline_html = matches!(kind, 2..=5)
+                    || kind == 1
+                        && (!markdown_in_html
+                            || html_block::raw_text_tag(cursor.remaining()) == Some("style"));
+                if self.greedy_paragraphs && (in_paragraph || indent > 0) && inline_html {
+                    if !html_block::closes(kind, cursor.remaining()) {
+                        self.paragraph_fold = match kind {
+                            2 => Some(ParagraphFold::Comment),
+                            3 => Some(ParagraphFold::ProcessingInstruction),
+                            _ => None,
+                        };
+                    }
+                    return None;
+                }
+                if self.greedy_paragraphs && markdown_in_html && kind == 1 {
+                    self.tighten_interrupted_paragraph(container);
+                }
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));
-                // The start line keeps its leading indentation (always spaces after normalization).
-                let line = format!("{}{}", " ".repeat(indent), cursor.remaining());
+                let line = if self.greedy_paragraphs {
+                    cursor.rest()
+                } else {
+                    format!("{}{}", " ".repeat(indent), cursor.remaining())
+                };
                 self.append_text(index, &line);
                 self.append_text(index, "\n");
                 if html_block::closes(kind, &line) {

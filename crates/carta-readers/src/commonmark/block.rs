@@ -172,6 +172,7 @@ enum Kind {
     RawHtmlSpan {
         tag: String,
         depth: usize,
+        literal: Option<html_element::HtmlLiteral>,
     },
     /// A block-level HTML element whose inner content is parsed as markdown. A `<div>` (with
     /// `native_divs` enabled) becomes an [`IrBlock::Div`] carrying the tag's attributes; any other
@@ -312,6 +313,14 @@ struct GreedyGates {
     heading: bool,
 }
 
+/// An input region that suppresses block openers inside a paragraph.
+#[derive(Clone)]
+enum ParagraphFold {
+    Fence(FenceInfo),
+    Comment,
+    ProcessingInstruction,
+}
+
 struct Parser {
     nodes: Vec<Node>,
     refs: RefMap,
@@ -319,10 +328,7 @@ struct Parser {
     /// When set, most block openers do not interrupt an open paragraph (see
     /// [`ReaderOptions::greedy_paragraphs`](carta_core::ReaderOptions::greedy_paragraphs)).
     greedy_paragraphs: bool,
-    /// Set while a code fence that could not open a code block (its info names no language, or it
-    /// has no closing fence) is folding into a paragraph. Until a matching closing fence or a blank
-    /// line, each following line is absorbed as paragraph text with no block opener allowed to fire.
-    fence_fold: Option<FenceInfo>,
+    paragraph_fold: Option<ParagraphFold>,
     /// Precomputed close-fence positions for the whole document, consulted from the root container so
     /// a fence opener does not rescan every remaining line (built only in greedy-paragraph mode).
     fence_close_candidates: FenceCloseCandidates,
@@ -335,7 +341,7 @@ impl Parser {
             refs: RefMap::new(),
             extensions,
             greedy_paragraphs,
-            fence_fold: None,
+            paragraph_fold: None,
             fence_close_candidates: FenceCloseCandidates::default(),
         }
     }
@@ -470,6 +476,32 @@ impl Parser {
             return;
         }
 
+        let html_kind = match &self.paragraph_fold {
+            Some(ParagraphFold::Comment) => Some(2),
+            Some(ParagraphFold::ProcessingInstruction) => Some(3),
+            _ => None,
+        };
+        if let Some(kind) = html_kind {
+            if all_matched && matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph)) {
+                if html_block::closes(kind, cursor.remaining()) {
+                    self.paragraph_fold = None;
+                }
+                let paragraph = self.deepest_open(container);
+                self.append_line(paragraph, &cursor);
+                return;
+            }
+            self.paragraph_fold = None;
+        }
+
+        if all_matched
+            && let Some(leaf) = self.last_open_child(container)
+            && let Some(Kind::HtmlBlock(kind @ 1..=5)) = self.kind(leaf)
+        {
+            let kind = *kind;
+            self.continue_html(leaf, kind, &mut cursor);
+            return;
+        }
+
         if self.close_fenced_div(container, &div_path) {
             return;
         }
@@ -506,18 +538,18 @@ impl Parser {
         let blank = cursor.is_blank();
 
         // A folding fence absorbs lines verbatim (no opener fires) until its close fence or a blank.
-        if let Some(fence) = self.fence_fold.clone() {
+        if let Some(ParagraphFold::Fence(fence)) = self.paragraph_fold.clone() {
             if all_matched
                 && !blank
                 && matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph))
             {
                 if cursor.indent() <= 3 && cursor.is_closing_fence(fence.marker, fence.length) {
-                    self.fence_fold = None;
+                    self.paragraph_fold = None;
                 }
                 self.add_line(container, false, false, &mut cursor);
                 return;
             }
-            self.fence_fold = None;
+            self.paragraph_fold = None;
         }
 
         if all_matched

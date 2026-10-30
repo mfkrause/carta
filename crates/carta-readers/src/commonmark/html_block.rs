@@ -24,13 +24,8 @@ pub(super) fn classify(rest: &str, can_interrupt_paragraph: bool) -> Option<u8> 
     {
         return Some(4);
     }
-    let lower = rest.to_ascii_lowercase();
-    for tag in ["script", "pre", "style", "textarea"] {
-        if let Some(after) = lower.strip_prefix('<').and_then(|r| r.strip_prefix(tag))
-            && (after.is_empty() || after.starts_with([' ', '\t', '>']))
-        {
-            return Some(1);
-        }
+    if raw_text_tag(rest).is_some() {
+        return Some(1);
     }
     if is_type6_start(rest) {
         return Some(6);
@@ -42,6 +37,14 @@ pub(super) fn classify(rest: &str, can_interrupt_paragraph: bool) -> Option<u8> 
         return Some(7);
     }
     None
+}
+
+/// The raw-text tag that opens a type 1 HTML block.
+pub(super) fn raw_text_tag(rest: &str) -> Option<&'static str> {
+    let tag = rest.strip_prefix('<')?.split([' ', '\t', '>']).next()?;
+    ["script", "pre", "style", "textarea"]
+        .into_iter()
+        .find(|candidate| tag.eq_ignore_ascii_case(candidate))
 }
 
 /// Whether `line` satisfies the end condition for an HTML block of the given type. Types 6 and 7

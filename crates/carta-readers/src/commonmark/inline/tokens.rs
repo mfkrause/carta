@@ -536,7 +536,10 @@ impl InlineParser<'_> {
             self.nodes.push(Node::Inline(inline));
             return;
         }
-        if let Some((html, next)) = scan_html_tag(self.text, self.pos) {
+        let rest = self.text.get(self.pos..).unwrap_or("");
+        let declaration =
+            self.notes.markdown && rest.starts_with("<!") && !rest.starts_with("<!--");
+        if !declaration && let Some((html, next)) = scan_html_tag(self.text, self.pos) {
             self.pos = next;
             // With `raw_html` off, Markdown keeps tags literal; CommonMark emits raw HTML.
             if self.notes.markdown && !self.ext.contains(Extension::RawHtml) {

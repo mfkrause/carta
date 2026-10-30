@@ -80,10 +80,15 @@ impl Parser {
                 self.continue_html(index, kind, cursor);
                 Continue::MatchedLeaf
             }
-            Some(Kind::RawHtmlSpan { tag, depth }) => {
+            Some(Kind::RawHtmlSpan {
+                tag,
+                depth,
+                literal,
+            }) => {
                 let tag = tag.clone();
                 let depth = *depth;
-                self.continue_raw_html_span(index, &tag, depth, cursor);
+                let literal = *literal;
+                self.continue_raw_html_span(index, &tag, depth, literal, cursor);
                 Continue::MatchedLeaf
             }
             _ => Continue::NotMatched,
