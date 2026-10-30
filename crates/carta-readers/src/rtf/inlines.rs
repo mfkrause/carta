@@ -4,6 +4,8 @@ use std::mem::take;
 
 use carta_ast::{Inline, InlineParts, Target};
 
+use super::chars::CodePage;
+
 /// The active character formatting. Copied on group entry and restored on exit. Compared for
 /// equality to merge adjacent text sharing the same formatting into one run. Each field is an
 /// independent on/off attribute the format toggles separately, so a flat set of flags models it
@@ -125,11 +127,12 @@ impl StyleFormat {
     }
 }
 
-/// A group's saved state: the character formatting plus the Unicode fallback skip count (`\ucN`).
+/// A group's character formatting, byte encoding, and Unicode fallback count.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct GroupState {
     pub(super) props: CharProps,
     pub(super) uc: i32,
+    pub(super) code_page: CodePage,
 }
 
 impl Default for GroupState {
@@ -137,6 +140,7 @@ impl Default for GroupState {
         Self {
             props: CharProps::default(),
             uc: 1,
+            code_page: CodePage::default(),
         }
     }
 }

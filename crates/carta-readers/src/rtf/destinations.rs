@@ -6,8 +6,8 @@ use carta_core::media::content_addressed_name;
 use crate::inline_text::words_to_inlines;
 
 use super::chars::{
-    code_page_char, combine_surrogate, decode_hex, parse_hyperlink, picture_attr, special_char,
-    symbol_char, unicode_code,
+    combine_surrogate, decode_hex, parse_hyperlink, picture_attr, special_char, symbol_char,
+    unicode_code,
 };
 use super::emitter::{Emitter, LevelDef, nfc_to_style};
 use super::inlines::{CharProps, GroupState, StyleFormat, linkify};
@@ -525,7 +525,10 @@ impl Parser {
         self.skip_optional_marker();
         self.pos += 1; // the `footnote` word
         self.emitters.push(Emitter::new());
-        self.states.push(GroupState::default());
+        self.states.push(GroupState {
+            props: CharProps::default(),
+            ..self.states.last().copied().unwrap_or_default()
+        });
         self.process();
         self.states.pop();
         let blocks = match self.emitters.pop() {
@@ -607,7 +610,7 @@ impl Parser {
                 }
                 Token::Char(c) => out.push(c),
                 Token::Space => out.push(' '),
-                Token::Hex(byte) => out.push(code_page_char(byte)),
+                Token::Hex(byte) => out.push(self.decode_byte(byte)),
                 Token::Binary(_) => {}
                 Token::Control(word, param) => match word.as_str() {
                     "uc" => uc = param.unwrap_or(1).max(0),

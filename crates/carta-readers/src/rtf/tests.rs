@@ -43,6 +43,42 @@ fn plain_paragraph_splits_words() {
 }
 
 #[test]
+fn declared_character_sets_decode_body_and_metadata_bytes() {
+    for (header, expected) in [
+        ("ansi", "€£à"),
+        ("mac", "Ä£‡"),
+        ("pc", "Çúα"),
+        ("pca", "ÇúÓ"),
+        ("ansi\\ansicpg10000", "Ä£‡"),
+        ("ansi\\ansicpg437", "Çúα"),
+        ("ansi\\ansicpg850", "ÇúÓ"),
+    ] {
+        let bytes = r"\'80\'a3\'e0";
+        let document = read(&format!(
+            "{{\\rtf1\\{header}{{\\info{{\\title {bytes}}}}}{bytes}}}"
+        ));
+        assert_eq!(document.blocks, vec![para(vec![s(expected)])], "{header}");
+        assert_eq!(
+            document.meta.get("title"),
+            Some(&MetaValue::MetaInlines(vec![s(expected)])),
+            "{header}"
+        );
+        assert_eq!(
+            read(&format!("{{\\rtf1\\{header} a{{\\footnote {bytes}}}}}")).blocks,
+            vec![para(vec![
+                s("a"),
+                Inline::Note(vec![para(vec![s(expected)])])
+            ])],
+            "{header}"
+        );
+    }
+    assert_eq!(
+        read(r"{\rtf1\mac \'80{\ansi \'80}\'80}").blocks,
+        vec![para(vec![s("Ä€Ä")])]
+    );
+}
+
+#[test]
 fn optional_line_wraps_do_not_add_hard_breaks() {
     let document = read(r"{\rtf1 a\softline\b bold\b0\line end}");
     assert_eq!(

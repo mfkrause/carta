@@ -4,6 +4,16 @@ use carta_ast::{Attr, Text};
 
 use crate::numeric::general_decimal;
 
+/// The document's declared byte encoding.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) enum CodePage {
+    #[default]
+    Windows1252,
+    Macintosh,
+    Ibm437,
+    Ibm850,
+}
+
 /// Builds the [`Attr`] for an embedded picture from its goal dimensions. A `\picwgoal`/`\pichgoal`
 /// value is a measurement in twips (1/1440 inch); each present dimension becomes a `width`/`height`
 /// attribute expressed in inches.
@@ -90,9 +100,28 @@ pub(super) fn combine_surrogate(pending_high: &mut Option<u32>, code: u32) -> Op
     }
 }
 
-/// Maps a code-page byte to a character. Bytes outside `0x80..=0x9F` are Latin-1; that window uses
-/// the Windows-1252 assignments, the code page an unqualified `\ansi` document carries.
-pub(super) fn code_page_char(byte: u8) -> char {
+/// Maps an escaped byte using the document character set.
+pub(super) fn code_page_char(byte: u8, code_page: CodePage) -> char {
+    let characters = match code_page {
+        CodePage::Windows1252 => None,
+        CodePage::Macintosh => Some(
+            "ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø¿¡¬√ƒ≈∆«»…\u{a0}ÀÃÕŒœ–—“”‘’÷◊ÿŸ⁄€‹›ﬁﬂ‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔ\u{f8ff}ÒÚÛÙıˆ˜¯˘˙˚¸˝˛ˇ",
+        ),
+        CodePage::Ibm437 => Some(
+            "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■\u{a0}",
+        ),
+        CodePage::Ibm850 => Some(
+            "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´\u{ad}±‗¾¶§÷¸°¨·¹³²■\u{a0}",
+        ),
+    };
+    if byte >= 0x80
+        && let Some(characters) = characters
+    {
+        return characters
+            .chars()
+            .nth(usize::from(byte - 0x80))
+            .unwrap_or('\u{FFFD}');
+    }
     let scalar: u32 = match byte {
         0x80 => 0x20AC,
         0x82 => 0x201A,

@@ -1101,7 +1101,6 @@
         "ships": true,
         "feature": "read-rtf",
         "gaps": [
-          "A `\\mac`, `\\pc`, or `\\pca` document's `\\'xx` bytes decode as Windows-1252 rather than the declared character set.",
           "A control byte delivered through a `\\'xx` or `\\uN` escape (tab, line feed) is kept as a literal character rather than normalized to a space or line break.",
           "Formatting inside an `\\info` field is flattened to plain text, and `\\generator` is not captured as document metadata."
         ]

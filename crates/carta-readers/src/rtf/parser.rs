@@ -5,7 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use carta_ast::{Block, MetaValue, Text};
 use carta_core::MediaBag;
 
-use super::chars::{code_page_char, combine_surrogate, special_char, symbol_char, unicode_code};
+use super::chars::{
+    CodePage, code_page_char, combine_surrogate, special_char, symbol_char, unicode_code,
+};
 use super::emitter::{Emitter, LevelDef};
 use super::inlines::{CharProps, GroupState, StyleFormat};
 use super::lexer::Token;
@@ -196,8 +198,9 @@ impl Parser {
                 Token::Hex(byte) => {
                     self.pos += 1;
                     let props = self.props();
+                    let character = self.decode_byte(byte);
                     if let Some(emitter) = self.emitter() {
-                        emitter.push_char(code_page_char(byte), props);
+                        emitter.push_char(character, props);
                     }
                 }
                 Token::Binary(_) => self.pos += 1,
@@ -321,6 +324,17 @@ impl Parser {
     fn handle_control(&mut self, word: &str, param: Option<i32>) {
         let on = param != Some(0);
         match word {
+            "ansi" => self.state_mut().code_page = CodePage::Windows1252,
+            "mac" => self.state_mut().code_page = CodePage::Macintosh,
+            "pc" => self.state_mut().code_page = CodePage::Ibm437,
+            "pca" => self.state_mut().code_page = CodePage::Ibm850,
+            "ansicpg" => match param {
+                Some(1252) => self.state_mut().code_page = CodePage::Windows1252,
+                Some(10000) => self.state_mut().code_page = CodePage::Macintosh,
+                Some(437) => self.state_mut().code_page = CodePage::Ibm437,
+                Some(850) => self.state_mut().code_page = CodePage::Ibm850,
+                _ => {}
+            },
             "b" => self.state_mut().props.bold = on,
             "i" => self.state_mut().props.italic = on,
             "ul" => self.state_mut().props.underline = on,
@@ -453,6 +467,14 @@ impl Parser {
                 emitter.push_str(text, props);
             }
         }
+    }
+
+    pub(super) fn decode_byte(&self, byte: u8) -> char {
+        let code_page = self
+            .states
+            .last()
+            .map_or(CodePage::default(), |state| state.code_page);
+        code_page_char(byte, code_page)
     }
 
     fn handle_unicode(&mut self, param: Option<i32>) {
