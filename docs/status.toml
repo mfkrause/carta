@@ -55,7 +55,6 @@ write-feature = "write-markdown"
 read-gaps = [
   '''`latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.''',
   "Bracketed citations resolve through a memo, so nesting costs linear work; only brackets nested tens of levels deep (past a work budget that bounds total citation output) stay literal text.",
-  "Narrow per-extension divergences: see [known parity gaps](#known-parity-gaps).",
 ]
 write-gaps = [
   "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
@@ -791,10 +790,6 @@ recognized-not-modeled = [
   "ignore_line_breaks",
   "raw_markdown",
 ]
-
-[[extensions.gap]]
-names = ["raw_tex"]
-description = '''Inline `\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\begin{env}…\end{env}` is recognized only as a whole paragraph (block level); inline, each `\begin`/`\end` is an ordinary command.'''
 
 [[feature]]
 name = "Standalone output + templates (`-s`, `--template`)"

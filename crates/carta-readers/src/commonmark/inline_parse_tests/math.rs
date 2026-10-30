@@ -79,7 +79,11 @@ fn raw_tex_unbalanced_brace_reverts_whole_command() {
 
 #[test]
 fn raw_tex_unclosed_openers_stay_literal_at_scale() {
-    let cases = [r"\a{".repeat(4096), r"\begin{x}".repeat(4096)];
+    let cases = [
+        r"\a{".repeat(4096),
+        r"\begin{x}".repeat(4096),
+        r"\textbf{".repeat(4096),
+    ];
     for input in cases {
         let parsed = pe(&input, raw_tex());
         assert!(
@@ -207,4 +211,55 @@ fn double_backslash_math() {
 #[test]
 fn backslash_math_off_leaves_escape_behavior() {
     assert_eq!(p(r"\(x\)"), vec![str("(x)")]);
+}
+
+#[test]
+fn raw_tex_fixed_arguments_keep_trailing_text_and_links() {
+    assert_eq!(
+        pe(r"\textbf{x}{tail}[label](/url)", raw_tex()),
+        vec![
+            tex(r"\textbf{x}"),
+            str("{tail}"),
+            link(vec![str("label")], "/url")
+        ]
+    );
+    assert_eq!(
+        pe(r"\href{url}{label}{tail}", raw_tex()),
+        vec![tex(r"\href{url}{label}"), str("{tail}")]
+    );
+    assert_eq!(pe("\\emph α", raw_tex()), vec![tex("\\emph α")]);
+}
+
+#[test]
+fn raw_tex_optional_arguments_keep_later_brackets_literal() {
+    assert_eq!(
+        pe(r"\cite[a][b]{key}{tail}", raw_tex()),
+        vec![tex(r"\cite[a][b]{key}"), str("{tail}")]
+    );
+    assert_eq!(
+        pe(r"\foo[a]{x}[tail]", raw_tex()),
+        vec![tex(r"\foo[a]{x}"), str("[tail]")]
+    );
+    assert_eq!(
+        pe(r"\TeX{tail}", raw_tex()),
+        vec![tex(r"\TeX"), str("{tail}")]
+    );
+}
+
+#[test]
+fn raw_tex_definitions_keep_options_after_the_command_name() {
+    assert_eq!(
+        pe(r"\newcommand{\foo}[1][d]{#1}{tail}", raw_tex()),
+        vec![tex(r"\newcommand{\foo}[1][d]{#1}"), str("{tail}")]
+    );
+    assert_eq!(
+        pe(r"\newcommand\foo[1]{#1}{tail}", raw_tex()),
+        vec![tex(r"\newcommand\foo[1]{#1}"), str("{tail}")]
+    );
+}
+
+#[test]
+fn nested_raw_tex_text_arguments_do_not_overflow() {
+    let source = format!("{}x", r"\textbf".repeat(2_000));
+    assert_eq!(pe(&source, raw_tex()), vec![tex(&source)]);
 }

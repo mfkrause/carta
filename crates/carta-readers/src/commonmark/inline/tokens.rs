@@ -18,6 +18,45 @@ use super::{
     Delimiter, InlineParser, Node, char_before, emoji, fold_dash_run_thirds, fold_ellipsis_run,
 };
 
+enum TexArgument {
+    Braced,
+    Verbatim,
+    Text,
+    Optional,
+    ControlSequence,
+}
+
+fn raw_tex_arguments(name: &str) -> Option<&'static [TexArgument]> {
+    use TexArgument::{Braced, ControlSequence, Optional, Text, Verbatim};
+    match name {
+        "emph" | "textbf" | "textit" | "textsl" | "textsc" | "texttt" | "textrm" | "textsf"
+        | "textup" | "textmd" | "textnormal" | "underline" | "uline" | "sout" | "st"
+        | "textsuperscript" | "textsubscript" | "enquote" => Some(&[Text]),
+        "href" | "hyperlink" | "foreignlanguage" | "foreignquote" => Some(&[Verbatim, Text]),
+        "hypertarget" => Some(&[Verbatim, Braced]),
+        "texorpdfstring" => Some(&[Text, Text]),
+        "textcolor" | "colorbox" => Some(&[Optional, Verbatim, Text]),
+        "url" | "nolinkurl" => Some(&[Verbatim]),
+        "cite" | "citep" | "citet" | "citeauthor" | "citeyear" | "citeyearpar" | "autocite"
+        | "parencite" | "textcite" | "footnote" | "footnotetext" | "thanks" => {
+            Some(&[Optional, Optional, Braced])
+        }
+        "includegraphics" => Some(&[Optional, Optional, Verbatim]),
+        "footnotemark" => Some(&[Optional, Optional]),
+        "newcommand" | "renewcommand" | "providecommand" | "DeclareRobustCommand" => {
+            Some(&[ControlSequence, Optional, Optional, Braced])
+        }
+        "newenvironment" | "renewenvironment" => {
+            Some(&[Braced, Optional, Optional, Braced, Braced])
+        }
+        "TeX" | "LaTeX" | "ldots" | "dots" | "newline" | "textbackslash" | "textasciitilde"
+        | "textasciicircum" | "textless" | "textgreater" | "textregistered" | "textcopyright"
+        | "copyright" | "pounds" | "euro" | "ae" | "AE" | "oe" | "OE" | "ss" | "AA" | "aa"
+        | "O" | "o" | "L" | "l" | "S" | "P" => Some(&[]),
+        _ => None,
+    }
+}
+
 impl InlineParser<'_> {
     /// Resolve an `@` at the cursor. An example-list label assigned a number becomes that number; a
     /// well-formed citation key becomes a bare author-in-text `Cite`; anything else leaves the `@`
@@ -266,109 +305,157 @@ impl InlineParser<'_> {
         }
     }
 
-    /// Try a raw TeX command at the leading `\`, requiring `raw_tex`.
-    ///
-    /// Names start with an ASCII letter and continue with alphanumerics. Balanced argument groups
-    /// are consumed greedily; an unclosed brace invalidates the command, while an unclosed bracket
-    /// ends its arguments. Argument-free letter names absorb trailing spaces and tabs.
-    /// Per-command arity is not modeled. Matched environments are handled as a separate form.
+    /// Capture a raw TeX command, retaining adjacent groups for unknown names.
     fn try_raw_tex(&mut self) -> bool {
         if !self.ext.contains(Extension::RawTex) {
             return false;
         }
-        if char_at(self.text, self.pos) != Some('\\') {
+        let Some(end) = self.scan_raw_tex_command(self.pos) else {
             return false;
-        }
-        // `\` and the name (ASCII) are single-byte, so byte and char offsets coincide up to `i`.
-        let mut i = self.pos + 1;
-        if !char_at(self.text, i).is_some_and(|c| c.is_ascii_alphabetic()) {
-            return false;
-        }
-        i += 1;
-        let mut name_all_letters = true;
-        while let Some(ch) = char_at(self.text, i) {
-            if ch.is_ascii_alphabetic() {
-                i += 1;
-            } else if ch.is_ascii_digit() {
-                name_all_letters = false;
-                i += 1;
-            } else {
-                break;
-            }
-        }
-        // `\begin`/`\end` are raw TeX only as a complete matched environment, never bare.
-        let name = self.text.get(self.pos + 1..i);
-        if name == Some("begin") {
-            return self.try_raw_tex_environment(i);
-        }
-        if name == Some("end") {
-            return false;
-        }
-        let mut had_group = false;
-        loop {
-            match char_at(self.text, i) {
-                Some('{') => match self.scan_balanced_group(i) {
-                    Some(end) => {
-                        i = end;
-                        had_group = true;
-                    }
-                    None => return false,
-                },
-                Some('[') => match self.scan_balanced_group(i) {
-                    Some(end) => {
-                        i = end;
-                        had_group = true;
-                    }
-                    None => break,
-                },
-                _ => break,
-            }
-        }
-
-        // A bare all-letter command absorbs trailing spaces and tabs.
-        if !had_group && name_all_letters {
-            while matches!(char_at(self.text, i), Some(' ' | '\t')) {
-                i += 1;
-            }
-        }
-
-        let source = match self.text.get(self.pos..i) {
-            Some(slice) => slice.to_owned(),
-            None => return false,
         };
-        self.pos = i;
+        let Some(source) = self.text.get(self.pos..end) else {
+            return false;
+        };
         self.nodes.push(Node::Inline(Inline::RawInline(
             carta_ast::Format("tex".into()),
             source.into(),
         )));
+        self.pos = end;
         true
     }
 
-    /// Capture a complete `\begin{ENV}`…matching `\end{ENV}` as a single raw TeX inline. The
-    /// opener's `{ENV}` group names the environment; nested `\begin{ENV}`/`\end{ENV}` of that same
-    /// name deepen and lift the nesting, and the capture ends at the `\end{ENV}` that returns the
-    /// depth to zero. Without a `{ENV}` group or a matching close the `\begin` is not raw TeX and
-    /// the call reverts to literal text by returning `false`.
-    fn try_raw_tex_environment(&mut self, name_end: usize) -> bool {
-        if char_at(self.text, name_end) != Some('{') {
-            return false;
+    fn scan_raw_tex_command(&self, start: usize) -> Option<usize> {
+        carta_core::with_stack(|| self.scan_raw_tex_command_nested(start))
+    }
+
+    fn scan_raw_tex_command_nested(&self, start: usize) -> Option<usize> {
+        if char_at(self.text, start) != Some('\\') {
+            return None;
         }
-        let Some(group_end) = self.scan_balanced_group(name_end) else {
-            return false;
-        };
-        let Some(end) = self.scan_environment_close(group_end) else {
-            return false;
-        };
-        let source = match self.text.get(self.pos..end) {
-            Some(slice) => slice.to_owned(),
-            None => return false,
-        };
-        self.pos = end;
-        self.nodes.push(Node::Inline(Inline::RawInline(
-            carta_ast::Format("tex".into()),
-            source.into(),
-        )));
-        true
+        let mut position = start + 1;
+        if !char_at(self.text, position).is_some_and(|ch| ch.is_ascii_alphabetic()) {
+            return None;
+        }
+        let mut letters_only = true;
+        while let Some(character) = char_at(self.text, position) {
+            if !character.is_ascii_alphanumeric() {
+                break;
+            }
+            letters_only &= character.is_ascii_alphabetic();
+            position += 1;
+        }
+        let name = self.text.get(start + 1..position)?;
+        if name == "begin" {
+            if char_at(self.text, position) != Some('{') {
+                return None;
+            }
+            return self.scan_environment_close(self.scan_balanced_group(position)?);
+        }
+        if name == "end" {
+            return None;
+        }
+        if char_at(self.text, position) == Some('*') {
+            position += 1;
+        }
+        let name_end = position;
+        if let Some(arguments) = raw_tex_arguments(name) {
+            for argument in arguments {
+                let argument_start = match argument {
+                    TexArgument::Verbatim => self.tex_horizontal_start(position),
+                    _ => self.tex_argument_start(position),
+                };
+                match argument {
+                    TexArgument::Optional => {
+                        if char_at(self.text, argument_start) == Some('[') {
+                            position = self.scan_balanced_group(argument_start)?;
+                        }
+                    }
+                    TexArgument::Braced | TexArgument::Verbatim => {
+                        if char_at(self.text, argument_start) != Some('{') {
+                            return None;
+                        }
+                        position = self.scan_balanced_group(argument_start)?;
+                    }
+                    TexArgument::Text => position = self.scan_tex_text_argument(argument_start)?,
+                    TexArgument::ControlSequence => {
+                        position = self.scan_tex_control_argument(argument_start)?;
+                    }
+                }
+            }
+        } else {
+            let mut argument_start = if letters_only {
+                self.tex_horizontal_start(position)
+            } else {
+                position
+            };
+            while char_at(self.text, argument_start) == Some('[') {
+                let Some(end) = self.scan_balanced_group(argument_start) else {
+                    break;
+                };
+                position = end;
+                argument_start = self.tex_horizontal_start(end);
+            }
+            while char_at(self.text, argument_start) == Some('{') {
+                position = self.scan_balanced_group(argument_start)?;
+                argument_start = position;
+            }
+        }
+        if position == name_end && letters_only {
+            position = self.tex_horizontal_start(position);
+        }
+        Some(position)
+    }
+
+    fn tex_horizontal_start(&self, mut position: usize) -> usize {
+        while matches!(char_at(self.text, position), Some(' ' | '\t')) {
+            position += 1;
+        }
+        position
+    }
+
+    fn tex_argument_start(&self, mut position: usize) -> usize {
+        while matches!(char_at(self.text, position), Some(' ' | '\t' | '\n' | '\r')) {
+            position += 1;
+        }
+        position
+    }
+
+    fn scan_tex_text_argument(&self, start: usize) -> Option<usize> {
+        let character = char_at(self.text, start)?;
+        match character {
+            '{' => self.scan_balanced_group(start),
+            '}' => None,
+            '\\' if char_at(self.text, start + 1).is_some_and(|ch| ch.is_ascii_alphabetic()) => {
+                self.scan_raw_tex_command(start)
+            }
+            '\\' => self.scan_tex_control_sequence(start),
+            _ => Some(start + character.len_utf8()),
+        }
+    }
+
+    fn scan_tex_control_argument(&self, start: usize) -> Option<usize> {
+        if char_at(self.text, start) == Some('{') {
+            let end = self.scan_balanced_group(start)?;
+            let control = self.tex_argument_start(start + 1);
+            let after = self.scan_tex_control_sequence(control)?;
+            (self.tex_argument_start(after) == end - 1).then_some(end)
+        } else {
+            self.scan_tex_control_sequence(start)
+        }
+    }
+
+    fn scan_tex_control_sequence(&self, start: usize) -> Option<usize> {
+        if char_at(self.text, start) != Some('\\') {
+            return None;
+        }
+        let character = char_at(self.text, start + 1)?;
+        let mut end = start + 1 + character.len_utf8();
+        if character.is_ascii_alphabetic() {
+            while char_at(self.text, end).is_some_and(|ch| ch.is_ascii_alphabetic()) {
+                end += 1;
+            }
+        }
+        Some(end)
     }
 
     /// Find the closing marker for the environment whose opening group ends at `from`.

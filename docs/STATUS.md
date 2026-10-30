@@ -148,7 +148,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - `latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.
 - Bracketed citations resolve through a memo, so nesting costs linear work; only brackets nested
   tens of levels deep (past a work budget that bounds total citation output) stay literal text.
-- Narrow per-extension divergences: see [known parity gaps](#known-parity-gaps).
 
 ### `markdown_github` ✅
 - Shares the `markdown` reader gaps.
@@ -288,7 +287,6 @@ Constructs the supported extensions read, each with one narrow case that still d
 
 | Extension(s) | Gap |
 | --- | --- |
-| `raw_tex` | Inline `\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\begin{env}…\end{env}` is recognized only as a whole paragraph (block level); inline, each `\begin`/`\end` is an ordinary command. |
 
 ### Not yet implemented
 
