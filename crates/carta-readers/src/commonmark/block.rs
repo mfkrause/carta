@@ -269,8 +269,7 @@ struct Node {
     /// consumed. Recorded for paragraphs so a dash ruling on the next line can read a headed
     /// table's column alignment against the header's true position; zero for every other block.
     indent: usize,
-    /// Render this paragraph as `Plain` rather than `Para`. Set when a block-level HTML element
-    /// interrupts the paragraph with no blank line between, so the interrupted paragraph reads tight.
+    /// Render this paragraph as `Plain` when an HTML or TeX block interrupts it.
     as_plain: bool,
     /// Whether the line that followed this block (while it was the deepest open block) was blank.
     /// Drives loose-vs-tight list classification.

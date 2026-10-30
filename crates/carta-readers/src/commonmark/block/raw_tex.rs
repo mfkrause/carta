@@ -29,8 +29,7 @@ impl Parser {
     /// Open a line-leading raw TeX environment through its matching `\end{NAME}`.
     ///
     /// Math environments stay inline; unclosed raw environments become paragraphs.
-    /// Known limits: an interrupted paragraph stays `Para`; a column-zero non-math opener
-    /// inside inline math can open a separate block. Indented or mid-line openers stay inline.
+    /// A line-leading non-math opener inside inline math can open a separate block.
     pub(super) fn open_raw_tex(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
         if !self.extensions.contains(Extension::RawTex) {
             return None;
@@ -60,6 +59,18 @@ impl Parser {
         if let Some(end) = close_at {
             self.append_text(index, line.get(..end).unwrap_or(line));
             self.set_raw_tex_depth(index, 0);
+            if self.greedy_paragraphs
+                && let Some(previous) = self
+                    .nodes
+                    .get(index)
+                    .and_then(|node| self.nodes.get(node.parent))
+                    .and_then(|parent| parent.children.iter().rev().nth(1).copied())
+                && let Some(node) = self.nodes.get_mut(previous)
+                && matches!(node.kind, Kind::Paragraph)
+                && !node.last_line_blank
+            {
+                node.as_plain = true;
+            }
             self.close(index);
             let trailing = line.get(end..).unwrap_or("").to_owned();
             if !trailing.is_empty() {

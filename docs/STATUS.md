@@ -293,7 +293,6 @@ Constructs the supported extensions read, each with one narrow case that still d
 
 | Extension(s) | Gap |
 | --- | --- |
-| `raw_tex` | A raw-TeX environment (`\begin{…}…\end{…}`) that interrupts an open paragraph with no blank line leaves that paragraph as `Para` rather than tightening it to `Plain`. The free-standing form (a blank line before the environment) is exact. |
 | `markdown_in_html_blocks` | A block-level HTML element (`<div>`, `<section>`, `<table>`, …) that interrupts an open paragraph tightens it to `Plain`. Two narrower forms still diverge: a raw-text element (`<pre>`, `<script>`) interrupting a paragraph leaves it as `Para` rather than `Plain`, and an inline-level construct (`<style>`, a comment, a doctype, or a processing instruction) interrupting a paragraph is folded into it as raw inline by the dialect, whereas carta opens a separate raw block. |
 | `markdown_in_html_blocks` | An HTML block left open at end of input (a `<!-- …` comment or a `<table>`/`<div>` with no close tag) is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block. |
 | `native_spans` | An emphasis run that opens before a `<span>` and whose closing marker sits just inside the matching `</span>` can leave both tags raw instead of forming a span. |

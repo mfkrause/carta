@@ -189,6 +189,24 @@ fn an_unclosed_environment_falls_back_to_a_paragraph() {
 }
 
 #[test]
+fn only_a_closed_environment_tightens_an_adjacent_paragraph() {
+    for (source, tight) in [
+        ("before\n\\begin{center}\nx\n\\end{center}\n", true),
+        ("before\n\\begin{center}x\\end{center} tail\n", true),
+        ("before\n\n\\begin{center}\nx\n\\end{center}\n", false),
+        ("before\n\\begin{center}\nx\n", false),
+        ("before\n\n> \\begin{center}\n> x\n> \\end{center}\n", false),
+    ] {
+        let out = blocks(source);
+        match out.first() {
+            Some(IrBlock::Plain(text)) if tight => assert_eq!(text, "before"),
+            Some(IrBlock::Para(text)) if !tight => assert_eq!(text, "before"),
+            other => panic!("wrong paragraph type for {source:?}: {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn a_math_environment_stays_out_of_a_raw_block() {
     let out = blocks("\\begin{align}\nx\n\\end{align}\n");
     assert!(!matches!(out.first(), Some(IrBlock::RawBlock(..))));

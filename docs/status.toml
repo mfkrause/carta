@@ -796,10 +796,6 @@ recognized-not-modeled = [
 ]
 
 [[extensions.gap]]
-names = ["raw_tex"]
-description = '''A raw-TeX environment (`\begin{…}…\end{…}`) that interrupts an open paragraph with no blank line leaves that paragraph as `Para` rather than tightening it to `Plain`. The free-standing form (a blank line before the environment) is exact.'''
-
-[[extensions.gap]]
 names = ["markdown_in_html_blocks"]
 description = "A block-level HTML element (`<div>`, `<section>`, `<table>`, …) that interrupts an open paragraph tightens it to `Plain`. Two narrower forms still diverge: a raw-text element (`<pre>`, `<script>`) interrupting a paragraph leaves it as `Para` rather than `Plain`, and an inline-level construct (`<style>`, a comment, a doctype, or a processing instruction) interrupting a paragraph is folded into it as raw inline by the dialect, whereas carta opens a separate raw block."
 
