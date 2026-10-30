@@ -6,4 +6,5 @@ expression: output
 <p>Use <em>emphasised text</em>, <strong>strong text</strong>, and a
 <span class="title-ref">Title Reference</span>.</p>
 <p>Inline code through a role: <code>value = 1</code> and inline math
-<span class="math inline">\(a^2 + b^2 = c^2\)</span>.</p>
+<span
+class="math inline"><em>a</em><sup>2</sup> + <em>b</em><sup>2</sup> = <em>c</em><sup>2</sup></span>.</p>

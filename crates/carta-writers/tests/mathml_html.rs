@@ -48,10 +48,10 @@ fn both_html_dialects_embed_mathml() {
 }
 
 #[test]
-fn tex_methods_keep_their_math_spans() {
+fn math_methods_use_their_selected_markup() {
     let document = document(MathType::InlineMath, "x^2");
     for (method, expected) in [
-        (MathMethod::Plain, "\\(x^2\\)"),
+        (MathMethod::Plain, "<em>x</em><sup>2</sup>"),
         (MathMethod::MathJax("math.js".into()), "\\(x^2\\)"),
         (MathMethod::Katex("assets/".into()), "x^2"),
     ] {

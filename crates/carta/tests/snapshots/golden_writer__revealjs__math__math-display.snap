@@ -4,5 +4,6 @@ expression: output
 ---
 <section class="slide level6">
 
-<p><span class="math display">\[\int_0^1 x \, dx\]</span></p>
+<p><span
+class="math display">∫<sub>0</sub><sup>1</sup><em>x</em> <em>d</em><em>x</em></span></p>
 </section>

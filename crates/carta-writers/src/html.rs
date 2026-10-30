@@ -250,7 +250,7 @@ pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
         Flavor::Html5,
         wrap,
         FILL_COLUMN,
-        MathOutput::Delimited,
+        MathOutput::Plain,
         no_highlighting(),
         false,
     )
@@ -386,7 +386,8 @@ fn math_output(options: &WriterOptions) -> MathOutput {
     match options.math_method {
         MathMethod::Katex(_) => MathOutput::Raw,
         MathMethod::Mathml => MathOutput::Mathml,
-        MathMethod::Plain | MathMethod::MathJax(_) => MathOutput::Delimited,
+        MathMethod::Plain => MathOutput::Plain,
+        MathMethod::MathJax(_) => MathOutput::Delimited,
     }
 }
 
@@ -452,8 +453,10 @@ enum AttrOrder {
 /// How math is rendered in an HTML fragment.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum MathOutput {
-    /// The TeX is wrapped in `\(…\)` (inline) or `\[…\]` (display). The default.
+    /// Text and inline HTML, with dollar-delimited TeX when conversion is not possible.
     #[default]
+    Plain,
+    /// The TeX is wrapped in `\(…\)` (inline) or `\[…\]` (display).
     Delimited,
     /// The span carries the bare TeX with no delimiters.
     Raw,

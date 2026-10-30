@@ -54,6 +54,12 @@ pub(crate) fn to_inlines(tex: &str) -> Option<Vec<Inline>> {
     inlines::lower(&atoms)
 }
 
+/// Convert TeX math to inline HTML content, including standalone operators and explicit spaces.
+#[cfg(feature = "html")]
+pub(crate) fn to_html_inlines(tex: &str) -> Option<Vec<Inline>> {
+    inlines::lower(&parse::parse(tex)?)
+}
+
 /// Convert TeX math source to an Office Math (OMML) fragment: an `<m:oMath>` element for inline
 /// math, or an `<m:oMathPara>` wrapper with centered justification for display math. Returns `None`
 /// when the source cannot be parsed or holds a construct with no OMML rendering, so the caller emits

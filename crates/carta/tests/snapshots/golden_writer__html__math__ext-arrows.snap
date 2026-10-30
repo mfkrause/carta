@@ -2,6 +2,6 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-<p><span class="math inline">\(\xrightarrow{f}\)</span> <span
-class="math inline">\(\xleftarrow{g}\)</span> <span
-class="math inline">\(\xrightarrow[u]{f}\)</span></p>
+<p><span class="math inline">$\xrightarrow{f}$</span> <span
+class="math inline">$\xleftarrow{g}$</span> <span
+class="math inline">$\xrightarrow[u]{f}$</span></p>

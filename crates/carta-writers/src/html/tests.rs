@@ -203,3 +203,42 @@ mod xml_sanitize_tests {
         assert!(rendered, "the nested blockquotes must render");
     }
 }
+
+#[cfg(test)]
+mod math_tests {
+    use crate::HtmlWriter;
+    use carta_ast::{Block, Document, Inline, MathType};
+    use carta_core::{MathMethod, WrapMode, Writer, WriterOptions};
+
+    #[test]
+    fn default_math_converts_scripts_and_operators_and_keeps_unsupported_source() {
+        let document = Document {
+            blocks: vec![
+                Block::Para(vec![Inline::Math(MathType::InlineMath, "x^2".into())]),
+                Block::Para(vec![Inline::Math(MathType::InlineMath, "+".into())]),
+                Block::Para(vec![Inline::Math(
+                    MathType::DisplayMath,
+                    "\\unknown{x<&}".into(),
+                )]),
+            ],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.wrap = WrapMode::None;
+        assert_eq!(
+            HtmlWriter.write(&document, &options).unwrap(),
+            concat!(
+                "<p><span class=\"math inline\"><em>x</em><sup>2</sup></span></p>\n",
+                "<p><span class=\"math inline\">+</span></p>\n",
+                "<p><span class=\"math display\">$$\\unknown{x&lt;&amp;}$$</span></p>"
+            )
+        );
+        options.math_method = MathMethod::MathJax(String::new());
+        assert!(
+            HtmlWriter
+                .write(&document, &options)
+                .unwrap()
+                .contains("\\(x^2\\)")
+        );
+    }
+}

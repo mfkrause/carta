@@ -2,8 +2,9 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<p><span class="math display">\[a + b + c\]</span></p>
-<p><span class="math display">\[x + y\]</span></p>
-<p><span class="math display">\[p + q\]</span></p>
-<p>Inline <span class="math inline">\(u + v\)</span> stays in the
-line.</p>
+<p><span
+class="math display"><em>a</em> + <em>b</em> + <em>c</em></span></p>
+<p><span class="math display"><em>x</em> + <em>y</em></span></p>
+<p><span class="math display"><em>p</em> + <em>q</em></span></p>
+<p>Inline <span class="math inline"><em>u</em> + <em>v</em></span> stays
+in the line.</p>

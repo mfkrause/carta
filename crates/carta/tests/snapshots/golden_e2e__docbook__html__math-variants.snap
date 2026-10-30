@@ -3,18 +3,19 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 <p>A bold identifier: <span
-class="math inline">\(\mathbf{v}\)</span>.</p>
+class="math inline"><strong>v</strong></span>.</p>
 <p>Faces on single tokens: <span
-class="math inline">\(\mathit{x}\mathcal{L}\mathfrak{g}\mathbb{R}\mathsf{s}\mathtt{t}\)</span>.</p>
-<p>Faces on text: <span class="math inline">\(\textbf{bold
+class="math inline"><em>x</em>ℒ𝔤ℝs<code>t</code></span>.</p>
+<p>Faces on text: <span class="math inline">$\textbf{bold
 words}\textit{\textbf{both}}\textbf{\textit{\textsf{all
-three}}}\)</span>.</p>
+three}}}$</span>.</p>
 <p>A face inherited by a whole row: <span
-class="math inline">\(\mathbf{a} + \mathbf{b}\)</span>.</p>
+class="math inline"><strong>a</strong> + <strong>b</strong></span>.</p>
 <p>A face inherited through nested constructs: <span
-class="math inline">\(\frac{\mathfrak{p}}{\mathfrak{q}}\sqrt{\mathcal{y}}\)</span>.</p>
+class="math inline">$\frac{\mathfrak{p}}{\mathfrak{q}}\sqrt{\mathcal{y}}$</span>.</p>
 <p>A token overriding the face it inherits: <span
-class="math inline">\(\mathbf{a}\mathtt{b}\)</span>.</p>
+class="math inline"><strong>a</strong><code>b</code></span>.</p>
 <div class="informalequation">
-<p><span class="math display">\[\mathbf{u = w}\]</span></p>
+<p><span
+class="math display"><strong>u</strong> <strong>=</strong> <strong>w</strong></span></p>
 </div>

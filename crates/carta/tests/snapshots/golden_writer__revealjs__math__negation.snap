@@ -4,10 +4,10 @@ expression: output
 ---
 <section class="slide level6">
 
-<p><span class="math inline">\(\not= b\)</span> <span
-class="math inline">\(\not&lt; c\)</span> <span
-class="math inline">\(\not\subset B\)</span> <span
-class="math inline">\(\not\vdash \phi\)</span> <span
-class="math inline">\(\not\rightarrow\)</span> <span
-class="math inline">\(\not a\)</span></p>
+<p><span class="math inline"> ≠ <em>b</em></span> <span
+class="math inline"> ≮ <em>c</em></span> <span
+class="math inline"> ⊄ <em>B</em></span> <span
+class="math inline"> ⊬ <em>ϕ</em></span> <span
+class="math inline">↛</span> <span
+class="math inline"><em>a̸</em></span></p>
 </section>

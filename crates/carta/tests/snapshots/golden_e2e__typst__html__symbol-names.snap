@@ -8,9 +8,9 @@ expression: output
 <p>Quotes: “, ”, «, ».</p>
 <p>Brackets: ⟦, ⟧.</p>
 <p>Shapes: ◯, ⬤, ▶.</p>
-<p>In math: <span class="math inline">\(a \cdot b\)</span>, <span
-class="math inline">\(a \pm b\)</span>, <span class="math inline">\(a
-\bullet b\)</span>, <span class="math inline">\(a \bullet
-b\)</span>.</p>
-<p>More math: <span class="math inline">\(a⟦b⟧\)</span>, <span
-class="math inline">\(a ::= b\)</span>.</p>
+<p>In math: <span class="math inline"><em>a</em> ⋅ <em>b</em></span>,
+<span class="math inline"><em>a</em> ± <em>b</em></span>, <span
+class="math inline"><em>a</em> • <em>b</em></span>, <span
+class="math inline"><em>a</em> • <em>b</em></span>.</p>
+<p>More math: <span class="math inline"><em>a</em>⟦<em>b</em>⟧</span>,
+<span class="math inline"><em>a</em> :  := <em>b</em></span>.</p>

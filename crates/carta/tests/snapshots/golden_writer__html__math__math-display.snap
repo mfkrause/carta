@@ -2,4 +2,5 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-<p><span class="math display">\[\int_0^1 x \, dx\]</span></p>
+<p><span
+class="math display">∫<sub>0</sub><sup>1</sup><em>x</em> <em>d</em><em>x</em></span></p>

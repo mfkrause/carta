@@ -146,12 +146,12 @@ impl Default for ReaderOptions {
 }
 
 /// How math is presented by the HTML family of formats.
-/// MathJax and plain output carry delimited TeX; KaTeX carries bare TeX in a math span.
+/// Plain output uses text and inline HTML; script renderers retain TeX.
 /// MathML embeds structured math without a script loader.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum MathMethod {
-    /// No renderer: the `\(…\)` / `\[…\]` markup is left for the reader to typeset (or read as
-    /// source). The default.
+    /// Render math as text and inline HTML, retaining unsupported TeX with dollar delimiters.
+    /// The default.
     #[default]
     Plain,
     /// MathJax, loaded from the given script URL. The markup keeps the `\(…\)` / `\[…\]` delimiters.

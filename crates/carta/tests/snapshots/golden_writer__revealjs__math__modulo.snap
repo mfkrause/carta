@@ -4,7 +4,8 @@ expression: output
 ---
 <section class="slide level6">
 
-<p><span class="math inline">\(a \pmod{n}\)</span> <span
-class="math inline">\(a \mod b\)</span> <span class="math inline">\(a
-\bmod b\)</span> <span class="math inline">\(a \pod{n}\)</span></p>
+<p><span class="math inline"><em>a</em> (mod  <em>n</em>)</span> <span
+class="math inline"><em>a</em> mod  <em>b</em></span> <span
+class="math inline"><em>a</em> mod  <em>b</em></span> <span
+class="math inline"><em>a</em> (<em>n</em>)</span></p>
 </section>

@@ -4,6 +4,7 @@ expression: output
 ---
 <section class="slide level6">
 
-<p>an equation <span class="math inline">\(a^2 + b^2 = c^2\)</span>
+<p>an equation <span
+class="math inline"><em>a</em><sup>2</sup> + <em>b</em><sup>2</sup> = <em>c</em><sup>2</sup></span>
 inline</p>
 </section>

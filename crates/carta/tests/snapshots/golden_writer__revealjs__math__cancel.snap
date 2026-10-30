@@ -4,7 +4,7 @@ expression: output
 ---
 <section class="slide level6">
 
-<p><span class="math inline">\(\cancel{x}\)</span> <span
-class="math inline">\(\bcancel{y+z}\)</span> <span
-class="math inline">\(\xcancel{abc}\)</span></p>
+<p><span class="math inline">$\cancel{x}$</span> <span
+class="math inline">$\bcancel{y+z}$</span> <span
+class="math inline">$\xcancel{abc}$</span></p>
 </section>

@@ -3,9 +3,9 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 <p>Uppercase: Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π Ρ Σ Τ Υ Φ Χ Ψ Ω</p>
-<p><span class="math display">\[Α + Β + \Gamma + \Delta + Ε + Ζ + Η +
-\Theta\]</span></p>
-<p><span class="math display">\[Ι + Κ + \Lambda + Μ + Ν + \Xi + Ο +
-Ρ\]</span></p>
-<p><span class="math display">\[\Pi + \Sigma + Τ + \Upsilon + \Phi + Χ +
-\Psi + \Omega\]</span></p>
+<p><span
+class="math display"><em>Α</em> + <em>Β</em> + <em>Γ</em> + <em>Δ</em> + <em>Ε</em> + <em>Ζ</em> + <em>Η</em> + <em>Θ</em></span></p>
+<p><span
+class="math display"><em>Ι</em> + <em>Κ</em> + <em>Λ</em> + <em>Μ</em> + <em>Ν</em> + <em>Ξ</em> + <em>Ο</em> + <em>Ρ</em></span></p>
+<p><span
+class="math display"><em>Π</em> + <em>Σ</em> + <em>Τ</em> + <em>Υ</em> + <em>Φ</em> + <em>Χ</em> + <em>Ψ</em> + <em>Ω</em></span></p>

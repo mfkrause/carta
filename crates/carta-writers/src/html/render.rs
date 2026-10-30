@@ -656,10 +656,18 @@ impl State {
                     MathType::InlineMath => ("inline", ("\\(", "\\)")),
                     MathType::DisplayMath => ("display", ("\\[", "\\]")),
                 };
+                if self.math == MathOutput::Plain
+                    && let Some(inlines) = crate::math::to_html_inlines(text)
+                {
+                    let _ = write!(out, "<span{BREAK}class=\"math {class}\">");
+                    self.inlines(out, &inlines);
+                    out.push_str("</span>");
+                    return;
+                }
                 let (open, close) = match self.math {
                     MathOutput::Delimited => delimiters,
                     MathOutput::Raw => ("", ""),
-                    MathOutput::Mathml => match kind {
+                    MathOutput::Plain | MathOutput::Mathml => match kind {
                         MathType::InlineMath => ("$", "$"),
                         MathType::DisplayMath => ("$$", "$$"),
                     },
