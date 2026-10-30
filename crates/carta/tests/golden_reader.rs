@@ -168,6 +168,16 @@ fn reader_binary_ast_snapshots_all_groups_partitioned() {
 
 reader_golden! {
     reader_ext_snapshots_for, READER_EXT_GROUPS;
+    reader_ext_ast_snapshots_angle_brackets => "markdown+angle_brackets_escapable-all_symbols_escapable",
+    reader_ext_ast_snapshots_four_space_rule => "markdown+four_space_rule",
+    reader_ext_ast_snapshots_ignore_line_breaks => "markdown+ignore_line_breaks",
+    reader_ext_ast_snapshots_literate_code => "markdown+literate_haskell",
+    reader_ext_ast_snapshots_mmd_link_attributes => "markdown+mmd_link_attributes",
+    reader_ext_ast_snapshots_old_dashes => "markdown+smart+old_dashes",
+    reader_ext_ast_snapshots_raw_markdown => "ipynb+raw_markdown",
+    reader_ext_ast_snapshots_rebase_relative_paths => "markdown+rebase_relative_paths",
+    reader_ext_ast_snapshots_wikilinks_after_pipe => "markdown+wikilinks_title_after_pipe",
+    reader_ext_ast_snapshots_wikilinks_before_pipe => "markdown+wikilinks_title_before_pipe",
     reader_ext_ast_snapshots_commonmark_alerts => "commonmark+alerts",
     reader_ext_ast_snapshots_commonmark_attributes => "commonmark+attributes",
     reader_ext_ast_snapshots_commonmark_autolink_bare_uris => "commonmark+autolink_bare_uris",

@@ -49,7 +49,11 @@ if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
     for input in "$spec_dir"/*; do
       [ -f "$input" ] || continue
       [ -n "$CASE" ] && [ "$(stem "$input")" != "$CASE" ] && continue
-      run_diff json "reader-ext/$spec/$(basename "$input")" "$input" "-f $spec -t json" "-f $spec -t json"
+      arguments="-f $spec -t json"
+      case "$spec" in
+        *+rebase_relative_paths*) arguments="$arguments $input" ;;
+      esac
+      run_diff json "reader-ext/$spec/$(basename "$input")" "$input" "$arguments" "$arguments"
     done
   done
   report reader ext

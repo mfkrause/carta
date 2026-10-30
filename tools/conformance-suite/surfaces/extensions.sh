@@ -11,7 +11,7 @@ TEXT_EXT="$CORPUS/text-ext"
 TOKEN_ROWS="$(sed -nE 's/^[[:space:]]+([A-Z][A-Za-z]+)[[:space:]]*=>[[:space:]]*"([a-z_]+)".*/\1 \2/p' "$EXTENSIONS_RS")"
 
 token_for_variant() {
-  printf '%s\n' "$TOKEN_ROWS" | awk -v variant="$1" '$1 == variant { print $2; exit }'
+  awk -v variant="$1" '$1 == variant { print $2; exit }' <<<"$TOKEN_ROWS"
 }
 
 covered="$(
@@ -26,7 +26,7 @@ conf_reset "extensions-coverage"
 for variant in $(grep -rhoE 'Extension::[A-Z][A-Za-z]+' "$READER_SRC" | sed 's/Extension:://' | sort -u); do
   token="$(token_for_variant "$variant")"
   [ -n "$token" ] || continue
-  if printf '%s\n' "$covered" | grep -Fxq "$token"; then
+  if grep -Fxq "$token" <<<"$covered"; then
     PASS=$((PASS + 1))
   else
     note_fail "extensions/$token" "honored by the reader but no corpus/text-ext/<base>+$token/ case diffs it against the oracle"
