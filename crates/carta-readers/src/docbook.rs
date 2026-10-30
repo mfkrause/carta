@@ -258,12 +258,12 @@ impl Converter<'_> {
             "title" | "subtitle" | "date" | "releaseinfo" | "copyright" | "address" => {
                 MetaValue::MetaInlines(self.inlines_trimmed(&field.children, Style::default()))
             }
-            "author" => MetaValue::MetaInlines(person_name(field)),
+            "author" => MetaValue::MetaInlines(self.person_name(field)),
             "authorgroup" => MetaValue::MetaList(
                 field
                     .elements()
                     .filter(|person| local_name(&person.name) == "author")
-                    .map(|person| MetaValue::MetaInlines(person_name(person)))
+                    .map(|person| MetaValue::MetaInlines(self.person_name(person)))
                     .collect(),
             ),
             "abstract" => {
@@ -282,21 +282,58 @@ impl Converter<'_> {
         };
         meta.insert(key.into(), value);
     }
-}
 
-/// A person's name, built from the name parts written as element children, one space between
-/// parts. A wrapping `personname` counts as a single part, so its own parts run together.
-fn person_name(person: &Element) -> Vec<Inline> {
-    let mut text = String::new();
-    for part in person.elements() {
-        if !text.is_empty() {
-            text.push(' ');
-        }
-        text.push_str(part.text().trim());
+    /// Reads name fields with spacing and inline markup.
+    fn person_name(&self, person: &Element) -> Vec<Inline> {
+        carta_core::with_stack(|| {
+            let structured = person.elements().any(|part| {
+                matches!(
+                    local_name(&part.name),
+                    "personname"
+                        | "firstname"
+                        | "givenname"
+                        | "surname"
+                        | "honorific"
+                        | "othername"
+                        | "lineage"
+                        | "orgname"
+                )
+            });
+            let mixed = person.children.iter().any(|node| {
+                matches!(node, Node::Text(text) if !text.trim_matches([' ', '\t', '\r', '\n']).is_empty())
+            });
+            if !structured || mixed {
+                return self.inlines_trimmed(&person.children, Style::default());
+            }
+            let mut name = Vec::new();
+            let mut separator = Inline::Space;
+            let preserve_breaks = local_name(&person.name) == "personname";
+            for node in &person.children {
+                if let Node::Text(text) = node {
+                    if preserve_breaks && text.contains('\n') {
+                        separator = Inline::SoftBreak;
+                    }
+                    continue;
+                }
+                let part = if let Node::Element(child) = node
+                    && local_name(&child.name) == "personname"
+                {
+                    self.person_name(child)
+                } else {
+                    self.inlines_trimmed(std::slice::from_ref(node), Style::default())
+                };
+                if part.is_empty() {
+                    continue;
+                }
+                let boundary = std::mem::replace(&mut separator, Inline::Space);
+                if !name.is_empty() {
+                    name.push(boundary);
+                }
+                name.extend(part);
+            }
+            name
+        })
     }
-    let mut inlines = Vec::new();
-    push_text(&text, &mut inlines);
-    trim(normalize(inlines))
 }
 
 // Block-level conversion
@@ -2088,7 +2125,7 @@ fn skip_space(bytes: &[u8], from: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{DocbookReader, Element, MAX_DEPTH, Node, decode_entities, scan};
-    use carta_ast::{Attr, Block, Inline};
+    use carta_ast::{Attr, Block, Inline, MetaValue, Target};
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn read(input: &str) -> Vec<Block> {
@@ -2113,6 +2150,101 @@ mod tests {
     #[test]
     fn empty_input_yields_an_empty_document() {
         assert!(read("").is_empty());
+    }
+
+    #[test]
+    fn author_names_keep_markup_and_field_spacing() {
+        let cases = [
+            (
+                "\n<firstname>Jane</firstname>\n<surname>Doe</surname>\n",
+                vec![
+                    Inline::Str("Jane".into()),
+                    Inline::Space,
+                    Inline::Str("Doe".into()),
+                ],
+            ),
+            (
+                "<personname>\n<firstname>Jane</firstname>\n<surname>Doe</surname>\n</personname>",
+                vec![
+                    Inline::Str("Jane".into()),
+                    Inline::SoftBreak,
+                    Inline::Str("Doe".into()),
+                ],
+            ),
+            (
+                "<personname><firstname>Jane</firstname><surname><emphasis>Doe</emphasis></surname></personname>",
+                vec![
+                    Inline::Str("Jane".into()),
+                    Inline::Space,
+                    Inline::Emph(vec![Inline::Str("Doe".into())]),
+                ],
+            ),
+            (
+                "<personname><phrase>Mc<emphasis>Donald</emphasis></phrase></personname>",
+                vec![
+                    Inline::Str("Mc".into()),
+                    Inline::Emph(vec![Inline::Str("Donald".into())]),
+                ],
+            ),
+            (
+                "Jane Doe",
+                vec![
+                    Inline::Str("Jane".into()),
+                    Inline::Space,
+                    Inline::Str("Doe".into()),
+                ],
+            ),
+            (
+                "<personname><firstname>Jane</firstname>, <surname>Doe</surname></personname>",
+                vec![
+                    Inline::Str("Jane,".into()),
+                    Inline::Space,
+                    Inline::Str("Doe".into()),
+                ],
+            ),
+            (
+                "<personname><firstname></firstname><surname>Jane</surname></personname>",
+                vec![Inline::Str("Jane".into())],
+            ),
+            (
+                "<personname><firstname>Jane</firstname><surname><link xlink:href=\"https://example.org/name?a=1&amp;b=2\">Doe</link></surname></personname>",
+                vec![
+                    Inline::Str("Jane".into()),
+                    Inline::Space,
+                    Inline::Link(
+                        Box::default(),
+                        vec![Inline::Str("Doe".into())],
+                        Box::new(Target {
+                            url: "https://example.org/name?a=1&b=2".into(),
+                            title: "".into(),
+                        }),
+                    ),
+                ],
+            ),
+        ];
+        for (name, inlines) in cases {
+            for grouped in [false, true] {
+                let author = format!("<author>{name}</author>");
+                let authors = if grouped {
+                    format!("<authorgroup>{author}</authorgroup>")
+                } else {
+                    author
+                };
+                let source = format!(
+                    "<article xmlns:xlink=\"http://www.w3.org/1999/xlink\"><info>{authors}</info></article>"
+                );
+                let document = DocbookReader
+                    .read(&source, &ReaderOptions::default())
+                    .unwrap();
+                let author = MetaValue::MetaInlines(inlines.clone());
+                let expected = if grouped {
+                    MetaValue::MetaList(vec![author])
+                } else {
+                    author
+                };
+                assert_eq!(document.meta.get("author"), Some(&expected), "{source}");
+            }
+        }
     }
 
     #[test]
