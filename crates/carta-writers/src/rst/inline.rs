@@ -175,9 +175,12 @@ impl State {
                     out,
                 );
             }
-            Inline::Cite(_, inlines) | Inline::Span(_, inlines) => {
-                let inner = self.tokens_nested(inlines, in_emphasis);
-                out.extend(inner);
+            Inline::Cite(_, inlines) => out.extend(self.tokens_nested(inlines, in_emphasis)),
+            Inline::Span(attr, inlines) => {
+                if !attr.id.is_empty() {
+                    self.targets.push(attr.id.to_string());
+                }
+                out.extend(self.tokens_nested(inlines, in_emphasis));
             }
             Inline::Code(_, text) => {
                 let trimmed = text.trim_matches(' ');
@@ -510,7 +513,9 @@ impl State {
         let index = self.footnotes.len();
         self.footnotes.push(String::new());
         let number = index + 1;
+        let caption_depth = std::mem::take(&mut self.caption_depth);
         let body = self.blocks_to_string(blocks, self.width.saturating_sub(3), false);
+        self.caption_depth = caption_depth;
         let entry = if body.is_empty() {
             format!(".. [{number}]")
         } else {

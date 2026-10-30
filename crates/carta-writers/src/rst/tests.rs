@@ -163,7 +163,11 @@ fn table_measurement_keeps_note_numbers_and_image_names() {
         row_span: 1,
         col_span: 1,
         content: vec![Block::Para(vec![
-            Inline::Str("long cell text".into()),
+            Inline::Str("long".into()),
+            Inline::Space,
+            Inline::Str("cell".into()),
+            Inline::Space,
+            Inline::Str("text".into()),
             Inline::Space,
             note,
             Inline::Space,
@@ -174,12 +178,25 @@ fn table_measurement_keeps_note_numbers_and_image_names() {
         align: Alignment::AlignDefault,
         width: ColWidth::ColWidthDefault,
     };
+    let mut anchored_cell = cell.clone();
+    if let Some(Block::Para(inlines)) = anchored_cell.content.first_mut() {
+        inlines.insert(
+            0,
+            Inline::Span(
+                Box::new(Attr {
+                    id: "cell".into(),
+                    ..Attr::default()
+                }),
+                Vec::new(),
+            ),
+        );
+    }
     let document = Document {
         blocks: vec![Block::Table(Box::new(Table {
             col_specs: vec![spec.clone(), spec],
             bodies: vec![TableBody {
                 body: vec![Row {
-                    cells: vec![cell.clone(), cell],
+                    cells: vec![anchored_cell, cell],
                     ..Row::default()
                 }],
                 ..TableBody::default()
@@ -193,6 +210,16 @@ fn table_measurement_keeps_note_numbers_and_image_names() {
         options.columns = Some(columns);
         let output = RstWriter.write(&document, &options).unwrap();
         assert!(output.starts_with(border));
+        assert_eq!(output.matches(".. _cell:").count(), 1);
+        if border == '+' {
+            let width = output.lines().next().unwrap().len();
+            assert!(
+                output
+                    .lines()
+                    .filter(|line| line.starts_with('|'))
+                    .all(|line| line.len() == width)
+            );
+        }
         for number in 1..=2 {
             assert_eq!(output.matches(&format!(" [{number}]_")).count(), 1);
             assert_eq!(output.matches(&format!(".. [{number}]\n")).count(), 1);
@@ -387,4 +414,73 @@ fn figures_keep_names_captions_and_non_image_content() {
             .unwrap();
         assert_eq!(output, expected);
     }
+}
+
+#[test]
+fn inline_targets_keep_text_and_empty_destinations() {
+    let document = Document {
+        blocks: vec![Block::Para(vec![
+            Inline::Span(
+                Box::new(Attr {
+                    id: "empty".into(),
+                    ..Attr::default()
+                }),
+                Vec::new(),
+            ),
+            Inline::Emph(vec![Inline::Span(
+                Box::new(Attr {
+                    id: "named".into(),
+                    ..Attr::default()
+                }),
+                vec![Inline::Str("Text".into())],
+            )]),
+        ])],
+        ..Document::default()
+    };
+    assert_eq!(
+        RstWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap(),
+        ".. _empty:\n\n.. _named:\n\n*Text*"
+    );
+}
+
+#[test]
+fn caption_targets_stay_outside_the_caption_and_note_targets_stay_inside_notes() {
+    let anchor = |id: &str, text: &str| {
+        Inline::Span(
+            Box::new(Attr {
+                id: id.into(),
+                ..Attr::default()
+            }),
+            vec![Inline::Str(text.into())],
+        )
+    };
+    let document = Document {
+        blocks: vec![Block::Figure(
+            Box::default(),
+            Box::new(carta_ast::Caption {
+                long: vec![Block::Para(vec![
+                    anchor("caption", "Caption"),
+                    Inline::Note(vec![Block::Para(vec![anchor("note", "Note")])]),
+                ])],
+                ..carta_ast::Caption::default()
+            }),
+            vec![Block::Plain(vec![Inline::Image(
+                Box::default(),
+                Vec::new(),
+                Box::new(Target {
+                    url: "a.png".into(),
+                    ..Target::default()
+                }),
+            )])],
+        )],
+        ..Document::default()
+    };
+    assert_eq!(
+        RstWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap(),
+        ".. _caption:\n\n.. figure:: a.png\n\n   Caption [1]_\n\n.. [1]\n   .. _note:\n\n   Note"
+    );
 }

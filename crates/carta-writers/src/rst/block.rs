@@ -309,7 +309,10 @@ impl State {
             directive.push_str("\n   ");
             directive.push_str(&option);
         }
+        // Target directives before a caption would turn it into a figure legend.
+        self.caption_depth += 1;
         let caption_text = self.blocks_to_string(&caption.long, width.saturating_sub(3), false);
+        self.caption_depth -= 1;
         if caption_text.is_empty() {
             directive
         } else {

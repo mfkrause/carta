@@ -303,6 +303,7 @@ impl State {
             self.substitutions.len(),
             self.fallback_count,
             self.used_names.len(),
+            self.targets.len(),
         )
     }
 
@@ -311,6 +312,7 @@ impl State {
         self.substitutions.truncate(snapshot.1);
         self.fallback_count = snapshot.2;
         self.used_names.truncate(snapshot.3);
+        self.targets.truncate(snapshot.4);
     }
 }
 
@@ -345,6 +347,11 @@ fn measure_unbreakable(lines: &[String]) -> (usize, usize) {
     let mut minword = 0usize;
     for line in lines {
         natural = natural.max(display_width(line));
+        // Target directives cannot split across lines.
+        if line.trim_start().starts_with(".. _") {
+            minword = minword.max(display_width(line));
+            continue;
+        }
         let mut token = String::new();
         let mut prev = '\0';
         for ch in line.chars() {

@@ -98,7 +98,7 @@ fn title_line(value: Option<&MetaValue>) -> Option<String> {
     (!line.is_empty()).then_some(line)
 }
 
-type DeferredState = (usize, usize, usize, usize);
+type DeferredState = (usize, usize, usize, usize, usize);
 
 /// Collects the deferred constructs accumulated during rendering: footnote definitions and image
 /// substitution definitions, both emitted as their own sections after the document body. The counter
@@ -107,6 +107,8 @@ type DeferredState = (usize, usize, usize, usize);
 struct State {
     footnotes: Vec<String>,
     substitutions: Vec<String>,
+    targets: Vec<String>,
+    caption_depth: usize,
     fallback_count: usize,
     /// Substitution names already assigned, in assignment order. A repeated label falls back to a
     /// generated `image`-plus-counter name so each reference resolves to its own definition.
@@ -129,6 +131,8 @@ impl Default for State {
         Self {
             footnotes: Vec::new(),
             substitutions: Vec::new(),
+            targets: Vec::new(),
+            caption_depth: 0,
             fallback_count: 0,
             used_names: Vec::new(),
             wrap: WrapMode::default(),
@@ -203,7 +207,8 @@ impl State {
     }
 
     fn block_laid(&mut self, block: &Block, width: usize, top: bool, hang: bool) -> String {
-        match block {
+        let target_start = self.targets.len();
+        let body = match block {
             Block::Plain(inlines) => self.lay(inlines, width, hang),
             Block::Para(inlines) => self.para(inlines, width, hang),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines, top),
@@ -239,7 +244,19 @@ impl State {
                     .collect();
                 rendered.join("\n")
             }
+        };
+        if self.caption_depth > 0 || self.targets.len() == target_start {
+            return body;
         }
+        let start = target_start.min(self.targets.len());
+        let mut output = String::new();
+        for target in self.targets.drain(start..) {
+            output.push_str(".. _");
+            output.push_str(&target);
+            output.push_str(":\n\n");
+        }
+        output.push_str(&body);
+        output.trim_end_matches('\n').to_owned()
     }
 }
 
