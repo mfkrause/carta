@@ -106,12 +106,19 @@ compare_bytes() {
 
 # Compare two text files modulo one trailing newline on each side.
 compare_text() {
-  local a b
-  a=$(cat "$1"; printf x); a=${a%x}; a=${a%$'\n'}
-  b=$(cat "$2"; printf x); b=${b%x}; b=${b%$'\n'}
-  [ "$a" = "$b" ] && return 0
-  diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") | head -n 200
-  return 1
+  python3 - "$1" "$2" <<'PY'
+import difflib
+import itertools
+from pathlib import Path
+import sys
+
+a, b = (Path(path).read_bytes().removesuffix(b"\n") for path in sys.argv[1:])
+if a == b:
+    sys.exit(0)
+lines = [value.decode("utf-8", "backslashreplace").replace("\0", "\\0").splitlines() for value in (a, b)]
+print("\n".join(itertools.islice(difflib.unified_diff(*lines, lineterm=""), 200)))
+sys.exit(1)
+PY
 }
 
 # Either side may be absent (no media extracts nothing): both-absent equal, one-absent mismatch.

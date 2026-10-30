@@ -29,7 +29,7 @@ if [ -d "$CORPUS/binary" ]; then
     [ -d "$fmt_dir" ] || continue
     fmt="$(basename "$fmt_dir")"
     [ $# -gt 0 ] && [ "$1" != "$fmt" ] && continue
-    conf_reset "reader-$fmt"
+    conf_reset "reader-binary-$fmt"
     for input in "$fmt_dir"/*; do
       [ -f "$input" ] || continue
       [ -n "$CASE" ] && [ "$(stem "$input")" != "$CASE" ] && continue
