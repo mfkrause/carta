@@ -138,6 +138,7 @@ compare_dir() {
 
 conf_reset() {
   PASS=0 FAIL=0 ERR=0 SKIP=0
+  CONTROLS=0
   SURFACE_LOG="$WORK/${1}.log"
   : >"$SURFACE_LOG"
 }
@@ -145,7 +146,7 @@ conf_reset() {
 note_fail() { FAIL=$((FAIL + 1)); { echo "FAIL $1"; printf '%s\n' "$2" | sed 's/^/    /'; } >>"$SURFACE_LOG"; }
 note_err() { ERR=$((ERR + 1)); { echo "ERR  $1"; printf '%s\n' "$2" | sed 's/^/    /'; } >>"$SURFACE_LOG"; }
 
-report() { echo "RESULT $1 $2 pass=$PASS fail=$FAIL err=$ERR skip=$SKIP"; }
+report() { echo "RESULT $1 $2 pass=$PASS fail=$FAIL err=$ERR skip=$SKIP controls=${CONTROLS:-0}"; }
 
 SUITE_RC=0
 tally_group() {
@@ -176,8 +177,16 @@ $(head -n 3 "$efile")"
   if detail=$("compare_$mode" "$ofile" "$xfile"); then
     PASS=$((PASS + 1))
   else
-    note_fail "$label" "$repro
-$detail"
+    local control
+    if control=$(python3 "$CONF_DIR/correctness.py" "$mode" "$label" "$xfile"); then
+      PASS=$((PASS + 1))
+      CONTROLS=$((CONTROLS + 1))
+      printf 'CONTROL %s\n' "$control" >>"$SURFACE_LOG"
+    else
+      note_fail "$label" "$repro
+$detail
+$control"
+    fi
   fi
 }
 

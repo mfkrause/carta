@@ -21,7 +21,7 @@ for target in $TARGETS; do
       continue
     fi
     run_diff "$mode" "writer/$target/$feature/$(basename "$input")" "$input" \
-      "-f json -t $target" "-f json -t $target"
+      "-f json -t $target --syntax-highlighting=none" "-f json -t $target --syntax-highlighting=none"
   done
   report writer "$target"
   tally_group
@@ -39,7 +39,7 @@ if [ "$EXT_RUN" = 1 ] && [ -d "$CORPUS/ast-ext" ]; then
     for input in "$spec_dir"/*.json; do
       [ -f "$input" ] || continue
       run_diff "$mode" "writer-ext/$spec/$(basename "$input")" "$input" \
-        "-f json -t $spec" "-f json -t $spec"
+        "-f json -t $spec --syntax-highlighting=none" "-f json -t $spec --syntax-highlighting=none"
     done
   done
   report writer ext

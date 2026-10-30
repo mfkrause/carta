@@ -16,9 +16,13 @@ for fmt in $FORMATS; do
     [ -f "$input" ] || continue
     label="$(basename "$input")"
     for target in $TARGETS; do
+      media=""
+      if [ "$fmt" = ipynb ] && [ "$target" = latex ]; then
+        media="--extract-media=$WORK/e2e-media/$label"
+      fi
       is_json_target "$target" && mode=json || mode=text
       run_diff "$mode" "e2e/$fmt->$target/$label" "$input" \
-        "-f $fmt -t $target" "-f $fmt -t $target"
+        "-f $fmt -t $target --syntax-highlighting=none $media" "-f $fmt -t $target --syntax-highlighting=none $media"
     done
   done
   report e2e "$fmt"
