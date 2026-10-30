@@ -28,13 +28,7 @@ pub struct AsciidocWriter;
 
 impl Writer for AsciidocWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        let mut state = State {
-            wrap: options.wrap,
-            ..State::default()
-        };
-        let width = options.columns.unwrap_or(FILL_COLUMN);
-        let body = state.blocks(&document.blocks, width);
-        Ok(body.trim_end_matches('\n').to_owned())
+        Ok(render_document(document, options, false))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -50,11 +44,45 @@ impl Writer for AsciidocWriter {
     }
 }
 
+/// Renders a document with legacy `AsciiDoc` syntax.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct AsciidocLegacyWriter;
+
+impl Writer for AsciidocLegacyWriter {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_document(document, options, true))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        AsciidocWriter.default_template()
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::Native
+    }
+}
+
+fn render_document(document: &Document, options: &WriterOptions, legacy: bool) -> String {
+    let mut state = State {
+        wrap: options.wrap,
+        legacy,
+        ..State::default()
+    };
+    let width = options.columns.unwrap_or(FILL_COLUMN);
+    let body = state.blocks(&document.blocks, width);
+    body.trim_end_matches('\n').to_owned()
+}
+
 #[derive(Debug, Default)]
 struct State {
     bullet_depth: usize,
     ordered_depth: usize,
     wrap: WrapMode,
+    legacy: bool,
 }
 
 impl State {
@@ -125,7 +153,7 @@ impl State {
                     if !out.is_empty() {
                         out.push_str("\n\n");
                     }
-                    out.push_str(&display_math_block(math));
+                    out.push_str(&display_math_block(math, self.legacy));
                 }
                 _ => text_run.push(inline.clone()),
             }
@@ -270,7 +298,9 @@ impl State {
         for (index, block) in item.iter().enumerate() {
             let is_list = matches!(block, Block::BulletList(_) | Block::OrderedList(..));
             let rendered = if index == 0 && starts_with_paragraph {
-                let checkbox = task_markers.then(|| task_checkbox(block)).flatten();
+                let checkbox = (task_markers && !self.legacy)
+                    .then(|| task_checkbox(block))
+                    .flatten();
                 let text = match checkbox {
                     Some((box_marker, rest)) => {
                         let body = self.paragraph(&rest, width);
@@ -472,8 +502,8 @@ impl State {
             Inline::Superscript(inlines) => format!("^{}^", self.inline_string(inlines)),
             Inline::Subscript(inlines) => format!("~{}~", self.inline_string(inlines)),
             Inline::Quoted(kind, inlines) => {
-                let (open, close) = quote_glyphs(kind);
-                self.wrapped(inlines, &open, &close, out);
+                let (open, close) = quote_glyphs(kind, self.legacy);
+                self.wrapped(inlines, open, close, out);
                 return;
             }
             Inline::Cite(_, inlines) => {
@@ -484,7 +514,14 @@ impl State {
                 }
                 return;
             }
-            Inline::Code(_, text) => format!("`{}`", escape_text(text)),
+            Inline::Code(_, text) => {
+                let code = if self.legacy {
+                    text.replace('`', "\\'")
+                } else {
+                    escape_text(text)
+                };
+                format!("`{code}`")
+            }
             Inline::Space => {
                 out.push(Piece::Space);
                 return;
@@ -498,7 +535,13 @@ impl State {
                 out.push(Piece::Hard);
                 return;
             }
-            Inline::Math(_, text) => format!("latexmath:[{text}]"),
+            Inline::Math(_, text) => {
+                if self.legacy {
+                    format!("latexmath:[${text}$]")
+                } else {
+                    format!("latexmath:[{text}]")
+                }
+            }
             Inline::RawInline(format, text) => {
                 let rendered = common::raw_passthrough(format, text, "asciidoc", RawTrim::DropOne);
                 if !rendered.is_empty() {

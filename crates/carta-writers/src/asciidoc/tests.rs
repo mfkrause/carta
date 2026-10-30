@@ -101,3 +101,31 @@ fn distinct_label_link_renders_explicit() {
         "http://e.com/a%20b[click]"
     );
 }
+
+#[test]
+fn legacy_syntax_keeps_code_quotes_math_and_checkbox_glyphs() {
+    let document = Document {
+        blocks: vec![
+            Block::Para(vec![
+                Inline::Quoted(carta_ast::QuoteType::DoubleQuote, vec![s("hello")]),
+                Inline::Space,
+                Inline::Code(Box::default(), "a_`b".into()),
+                Inline::Space,
+                Inline::Math(MathType::InlineMath, "x".into()),
+            ]),
+            Block::Para(vec![Inline::Math(MathType::DisplayMath, "x+y".into())]),
+            Block::BulletList(vec![vec![Block::Plain(vec![
+                s("☐"),
+                Inline::Space,
+                s("item"),
+            ])]]),
+        ],
+        ..Document::default()
+    };
+    assert_eq!(
+        AsciidocLegacyWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap(),
+        "``hello'' `a_\\'b` latexmath:[$x$]\n\n[latexmath]\n++++\n\\[x+y\\]\n++++\n\n* ☐ item"
+    );
+}

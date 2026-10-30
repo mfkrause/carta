@@ -113,7 +113,7 @@ pub mod rtf;
 pub mod typst;
 
 #[cfg(feature = "asciidoc")]
-pub use asciidoc::AsciidocWriter;
+pub use asciidoc::{AsciidocLegacyWriter, AsciidocWriter};
 #[cfg(feature = "beamer")]
 pub use beamer::BeamerWriter;
 #[cfg(feature = "commonmark")]

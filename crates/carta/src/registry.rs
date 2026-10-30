@@ -130,7 +130,8 @@ format_dispatch! {
     "write-typst" => "typst" => text carta_writers::TypstWriter;
     "write-dokuwiki" => "dokuwiki" => text carta_writers::DokuwikiWriter;
     "write-jira" => "jira" => text carta_writers::JiraWriter;
-    "write-asciidoc" => "asciidoc" => text carta_writers::AsciidocWriter;
+    "write-asciidoc" => "asciidoc" | "asciidoctor" => text carta_writers::AsciidocWriter;
+    "write-asciidoc" => "asciidoc_legacy" => text carta_writers::AsciidocLegacyWriter;
     "write-man" => "man" => text carta_writers::ManWriter;
     "write-opml" => "opml" => text carta_writers::OpmlWriter;
     "write-org" => "org" => text carta_writers::OrgWriter;

@@ -669,7 +669,17 @@ fn list_output_formats_includes_aliases() {
     let result = run(&["--list-output-formats"], "");
     assert!(result.success, "stderr: {}", result.stderr);
     let formats = lines(&result.stdout);
-    for expected in ["html", "html4", "html5", "latex", "beamer", "json"] {
+    for expected in [
+        "html",
+        "html4",
+        "html5",
+        "latex",
+        "beamer",
+        "json",
+        "asciidoc",
+        "asciidoctor",
+        "asciidoc_legacy",
+    ] {
         assert!(
             formats.contains(&expected),
             "missing {expected}: {formats:?}"
@@ -1258,4 +1268,18 @@ fn closed_stdout_pipe_exits_cleanly() {
         "stderr not empty: {:?}",
         output.stderr
     );
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-asciidoc"))]
+#[test]
+fn asciidoc_flavors_select_their_math_syntax() {
+    for (format, expected) in [
+        ("asciidoc", "a latexmath:[x] b\n"),
+        ("asciidoctor", "a latexmath:[x] b\n"),
+        ("asciidoc_legacy", "a latexmath:[$x$] b\n"),
+    ] {
+        let result = run(&["-f", "markdown", "-t", format], "a $x$ b\n");
+        assert!(result.success, "{}", result.stderr);
+        assert_eq!(result.stdout, expected);
+    }
 }

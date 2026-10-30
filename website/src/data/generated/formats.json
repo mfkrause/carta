@@ -533,9 +533,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-asciidoc",
-        "gaps": [
-          "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented)."
-        ]
+        "gaps": []
       }
     },
     {

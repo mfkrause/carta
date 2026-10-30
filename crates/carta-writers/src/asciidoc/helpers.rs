@@ -127,10 +127,12 @@ pub(super) fn closes_right_boundary(after: Option<&Inline>) -> bool {
 }
 
 /// The smart-quote glyphs wrapped in the format's typographic-quote backticks.
-pub(super) fn quote_glyphs(kind: &QuoteType) -> (String, String) {
-    match kind {
-        QuoteType::SingleQuote => ("'`".to_owned(), "`'".to_owned()),
-        QuoteType::DoubleQuote => ("\"`".to_owned(), "`\"".to_owned()),
+pub(super) fn quote_glyphs(kind: &QuoteType, legacy: bool) -> (&'static str, &'static str) {
+    match (kind, legacy) {
+        (QuoteType::SingleQuote, true) => ("`", "'"),
+        (QuoteType::DoubleQuote, true) => ("``", "''"),
+        (QuoteType::SingleQuote, false) => ("'`", "`'"),
+        (QuoteType::DoubleQuote, false) => ("\"`", "`\""),
     }
 }
 
@@ -235,8 +237,13 @@ pub(super) fn task_checkbox(block: &Block) -> Option<(&'static str, Vec<Inline>)
 }
 
 /// A display equation rendered as its own delimited block.
-pub(super) fn display_math_block(math: &str) -> String {
-    format!("[latexmath]\n++++\n{math}\n++++")
+pub(super) fn display_math_block(math: &str, legacy: bool) -> String {
+    let body = if legacy {
+        format!("\\[{math}\\]")
+    } else {
+        math.to_owned()
+    };
+    format!("[latexmath]\n++++\n{body}\n++++")
 }
 
 /// Drop leading and trailing whitespace inlines from a run, since a block boundary already supplies

@@ -223,10 +223,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - The default title block leaves less space before the following content.
 
 ### `typst` ✅
-
 ### `asciidoc` ✅
-- Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).
-
 ### `org` ✅
 ### `rst` ✅
 ### `dokuwiki` ✅

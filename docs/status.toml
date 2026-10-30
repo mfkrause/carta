@@ -272,7 +272,6 @@ read = "not-started"
 write = "usable"
 write-feature = "write-asciidoc"
 write-gaps = [
-  "Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).",
 ]
 
 [[format]]

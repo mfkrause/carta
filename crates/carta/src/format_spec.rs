@@ -64,7 +64,9 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::TaskLists,
             Extension::TexMathDollars,
         ]),
-        "asciidoc" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        "asciidoc" | "asciidoctor" | "asciidoc_legacy" => {
+            Extensions::from_list(&[Extension::AutoIdentifiers])
+        }
         "plain" => Extensions::from_list(&[
             Extension::BlankBeforeBlockquote,
             Extension::BlankBeforeHeader,
@@ -241,7 +243,7 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::EastAsianLineBreaks,
             Extension::Smart,
         ]),
-        "asciidoc" => Extensions::from_list(&[
+        "asciidoc" | "asciidoctor" | "asciidoc_legacy" => Extensions::from_list(&[
             Extension::AsciiIdentifiers,
             Extension::AutoIdentifiers,
             Extension::EastAsianLineBreaks,
@@ -614,6 +616,8 @@ mod tests {
         // Each format must belong to exactly one coverage group.
         const WITH_SET: &[&str] = &[
             "asciidoc",
+            "asciidoc_legacy",
+            "asciidoctor",
             "beamer",
             "commonmark",
             "commonmark_x",
