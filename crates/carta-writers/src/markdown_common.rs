@@ -50,7 +50,7 @@ pub(crate) fn quote_block(body: &str) -> String {
         if index > 0 {
             out.push('\n');
         }
-        if line.is_empty() {
+        if index > 0 && line.is_empty() {
             out.push('>');
         } else {
             out.push_str("> ");

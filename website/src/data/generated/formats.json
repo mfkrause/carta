@@ -134,8 +134,7 @@
         "ships": true,
         "feature": "write-markdown",
         "gaps": [
-          "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
-          "Tables inside block quotes have incorrect continuation lines."
+          "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled."
         ]
       }
     },
@@ -1452,9 +1451,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-plain",
-        "gaps": [
-          "Tables inside block quotes have incorrect continuation lines."
-        ]
+        "gaps": []
       }
     },
     {

@@ -10,7 +10,7 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, fill, fill_into, fill_offset, indent_block,
-    is_loose, item_separator, offset_as_i64, ordered_marker, render_html_attr,
+    is_loose, item_separator, offset_as_i64, offset_quoted_table, ordered_marker, render_html_attr,
 };
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator,
@@ -397,7 +397,7 @@ impl State {
             Block::RawBlock(format, text) => self.raw_block(format, text),
             Block::BlockQuote(blocks) => {
                 let body = self.blocks_to_string(blocks, width.saturating_sub(2));
-                quote_block(&body)
+                quote_block(&offset_quoted_table(blocks, body))
             }
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),

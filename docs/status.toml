@@ -59,7 +59,6 @@ read-gaps = [
 ]
 write-gaps = [
   "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
-  "Tables inside block quotes have incorrect continuation lines.",
 ]
 
 [[format]]
@@ -716,7 +715,6 @@ read = "not-applicable"
 write = "usable"
 write-feature = "write-plain"
 write-gaps = [
-  "Tables inside block quotes have incorrect continuation lines.",
 ]
 
 [[format]]

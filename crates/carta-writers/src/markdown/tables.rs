@@ -47,8 +47,8 @@ impl State {
         let form = table_form(table);
         let body = match form {
             TableForm::Simple => self.simple_table(table),
-            TableForm::Multiline => self.multiline_table(table, width),
-            TableForm::Grid => self.grid_table(table, width),
+            TableForm::Multiline => self.multiline_table(table, self.width),
+            TableForm::Grid => self.grid_table(table, self.width),
         };
         match self.table_caption(table, form, width) {
             Some(caption) if body.is_empty() => caption,

@@ -209,7 +209,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `markdown` ✅
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
-- Tables inside block quotes have incorrect continuation lines.
 
 ### `markdown_github` ✅
 ### `markdown_mmd` ✅
@@ -279,9 +278,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `json` ✅
 ### `native` ✅
 ### `opml` ✅
-
 ### `plain` ✅
-- Tables inside block quotes have incorrect continuation lines.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,

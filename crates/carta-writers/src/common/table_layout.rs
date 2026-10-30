@@ -18,6 +18,26 @@ pub(crate) enum TableForm {
     Grid,
 }
 
+/// Place a quoted table's opening border or blank line directly after the quote prefix.
+#[cfg(any(feature = "plain", feature = "markdown"))]
+pub(crate) fn offset_quoted_table(blocks: &[Block], body: String) -> String {
+    if !matches!(blocks.first(), Some(Block::Table(_))) {
+        return body;
+    }
+    let Some(unindented) = body.strip_prefix("  ") else {
+        return body;
+    };
+    if unindented
+        .lines()
+        .next()
+        .is_some_and(|line| !line.is_empty() && line.chars().all(|ch| matches!(ch, '-' | ' ')))
+    {
+        unindented.to_owned()
+    } else {
+        format!("\n{body}")
+    }
+}
+
 /// Choose the rendering form for a table. Spans, block-level cell content, or a footer demand a
 /// grid; an explicit column width or a forced break within a cell demands the multiline form;
 /// otherwise the compact simple form suffices.

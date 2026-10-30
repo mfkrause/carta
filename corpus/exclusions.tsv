@@ -36,11 +36,6 @@ man	table/table-empty-cell
 man	table/table-cell-blocks
 man	table/table-grid-spans
 
-# A table nested inside a block quote is not yet reflowed at parity by these writers, which drop the
-# quote's blank continuation line or misprefix the table rows with the quote marker.
-plain	table/table-in-blockquote
-markdown	table/table-in-blockquote
-
 # Nested block bodies keep markers and place indent requests on their own lines.
 # This layout stays outside byte comparisons.
 man	common/list-nested-first-block

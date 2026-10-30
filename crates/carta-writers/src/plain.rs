@@ -13,7 +13,7 @@ use crate::common::{
     body_rows, caption_runs, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
     fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri,
     item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i64,
-    ordered_marker, pad_marker, pieces_nonempty, quote_marks, table_form,
+    offset_quoted_table, ordered_marker, pad_marker, pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
 
@@ -138,7 +138,7 @@ impl State {
             }
             Block::BlockQuote(blocks) => {
                 let body = self.blocks_to_string(blocks, width.saturating_sub(2), true);
-                indent_block(&body, "  ", "  ")
+                indent_block(&offset_quoted_table(blocks, body), "  ", "  ")
             }
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
@@ -273,8 +273,8 @@ impl State {
         let form = table_form(table);
         let body = match form {
             TableForm::Simple => self.simple_table(table),
-            TableForm::Multiline => self.multiline_table(table, width),
-            TableForm::Grid => self.grid_table(table, width),
+            TableForm::Multiline => self.multiline_table(table, self.width),
+            TableForm::Grid => self.grid_table(table, self.width),
         };
         if budget::exhausted() {
             return String::new();
