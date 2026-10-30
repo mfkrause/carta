@@ -40,6 +40,7 @@ cli = [
     "dep:clap_complete",
     "dep:clap_mangen",
     "carta-readers/yaml",
+    "serde_json/arbitrary_precision",
     "standalone",
     "metadata-file",
     "carta-ast/serde",

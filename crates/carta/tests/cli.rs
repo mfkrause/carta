@@ -2113,3 +2113,36 @@ fn resource_path_uses_the_last_cli_or_defaults_value() {
         assert!(!output.stdout.contains(absent), "{}", output.stdout);
     }
 }
+
+#[test]
+fn json_template_numbers_keep_precision_and_use_numeric_notation() {
+    let directory = input_directory("json-template-numbers");
+    fs::write(directory.join("number.tpl"), "$value$").unwrap();
+    for (number, expected) in [
+        ("2.0", "2"),
+        ("1e3", "1000"),
+        ("1e20", "100000000000000000000"),
+        ("0.0123", "1.23e-2"),
+        ("-0.0", "0"),
+        ("1.234567890123456789", "1.234567890123456789"),
+        (
+            "123456789012345678901234567890",
+            "123456789012345678901234567890",
+        ),
+        ("1e1000000000", "1.0e1000000000"),
+    ] {
+        let variable = format!("value:{number}");
+        let output = run_in(
+            &directory,
+            &[
+                "-thtml",
+                "--template=number.tpl",
+                "--variable-json",
+                &variable,
+            ],
+            "",
+        );
+        assert!(output.success, "{}", output.stderr);
+        assert_eq!(output.stdout, expected);
+    }
+}

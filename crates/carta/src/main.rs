@@ -754,7 +754,7 @@ fn variable_value(value: serde_json::Value) -> Value {
     match value {
         serde_json::Value::Null => Value::Str(String::new()),
         serde_json::Value::Bool(value) => Value::Bool(value),
-        serde_json::Value::Number(value) => Value::Str(value.to_string()),
+        serde_json::Value::Number(value) => Value::Str(variable_number(&value)),
         serde_json::Value::String(value) => Value::Str(value),
         serde_json::Value::Array(values) => {
             Value::List(values.into_iter().map(variable_value).collect())
@@ -766,6 +766,61 @@ fn variable_value(value: serde_json::Value) -> Value {
                 .collect(),
         ),
     }
+}
+
+fn variable_number(number: &serde_json::Number) -> String {
+    let source = number.to_string();
+    let negative = source.starts_with('-');
+    let magnitude = source.strip_prefix('-').unwrap_or(&source);
+    let (coefficient, exponent) = match magnitude.split_once(['e', 'E']) {
+        Some((coefficient, exponent)) => {
+            let Ok(exponent) = exponent.parse::<i64>() else {
+                return source;
+            };
+            (coefficient, exponent)
+        }
+        None => (magnitude, 0),
+    };
+    let integer = coefficient
+        .split_once('.')
+        .map_or(coefficient, |(integer, _)| integer);
+    let digits = coefficient.replace('.', "");
+    let leading = digits.len() - digits.trim_start_matches('0').len();
+    let digits = digits.trim_matches('0');
+    if digits.is_empty() {
+        return "0".to_owned();
+    }
+    let Some(point) = exponent
+        .checked_add(i64::try_from(integer.len()).unwrap_or(i64::MAX))
+        .and_then(|point| point.checked_sub(i64::try_from(leading).unwrap_or(i64::MAX)))
+    else {
+        return source;
+    };
+    let sign = if negative { "-" } else { "" };
+    let count = i64::try_from(digits.len()).unwrap_or(i64::MAX);
+    let limit = source.len().saturating_mul(1024).saturating_add(4096);
+    if point >= count && usize::try_from(point).is_ok_and(|point| point <= limit) {
+        let zeros = usize::try_from(point - count).unwrap_or(0);
+        return format!("{sign}{digits}{}", "0".repeat(zeros));
+    }
+    if (0..=7).contains(&point) {
+        let Some((integer, fraction)) =
+            digits.split_at_checked(usize::try_from(point).unwrap_or(0))
+        else {
+            return source;
+        };
+        let integer = if integer.is_empty() { "0" } else { integer };
+        return format!("{sign}{integer}.{fraction}");
+    }
+    // Keep extreme exponents compact to bound output growth.
+    let Some(exponent) = point.checked_sub(1) else {
+        return source;
+    };
+    let Some((first, rest)) = digits.split_at_checked(1) else {
+        return source;
+    };
+    let rest = if rest.is_empty() { "0" } else { rest };
+    format!("{sign}{first}.{rest}e{exponent}")
 }
 
 fn template_variables(cli: &Cli, matches: &clap::ArgMatches) -> BTreeMap<String, Value> {
