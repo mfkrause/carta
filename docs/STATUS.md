@@ -235,7 +235,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `man` ✅
 
 ### `docx` ✅
-- A `lang` value carried by a span or div is dropped rather than set as a run language property.
 - A `dir=rtl` carried by a span or div is dropped rather than set as a run right-to-left property,
   with a paragraph bidi property added when it sits on a div.
 - Repeated images are embedded separately rather than shared.

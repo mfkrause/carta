@@ -63,6 +63,7 @@ struct Comment {
     date: Option<String>,
     initials: Option<String>,
     body: Vec<Inline>,
+    language: Option<Text>,
 }
 
 /// The optional writer behaviors selected by the document's extension set.
@@ -93,7 +94,8 @@ struct Ctx {
     next_bookmark_id: u32,
     plan: ListPlan,
     next_id: u32,
-    notes: Vec<(u32, Vec<Block>)>,
+    notes: Vec<(u32, Vec<Block>, Option<Text>)>,
+    run_properties: RunProps,
     comments: Vec<Comment>,
     next_insertion: u32,
     next_deletion: u32,
@@ -168,6 +170,7 @@ pub(super) fn document_xml(
         plan: ListPlan::default(),
         next_id: FIRST_FREE_ID,
         notes: Vec::new(),
+        run_properties: RunProps::default(),
         comments: Vec::new(),
         next_insertion: 1,
         next_deletion: 1,
@@ -199,8 +202,10 @@ pub(super) fn document_xml(
     // A note nested in a note appends mid-loop, so the growing queue is revisited until drained.
     let mut footnotes = Vec::new();
     let mut index = 0;
-    while let Some((id, note_blocks)) = ctx.notes.get(index).cloned() {
+    while let Some((id, note_blocks, language)) = ctx.notes.get(index).cloned() {
+        let previous = std::mem::replace(&mut ctx.run_properties.language, language);
         let entry = render_footnote_entry(id, &note_blocks, &mut ctx);
+        ctx.run_properties.language = previous;
         footnotes.push(entry);
         index += 1;
     }
@@ -317,6 +322,8 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
         }
         // Custom-style divs style direct paragraphs; nested divs override them.
         Block::Div(attr, blocks) => {
+            let previous_properties = ctx.run_properties.clone();
+            ctx.run_properties = ctx.run_properties.with_attributes(attr);
             let mark = open_bookmark(attr.id.as_str(), body, ctx);
             let child_ambient = custom_style(attr)
                 .or_else(|| bibliography_style(attr))
@@ -328,6 +335,7 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
                 previous = Some(inner);
             }
             close_bookmark(mark, body);
+            ctx.run_properties = previous_properties;
         }
         Block::Header(level, attr, inlines) => {
             close_bookmarks(body, &mut ctx.bookmarks, *level);
@@ -336,7 +344,7 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
         }
         Block::CodeBlock(attr, code) => {
             let id = attr.id.clone();
-            let para = code_paragraph(attr, code, None, &ctx.highlighter);
+            let para = code_paragraph(attr, code, None, &ctx.highlighter, &ctx.run_properties);
             push_anchored(body, ctx, id.as_str(), para);
             ctx.prev_paragraph = false;
         }
@@ -640,7 +648,13 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
         }
         Block::DefinitionList(items) => render_definition_list(items, out, ctx),
         Block::CodeBlock(attr, code) => {
-            out.push(code_paragraph(attr, code, None, &ctx.highlighter));
+            out.push(code_paragraph(
+                attr,
+                code,
+                None,
+                &ctx.highlighter,
+                &ctx.run_properties,
+            ));
         }
         Block::LineBlock(lines) => out.push(line_block_paragraph(style.para, lines, ctx)),
         Block::HorizontalRule => out.push(horizontal_rule()),
@@ -649,6 +663,8 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
         }
         Block::Table(table) => render_table(table, out, ctx, None),
         Block::Div(attr, blocks) => {
+            let previous_properties = ctx.run_properties.clone();
+            ctx.run_properties = ctx.run_properties.with_attributes(attr);
             let inner = match custom_style(attr).or_else(|| bibliography_style(attr)) {
                 Some(name) => FlowStyle {
                     para: name,
@@ -663,6 +679,7 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
                 render_flow(block, out, ctx, inner);
                 previous = Some(block);
             }
+            ctx.run_properties = previous_properties;
         }
         Block::RawBlock(format, payload) => {
             if format.0.as_str() == "openxml" {
@@ -721,7 +738,8 @@ fn styled_paragraph(
 ) -> Element {
     let mut para = Element::new("w:p");
     para.push(paragraph_props(style, numbering, jc));
-    render_runs(inlines, &RunProps::default(), ctx, &mut para);
+    let properties = ctx.run_properties.clone();
+    render_runs(inlines, &properties, ctx, &mut para);
     para
 }
 

@@ -7,7 +7,7 @@ use super::{
     Ctx, DocxHl, clean_bookmark_name, close_bookmark, custom_style, has_class, open_bookmark,
     paragraph_props, style_id,
 };
-use carta_ast::{Attr, Inline, MathType, QuoteType};
+use carta_ast::{Attr, Inline, MathType, QuoteType, Text};
 use carta_core::container::xml::Element;
 use std::borrow::Cow;
 
@@ -21,25 +21,23 @@ pub(super) fn code_paragraph(
     code: &str,
     numbering: Option<(u32, u32)>,
     hl: &DocxHl,
+    properties: &RunProps,
 ) -> Element {
     let mut para = Element::new("w:p");
     para.push(paragraph_props(Some("SourceCode"), numbering, None));
     #[cfg(feature = "highlight")]
-    if let Some(runs) = highlighted_code_runs(attr, code, hl) {
+    if let Some(runs) = highlighted_code_runs(attr, code, hl, properties) {
         for run in runs {
             para.push(run);
         }
         return para;
     }
-    let props = RunProps {
-        style: Some(Cow::Borrowed("VerbatimChar")),
-        ..RunProps::default()
-    };
+    let props = properties.with_style("VerbatimChar");
     let code = code.strip_suffix('\n').unwrap_or(code);
     let mut first = true;
     for line in code.split('\n') {
         if !first {
-            para.push(break_run(&RunProps::default()));
+            para.push(break_run(properties));
         }
         first = false;
         if !line.is_empty() {
@@ -54,7 +52,12 @@ pub(super) fn code_paragraph(
 /// including plain and whitespace-only ones, is wrapped in its own styled run, and consecutive
 /// source lines are joined by break runs.
 #[cfg(feature = "highlight")]
-fn highlighted_code_runs(attr: &Attr, code: &str, hl: &DocxHl) -> Option<Vec<Element>> {
+fn highlighted_code_runs(
+    attr: &Attr,
+    code: &str,
+    hl: &DocxHl,
+    properties: &RunProps,
+) -> Option<Vec<Element>> {
     let highlighter = hl.as_ref()?;
     let language = attr
         .classes
@@ -66,13 +69,10 @@ fn highlighted_code_runs(attr: &Attr, code: &str, hl: &DocxHl) -> Option<Vec<Ele
     let mut runs = Vec::new();
     for (index, line) in lines.iter().enumerate() {
         if index > 0 {
-            runs.push(break_run(&RunProps::default()));
+            runs.push(break_run(properties));
         }
         for token in line {
-            let props = RunProps {
-                style: Some(Cow::Owned(format!("{}Tok", token.kind.style_key()))),
-                ..RunProps::default()
-            };
+            let props = properties.with_style(format!("{}Tok", token.kind.style_key()));
             runs.push(text_run(&props, &token.text));
         }
     }
@@ -87,7 +87,7 @@ fn highlighted_inline_runs(
     attr: &Attr,
     text: &str,
     hl: &DocxHl,
-    deletion: bool,
+    properties: &RunProps,
 ) -> Option<Vec<Element>> {
     let highlighter = hl.as_ref()?;
     let language = attr
@@ -101,14 +101,16 @@ fn highlighted_inline_runs(
     for (index, line) in lines.iter().enumerate() {
         if index > 0 {
             runs.push(break_run(&RunProps {
-                deletion,
+                deletion: properties.deletion,
+                language: properties.language.clone(),
                 ..RunProps::default()
             }));
         }
         for token in line {
             let props = RunProps {
                 style: Some(Cow::Owned(format!("{}Tok", token.kind.style_key()))),
-                deletion,
+                deletion: properties.deletion,
+                language: properties.language.clone(),
                 ..RunProps::default()
             };
             runs.push(text_run(&props, &token.text));
@@ -122,13 +124,14 @@ fn highlighted_inline_runs(
 pub(super) fn line_block_paragraph(style: &str, lines: &[Vec<Inline>], ctx: &mut Ctx) -> Element {
     let mut para = Element::new("w:p");
     para.push(paragraph_props(Some(style), None, None));
+    let properties = ctx.run_properties.clone();
     let mut first = true;
     for line in lines {
         if !first {
-            para.push(break_run(&RunProps::default()));
+            para.push(break_run(&properties));
         }
         first = false;
-        render_runs(line, &RunProps::default(), ctx, &mut para);
+        render_runs(line, &properties, ctx, &mut para);
     }
     para
 }
@@ -150,6 +153,7 @@ pub(super) fn horizontal_rule() -> Element {
 #[derive(Clone, Default)]
 pub(super) struct RunProps {
     style: Option<Cow<'static, str>>,
+    pub(super) language: Option<Text>,
     bold: bool,
     italic: bool,
     smallcaps: bool,
@@ -166,6 +170,7 @@ pub(super) struct RunProps {
 impl RunProps {
     fn is_empty(&self) -> bool {
         self.style.is_none()
+            && self.language.is_none()
             && !self.bold
             && !self.italic
             && !self.smallcaps
@@ -224,6 +229,14 @@ impl RunProps {
         }
     }
 
+    pub(super) fn with_attributes(&self, attr: &Attr) -> Self {
+        let mut properties = self.clone();
+        if let Some((_, language)) = attr.attributes.iter().find(|(name, _)| name == "lang") {
+            properties.language = Some(language.clone());
+        }
+        properties
+    }
+
     fn with_east_asian(&self, value: bool) -> Self {
         Self {
             east_asian: value,
@@ -270,6 +283,9 @@ impl RunProps {
         }
         if let Some(value) = self.vert_align {
             rpr.push(Element::new("w:vertAlign").attr("w:val", value));
+        }
+        if let Some(language) = &self.language {
+            rpr.push(Element::new("w:lang").attr("w:val", language.as_str()));
         }
         Some(rpr)
     }
@@ -416,8 +432,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
             Inline::Code(attr, text) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 #[cfg(feature = "highlight")]
-                let highlighted =
-                    highlighted_inline_runs(attr, text, &ctx.highlighter, props.deletion);
+                let highlighted = highlighted_inline_runs(attr, text, &ctx.highlighter, props);
                 #[cfg(not(feature = "highlight"))]
                 let highlighted: Option<Vec<Element>> = {
                     let _ = attr;
@@ -451,8 +466,10 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
             // Comment span pairs move author and text to the comments part.
             Inline::Span(attr, children) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
+                let properties = props.with_attributes(attr);
+                let props = &properties;
                 if has_class(attr, "comment-start") {
-                    open_comment(attr, children, out, ctx);
+                    open_comment(attr, children, props, out, ctx);
                 } else if has_class(attr, "comment-end") {
                     close_comment(attr, props, out);
                 } else if has_class(attr, "insertion") {
@@ -528,7 +545,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let id = ctx.next_id;
                 ctx.next_id = ctx.next_id.saturating_add(1);
-                ctx.notes.push((id, blocks.clone()));
+                ctx.notes.push((id, blocks.clone(), props.language.clone()));
                 out.push(footnote_reference_run(id, props));
             }
         }
@@ -551,7 +568,14 @@ mod tests {
 
     #[test]
     fn empty_code_block_has_no_verbatim_run() {
-        let para = code_paragraph(&Attr::default(), "", None, &DocxHl::default()).render();
+        let para = code_paragraph(
+            &Attr::default(),
+            "",
+            None,
+            &DocxHl::default(),
+            &RunProps::default(),
+        )
+        .render();
         assert_eq!(
             para,
             "<w:p><w:pPr><w:pStyle w:val=\"SourceCode\" /></w:pPr></w:p>"
@@ -561,7 +585,14 @@ mod tests {
     #[test]
     fn code_blocks_preserve_trailing_breaks() {
         for (code, breaks) in [("x", 0), ("x\n", 0), ("x\n\n", 1), ("\n", 0), ("\n\n", 1)] {
-            let para = code_paragraph(&Attr::default(), code, None, &DocxHl::default()).render();
+            let para = code_paragraph(
+                &Attr::default(),
+                code,
+                None,
+                &DocxHl::default(),
+                &RunProps::default(),
+            )
+            .render();
             assert_eq!(para.matches("<w:br />").count(), breaks, "{code:?}");
             assert!(!para.contains("<w:t xml:space=\"preserve\"></w:t>"));
         }
@@ -577,9 +608,36 @@ mod tests {
             ..Attr::default()
         };
         for (code, breaks) in [("", 0), ("\n", 0), ("\n\n", 1), ("1\n", 0), ("1\n\n", 1)] {
-            let runs = highlighted_code_runs(&attr, code, &highlighter).unwrap();
+            let runs =
+                highlighted_code_runs(&attr, code, &highlighter, &RunProps::default()).unwrap();
             let output: String = runs.iter().map(Element::render).collect();
             assert_eq!(output.matches("<w:br />").count(), breaks, "{code:?}");
+        }
+    }
+
+    #[cfg(feature = "highlight")]
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn highlighted_runs_keep_the_enclosing_language() {
+        let highlighter = Some(std::sync::Arc::new(carta_highlight::Highlighter::new()));
+        let attr = Attr {
+            classes: vec!["rust".into()],
+            ..Attr::default()
+        };
+        let properties = RunProps {
+            language: Some("fr".into()),
+            ..RunProps::default()
+        };
+        let code = "let first = 1;\nlet second = 2;";
+        for runs in [
+            highlighted_code_runs(&attr, code, &highlighter, &properties).unwrap(),
+            highlighted_inline_runs(&attr, code, &highlighter, &properties).unwrap(),
+        ] {
+            assert!(!runs.is_empty());
+            assert!(
+                runs.iter()
+                    .all(|run| run.render().contains("<w:lang w:val=\"fr\" />"))
+            );
         }
     }
 }

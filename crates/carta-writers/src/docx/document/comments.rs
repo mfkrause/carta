@@ -13,7 +13,13 @@ fn comment_id(attr: &Attr) -> String {
 /// Opens a comment range: drops the range-start boundary into the flow and queues the comment's text
 /// and author metadata for the comments part. The opening marker's inline content is the comment's
 /// own text, so it is held back from the body rather than rendered where the range begins.
-pub(super) fn open_comment(attr: &Attr, body: &[Inline], out: &mut Element, ctx: &mut Ctx) {
+pub(super) fn open_comment(
+    attr: &Attr,
+    body: &[Inline],
+    props: &RunProps,
+    out: &mut Element,
+    ctx: &mut Ctx,
+) {
     let id = comment_id(attr);
     out.push(Element::new("w:commentRangeStart").attr("w:id", &id));
     ctx.comments.push(Comment {
@@ -22,6 +28,7 @@ pub(super) fn open_comment(attr: &Attr, body: &[Inline], out: &mut Element, ctx:
         date: attr_value(attr, "date").map(str::to_owned),
         initials: attr_value(attr, "initials").map(str::to_owned),
         body: body.to_vec(),
+        language: props.language.clone(),
     });
 }
 
@@ -38,6 +45,8 @@ pub(super) fn close_comment(attr: &Attr, props: &RunProps, out: &mut Element) {
 /// Renders one comment's entry for the comments part: its identifier and author metadata, then a
 /// single paragraph in the comment style that opens with the annotation mark and carries the text.
 pub(super) fn render_comment_entry(comment: &Comment, ctx: &mut Ctx) -> Element {
+    let mut properties = RunProps::default();
+    properties.language.clone_from(&comment.language);
     let mut element = Element::new("w:comment").attr("w:id", &comment.id);
     if let Some(author) = &comment.author {
         element = element.attr("w:author", author);
@@ -50,8 +59,8 @@ pub(super) fn render_comment_entry(comment: &Comment, ctx: &mut Ctx) -> Element 
     }
     let mut para = Element::new("w:p");
     para.push(paragraph_props(Some("CommentText"), None, None));
-    para.push(annotation_reference_run());
-    render_runs(&comment.body, &RunProps::default(), ctx, &mut para);
+    para.push(annotation_reference_run(&properties));
+    render_runs(&comment.body, &properties, ctx, &mut para);
     element.child(para)
 }
 
@@ -69,10 +78,6 @@ pub(super) fn tracked_change(tag: &str, id: u32, attr: &Attr) -> Element {
 }
 
 /// The run that opens a comment entry with its annotation reference mark.
-fn annotation_reference_run() -> Element {
-    Element::new("w:r")
-        .child(
-            Element::new("w:rPr").child(Element::new("w:rStyle").attr("w:val", "CommentReference")),
-        )
-        .child(Element::new("w:annotationRef"))
+fn annotation_reference_run(props: &RunProps) -> Element {
+    run_with_props(&props.with_style("CommentReference")).child(Element::new("w:annotationRef"))
 }

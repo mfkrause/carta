@@ -1,0 +1,319 @@
+---
+source: crates/carta/tests/docx.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+<w:body>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="FirstParagraph" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="fr" />
+</w:rPr>
+<w:t xml:space="preserve">français</w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve">outside</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BodyText" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">div</w:t>
+</w:r>
+<w:r>
+<w:rPr>
+<w:lang w:val="fr-CA" />
+</w:rPr>
+<w:t xml:space="preserve">override</w:t>
+</w:r>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">restored</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Heading2" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">heading</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:numPr>
+<w:ilvl w:val="0" />
+<w:numId w:val="1001" />
+</w:numPr>
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">list</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="SourceCode" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:rStyle w:val="VerbatimChar" />
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">code</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="FirstParagraph" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="" />
+</w:rPr>
+<w:t xml:space="preserve">empty-tag</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BlockText" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="es" />
+</w:rPr>
+<w:t xml:space="preserve">quoted</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BlockText" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">quote-after</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="SourceCode" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:rStyle w:val="VerbatimChar" />
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">let value = 1;</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="TableCaption" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">caption</w:t>
+</w:r>
+</w:p>
+<w:tbl>
+<w:tblPr>
+<w:tblStyle w:val="Table" />
+<w:tblW w:type="auto" w:w="0" />
+<w:tblLook w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="0" w:val="0020" />
+<w:tblCaption w:val="caption" />
+</w:tblPr>
+<w:tblGrid>
+<w:gridCol w:w="3960" />
+<w:gridCol w:w="3960" />
+</w:tblGrid>
+<w:tr>
+<w:trPr>
+<w:tblHeader w:val="on" />
+</w:trPr>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">h1</w:t>
+</w:r>
+</w:p>
+</w:tc>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">h2</w:t>
+</w:r>
+</w:p>
+</w:tc>
+</w:tr>
+<w:tr>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">a</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="SourceCode" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:rStyle w:val="VerbatimChar" />
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">cell-code</w:t>
+</w:r>
+</w:p>
+</w:tc>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="de-DE" />
+</w:rPr>
+<w:t xml:space="preserve">b</w:t>
+</w:r>
+</w:p>
+</w:tc>
+</w:tr>
+</w:tbl>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="FirstParagraph" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">after</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BodyText" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:rStyle w:val="FootnoteReference" />
+<w:lang w:val="fr" />
+</w:rPr>
+<w:footnoteReference w:id="9" />
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BodyText" />
+</w:pPr>
+<w:commentRangeStart w:id="0" />
+<w:r>
+<w:rPr>
+<w:lang w:val="fr" />
+</w:rPr>
+<w:t xml:space="preserve">range</w:t>
+</w:r>
+<w:commentRangeEnd w:id="0" />
+<w:r>
+<w:rPr>
+<w:rStyle w:val="CommentReference" />
+<w:lang w:val="fr" />
+</w:rPr>
+<w:commentReference w:id="0" />
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:numPr>
+<w:ilvl w:val="0" />
+<w:numId w:val="1002" />
+</w:numPr>
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:lang w:val="it" />
+</w:rPr>
+<w:t xml:space="preserve">item-div</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:numPr>
+<w:ilvl w:val="0" />
+<w:numId w:val="1002" />
+</w:numPr>
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">item-after</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="FirstParagraph" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:rStyle w:val="VerbatimChar" />
+<w:lang w:val="fr" />
+</w:rPr>
+<w:t xml:space="preserve">let item = 1;</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BodyText" />
+</w:pPr>
+<w:r>
+<w:rPr>
+<w:rStyle w:val="FootnoteReference" />
+</w:rPr>
+<w:footnoteReference w:id="10" />
+</w:r>
+</w:p>
+<w:sectPr>
+<w:footnotePr>
+<w:numRestart w:val="eachSect" />
+</w:footnotePr>
+</w:sectPr>
+</w:body>
+</w:document>

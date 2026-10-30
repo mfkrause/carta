@@ -203,6 +203,7 @@ fn numbered_caption(
     let mark = ctx.next_bookmark_id;
     ctx.next_bookmark_id = ctx.next_bookmark_id.wrapping_add(1);
     let name = format!("{}{number}", kind.bookmark_prefix());
+    let properties = ctx.run_properties.clone();
 
     let mut para = Element::new("w:p");
     para.push(paragraph_props(Some(style), None, None));
@@ -212,17 +213,14 @@ fn numbered_caption(
             .attr("w:name", &name),
     );
     // The label word and its number are joined by a non-breaking space so they never wrap apart.
-    para.push(text_run(
-        &RunProps::default(),
-        &format!("{}\u{a0}", kind.label()),
-    ));
+    para.push(text_run(&properties, &format!("{}\u{a0}", kind.label())));
     para.push(sequence_field(kind.field_instruction(), number));
     para.push(Element::new("w:bookmarkEnd").attr("w:id", &mark.to_string()));
 
     let mut prefixed = Vec::with_capacity(inlines.len() + 1);
     prefixed.push(Inline::Str(": ".into()));
     prefixed.extend(inlines.iter().cloned());
-    render_runs(&prefixed, &RunProps::default(), ctx, &mut para);
+    render_runs(&prefixed, &properties, ctx, &mut para);
     para
 }
 
@@ -262,13 +260,14 @@ fn render_styled_block(block: &Block, out: &mut Element, ctx: &mut Ctx, style: &
 /// note's remaining blocks.
 pub(super) fn render_footnote_entry(id: u32, blocks: &[Block], ctx: &mut Ctx) -> Element {
     let mut footnote = Element::new("w:footnote").attr("w:id", &id.to_string());
+    let properties = ctx.run_properties.clone();
     let rest: &[Block] = if let Some(Block::Para(inlines) | Block::Plain(inlines)) = blocks.first()
     {
         let mut para = Element::new("w:p");
         para.push(paragraph_props(Some("FootnoteText"), None, None));
-        para.push(footnote_marker_run());
-        para.push(text_run(&RunProps::default(), " "));
-        render_runs(inlines, &RunProps::default(), ctx, &mut para);
+        para.push(footnote_marker_run(&properties));
+        para.push(text_run(&properties, " "));
+        render_runs(inlines, &properties, ctx, &mut para);
         footnote.push(para);
         blocks.get(1..).unwrap_or(&[])
     } else {
@@ -276,7 +275,7 @@ pub(super) fn render_footnote_entry(id: u32, blocks: &[Block], ctx: &mut Ctx) ->
         footnote.push(
             Element::new("w:p")
                 .child(paragraph_props(Some("FootnoteText"), None, None))
-                .child(footnote_marker_run()),
+                .child(footnote_marker_run(&properties)),
         );
         blocks
     };
@@ -287,13 +286,8 @@ pub(super) fn render_footnote_entry(id: u32, blocks: &[Block], ctx: &mut Ctx) ->
 }
 
 /// The run that draws a footnote's own back-reference mark inside its entry.
-fn footnote_marker_run() -> Element {
-    Element::new("w:r")
-        .child(
-            Element::new("w:rPr")
-                .child(Element::new("w:rStyle").attr("w:val", "FootnoteReference")),
-        )
-        .child(Element::new("w:footnoteRef"))
+fn footnote_marker_run(props: &RunProps) -> Element {
+    run_with_props(&props.with_style("FootnoteReference")).child(Element::new("w:footnoteRef"))
 }
 
 /// The run that references a footnote from the body, carrying the surrounding formatting plus the

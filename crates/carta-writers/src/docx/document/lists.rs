@@ -135,6 +135,7 @@ fn render_item_block(
                 code,
                 Some((number, depth)),
                 &ctx.highlighter,
+                &ctx.run_properties,
             ));
         }
         // Quote paragraphs retain item numbering; other blocks use normal item rendering.
@@ -168,9 +169,12 @@ fn render_item_block(
             render_ordered_list(attrs, items, out, ctx, depth + 1, ambient);
         }
         Block::Div(attr, blocks) if custom_style(attr).is_none() => {
+            let previous_properties = ctx.run_properties.clone();
+            ctx.run_properties = ctx.run_properties.with_attributes(attr);
             for inner in blocks {
                 render_item_block(inner, num_id, depth, lead_used, out, ctx, ambient);
             }
+            ctx.run_properties = previous_properties;
         }
         other => render_flow(
             other,

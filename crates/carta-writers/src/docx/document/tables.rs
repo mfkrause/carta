@@ -295,7 +295,13 @@ fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mu
             true
         }
         Block::CodeBlock(attr, code) => {
-            tc.push(code_paragraph(attr, code, None, &ctx.highlighter));
+            tc.push(code_paragraph(
+                attr,
+                code,
+                None,
+                &ctx.highlighter,
+                &ctx.run_properties,
+            ));
             true
         }
         other => {

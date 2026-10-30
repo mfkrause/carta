@@ -48,3 +48,37 @@ fn docx_extension_toggle_snapshots() {
         insta::assert_snapshot!(format!("{}__{}", case.group, case.label), output);
     }
 }
+
+#[test]
+fn language_scopes_reach_footnotes_and_comments() {
+    let bytes = docx_bytes(
+        "docx",
+        include_str!("../../../corpus/ast-ext/docx/language.json"),
+    );
+    let entries = zip::read(&bytes).unwrap();
+    for (label, name) in [
+        ("footnotes", "word/footnotes.xml"),
+        ("comments", "word/comments.xml"),
+    ] {
+        let entry = entries.iter().find(|entry| entry.name == name).unwrap();
+        let xml = std::str::from_utf8(&entry.data).unwrap();
+        insta::assert_snapshot!(format!("language__{label}"), xml.replace("><", ">\n<"));
+    }
+}
+
+#[test]
+fn native_numbered_captions_keep_language() {
+    let input = include_str!("../../../corpus/ast-ext/docx/language.json");
+    let output = document_part(&docx_bytes("docx+native_numbering", input));
+    let caption = output
+        .split("<w:p>")
+        .find(|paragraph| paragraph.contains("caption</w:t>"))
+        .unwrap()
+        .split("</w:p>")
+        .next()
+        .unwrap();
+    insta::assert_snapshot!(
+        "language__numbered_caption",
+        format!("<w:p>{caption}</w:p>")
+    );
+}
