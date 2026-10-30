@@ -56,17 +56,45 @@ Extract the input's embedded media to this directory, writing each resource as a
 **--resource-path** *\<SEARCHPATH\>*  
 Search these directories, in order, for a document's images and other resources before falling back to the working directory, when a container format embeds them. Directories are separated by the platform's path separator (`:` on Unix, `;` on Windows); repeatable
 
-**--embed-resources**  
-Inline a document's referenced media into HTML output as `data:` URIs, producing a self-contained file with no external resource dependencies. Local resources are read from disk (honoring `--resource-path`); references that cannot be read are left as written. Ignored for non-HTML output
+**--embed-resources**\[=*\<EMBED_RESOURCES\>*\] \[default: false\]  
+Inline a document's referenced media into HTML output as `data:` URIs, producing a self-contained file with no external resource dependencies. Local resources are read from disk (honoring `--resource-path`); references that cannot be read are left as written. Ignored for non-HTML output\
 
-**--self-contained**  
-Deprecated alias for `--embed-resources --standalone`: produce a self-contained standalone HTML file
+\
+*Possible values:*
 
-**--sandbox**  
-Disable network access for document resources. EPUB and PDF use descriptions for unavailable images; HTML keeps external references
+- true
 
-**-s**, **--standalone**  
-Produce a standalone document, wrapping the body in the format's template
+- false
+
+**--self-contained**\[=*\<SELF_CONTAINED\>*\] \[default: false\]  
+Deprecated alias for `--embed-resources --standalone`: produce a self-contained standalone HTML file\
+
+\
+*Possible values:*
+
+- true
+
+- false
+
+**--sandbox**\[=*\<SANDBOX\>*\] \[default: false\]  
+Disable network access for document resources. EPUB and PDF use descriptions for unavailable images; HTML keeps external references\
+
+\
+*Possible values:*
+
+- true
+
+- false
+
+**-s**, **--standalone**\[=*\<STANDALONE\>*\] \[default: false\]  
+Produce a standalone document, wrapping the body in the format's template\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--template** *\<FILE\>*  
 Render with this template file instead of the format's built-in default; implies `-s`
@@ -83,8 +111,15 @@ Text wrapping in the output: `auto` reflows to the column width, `none` keeps ea
 **--columns** *\<N\>*  
 Column at which `--wrap=auto` reflows text. Defaults to the writer's built-in width
 
-**--ascii**  
-Accept the ASCII flag for ODT output, which preserves Unicode text
+**--ascii**\[=*\<ASCII\>*\] \[default: false\]  
+Accept the ASCII flag for ODT output, which preserves Unicode text\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--tab-stop** *\<N\>*  
 Column grid a tab in the input advances to (default 4)
@@ -95,11 +130,25 @@ Open the document's top heading level with this division, in a format whose sect
 **--shift-heading-level-by** *\<N\>*  
 Shift every heading level by this amount, promoting a heading past the top level into the document's title and one past that into a paragraph
 
-**-N**, **--number-sections**  
-Number section headings (`1`, `1.1`, …)
+**-N**, **--number-sections**\[=*\<NUMBER_SECTIONS\>*\] \[default: false\]  
+Number section headings (`1`, `1.1`, …)\
 
-**--toc**  
-Include an automatically generated table of contents in the standalone output
+\
+*Possible values:*
+
+- true
+
+- false
+
+**--toc**\[=*\<TOC\>*\] \[default: false\]  
+Include an automatically generated table of contents in the standalone output\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--toc-depth** *\<N\>*  
 The deepest heading level the table of contents includes (default 3; 1–6)
@@ -110,8 +159,15 @@ Use MathJax to display embedded TeX math in HTML output. An optional URL overrid
 **--katex**\[=*\<URL\>*\]  
 Use KaTeX to display embedded TeX math in HTML output. An optional URL overrides the asset base location
 
-**--mathml**  
-Use MathML to display embedded TeX math in HTML output
+**--mathml**\[=*\<MATHML\>*\] \[default: false\]  
+Use MathML to display embedded TeX math in HTML output\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--webtex**\[=*\<URL\>*\]  
 Use images from a TeX rendering service. An optional URL overrides the service location
@@ -152,8 +208,15 @@ Style a DOCX from this reference document: its styling parts and document templa
 **--highlight-style** *\<STYLE\|FILE\>*  
 Colorize code blocks with this style: a built-in name (`--list-highlight-styles`) or a JSON theme file. Overrides the style selected by `--syntax-highlighting`
 
-**--no-highlight**  
-Leave code blocks unhighlighted (equivalent to `--syntax-highlighting=none`)
+**--no-highlight**\[=*\<NO_HIGHLIGHT\>*\] \[default: false\]  
+Leave code blocks unhighlighted (equivalent to `--syntax-highlighting=none`)\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--syntax-highlighting** *\<none\|default\|idiomatic\|STYLE\|FILE\>*  
 How code blocks are presented: `default` uses the target's default, `none` leaves them plain, `idiomatic` uses the target format's own listing construct, and any other value names a built-in style or a JSON theme file to colorize with
@@ -161,20 +224,48 @@ How code blocks are presented: `default` uses the target's default, `none` leave
 **--syntax-definition** *\<FILE\>*  
 Load an additional syntax definition (a KDE-syntax XML file) whose language joins the catalog, overriding a built-in of the same name. Repeatable
 
-**--list-highlight-languages**  
-List the languages this build can highlight and exit
+**--list-highlight-languages**\[=*\<LIST_HIGHLIGHT_LANGUAGES\>*\] \[default: false\]  
+List the languages this build can highlight and exit\
 
-**--list-highlight-styles**  
-List the built-in highlight styles and exit
+\
+*Possible values:*
+
+- true
+
+- false
+
+**--list-highlight-styles**\[=*\<LIST_HIGHLIGHT_STYLES\>*\] \[default: false\]  
+List the built-in highlight styles and exit\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--print-highlight-style** *\<STYLE\|FILE\>*  
 Print a highlight style (a built-in name or a theme file) as a JSON theme and exit
 
-**--list-input-formats**  
-List the input formats this build supports and exit
+**--list-input-formats**\[=*\<LIST_INPUT_FORMATS\>*\] \[default: false\]  
+List the input formats this build supports and exit\
 
-**--list-output-formats**  
-List the output formats this build supports and exit
+\
+*Possible values:*
+
+- true
+
+- false
+
+**--list-output-formats**\[=*\<LIST_OUTPUT_FORMATS\>*\] \[default: false\]  
+List the output formats this build supports and exit\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--list-extensions**\[=*\<FORMAT\>*\]  
 List extensions and their default state for FORMAT (the Markdown dialect if omitted) and exit

@@ -36,7 +36,8 @@ use resources::{extract_media, resource_search_path};
     name = "carta",
     version,
     about = "Document converter",
-    disable_version_flag = true
+    disable_version_flag = true,
+    args_override_self = true
 )]
 // CLI flags need a direct field mapping for clap.
 #[allow(clippy::struct_excessive_bools)]
@@ -262,8 +263,27 @@ struct Cli {
     input: Vec<PathBuf>,
 }
 
+fn cli_command() -> clap::Command {
+    let command = Cli::command();
+    let flags: Vec<_> = command
+        .get_arguments()
+        .filter(|argument| matches!(argument.get_action(), ArgAction::SetTrue))
+        .map(|argument| argument.get_id().clone())
+        .collect();
+    flags.into_iter().fold(command, |command, flag| {
+        command.mut_arg(flag, |argument| {
+            argument
+                .action(ArgAction::Set)
+                .num_args(0..=1)
+                .require_equals(true)
+                .default_missing_value("true")
+                .default_value("false")
+        })
+    })
+}
+
 fn main() -> ExitCode {
-    let matches = Cli::command().get_matches();
+    let matches = cli_command().get_matches();
     let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
     cli.template_variables = template_variables(&cli, &matches);
     match run(&cli) {
@@ -304,16 +324,11 @@ fn exit_code(error: &Error) -> ExitCode {
 
 fn run(cli: &Cli) -> Result<()> {
     if let Some(shell) = cli.completions {
-        clap_complete::generate(
-            shell,
-            &mut Cli::command(),
-            "carta",
-            &mut io::stdout().lock(),
-        );
+        clap_complete::generate(shell, &mut cli_command(), "carta", &mut io::stdout().lock());
         return Ok(());
     }
     if cli.man {
-        clap_mangen::Man::new(Cli::command()).render(&mut io::stdout().lock())?;
+        clap_mangen::Man::new(cli_command()).render(&mut io::stdout().lock())?;
         return Ok(());
     }
     if cli.list_input_formats {
@@ -364,7 +379,7 @@ fn run(cli: &Cli) -> Result<()> {
         to
     };
     if cli.ascii && to_base != "odt" {
-        Cli::command()
+        cli_command()
             .error(
                 clap::error::ErrorKind::ArgumentConflict,
                 "--ascii is only supported for ODT output",

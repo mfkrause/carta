@@ -1897,3 +1897,26 @@ fn json_variables_keep_types_and_follow_argument_order() {
     assert!(!output.success);
     assert!(output.stderr.contains("invalid JSON for variable 'value'"));
 }
+
+#[test]
+fn later_options_replace_values_and_disable_boolean_flags() {
+    let input = "# Title\n\nText\n";
+    for arguments in [
+        vec!["-s", "--standalone=false", "-t", "html"],
+        vec!["-N", "--number-sections=false", "-t", "html"],
+        vec!["--toc", "--toc=false", "-t", "html"],
+    ] {
+        let output = run(&arguments, input);
+        assert!(output.success, "{}", output.stderr);
+        assert_eq!(output.stdout, "<h1 id=\"title\">Title</h1>\n<p>Text</p>\n");
+    }
+    let output = run(
+        &["-t", "html", "-t", "plain", "--wrap=auto", "--wrap=none"],
+        input,
+    );
+    assert!(output.success, "{}", output.stderr);
+    assert_eq!(output.stdout, "Title\n\nText\n");
+    let output = run(&["--standalone=invalid"], input);
+    assert!(!output.success);
+    assert!(output.stderr.contains("invalid value 'invalid'"));
+}
