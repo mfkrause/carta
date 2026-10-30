@@ -17,7 +17,7 @@ for fmt in $FORMATS; do
     label="$(basename "$input")"
     for target in $TARGETS; do
       media=""
-      if [ "$fmt" = ipynb ] && [ "$target" = latex ]; then
+      if { [ "$fmt" = ipynb ] || [ "$fmt" = rtf ]; } && [ "$target" = latex ]; then
         media="--extract-media=$WORK/e2e-media/$label"
       fi
       is_json_target "$target" && mode=json || mode=text
