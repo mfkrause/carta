@@ -3,6 +3,59 @@
 use carta_ast::{Attr, Inline, InlineParts};
 
 use super::super::scan::{char_at, scan_entity};
+use super::Node;
+
+#[derive(Clone, Copy)]
+enum Boundary {
+    Open(usize),
+    Close,
+}
+
+/// Assign each node to its innermost paired native span; zero denotes the outer text.
+pub(in crate::commonmark) fn span_scopes(nodes: &[Node]) -> Vec<usize> {
+    if !nodes.iter().any(|node| {
+        matches!(node, Node::Inline(Inline::RawInline(format, text))
+            if format.0 == "html" && opens_span_tag(text))
+    }) {
+        return Vec::new();
+    }
+    let mut boundaries = vec![None; nodes.len()];
+    let mut openings = Vec::new();
+    for (index, node) in nodes.iter().enumerate() {
+        if let Node::Inline(Inline::RawInline(format, text)) = node
+            && format.0 == "html"
+        {
+            match classify_span_tag(text) {
+                SpanTag::Open(_) => openings.push(index),
+                SpanTag::Close => {
+                    if let Some(opening) = openings.pop() {
+                        if let Some(boundary) = boundaries.get_mut(opening) {
+                            *boundary = Some(Boundary::Open(opening + 1));
+                        }
+                        if let Some(boundary) = boundaries.get_mut(index) {
+                            *boundary = Some(Boundary::Close);
+                        }
+                    }
+                }
+                SpanTag::Other => {}
+            }
+        }
+    }
+    let mut scopes = Vec::new();
+    boundaries
+        .into_iter()
+        .map(|boundary| {
+            match boundary {
+                Some(Boundary::Open(scope)) => scopes.push(scope),
+                Some(Boundary::Close) => {
+                    let _ = scopes.pop();
+                }
+                None => {}
+            }
+            scopes.last().copied().unwrap_or(0)
+        })
+        .collect()
+}
 
 /// Pair raw `<span>` tags into [`Inline::Span`] nodes.
 ///

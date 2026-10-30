@@ -293,7 +293,6 @@ Constructs the supported extensions read, each with one narrow case that still d
 
 | Extension(s) | Gap |
 | --- | --- |
-| `native_spans` | An emphasis run that opens before a `<span>` and whose closing marker sits just inside the matching `</span>` can leave both tags raw instead of forming a span. |
 | `raw_tex` | Inline `\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\begin{env}…\end{env}` is recognized only as a whole paragraph (block level); inline, each `\begin`/`\end` is an ordinary command. |
 
 ### Not yet implemented

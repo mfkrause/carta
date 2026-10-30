@@ -5,7 +5,7 @@
 use carta_ast::{Attr, Inline, QuoteType};
 use carta_core::{Extension, Extensions};
 
-use super::inline::{Delimiter, Node, collapse, flanking, quote_flanking};
+use super::inline::{Delimiter, Node, collapse, flanking, quote_flanking, span_scopes};
 
 /// A record in the delimiter list used by [`process_emphasis`].
 ///
@@ -21,6 +21,7 @@ struct DelimEntry {
     count: usize,
     can_open: bool,
     can_close: bool,
+    span_scope: usize,
     /// Previous still-active entry (a smaller `delims` index), or `None` at the list head.
     prev: Option<usize>,
     /// Next still-active entry (a larger `delims` index), or `None` at the list tail.
@@ -37,6 +38,11 @@ pub(super) fn process_emphasis(
     ext: Extensions,
     markdown: bool,
 ) {
+    let scopes = if markdown && ext.contains(Extension::NativeSpans) {
+        span_scopes(nodes)
+    } else {
+        Vec::new()
+    };
     // One entry per emphasis-class Node::Delimiter in [stack_bottom..] (bracket openers excluded).
     let mut delims: Vec<DelimEntry> = nodes
         .iter()
@@ -49,6 +55,11 @@ pub(super) fn process_emphasis(
                 count: d.count,
                 can_open: d.can_open,
                 can_close: d.can_close,
+                span_scope: if d.ch == b'_' && d.count == 1 {
+                    scopes.get(ni).copied().unwrap_or(0)
+                } else {
+                    0
+                },
                 prev: None,
                 next: None,
             }),
@@ -65,7 +76,8 @@ pub(super) fn process_emphasis(
     let mut head: Option<usize> = (count > 0).then_some(0);
 
     // Key opener bounds by the spec rule-of-three inputs and `count >= 2`.
-    let mut openers_bottom = std::collections::BTreeMap::<(u8, usize, bool, bool), usize>::new();
+    let mut openers_bottom =
+        std::collections::BTreeMap::<(u8, usize, bool, bool, usize), usize>::new();
 
     let mut current: Option<usize> = head;
 
@@ -82,6 +94,7 @@ pub(super) fn process_emphasis(
         let closer_ni = current_entry.node_index;
         let cur_next = current_entry.next;
         let scan_start = current_entry.prev;
+        let closer_scope = current_entry.span_scope;
         if !closer_can_close {
             current = cur_next;
             continue;
@@ -92,6 +105,7 @@ pub(super) fn process_emphasis(
             closer_count % 3,
             closer_can_open,
             closer_count >= 2,
+            closer_scope,
         );
         let bottom = *openers_bottom.get(&bucket).unwrap_or(&0);
 
@@ -105,7 +119,15 @@ pub(super) fn process_emphasis(
                 break;
             };
             let scan_prev = entry.prev;
+            // A native span bounds the search for single-underscore openers.
+            if closer_scope != 0 && entry.node_index < closer_scope {
+                break;
+            }
             if !entry.can_open || entry.ch != closer_ch {
+                scan = scan_prev;
+                continue;
+            }
+            if closer_scope != 0 && entry.span_scope != closer_scope {
                 scan = scan_prev;
                 continue;
             }

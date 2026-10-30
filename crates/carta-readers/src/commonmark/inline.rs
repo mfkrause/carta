@@ -23,6 +23,7 @@ mod tokens;
 use cite_cache::CiteCache;
 
 use native_span::pair_native_spans;
+pub(super) use native_span::span_scopes;
 
 /// A node in the in-progress inline list. Delimiter runs stay as nodes until emphasis resolution.
 #[derive(Debug, Clone)]

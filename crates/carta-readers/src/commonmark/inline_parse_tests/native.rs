@@ -279,3 +279,69 @@ fn unmatched_span_tags_keep_their_original_text_across_emphasis() {
     );
     assert_eq!(pm(opening, extensions), vec![raw("html", opening)]);
 }
+
+#[test]
+fn single_underscore_outside_a_native_span_cannot_close_inside_it() {
+    let extensions = exts(&[Extension::NativeSpans, Extension::RawHtml]);
+    assert_eq!(
+        pm("_before <span>inside_</span>", extensions),
+        vec![
+            str("_before"),
+            Inline::Space,
+            span(Attr::default(), vec![str("inside_")])
+        ]
+    );
+    assert_eq!(
+        pm("<span>_inside_</span>", extensions),
+        vec![span(
+            Attr::default(),
+            vec![Inline::Emph(vec![str("inside")])]
+        )]
+    );
+    assert_eq!(
+        pm("_<span>inside</span> after_", extensions),
+        vec![Inline::Emph(vec![
+            span(Attr::default(), vec![str("inside")]),
+            Inline::Space,
+            str("after")
+        ])]
+    );
+}
+
+#[test]
+fn native_span_boundaries_keep_later_outer_emphasis_available() {
+    let extensions = exts(&[Extension::NativeSpans, Extension::RawHtml]);
+    assert_eq!(
+        pm("_before <span>inside_</span> after_", extensions),
+        vec![Inline::Emph(vec![
+            str("before"),
+            Inline::Space,
+            span(Attr::default(), vec![str("inside_")]),
+            Inline::Space,
+            str("after")
+        ])]
+    );
+}
+
+#[test]
+fn many_native_spans_cannot_close_earlier_underscores() {
+    let extensions = exts(&[Extension::NativeSpans, Extension::RawHtml]);
+    let source = format!(
+        "{}{}",
+        "_before ".repeat(2_000),
+        "<span>inside_</span> ".repeat(2_000)
+    );
+    let parsed = pm(&source, extensions);
+    assert_eq!(
+        parsed
+            .iter()
+            .filter(|inline| matches!(inline, Inline::Span(_, _)))
+            .count(),
+        2_000
+    );
+    assert!(
+        !parsed
+            .iter()
+            .any(|inline| matches!(inline, Inline::Emph(_)))
+    );
+}
