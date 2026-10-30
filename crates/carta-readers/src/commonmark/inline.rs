@@ -111,7 +111,7 @@ fn parse_inlines_shared(
         backtick_runs: None,
         html_closing: std::cell::OnceCell::new(),
         raw_tex_groups: std::cell::OnceCell::new(),
-        raw_tex_braces: std::cell::OnceCell::new(),
+        raw_tex_verbatim_groups: std::cell::OnceCell::new(),
         raw_tex_environments: std::cell::OnceCell::new(),
         wiki_failed_until: 0,
     };
@@ -182,9 +182,9 @@ struct InlineParser<'a> {
     /// Last terminators bound failed HTML scans when many openers have no close.
     html_closing: std::cell::OnceCell<[Option<usize>; 4]>,
     /// Group opener offsets mapped to their closing ends, built on the first raw-TeX group scan.
-    raw_tex_groups: std::cell::OnceCell<BTreeMap<usize, usize>>,
-    /// Unescaped opening braces bound searches through macro parameter text.
-    raw_tex_braces: std::cell::OnceCell<Vec<usize>>,
+    raw_tex_groups: std::cell::OnceCell<tokens::TexGroups>,
+    /// Verbatim arguments keep percent characters as literal text.
+    raw_tex_verbatim_groups: std::cell::OnceCell<tokens::TexGroups>,
     /// Environment opening-group ends mapped to their matching closing-marker ends.
     raw_tex_environments: std::cell::OnceCell<BTreeMap<usize, usize>>,
     wiki_failed_until: usize,

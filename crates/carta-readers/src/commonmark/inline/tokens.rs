@@ -27,6 +27,85 @@ enum TexArgument {
     ControlSequence,
 }
 
+pub(super) struct TexGroups {
+    ends: BTreeMap<usize, usize>,
+    bodies: BTreeMap<usize, Option<usize>>,
+    comments: BTreeMap<usize, usize>,
+}
+
+impl TexGroups {
+    fn new(text: &str, comments: bool) -> Self {
+        let mut groups = Self {
+            ends: BTreeMap::new(),
+            bodies: BTreeMap::new(),
+            comments: BTreeMap::new(),
+        };
+        let mut closing = Vec::new();
+        let (mut braces, mut brackets) = (None, None);
+        let (mut line_braces, mut line_brackets) = (None, None);
+        let (mut body, mut line_body) = (None, None);
+        let mut line_end = text.len();
+        let mut characters = text.char_indices().rev().peekable();
+        // Saved stack positions skip comment text without rescanning or copying groups.
+        while let Some((position, character)) = characters.next() {
+            let mut escapes = 0usize;
+            while characters
+                .peek()
+                .is_some_and(|(_, character)| *character == '\\')
+            {
+                characters.next();
+                escapes += 1;
+            }
+            if !escapes.is_multiple_of(2) && character != '\n' {
+                continue;
+            }
+            match character {
+                '\n' => {
+                    (line_braces, line_brackets, line_body) = (braces, brackets, body);
+                    line_end = position + 1;
+                }
+                '%' if comments => {
+                    (braces, brackets, body) = (line_braces, line_brackets, line_body);
+                    groups.bodies.insert(position, body);
+                    groups.comments.insert(position, line_end);
+                }
+                '}' => {
+                    closing.push((position + 1, braces, brackets));
+                    braces = Some(closing.len() - 1);
+                    brackets = None;
+                }
+                ']' => {
+                    closing.push((position + 1, brackets, None));
+                    brackets = Some(closing.len() - 1);
+                }
+                '{' => {
+                    if comments {
+                        body = Some(position);
+                        groups.bodies.insert(position, body);
+                    }
+                    if let Some(&(end, parent, outside)) =
+                        braces.and_then(|index| closing.get(index))
+                    {
+                        groups.ends.insert(position, end);
+                        braces = parent;
+                        brackets = outside;
+                    } else {
+                        brackets = None;
+                    }
+                }
+                '[' => {
+                    if let Some(&(end, parent, _)) = brackets.and_then(|index| closing.get(index)) {
+                        groups.ends.insert(position, end);
+                        brackets = parent;
+                    }
+                }
+                _ => {}
+            }
+        }
+        groups
+    }
+}
+
 fn raw_tex_arguments(name: &str) -> Option<&'static [TexArgument]> {
     use TexArgument::{Braced, ControlSequence, Optional, Text, Verbatim};
     match name {
@@ -382,7 +461,15 @@ impl InlineParser<'_> {
                         if char_at(self.text, argument_start) != Some('{') {
                             return None;
                         }
-                        position = self.scan_balanced_group(argument_start)?;
+                        position = if matches!(argument, TexArgument::Verbatim) {
+                            self.raw_tex_verbatim_groups
+                                .get_or_init(|| TexGroups::new(self.text, false))
+                                .ends
+                                .get(&argument_start)
+                                .copied()?
+                        } else {
+                            self.scan_balanced_group(argument_start)?
+                        };
                     }
                     TexArgument::Text => position = self.scan_tex_text_argument(argument_start)?,
                     TexArgument::ControlSequence => {
@@ -417,21 +504,12 @@ impl InlineParser<'_> {
     fn scan_tex_definition(&self, position: usize) -> Option<usize> {
         let target = self.tex_argument_start(position);
         let parameters = self.scan_tex_control_sequence(target)?;
-        let braces = self.raw_tex_braces.get_or_init(|| {
-            let mut escaped = false;
-            self.text
-                .char_indices()
-                .filter_map(|(position, character)| {
-                    if escaped {
-                        escaped = false;
-                        return None;
-                    }
-                    escaped = character == '\\';
-                    (character == '{').then_some(position)
-                })
-                .collect()
-        });
-        let body = *braces.get(braces.partition_point(|&position| position < parameters))?;
+        let body = self
+            .tex_groups()
+            .bodies
+            .range(parameters..)
+            .next()
+            .and_then(|(_, position)| *position)?;
         self.scan_balanced_group(body)
     }
 
@@ -443,10 +521,20 @@ impl InlineParser<'_> {
     }
 
     fn tex_argument_start(&self, mut position: usize) -> usize {
-        while matches!(char_at(self.text, position), Some(' ' | '\t' | '\n' | '\r')) {
-            position += 1;
+        loop {
+            while matches!(char_at(self.text, position), Some(' ' | '\t' | '\n' | '\r')) {
+                position += 1;
+            }
+            if char_at(self.text, position) != Some('%') {
+                return position;
+            }
+            position = self
+                .tex_groups()
+                .comments
+                .get(&position)
+                .copied()
+                .unwrap_or(self.text.len());
         }
-        position
     }
 
     fn scan_tex_text_argument(&self, start: usize) -> Option<usize> {
@@ -522,24 +610,12 @@ impl InlineParser<'_> {
     }
 
     fn raw_tex_group_ends(&self) -> &BTreeMap<usize, usize> {
-        self.raw_tex_groups.get_or_init(|| {
-            let mut braces = Vec::new();
-            let mut brackets = Vec::new();
-            let mut ends = BTreeMap::new();
-            for (position, byte) in self.text.bytes().enumerate() {
-                let stack = match byte {
-                    b'{' | b'}' => &mut braces,
-                    b'[' | b']' => &mut brackets,
-                    _ => continue,
-                };
-                if matches!(byte, b'{' | b'[') {
-                    stack.push(position);
-                } else if let Some(open) = stack.pop() {
-                    ends.insert(open, position + 1);
-                }
-            }
-            ends
-        })
+        &self.tex_groups().ends
+    }
+
+    fn tex_groups(&self) -> &TexGroups {
+        self.raw_tex_groups
+            .get_or_init(|| TexGroups::new(self.text, true))
     }
 
     /// Find the end of a brace or bracket group at `start`.
@@ -857,3 +933,7 @@ impl InlineParser<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tex_group_tests.rs"]
+mod tex_group_tests;

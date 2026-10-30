@@ -69,6 +69,38 @@ fn raw_tex_definitions_keep_parameters_and_replacement_text() {
 }
 
 #[test]
+fn raw_tex_groups_keep_escaped_braces_comments_and_optional_defaults() {
+    for source in [
+        r"\newcommand{\word}{a\}b}",
+        r"\def\word{a\}b}",
+        r"\newcommand{\word}[2][{a]b}]{#1 #2}",
+        "\\newcommand{\\word}{a% }\nb}",
+        "\\newcommand % target\n{\\word}{body}",
+        "\\def\\word#1% ignored {\n{#1}",
+    ] {
+        assert_eq!(pe(source, raw_tex()), vec![tex(source)], "{source}");
+    }
+    let source = r"{ text 50% \def\word{Hello} after";
+    assert!(pe(source, raw_tex()).contains(&tex(r"\def\word{Hello}")));
+}
+
+#[test]
+fn raw_tex_verbatim_arguments_keep_literal_percent_characters() {
+    for source in [
+        r"\url{https://example.com/a%20b}",
+        r"\href{https://example.com/a%20b}{text}",
+        r"\includegraphics{image%20path.png}",
+        r"\url{a\}b}",
+    ] {
+        assert_eq!(
+            pe(&format!("{source} after"), raw_tex()),
+            vec![tex(source), Inline::Space, str("after")],
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn raw_tex_bare_command_absorbs_trailing_blanks() {
     assert_eq!(pe(r"\alpha y", raw_tex()), vec![tex(r"\alpha "), str("y")]);
     assert_eq!(
