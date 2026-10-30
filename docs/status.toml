@@ -841,7 +841,7 @@ status = "usable"
 [[feature]]
 name = "Multiple inputs / defaults files (`--defaults`)"
 status = "in-development"
-notes = "Multiple binary inputs, `--file-scope`, and defaults files are not supported."
+notes = "`--file-scope` and defaults files are not supported."
 
 [[feature]]
 name = "CLI introspection (`--list-input-formats`, `--list-extensions`, …)"

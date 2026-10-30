@@ -1,5 +1,6 @@
 //! Filename format selection and ordered input loading.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -79,12 +80,6 @@ pub(super) fn read_documents(
 ) -> Result<(Document, MediaBag)> {
     let base = carta::parse_format_spec(from)?.0;
     let text = matches!(any_reader_for(&base)?, AnyReader::Text(_));
-    if !text && paths.len() > 1 {
-        return Err(Error::Io(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "multiple inputs require a text format",
-        )));
-    }
     if paths
         .iter()
         .filter(|path| path.as_path() == Path::new("-"))
@@ -103,16 +98,19 @@ pub(super) fn read_documents(
         let bytes = read_input(None, text)?;
         return read_document(from, &bytes, &options);
     }
-    if base == "json" && paths.len() > 1 {
+    if (base == "json" || !text) && paths.len() > 1 {
         let mut document = Document::default();
+        let mut media = MediaBag::new();
         for path in paths {
+            options.source_dir = super::source_dir(Some(path));
             let bytes = read_input(Some(path), text)?;
-            let (part, _) = read_document(from, &bytes, &options)?;
+            let (mut part, resources) = read_document(from, &bytes, &options)?;
+            merge_media(&mut part, &resources, &mut media);
             document.api_version = part.api_version;
             document.meta.extend(part.meta);
             document.blocks.extend(part.blocks);
         }
-        return Ok((document, MediaBag::new()));
+        return Ok((document, media));
     }
 
     let mut input = Vec::new();
@@ -127,6 +125,42 @@ pub(super) fn read_documents(
         input.extend(read_input(Some(path), text)?);
     }
     read_document(from, &input, &options)
+}
+
+fn merge_media(document: &mut Document, resources: &MediaBag, media: &mut MediaBag) {
+    let mut renamed = BTreeMap::new();
+    for (name, item) in resources.iter() {
+        let mut destination = name.to_owned();
+        if media.get(name).is_some_and(|existing| existing != item) {
+            let hash = carta::media::content_addressed_name(
+                item.mime
+                    .as_deref()
+                    .or_else(|| carta::media::image_mime_for_extension(name))
+                    .unwrap_or("application/octet-stream"),
+                &item.bytes,
+            );
+            destination.clone_from(&hash);
+            let mut suffix = 1;
+            while media
+                .get(&destination)
+                .is_some_and(|existing| existing != item)
+            {
+                destination = format!("{suffix}-{hash}");
+                suffix += 1;
+            }
+            renamed.insert(name, destination.clone());
+        }
+        if !media.contains(&destination) {
+            media.insert(destination, item.mime.clone(), item.bytes.clone());
+        }
+    }
+    if !renamed.is_empty() {
+        carta::walk::for_each_document_image_target(document, &mut |target| {
+            if let Some(name) = renamed.get(target.url.as_str()) {
+                target.url = name.clone().into();
+            }
+        });
+    }
 }
 
 fn read_input(path: Option<&Path>, text: bool) -> Result<Vec<u8>> {

@@ -525,16 +525,83 @@ fn input_errors_leave_the_output_file_unchanged() {
     assert_eq!(fs::read_to_string(output).unwrap(), "keep");
 }
 
+#[cfg(all(
+    feature = "write-docx",
+    feature = "read-docx",
+    feature = "write-odt",
+    feature = "read-odt",
+    feature = "write-epub",
+    feature = "read-epub",
+    feature = "write-plain"
+))]
 #[test]
-fn multiple_binary_inputs_fail_before_reading() {
-    let result = run(&["first.docx", "second.docx"], "");
-    assert!(!result.success);
-    assert!(
-        result
-            .stderr
-            .contains("multiple inputs require a text format"),
+fn multiple_binary_inputs_combine_document_content() {
+    let directory = input_directory("multiple-binary-inputs");
+    for format in ["docx", "odt", "epub"] {
+        let first = directory.join(format!("first.{format}"));
+        let second = directory.join(format!("second.{format}"));
+        for (path, source) in [(&first, "First document."), (&second, "Second document.")] {
+            let result = run(
+                &["-f", "markdown", "-t", format, "-o", path.to_str().unwrap()],
+                source,
+            );
+            assert!(result.success, "{}", result.stderr);
+        }
+        let result = run(
+            &[
+                "-t",
+                "plain",
+                first.to_str().unwrap(),
+                second.to_str().unwrap(),
+            ],
+            "",
+        );
+        assert!(result.success, "{}", result.stderr);
+        assert_eq!(result.stdout, "First document.\n\nSecond document.\n");
+    }
+}
+
+#[cfg(all(feature = "write-docx", feature = "read-docx", feature = "write-html"))]
+#[test]
+fn binary_inputs_keep_distinct_images_with_the_same_resource_name() {
+    let directory = input_directory("binary-input-images");
+    let images = [
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNIYWD4DwAClAFksW0mcwAAAABJRU5ErkJggg==",
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGM4wcDwHwAEJAHIBqHEeAAAAABJRU5ErkJggg==",
+    ];
+    let first = directory.join("first.docx");
+    let second = directory.join("second.docx");
+    for (path, image) in [(&first, images[0]), (&second, images[1])] {
+        let source = format!("![picture](data:image/png;base64,{image})");
+        let result = run(
+            &["-f", "markdown", "-t", "docx", "-o", path.to_str().unwrap()],
+            &source,
+        );
+        assert!(result.success, "{}", result.stderr);
+    }
+    let result = run(
+        &[
+            "-t",
+            "html",
+            "--embed-resources",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+            first.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert_eq!(
+        result.stdout.matches(images[0]).count(),
+        2,
         "{}",
-        result.stderr
+        result.stdout
+    );
+    assert_eq!(
+        result.stdout.matches(images[1]).count(),
+        1,
+        "{}",
+        result.stdout
     );
 }
 
