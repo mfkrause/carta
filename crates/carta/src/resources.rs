@@ -1,5 +1,6 @@
 //! Resource resolution: media extraction, disk lookup, and remote fetch for self-contained output.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -33,6 +34,32 @@ pub(super) fn resolve_resource(reference: &str, search_path: &[PathBuf]) -> Opti
     search_path
         .iter()
         .find_map(|dir| fs::read(dir.join(reference)).ok())
+}
+
+pub(super) fn gather_local_images(
+    document: &mut Document,
+    media: &mut MediaBag,
+    search_path: &[PathBuf],
+) {
+    let mut references = BTreeSet::new();
+    carta::walk::for_each_document_image_target(document, &mut |target| {
+        references.insert(target.url.to_string());
+    });
+    for reference in references {
+        if media.contains(&reference)
+            || reference.starts_with("//")
+            || reference.contains("://")
+            || reference
+                .get(..5)
+                .is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:"))
+        {
+            continue;
+        }
+        if let Some(bytes) = resolve_resource(&reference, search_path) {
+            let mime = media::image_mime_for_extension(&reference).map(str::to_owned);
+            media.insert(reference, mime, bytes);
+        }
+    }
 }
 
 /// Resolve a reference the self-contained HTML pass encounters into its bytes and MIME type, in order:
@@ -70,9 +97,11 @@ pub(super) fn resolve_embed(
 }
 
 /// Whether a reference is retrieved over the network rather than read from disk.
-#[cfg(feature = "write-html")]
+#[cfg(any(feature = "write-html", feature = "write-pdf", feature = "write-epub"))]
 fn is_remote_url(reference: &str) -> bool {
-    reference.starts_with("http://") || reference.starts_with("https://")
+    reference.split_once("://").is_some_and(|(scheme, _)| {
+        scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+    })
 }
 
 /// The MIME type a reference's file extension implies, for the `data:` URI that inlines it. Covers the
@@ -109,12 +138,14 @@ fn mime_for_path(reference: &str) -> Option<String> {
     Some(mime.to_owned())
 }
 
-/// Retrieve a resource over HTTP(S) for inlining, returning its bytes and the MIME type its
-/// `Content-Type` reports. A network failure, an error status, or an unreadable body is reported and
-/// the reference is left external.
-#[cfg(all(any(feature = "write-html", feature = "write-pdf"), feature = "fetch"))]
+/// Fetch a resource over HTTP(S), keeping its reported MIME type.
+/// A failed request reports the error and returns `None`.
+#[cfg(all(
+    any(feature = "write-html", feature = "write-pdf", feature = "write-epub"),
+    feature = "fetch"
+))]
 pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
-    // Self-contained pages may embed large media; lift the read ceiling above the client default.
+    // Embedded images can be large, so lift the client's default read limit.
     const LIMIT: u64 = 128 * 1024 * 1024;
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(std::time::Duration::from_secs(30)))
@@ -139,10 +170,9 @@ pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
     }
 }
 
-/// Without the `fetch` feature the tool retrieves no remote resource; the reference is reported and
-/// left external.
+/// Report that network support is unavailable and return `None`.
 #[cfg(all(
-    any(feature = "write-html", feature = "write-pdf"),
+    any(feature = "write-html", feature = "write-pdf", feature = "write-epub"),
     not(feature = "fetch")
 ))]
 pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
@@ -151,6 +181,7 @@ pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
 }
 
 /// Write embedded media under `dir` and rewrite image URLs under `references`.
+/// Return media under the rewritten URLs, preserving bytes and MIME types.
 /// Data URIs use content-addressed names; `preserve_names` keeps other safe resource names.
 pub(super) fn extract_media(
     dir: &Path,
@@ -158,7 +189,7 @@ pub(super) fn extract_media(
     mut media: MediaBag,
     document: &mut Document,
     preserve_names: bool,
-) -> Result<()> {
+) -> Result<MediaBag> {
     carta::walk::for_each_document_image_target(document, &mut |target| {
         if !media.contains(&target.url)
             && let Some((bytes, mime)) = media::decode_data_uri(&target.url)
@@ -180,7 +211,16 @@ pub(super) fn extract_media(
             target.url = media::extracted_path(references, &name).into();
         }
     });
-    Ok(())
+    let mut extracted = MediaBag::new();
+    for (name, item) in media {
+        let name = extracted_name(&name, &item, preserve_names);
+        extracted.insert(
+            media::extracted_path(references, &name),
+            item.mime,
+            item.bytes,
+        );
+    }
+    Ok(extracted)
 }
 
 fn extracted_name(name: &str, item: &carta::MediaItem, preserve_names: bool) -> String {
@@ -203,12 +243,12 @@ pub(super) fn extract_tex_media(
         .and_then(Path::parent)
         .unwrap_or_else(|| Path::new("."))
         .join("media");
-    extract_media(&directory, "media", media, document, false)
+    extract_media(&directory, "media", media, document, false).map(|_| ())
 }
 
-/// Fetch remote PDF images before the compiler reads its local resources.
-#[cfg(feature = "write-pdf")]
-pub(super) fn fetch_pdf_images(
+/// Fetch remote images before packaging or external compilation.
+#[cfg(any(feature = "write-pdf", feature = "write-epub"))]
+pub(super) fn fetch_remote_images(
     document: &mut carta::Document,
     resources: &mut MediaBag,
     sandbox: bool,
@@ -216,13 +256,16 @@ pub(super) fn fetch_pdf_images(
     if sandbox {
         return;
     }
+    let mut references = BTreeSet::new();
     carta::walk::for_each_document_image_target(document, &mut |target| {
         let url = target.url.as_ref();
-        if !resources.contains(url)
-            && (url.starts_with("http://") || url.starts_with("https://"))
-            && let Some(item) = fetch_remote(url)
-        {
-            resources.insert(url, item.mime, item.bytes);
+        if !resources.contains(url) && is_remote_url(url) {
+            references.insert(url.to_owned());
         }
     });
+    for url in references {
+        if let Some(item) = fetch_remote(&url) {
+            resources.insert(url, item.mime, item.bytes);
+        }
+    }
 }

@@ -1122,51 +1122,92 @@ fn embed_resources_fetches_a_remote_image_over_http() {
     use std::io::Read;
     use std::net::TcpListener;
 
-    // loopback server stands in for a remote host; exercises the fetch path without leaving the machine
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
-    let addr = listener.local_addr().expect("local addr");
-    let handle = std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept connection");
-        let mut request = Vec::new();
-        let mut byte = [0u8; 1];
-        while stream.read(&mut byte).unwrap_or(0) == 1 {
-            request.push(byte[0]);
-            if request.ends_with(b"\r\n\r\n") {
-                break;
+    let targets = if cfg!(feature = "write-epub") {
+        vec!["html", "epub3"]
+    } else {
+        vec!["html"]
+    };
+    for target in targets {
+        // loopback server stands in for a remote host; exercises the fetch path without leaving the machine
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let addr = listener.local_addr().expect("local addr");
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept connection");
+            let mut request = Vec::new();
+            let mut byte = [0u8; 1];
+            while stream.read(&mut byte).unwrap_or(0) == 1 {
+                request.push(byte[0]);
+                if request.ends_with(b"\r\n\r\n") {
+                    break;
+                }
             }
-        }
-        let body = b"PNGDATA-xyz";
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        );
-        stream
-            .write_all(response.as_bytes())
-            .expect("write headers");
-        stream.write_all(body).expect("write body");
-    });
+            let body = b"PNGDATA-xyz";
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("write headers");
+            stream.write_all(body).expect("write body");
+        });
 
-    let url = format!("http://{addr}/logo.png");
-    let markdown = format!("![logo]({url})\n");
-    let result = run(
-        &[
+        let url = format!("http://{addr}/logo.png");
+        let markdown = if target == "html" {
+            format!("![logo]({url})\n")
+        } else {
+            format!("---\ntitle: '![title]({url})'\n---\n\n# Chapter\n\n![logo]({url})\n")
+        };
+        let directory = input_directory("remote-epub-image");
+        let output = directory.join("book.epub");
+        let mut arguments = vec![
             "-f",
-            "commonmark",
+            if target == "html" {
+                "commonmark"
+            } else {
+                "markdown"
+            },
             "-t",
-            "html",
+            target,
             "--embed-resources",
             "--wrap=none",
-        ],
-        &markdown,
-    );
-    handle.join().expect("server thread");
+        ];
+        if target != "html" {
+            arguments.extend(["-o", output.to_str().unwrap()]);
+        }
+        let result = run(&arguments, &markdown);
+        handle.join().expect("server thread");
 
-    assert!(result.success, "stderr: {}", result.stderr);
-    assert_eq!(
-        result.stdout,
-        "<p><img role=\"img\" aria-label=\"logo\" \
+        assert!(result.success, "stderr: {}", result.stderr);
+        if target == "html" {
+            assert_eq!(
+                result.stdout,
+                "<p><img role=\"img\" aria-label=\"logo\" \
          src=\"data:image/png;base64,UE5HREFUQS14eXo=\" alt=\"logo\" /></p>\n"
-    );
+            );
+        } else {
+            #[cfg(feature = "write-epub")]
+            {
+                let bytes = fs::read(output).unwrap();
+                let entries = carta_core::container::zip::read(&bytes).unwrap();
+                let images: Vec<_> = entries
+                    .iter()
+                    .filter(|entry| entry.name.contains("/media/"))
+                    .collect();
+                assert_eq!(images.len(), 1);
+                assert_eq!(images[0].data, b"PNGDATA-xyz");
+                let title = entries
+                    .iter()
+                    .find(|entry| entry.name == "EPUB/text/title_page.xhtml")
+                    .unwrap();
+                assert!(
+                    std::str::from_utf8(&title.data)
+                        .unwrap()
+                        .contains("src=\"../media/file0.png\"")
+                );
+            }
+        }
+    }
 }
 
 #[cfg(feature = "write-html")]

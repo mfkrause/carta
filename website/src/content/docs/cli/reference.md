@@ -63,7 +63,7 @@ Inline a document's referenced media into HTML output as `data:` URIs, producing
 Deprecated alias for `--embed-resources --standalone`: produce a self-contained standalone HTML file
 
 **--sandbox**  
-Disable network access: remote (`http(s)://`) resources referenced by the document are not fetched. References that would be embedded are left external and a warning is emitted. Use when converting untrusted documents to avoid fetching document-controlled URLs
+Disable network access for document resources. EPUB and PDF use descriptions for unavailable images; HTML keeps external references
 
 **-s**, **--standalone**  
 Produce a standalone document, wrapping the body in the format's template

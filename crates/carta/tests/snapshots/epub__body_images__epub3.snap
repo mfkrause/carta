@@ -13,7 +13,7 @@ EPUB/text/title_page.xhtml (489 bytes)
 EPUB/styles/stylesheet1.css (3090 bytes)
 EPUB/media/file0.gif (10 bytes)
 EPUB/media/file1.jpg (11 bytes)
-EPUB/text/ch001.xhtml (940 bytes)
+EPUB/text/ch001.xhtml (873 bytes)
 
 === mimetype ===
 application/epub+zip
@@ -38,7 +38,7 @@ application/epub+zip
 <?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en-US" unique-identifier="epub-id-1" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
-    <dc:identifier id="epub-id-1">urn:uuid:181ecaab-4a97-1596-6bc4-87a12b420075</dc:identifier>
+    <dc:identifier id="epub-id-1">urn:uuid:389925df-fcd2-62c4-316e-c4eeeaaadab9</dc:identifier>
     <dc:title id="epub-title-1">UNTITLED</dc:title>
     <dc:date id="epub-date">1970-01-01T00:00:01Z</dc:date>
     <dc:language>en-US</dc:language>
@@ -74,7 +74,7 @@ application/epub+zip
 <?xml version="1.0" encoding="UTF-8"?>
 <ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
   <head>
-    <meta name="dtb:uid" content="urn:uuid:181ecaab-4a97-1596-6bc4-87a12b420075" />
+    <meta name="dtb:uid" content="urn:uuid:389925df-fcd2-62c4-316e-c4eeeaaadab9" />
     <meta name="dtb:depth" content="1" />
     <meta name="dtb:totalPageCount" content="0" />
     <meta name="dtb:maxPageNumber" content="0" />
@@ -289,8 +289,8 @@ span.header-section-number::after { content: " "; }
 <h1>Illustrated</h1>
 <p>A diagram: <img src="../media/file0.gif" alt="Diagram" /></p>
 <p>A photo: <img src="../media/file1.jpg" alt="Photo" /></p>
-<p>Remote: <img src="https://example.com/remote.png" alt="Remote" /></p>
-<p>Missing: <img src="../assets/missing.png" alt="Missing" /></p>
+<p>Remote: <span>Remote</span></p>
+<p>Missing: <span>Missing</span></p>
 <table>
 <thead>
 <tr>

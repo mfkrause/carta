@@ -245,6 +245,52 @@ fn epub_data_images_are_packaged_once() {
 }
 
 #[test]
+fn unavailable_images_keep_descriptions_captions_and_identifiers() {
+    let source = "---\ntitle: '![Title description](missing-title.png)'\n---\n\n# Chapter\n\nInline ![image *description*](missing.png){#picture}.\n\n![Figure caption](https://example.invalid/missing.png)\n";
+    for target in ["epub2", "epub3"] {
+        let bytes = epub_bytes(source, target, &WriterOptions::default());
+        let entries = zip::read(&bytes).unwrap();
+        let mut pages = String::new();
+        for entry in &entries {
+            if entry.name.ends_with(".xhtml") {
+                pages.push_str(std::str::from_utf8(&entry.data).unwrap());
+            }
+        }
+        assert!(!pages.contains("<img"), "{pages}");
+        for expected in [
+            "Title description",
+            "id=\"picture\"",
+            "<em>description</em>",
+            "Figure caption",
+        ] {
+            assert!(pages.contains(expected), "missing {expected}: {pages}");
+        }
+    }
+}
+
+#[test]
+fn metadata_and_body_images_share_one_packaged_asset() {
+    let image = format!("data:image/png;base64,{}", base64_encode(&tiny_png()));
+    let source = format!("---\ntitle: '![Title]({image})'\n---\n\n# Chapter\n\n![Body]({image})\n");
+    for target in ["epub2", "epub3"] {
+        let bytes = epub_bytes(&source, target, &WriterOptions::default());
+        let entries = zip::read(&bytes).unwrap();
+        let assets: Vec<_> = entries
+            .iter()
+            .filter(|entry| entry.name.contains("/media/"))
+            .collect();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].data, tiny_png());
+        for page in ["EPUB/text/title_page.xhtml", "EPUB/text/ch001.xhtml"] {
+            let entry = entries.iter().find(|entry| entry.name == page).unwrap();
+            let text = std::str::from_utf8(&entry.data).unwrap();
+            assert!(text.contains("src=\"../media/file0.png\""), "{text}");
+            assert!(!text.contains("data:image"), "{text}");
+        }
+    }
+}
+
+#[test]
 fn epub_cross_chapter_table_cell_id_snapshot() {
     let markdown = concat!(
         "# Overview\n\n",

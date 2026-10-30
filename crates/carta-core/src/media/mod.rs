@@ -116,6 +116,15 @@ impl MediaBag {
     }
 }
 
+impl IntoIterator for MediaBag {
+    type Item = (String, MediaItem);
+    type IntoIter = std::collections::btree_map::IntoIter<String, MediaItem>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
 /// Decode a base64 or percent-encoded data URI into its bytes and MIME type.
 /// Invalid percent escapes yield `None`; an absent MIME type defaults to `text/plain`.
 #[must_use]

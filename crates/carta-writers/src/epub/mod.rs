@@ -108,9 +108,9 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .map_or(1, |level| i64::try_from(level).unwrap_or(i64::MAX));
     let toc_depth = options.toc_depth.unwrap_or(3);
 
-    // Rewrite images before splitting chapters; rewrite fragments across the split.
-    let mut sectioned = build_sectioned(document, options);
-    let (media, cover, fonts) = gather_media(epub, &mut sectioned, options);
+    let mut document = document.clone();
+    let (media, cover, fonts) = gather_media(epub, &mut document, options);
+    let sectioned = build_sectioned(&mut document, options);
     let mut chapters = build_chapter_files(&sectioned, split_level);
     let id_files = map_ids_to_files(&chapters);
     rewrite_internal_links(&mut chapters, &id_files);
@@ -120,7 +120,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .iter()
         .map(|chapter| crate::html::render_epub_chapter(&chapter.blocks, epub3, options))
         .collect();
-    let (meta, doc_meta) = resolve_metadata(document, epub, &bodies.join("\n"));
+    let (meta, doc_meta) = resolve_metadata(&document, epub, &bodies.join("\n"));
 
     let (stylesheet_names, stylesheets) = stylesheets(epub);
 
@@ -307,13 +307,13 @@ fn pack_epub(parts: &BookParts) -> Result<Vec<u8>> {
 /// Structure the document body into the nested section tree an EPUB uses, applying section numbering
 /// first when requested. A document with a title but no body still yields a leading title section, so
 /// the book is never wholly empty.
-fn build_sectioned(document: &Document, options: &WriterOptions) -> Vec<Block> {
+fn build_sectioned(document: &mut Document, options: &WriterOptions) -> Vec<Block> {
     let title_inlines = document
         .meta
         .get("title")
         .map(metadata::meta_inlines)
         .unwrap_or_default();
-    let mut body = document.blocks.clone();
+    let mut body = std::mem::take(&mut document.blocks);
     if options.number_sections {
         carta_core::sections::number_sections(&mut body);
     }
@@ -365,15 +365,14 @@ fn rewrite_internal_links(chapters: &mut [Chapter], id_files: &BTreeMap<String, 
     }
 }
 
-/// Gather the container's binary resources: the images the body references (rewriting each reference
-/// to its stored path), the cover image, and the embedded fonts.
+/// Gather document images, the cover image, and embedded fonts.
 fn gather_media(
     epub: &EpubOptions,
-    body: &mut [Block],
+    document: &mut Document,
     options: &WriterOptions,
 ) -> (Vec<Asset>, Option<Cover>, Vec<Asset>) {
     let mut media: Vec<Asset> = Vec::new();
-    collect_images(body, options, &mut media);
+    collect_images(document, options, &mut media);
 
     let cover = epub.cover_image.as_ref().map(|(name, bytes)| {
         let extension = file_extension(name);
@@ -433,11 +432,10 @@ fn resolve_metadata(document: &Document, epub: &EpubOptions, seed: &str) -> (Boo
     (meta, doc_meta)
 }
 
-/// Collect every image the body references into `media`, assigning each a `media/fileN.ext` name in
-/// order of first appearance, and rewrite each reference to point at the stored file.
-fn collect_images(body: &mut [Block], options: &WriterOptions, media: &mut Vec<Asset>) {
-    let mut assigned: BTreeMap<String, usize> = BTreeMap::new();
-    carta_core::walk::for_each_image_target(body, &mut |target| {
+/// Package document images and replace unavailable images with their descriptions.
+fn collect_images(document: &mut Document, options: &WriterOptions, media: &mut Vec<Asset>) {
+    let mut assigned: BTreeMap<String, Option<usize>> = BTreeMap::new();
+    carta_core::walk::for_each_document_image_target(document, &mut |target| {
         let url = target.url.to_string();
         if assigned.contains_key(&url) {
             return;
@@ -449,6 +447,8 @@ fn collect_images(body: &mut [Block], options: &WriterOptions, media: &mut Vec<A
                 mime: Some(mime),
             })
         }) else {
+            eprintln!("carta: could not read image '{url}'; using its description");
+            assigned.insert(url, None);
             return;
         };
         let index = media.len();
@@ -463,42 +463,23 @@ fn collect_images(body: &mut [Block], options: &WriterOptions, media: &mut Vec<A
             properties: None,
             bytes: item.bytes,
         });
-        assigned.insert(url, index);
+        assigned.insert(url, Some(index));
     });
-    carta_core::walk::for_each_image_target(body, &mut |target| {
+    carta_core::walk::for_each_document_inline(document, &mut |inline| {
+        let Inline::Image(attr, alt, target) = inline else {
+            return;
+        };
         if let Some(asset) = assigned
             .get(target.url.as_str())
-            .and_then(|&i| media.get(i))
+            .copied()
+            .flatten()
+            .and_then(|index| media.get(index))
         {
             target.url = format!("../{}", asset.href).into();
-        } else if is_relative_resource(target.url.as_str()) {
-            // Chapters live in `text/`; a non-embedded relative resource must climb to the container root.
-            target.url = format!("../{}", target.url).into();
+        } else {
+            *inline = Inline::Span(std::mem::take(attr), std::mem::take(alt));
         }
     });
-}
-
-/// Whether a reference is a working-directory-relative local path, one that a chapter, nested a
-/// level down, must reach with a `../` prefix. Absolute paths, scheme URLs, protocol-relative URLs
-/// and inline `data:` payloads resolve on their own and are left untouched.
-fn is_relative_resource(url: &str) -> bool {
-    !(url.is_empty()
-        || url.starts_with('/')
-        || url.starts_with('#')
-        || url.starts_with("data:")
-        || url.starts_with("//")
-        || url.contains("://")
-        || is_windows_drive_path(url))
-}
-
-/// Whether `url` begins with a Windows drive-letter root such as `C:\` or `C:/`: an absolute path
-/// that must not be treated as working-directory-relative and climbed with `../`.
-fn is_windows_drive_path(url: &str) -> bool {
-    let mut chars = url.chars();
-    matches!(
-        (chars.next(), chars.next(), chars.next()),
-        (Some(letter), Some(':'), Some('/' | '\\')) if letter.is_ascii_alphabetic()
-    )
 }
 
 /// The stylesheets linked from every page: the file names in link order, and each `(name, contents)`
@@ -887,7 +868,7 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
 mod tests {
     use super::{
         basename, file_extension, font_media_type, image_extension, image_media_type,
-        is_relative_resource, iso_from_epoch, item_id_for, join, safe_filename,
+        iso_from_epoch, item_id_for, join, safe_filename,
     };
     use carta_core::media::{MediaItem, extension_for_mime};
 
@@ -916,19 +897,6 @@ mod tests {
         assert_eq!(font_media_type("Regular.woff"), "font/woff");
         assert_eq!(font_media_type("Regular.woff2"), "font/woff2");
         assert_eq!(font_media_type("Regular.bin"), "application/octet-stream");
-    }
-
-    #[test]
-    fn only_working_directory_relative_paths_need_climbing() {
-        assert!(is_relative_resource("media/pic.png"));
-        assert!(!is_relative_resource(""));
-        assert!(!is_relative_resource("/absolute.png"));
-        assert!(!is_relative_resource("#fragment"));
-        assert!(!is_relative_resource("data:image/png;base64,AAAA"));
-        assert!(!is_relative_resource("//cdn.example/pic.png"));
-        assert!(!is_relative_resource("https://example.com/pic.png"));
-        assert!(!is_relative_resource("C:\\images\\pic.png"));
-        assert!(!is_relative_resource("C:/images/pic.png"));
     }
 
     #[test]

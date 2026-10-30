@@ -12,7 +12,7 @@ use carta::ast::MetaValue;
 use carta::inline_resources;
 use carta::{
     Error, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision, WrapMode,
-    WriterOptions, media, render_document,
+    WriterOptions, render_document,
 };
 use clap::{ArgAction, CommandFactory, Parser};
 
@@ -28,7 +28,7 @@ use options::{docx_options, epub_options};
 use options::{highlight_options, print_highlight_style};
 #[cfg(feature = "write-html")]
 use resources::resolve_embed;
-use resources::{extract_media, resolve_resource, resource_search_path};
+use resources::{extract_media, resource_search_path};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -80,9 +80,8 @@ struct Cli {
     /// HTML file.
     #[arg(long = "self-contained")]
     self_contained: bool,
-    /// Disable network access: remote (`http(s)://`) resources referenced by the document are not
-    /// fetched. References that would be embedded are left external and a warning is emitted. Use when
-    /// converting untrusted documents to avoid fetching document-controlled URLs.
+    /// Disable network access for document resources. EPUB and PDF use descriptions for unavailable
+    /// images; HTML keeps external references.
     #[arg(long = "sandbox")]
     sandbox: bool,
     /// Produce a standalone document, wrapping the body in the format's template.
@@ -430,13 +429,12 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.metadata_defaults.clear();
 
     let mut resources = match &cli.extract_media {
-        // Extraction rewrites resources to external files; the writer renders against an empty bag.
-        Some(dir) => {
-            extract_media(dir, &dir.to_string_lossy(), resources, &mut document, true)?;
-            MediaBag::new()
-        }
+        Some(dir) => extract_media(dir, &dir.to_string_lossy(), resources, &mut document, true)?,
         None => resources,
     };
+    if cli.extract_media.is_some() && to_base == "ipynb" {
+        resources = MediaBag::new();
+    }
 
     // Filters see extracted paths; gather newly introduced resources before packaging.
     filters::run(
@@ -457,16 +455,14 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     }
 
     // Containers gather tree resources; HTML embedding also reads rendered tags and styles.
-    if cli.extract_media.is_none() && embeds_resources(to) {
+    if embeds_resources(to) {
         let search_path = resource_search_path(cli);
-        media::embed_referenced_media(&mut document.blocks, &mut resources, |reference| {
-            resolve_resource(reference, &search_path)
-        });
+        resources::gather_local_images(&mut document, &mut resources, &search_path);
     }
 
-    #[cfg(feature = "write-pdf")]
-    if to_base == "pdf" {
-        resources::fetch_pdf_images(&mut document, &mut resources, cli.sandbox);
+    #[cfg(any(feature = "write-pdf", feature = "write-epub"))]
+    if to_base == "pdf" || to_base.starts_with("epub") {
+        resources::fetch_remote_images(&mut document, &mut resources, cli.sandbox);
     }
 
     // Inlines against the finished page; the bag lets reader-carried resources resolve without disk I/O.
