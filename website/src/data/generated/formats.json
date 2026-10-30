@@ -132,9 +132,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-markdown",
-        "gaps": [
-          "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled."
-        ]
+        "gaps": []
       }
     },
     {

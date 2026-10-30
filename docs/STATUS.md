@@ -197,10 +197,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `commonmark` ✅
 ### `commonmark_x` ✅
 ### `gfm` ✅
-
 ### `markdown` ✅
-- The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
-
 ### `markdown_github` ✅
 ### `markdown_mmd` ✅
 ### `markdown_phpextra` ✅

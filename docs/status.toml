@@ -57,7 +57,6 @@ read-gaps = [
   "Bracketed citations resolve through a memo, so nesting costs linear work; only brackets nested tens of levels deep (past a work budget that bounds total citation output) stay literal text.",
 ]
 write-gaps = [
-  "The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.",
 ]
 
 [[format]]
