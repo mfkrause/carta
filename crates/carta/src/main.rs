@@ -52,6 +52,8 @@ struct Cli {
     #[arg(long = "pdf-engine-opt", allow_hyphen_values = true)]
     pdf_engine_options: Vec<String>,
     /// Write output to this file instead of stdout.
+    /// LaTeX and Beamer save embedded images in `media/` beside the output file (or in the current
+    /// directory for stdout), unless `--extract-media` names another directory.
     #[arg(short = 'o', long = "output")]
     output: Option<PathBuf>,
     /// Extract the input's embedded media to this directory, writing each resource as a file and
@@ -426,7 +428,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let mut resources = match &cli.extract_media {
         // Extraction rewrites resources to external files; the writer renders against an empty bag.
         Some(dir) => {
-            extract_media(dir, &resources, &mut document.blocks)?;
+            extract_media(dir, &dir.to_string_lossy(), resources, &mut document, true)?;
             MediaBag::new()
         }
         None => resources,
@@ -443,6 +445,11 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // Re-levelling comes after the filters so they see the levels the document was read with.
     if let Some(by) = cli.shift_heading_level_by {
         carta_core::sections::shift_heading_levels(&mut document, by);
+    }
+
+    if cli.extract_media.is_none() && matches!(to_base.as_str(), "latex" | "beamer") {
+        resources::extract_tex_media(cli.output.as_deref(), resources, &mut document)?;
+        resources = MediaBag::new();
     }
 
     // Containers gather tree resources; HTML embedding also reads rendered tags and styles.

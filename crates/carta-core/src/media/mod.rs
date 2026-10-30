@@ -120,10 +120,16 @@ impl MediaBag {
 /// Invalid percent escapes yield `None`; an absent MIME type defaults to `text/plain`.
 #[must_use]
 pub fn decode_data_uri(url: &str) -> Option<(Vec<u8>, String)> {
-    let rest = url.strip_prefix("data:")?;
+    let (scheme, rest) = url.split_once(':')?;
+    if !scheme.eq_ignore_ascii_case("data") {
+        return None;
+    }
     let (header, payload) = rest.split_once(',').unwrap_or((rest, ""));
     let payload = percent_decode_bytes(payload)?;
-    let bytes = if header.ends_with(";base64") {
+    let bytes = if header
+        .rsplit_once(';')
+        .is_some_and(|(_, encoding)| encoding.eq_ignore_ascii_case("base64"))
+    {
         base64::decode_lenient(&String::from_utf8_lossy(&payload))
     } else {
         payload
@@ -132,7 +138,7 @@ pub fn decode_data_uri(url: &str) -> Option<(Vec<u8>, String)> {
         Some(kind) if !kind.is_empty() => kind,
         _ => "text/plain",
     };
-    Some((bytes, mime.to_owned()))
+    Some((bytes, mime.to_ascii_lowercase()))
 }
 
 /// The conventional file extension (without a leading dot) for an image-like MIME type. An
@@ -156,18 +162,34 @@ pub fn extension_for_mime(mime: &str) -> &str {
 
 /// A content-addressed name for a resource: the SHA-1 of its bytes, then a dot, then the extension
 /// its MIME type implies. Identical bytes therefore always resolve to the same name.
+/// An empty extension or one with unsafe filename characters becomes `bin`.
 #[must_use]
 pub fn content_addressed_name(mime: &str, bytes: &[u8]) -> String {
-    format!("{}.{}", sha1_hex(bytes), extension_for_mime(mime))
+    let extension = extension_for_mime(mime);
+    let extension = if !extension.is_empty()
+        && extension
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        extension
+    } else {
+        "bin"
+    };
+    format!("{}.{}", sha1_hex(bytes), extension)
 }
 
 /// Return an extraction path that remains inside the destination directory.
 ///
 /// Safe nested paths remain unchanged. Absolute paths, drive prefixes, and escaping `..`
 /// components use a content-addressed single-segment name. Extraction and link rewriting share it.
+/// Data URIs also use content-addressed names.
 #[must_use]
 pub fn extraction_target(name: &str, item: &MediaItem) -> String {
-    match sanitized_relative(name) {
+    match sanitized_relative(name).filter(|_| {
+        !name
+            .get(..5)
+            .is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:"))
+    }) {
         Some(safe) => safe,
         None => content_addressed_name(
             item.mime.as_deref().unwrap_or("application/octet-stream"),
@@ -391,6 +413,24 @@ mod tests {
     }
 
     #[test]
+    fn extraction_hashes_data_uris_and_rejects_path_characters_in_mime_types() {
+        let item = super::MediaItem {
+            mime: Some("image/png".into()),
+            bytes: vec![255, 0],
+        };
+        assert_eq!(
+            super::extraction_target("data:image/png,%FF%00", &item),
+            super::content_addressed_name("image/png", &item.bytes)
+        );
+        for mime in ["image/..\\outside", "image/x:stream", "image/"] {
+            assert_eq!(
+                super::content_addressed_name(mime, &item.bytes),
+                super::content_addressed_name("application/bin", &item.bytes)
+            );
+        }
+    }
+
+    #[test]
     fn rewrite_points_bag_references_at_their_extracted_paths() {
         let mut bag = MediaBag::new();
         bag.insert("a.png", Some("image/png".to_owned()), vec![1]);
@@ -500,6 +540,7 @@ mod tests {
     fn data_uris_accept_percent_encoding_and_incomplete_base64() {
         for (url, bytes, mime) in [
             ("data:image/png;base64,YQ", vec![97], "image/png"),
+            ("DATA:IMAGE/PNG;BASE64,/wA=", vec![255, 0], "image/png"),
             ("data:image/png;base64,YQ%3D%3D", vec![97], "image/png"),
             ("data:;base64,!!!", Vec::new(), "text/plain"),
             (

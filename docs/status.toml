@@ -130,7 +130,6 @@ read = "not-applicable"
 write = "usable"
 write-feature = "write-beamer"
 write-gaps = [
-  "`data:` images are used as graphics filenames rather than decoded.",
 ]
 
 [[format]]
@@ -226,7 +225,6 @@ read-gaps = [
   '''Delimited macro parameters, `\let` bindings, `\csname`/`\expandafter`, catcode changes, and multi-optional macros are unsupported. Expansion has a work allowance based on the source length.''',
 ]
 write-gaps = [
-  "`data:` images are used as graphics filenames rather than decoded.",
 ]
 
 [[format]]

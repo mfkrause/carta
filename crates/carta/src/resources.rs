@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "write-html")]
 use carta::Resource;
-use carta::ast::Block;
-use carta::{MediaBag, Result, media};
+use carta::{Document, MediaBag, Result, media};
 
 use super::Cli;
 
@@ -151,19 +150,60 @@ pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
     None
 }
 
-/// Writes every resource in `media` to a file under `dir` (`<dir>/<name>`, creating parent
-/// directories) and rewrites the document's references to those resources to point at the files.
-pub(super) fn extract_media(dir: &Path, media: &MediaBag, blocks: &mut [Block]) -> Result<()> {
+/// Write embedded media under `dir` and rewrite image URLs under `references`.
+/// Data URIs use content-addressed names; `preserve_names` keeps other safe resource names.
+pub(super) fn extract_media(
+    dir: &Path,
+    references: &str,
+    mut media: MediaBag,
+    document: &mut Document,
+    preserve_names: bool,
+) -> Result<()> {
+    carta::walk::for_each_document_image_target(document, &mut |target| {
+        if !media.contains(&target.url)
+            && let Some((bytes, mime)) = media::decode_data_uri(&target.url)
+        {
+            media.insert(target.url.to_string(), Some(mime), bytes);
+        }
+    });
     for (name, item) in media.iter() {
-        let safe = media::extraction_target(name, item);
+        let safe = extracted_name(name, item, preserve_names);
         let path = dir.join(&safe);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(path, &item.bytes)?;
     }
-    media::rewrite_extracted_references(blocks, media, &dir.to_string_lossy());
+    carta::walk::for_each_document_image_target(document, &mut |target| {
+        if let Some(item) = media.get(&target.url) {
+            let name = extracted_name(&target.url, item, preserve_names);
+            target.url = media::extracted_path(references, &name).into();
+        }
+    });
     Ok(())
+}
+
+fn extracted_name(name: &str, item: &carta::MediaItem, preserve_names: bool) -> String {
+    if preserve_names {
+        media::extraction_target(name, item)
+    } else {
+        media::content_addressed_name(
+            item.mime.as_deref().unwrap_or("application/octet-stream"),
+            &item.bytes,
+        )
+    }
+}
+
+pub(super) fn extract_tex_media(
+    output: Option<&Path>,
+    media: MediaBag,
+    document: &mut Document,
+) -> Result<()> {
+    let directory = output
+        .and_then(Path::parent)
+        .unwrap_or_else(|| Path::new("."))
+        .join("media");
+    extract_media(&directory, "media", media, document, false)
 }
 
 /// Fetch remote PDF images before the compiler reads its local resources.

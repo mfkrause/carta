@@ -248,9 +248,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-beamer",
-        "gaps": [
-          "`data:` images are used as graphics filenames rather than decoded."
-        ]
+        "gaps": []
       }
     },
     {
@@ -452,9 +450,7 @@
         "status": "usable",
         "ships": true,
         "feature": "write-latex",
-        "gaps": [
-          "`data:` images are used as graphics filenames rather than decoded."
-        ]
+        "gaps": []
       }
     },
     {

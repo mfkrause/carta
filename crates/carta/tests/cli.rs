@@ -840,6 +840,72 @@ fn extract_media_writes_files_and_rewrites_references() {
     assert_eq!(written, bytes);
 }
 
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-latex",
+    feature = "standalone"
+))]
+#[test]
+fn extract_media_decodes_data_images_in_the_body_and_metadata() {
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("extract-data-images");
+    let _ = fs::remove_dir_all(&directory);
+    let argument = format!("--extract-media={}", directory.display());
+    let result = run(
+        &["-f", "markdown", "-t", "latex", "-s", &argument],
+        "---\ntitle: '![title](data:image/png,%FF%00)'\n---\n\n![body](data:image/png;base64,/wA=)\n",
+    );
+    assert!(result.success, "{}", result.stderr);
+    let name = carta::media::content_addressed_name("image/png", &[255, 0]);
+    let reference = carta::media::extracted_path(&directory.to_string_lossy(), &name);
+    assert_eq!(
+        result.stdout.matches(&reference).count(),
+        2,
+        "{}",
+        result.stdout
+    );
+    assert!(!result.stdout.contains("data:image"));
+    assert_eq!(fs::read(directory.join(name)).unwrap(), [255, 0]);
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+}
+
+#[cfg(all(feature = "write-latex", feature = "write-beamer"))]
+#[test]
+fn tex_output_saves_embedded_images_beside_the_output_file() {
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("tex-data-images");
+    let _ = fs::remove_dir_all(&directory);
+    let name = carta::media::content_addressed_name("image/png", &[255, 0]);
+    for format in ["latex", "beamer"] {
+        let folder = directory.join(format);
+        fs::create_dir_all(&folder).unwrap();
+        let output = folder.join("document.tex");
+        let result = run(
+            &[
+                "-f",
+                "markdown",
+                "-t",
+                format,
+                "-o",
+                output.to_str().unwrap(),
+            ],
+            "![one](data:image/png,%FF%00)\n\n![two](DATA:IMAGE/PNG;BASE64,/wA=)\n\n![local](local.png)\n",
+        );
+        assert!(result.success, "{}", result.stderr);
+        let source = fs::read_to_string(&output).unwrap();
+        assert_eq!(
+            source.matches(&format!("media/{name}")).count(),
+            2,
+            "{source}"
+        );
+        assert!(source.contains("{local.png}"), "{source}");
+        assert!(!source.contains("data:image"), "{source}");
+        assert_eq!(
+            fs::read(folder.join("media").join(&name)).unwrap(),
+            [255, 0]
+        );
+        assert_eq!(fs::read_dir(folder.join("media")).unwrap().count(), 1);
+    }
+}
+
 #[cfg(feature = "write-html")]
 #[test]
 fn embed_resources_inlines_local_images_as_data_uris() {

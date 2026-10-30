@@ -202,16 +202,11 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `markdown_mmd` ✅
 ### `markdown_phpextra` ✅
 ### `markdown_strict` ✅
-
 ### `beamer` ✅
-- `data:` images are used as graphics filenames rather than decoded.
-
 ### `html` (+ `html5`) ✅
 ### `html4` ✅
 ### `revealjs` ✅
-
 ### `latex` ✅
-- `data:` images are used as graphics filenames rather than decoded.
 
 ### `pdf` 🚧
 - LaTeX and HTML PDF engines are not supported; the default engine is Typst instead of LaTeX.

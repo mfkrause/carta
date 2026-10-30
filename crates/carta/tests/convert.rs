@@ -7,6 +7,30 @@ use carta::{
     convert_text, reader_for, writer_for,
 };
 
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-latex",
+    feature = "write-beamer"
+))]
+#[test]
+fn tex_text_conversion_requires_embedded_image_extraction() {
+    for target in ["latex", "beamer"] {
+        let error = convert_text(
+            "markdown",
+            target,
+            "![image](data:image/png;base64,/wA=)",
+            &ReaderOptions::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(error, Error::Unrepresentable(_)), "{error}");
+        assert!(
+            error.to_string().contains("extract embedded images"),
+            "{error}"
+        );
+    }
+}
+
 #[cfg(all(feature = "read-commonmark", feature = "write-asciidoc"))]
 #[test]
 fn list_markers_count_toward_the_first_wrapped_line() {

@@ -143,6 +143,7 @@ pub fn read_document(
 ///
 /// The writing half of [`convert`]. `to` may carry `+ext`/`-ext` toggles, merged with the extensions
 /// already in `writer_options`.
+/// LaTeX and Beamer require image files; extract data URIs before rendering them.
 ///
 /// # Errors
 /// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
@@ -203,8 +204,6 @@ fn render_text(
     document: Document,
     writer_options: &mut WriterOptions,
 ) -> Result<Output> {
-    #[cfg(not(feature = "standalone"))]
-    let _ = to_base;
     #[cfg(feature = "standalone")]
     let wraps_standalone = writer_options.standalone || writer_options.template.is_some();
     #[cfg(feature = "standalone")]
@@ -215,6 +214,20 @@ fn render_text(
     }
 
     let mut document = document;
+    if matches!(to_base, "latex" | "beamer") {
+        let mut embedded_image = false;
+        carta_core::walk::for_each_document_image_target(&mut document, &mut |target| {
+            embedded_image |= target
+                .url
+                .get(..5)
+                .is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:"));
+        });
+        if embedded_image {
+            return Err(Error::Unrepresentable(
+                "extract embedded images to files before rendering LaTeX or Beamer".into(),
+            ));
+        }
+    }
     let body = if writer_options.number_sections && writer.numbers_sections_in_body() {
         // Build the TOC before heading numbers are spliced into the tree.
         #[cfg(feature = "standalone")]

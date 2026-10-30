@@ -38,7 +38,7 @@ External PDF engine (currently typst only)
 Pass an argument to the PDF engine; repeat for multiple arguments
 
 **-o**, **--output** *\<OUTPUT\>*  
-Write output to this file instead of stdout
+Write output to this file instead of stdout. LaTeX and Beamer save embedded images in `media/` beside the output file (or in the current directory for stdout), unless `--extract-media` names another directory
 
 **--extract-media** *\<DIR\>*  
 Extract the input's embedded media to this directory, writing each resource as a file and rewriting the document's references to point at the extracted files
