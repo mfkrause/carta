@@ -1801,3 +1801,43 @@ fn rebased_inputs_keep_cross_file_links_and_embed_their_own_images() {
         );
     }
 }
+
+#[test]
+fn file_scope_resolves_relative_input_paths_before_linking_headers() {
+    let directory = input_directory("file-scope-relative-paths");
+    fs::create_dir_all(directory.join("one")).unwrap();
+    fs::create_dir_all(directory.join("two")).unwrap();
+    fs::write(directory.join("one/a.md"), "# A\n\n[other](../two/b.md#b) [self](a.md#a) [local](#a) [outside](https://example.com/doc.md#b)\n").unwrap();
+    fs::write(directory.join("two/b.md"), "# B\n").unwrap();
+    fs::write(directory.join("a.md"), "# Root\n").unwrap();
+    for format in ["markdown", "markdown+rebase_relative_paths"] {
+        let output = run_in(
+            &directory,
+            &[
+                "-f",
+                format,
+                "-t",
+                "html",
+                "--file-scope",
+                "--wrap=none",
+                "a.md",
+                "one/a.md",
+                "two/b.md",
+            ],
+            "",
+        );
+        assert!(output.success, "{}", output.stderr);
+        for target in [
+            "#two__b.md__b",
+            "#one__a.md__a",
+            "https://example.com/doc.md#b",
+        ] {
+            assert!(
+                output.stdout.contains(&format!("href=\"{target}\"")),
+                "{format}: {}",
+                output.stdout
+            );
+        }
+        assert_eq!(output.stdout.matches("href=\"#one__a.md__a\"").count(), 2);
+    }
+}

@@ -79,7 +79,7 @@ pub(super) fn read_documents(
     options: &ReaderOptions,
     file_scope: bool,
 ) -> Result<(Document, MediaBag)> {
-    let base = carta::parse_format_spec(from)?.0;
+    let (base, extensions) = carta::parse_format_spec(from)?;
     let text = matches!(any_reader_for(&base)?, AnyReader::Text(_));
     if paths
         .iter()
@@ -104,12 +104,24 @@ pub(super) fn read_documents(
         let mut media = MediaBag::new();
         let mut starts = Vec::new();
         let mut anchors = std::collections::BTreeSet::new();
+        let scope_files = file_scope && text && base != "json";
+        let identifiers = if scope_files {
+            super::file_scope::input_identifiers(paths)
+        } else {
+            BTreeMap::new()
+        };
         for path in paths {
             options.source_dir = super::source_dir(Some(path));
             let bytes = read_input(Some(path), text)?;
             let (mut part, resources) = read_document(from, &bytes, &options)?;
-            if file_scope && text && base != "json" {
-                let name = super::file_scope::apply(&mut part, path, paths, &mut anchors);
+            if scope_files {
+                let name = super::file_scope::apply(
+                    &mut part,
+                    path,
+                    &identifiers,
+                    &mut anchors,
+                    extensions.contains(carta::Extension::RebaseRelativePaths),
+                );
                 starts.push((name, document.blocks.len()));
             }
             merge_media(&mut part, &resources, &mut media);
