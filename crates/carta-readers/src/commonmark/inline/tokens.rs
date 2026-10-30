@@ -359,6 +359,9 @@ impl InlineParser<'_> {
         if name == "end" {
             return None;
         }
+        if name == "def" {
+            return self.scan_tex_definition(position);
+        }
         if char_at(self.text, position) == Some('*') {
             position += 1;
         }
@@ -409,6 +412,27 @@ impl InlineParser<'_> {
             position = self.tex_horizontal_start(position);
         }
         Some(position)
+    }
+
+    fn scan_tex_definition(&self, position: usize) -> Option<usize> {
+        let target = self.tex_argument_start(position);
+        let parameters = self.scan_tex_control_sequence(target)?;
+        let braces = self.raw_tex_braces.get_or_init(|| {
+            let mut escaped = false;
+            self.text
+                .char_indices()
+                .filter_map(|(position, character)| {
+                    if escaped {
+                        escaped = false;
+                        return None;
+                    }
+                    escaped = character == '\\';
+                    (character == '{').then_some(position)
+                })
+                .collect()
+        });
+        let body = *braces.get(braces.partition_point(|&position| position < parameters))?;
+        self.scan_balanced_group(body)
     }
 
     fn tex_horizontal_start(&self, mut position: usize) -> usize {

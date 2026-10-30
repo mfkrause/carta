@@ -52,6 +52,23 @@ fn raw_tex_commands_with_argument_groups() {
 }
 
 #[test]
+fn raw_tex_definitions_keep_parameters_and_replacement_text() {
+    for source in [
+        r"\def\word#1{Hello #1}",
+        r"\def \word #1,#2;{#2 and #1}",
+        r"\def\word#1\stop{Hello #1}",
+        r"\def\word#1\{{Hello #1}",
+        "\\def\\word#1{Hello\n#1}",
+    ] {
+        assert_eq!(pe(source, raw_tex()), vec![tex(source)], "{source}");
+    }
+    assert_eq!(
+        pe(r"\def\word#1{Hello #1} after", raw_tex()),
+        vec![tex(r"\def\word#1{Hello #1}"), Inline::Space, str("after")]
+    );
+}
+
+#[test]
 fn raw_tex_bare_command_absorbs_trailing_blanks() {
     assert_eq!(pe(r"\alpha y", raw_tex()), vec![tex(r"\alpha "), str("y")]);
     assert_eq!(
@@ -80,6 +97,7 @@ fn raw_tex_unbalanced_brace_reverts_whole_command() {
 #[test]
 fn raw_tex_unclosed_openers_stay_literal_at_scale() {
     let cases = [
+        r"\def ".repeat(4096),
         r"\a{".repeat(4096),
         r"\begin{x}".repeat(4096),
         r"\textbf{".repeat(4096),
