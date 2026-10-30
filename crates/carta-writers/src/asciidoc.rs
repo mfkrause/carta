@@ -561,7 +561,10 @@ impl State {
                 self.span(attr, inlines, out);
                 return;
             }
-            Inline::Note(blocks) => self.note(blocks),
+            Inline::Note(blocks) => {
+                self.note(blocks, out);
+                return;
+            }
         };
         out.push(Piece::text(text));
     }
@@ -664,12 +667,14 @@ impl State {
         }
     }
 
-    fn note(&mut self, blocks: &[Block]) -> String {
+    fn note(&mut self, blocks: &[Block], out: &mut Vec<Piece>) {
         match blocks {
             [Block::Plain(inlines) | Block::Para(inlines)] => {
-                format!("footnote:[{}]", self.inline_string(inlines))
+                out.push(Piece::text("footnote:["));
+                out.extend(self.pieces(inlines));
+                out.push(Piece::text("]"));
             }
-            _ => "[multiblock footnote omitted]".to_owned(),
+            _ => out.push(Piece::text("[multiblock footnote omitted]")),
         }
     }
 }

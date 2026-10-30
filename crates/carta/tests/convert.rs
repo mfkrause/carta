@@ -7,6 +7,41 @@ use carta::{
     convert_text, reader_for, writer_for,
 };
 
+#[cfg(all(feature = "read-commonmark", feature = "write-asciidoc"))]
+#[test]
+fn inline_footnotes_wrap_with_the_surrounding_text() {
+    use carta::ast::{Block, Document, Inline};
+    let mut options = WriterOptions::default();
+    options.columns = Some(20);
+    let output = convert_text(
+        "markdown",
+        "asciidoc",
+        "A note[^x] follows.\n\n[^x]: alpha beta gamma delta epsilon zeta eta theta\n",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert_eq!(
+        output,
+        "A\nnotefootnote:[alpha\nbeta gamma delta\nepsilon zeta eta\ntheta] follows."
+    );
+    options.wrap = carta::WrapMode::None;
+    let document = Document {
+        blocks: vec![Block::Para(vec![
+            Inline::Str("text".into()),
+            Inline::Note(vec![Block::Para(vec![
+                Inline::Space,
+                Inline::Str("body".into()),
+                Inline::Space,
+            ])]),
+        ])],
+        ..Document::default()
+    };
+    let output =
+        carta::render_document("asciidoc", document, Default::default(), &options).unwrap();
+    assert_eq!(output, Output::Text("textfootnote:[ body ]".into()));
+}
+
 #[cfg(all(
     feature = "read-commonmark",
     feature = "write-commonmark",
