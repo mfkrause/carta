@@ -29,8 +29,7 @@ pub(super) struct Emitter {
     frames: Vec<Frame>,
     pending_text: String,
     pending_props: CharProps,
-    pending_space: bool,
-    space_props: CharProps,
+    pending_space: Option<Atom>,
     has_content: bool,
     /// Keeps a space at the leading or trailing edge of the content instead of trimming it. A
     /// paragraph trims its edge whitespace, but a hyperlink's display text is inline and its edge
@@ -108,8 +107,7 @@ impl Emitter {
             }],
             pending_text: String::new(),
             pending_props: CharProps::default(),
-            pending_space: false,
-            space_props: CharProps::default(),
+            pending_space: None,
             has_content: false,
             preserve_edge_space: false,
             outline_level: None,
@@ -153,20 +151,28 @@ impl Emitter {
     }
 
     fn resolve_space(&mut self) {
-        if self.pending_space {
-            self.pending_space = false;
-            if self.has_content || self.preserve_edge_space {
-                let props = self.space_props;
-                self.frame_atoms().push(Atom {
-                    props,
-                    kind: AtomKind::Space,
-                });
-                self.has_content = true;
-            }
+        if let Some(atom) = self.pending_space.take()
+            && (self.has_content || self.preserve_edge_space)
+            && !self
+                .frames
+                .last()
+                .and_then(|frame| frame.atoms.last())
+                .is_some_and(|atom| matches!(atom.kind, AtomKind::LineBreak))
+        {
+            self.frame_atoms().push(atom);
+            self.has_content = true;
         }
     }
 
     pub(super) fn push_char(&mut self, c: char, props: CharProps) {
+        if !props.mono {
+            match c {
+                '\t' => return self.push_space(props),
+                '\n' => return self.push_break(props),
+                '\r' => return self.push_separator(props, AtomKind::SoftBreak),
+                _ => {}
+            }
+        }
         if props.hidden {
             return;
         }
@@ -194,13 +200,16 @@ impl Emitter {
     }
 
     pub(super) fn push_space(&mut self, props: CharProps) {
+        self.push_separator(props, AtomKind::Space);
+    }
+
+    fn push_separator(&mut self, props: CharProps, kind: AtomKind) {
         if props.hidden {
             return;
         }
         self.flush_text();
-        if !self.pending_space {
-            self.pending_space = true;
-            self.space_props = props;
+        if self.pending_space.is_none() || matches!(kind, AtomKind::SoftBreak) {
+            self.pending_space = Some(Atom { props, kind });
         }
     }
 
@@ -209,7 +218,7 @@ impl Emitter {
             return;
         }
         self.flush_text();
-        self.resolve_space();
+        self.pending_space = None;
         self.frame_atoms().push(Atom {
             props,
             kind: AtomKind::LineBreak,
@@ -280,14 +289,12 @@ impl Emitter {
     /// Closes the current paragraph's atom sequence, folding any unclosed bookmarks into spans.
     fn take_atoms(&mut self) -> Vec<Atom> {
         self.flush_text();
-        if self.preserve_edge_space && self.pending_space {
-            let props = self.space_props;
-            self.frame_atoms().push(Atom {
-                props,
-                kind: AtomKind::Space,
-            });
+        if self.preserve_edge_space
+            && let Some(atom) = self.pending_space.take()
+        {
+            self.frame_atoms().push(atom);
         }
-        self.pending_space = false;
+        self.pending_space = None;
         while self.frames.len() > 1 {
             if let Some(frame) = self.frames.pop() {
                 self.fold_bookmark(frame);

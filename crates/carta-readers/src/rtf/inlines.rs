@@ -210,6 +210,7 @@ pub(super) struct Atom {
 pub(super) enum AtomKind {
     Text(String),
     Space,
+    SoftBreak,
     LineBreak,
     /// An already-built inline (link, image, note, or bookmark span) inserted verbatim.
     Node(Inline),
@@ -272,6 +273,7 @@ pub(super) fn build_inlines(atoms: Vec<Atom>) -> Vec<Inline> {
         let base = match atom.kind {
             AtomKind::Text(text) => Inline::Str(text.into()),
             AtomKind::Space => Inline::Space,
+            AtomKind::SoftBreak => Inline::SoftBreak,
             AtomKind::LineBreak => Inline::LineBreak,
             AtomKind::Node(node) => node,
         };
@@ -303,7 +305,7 @@ fn collapse_mono(atoms: Vec<Atom>) -> Vec<Atom> {
             match &atom.kind {
                 AtomKind::Text(text) => code.push_str(text),
                 AtomKind::Space => code.push(' '),
-                AtomKind::LineBreak => code.push('\n'),
+                AtomKind::LineBreak | AtomKind::SoftBreak => code.push('\n'),
                 AtomKind::Node(_) => {}
             }
         }
@@ -344,7 +346,7 @@ pub(super) fn mono_code_block(atoms: &[Atom]) -> Option<String> {
         match &atom.kind {
             AtomKind::Text(text) => code.push_str(text),
             AtomKind::Space => code.push(' '),
-            AtomKind::LineBreak => code.push('\n'),
+            AtomKind::LineBreak | AtomKind::SoftBreak => code.push('\n'),
             AtomKind::Node(_) => return None,
         }
     }

@@ -43,6 +43,41 @@ fn plain_paragraph_splits_words() {
 }
 
 #[test]
+fn escaped_controls_become_spaces_and_breaks() {
+    assert_eq!(
+        read(r"{\rtf1{\fonttbl{\f0\fmodern Courier;}}\f0 a\'09b\'0ac\'0d}").blocks,
+        vec![Block::CodeBlock(Box::default(), "a\tb\nc\r".into())]
+    );
+    for text in [r"a\'09b\'0ac\'0dd", r"a\u9 ?b\u10 ?c\u13 ?d"] {
+        assert_eq!(
+            read(&format!("{{\\rtf1 {text}}}")).blocks,
+            vec![para(vec![
+                s("a"),
+                Inline::Space,
+                s("b"),
+                Inline::LineBreak,
+                s("c"),
+                Inline::SoftBreak,
+                s("d"),
+            ])]
+        );
+    }
+    assert_eq!(
+        read(r"{\rtf1 \u13 ?a \u13 ? \u13 ? b\u13 ?}").blocks,
+        vec![para(vec![s("a"), Inline::SoftBreak, s("b")])]
+    );
+    assert_eq!(
+        read(r"{\rtf1 a \u10 ? \line b}").blocks,
+        vec![para(vec![
+            s("a"),
+            Inline::LineBreak,
+            Inline::LineBreak,
+            s("b")
+        ])]
+    );
+}
+
+#[test]
 fn declared_character_sets_decode_body_and_metadata_bytes() {
     for (header, expected) in [
         ("ansi", "€£à"),

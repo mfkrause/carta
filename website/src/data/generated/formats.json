@@ -1101,7 +1101,6 @@
         "ships": true,
         "feature": "read-rtf",
         "gaps": [
-          "A control byte delivered through a `\\'xx` or `\\uN` escape (tab, line feed) is kept as a literal character rather than normalized to a space or line break.",
           "Formatting inside an `\\info` field is flattened to plain text, and `\\generator` is not captured as document metadata."
         ]
       },
