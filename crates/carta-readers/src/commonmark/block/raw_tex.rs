@@ -12,16 +12,41 @@ impl Parser {
         container: usize,
         all_matched: bool,
         cursor: &Cursor,
+        following: &[&str],
     ) -> bool {
         if !all_matched {
             return false;
         }
-        let Some(leaf) = self
-            .last_open_child(container)
-            .filter(|&c| matches!(self.kind(c), Some(Kind::RawTex { .. })))
-        else {
+        let Some(leaf) = self.last_open_child(container) else {
             return false;
         };
+        if matches!(self.kind(leaf), Some(Kind::TexDefinition(_))) {
+            let indented_blank = cursor.is_blank()
+                && self
+                    .container_path(container)
+                    .iter()
+                    .rev()
+                    .find_map(|&index| match self.kind(index) {
+                        Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_)) => {
+                            Some(true)
+                        }
+                        Some(Kind::BlockQuote { .. }) => Some(false),
+                        _ => None,
+                    })
+                    .unwrap_or(false);
+            return self.continue_tex_definition(
+                leaf,
+                if indented_blank {
+                    ""
+                } else {
+                    cursor.remaining()
+                },
+                following,
+            );
+        }
+        if !matches!(self.kind(leaf), Some(Kind::RawTex { .. })) {
+            return false;
+        }
         self.feed_raw_tex(leaf, cursor.remaining());
         true
     }
@@ -30,7 +55,12 @@ impl Parser {
     ///
     /// Math environments stay inline; unclosed raw environments become paragraphs.
     /// A line-leading non-math opener inside inline math can open a separate block.
-    pub(super) fn open_raw_tex(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
+    pub(super) fn open_raw_tex(
+        &mut self,
+        container: usize,
+        cursor: &mut Cursor,
+        following: &[&str],
+    ) -> Option<usize> {
         let raw_tex = self.extensions.contains(Extension::RawTex);
         let literate_code = self.extensions.contains(Extension::LiterateHaskell)
             && cursor
@@ -39,6 +69,9 @@ impl Parser {
                 .is_some_and(|rest| rest.trim().is_empty());
         if !raw_tex && !literate_code {
             return None;
+        }
+        if raw_tex && let Some(index) = self.open_tex_definition(container, cursor, following) {
+            return Some(index);
         }
         let name = raw_tex_env_name(cursor.remaining(), b"begin")?;
         if is_math_environment(&name) {

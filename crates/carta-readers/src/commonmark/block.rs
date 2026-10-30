@@ -24,6 +24,7 @@ mod html;
 mod openers;
 mod raw_tex;
 mod tables;
+mod tex_definition;
 
 /// Parse the normalized input into the block tree plus the collected link, footnote, and example
 /// references.
@@ -194,6 +195,7 @@ enum Kind {
         depth: usize,
         literate_code: bool,
     },
+    TexDefinition(tex_definition::Definition),
     ThematicBreak,
     /// A dash-ruled table candidate, accumulating its physical lines (each `\n`-terminated). Its
     /// exact extent is settled when the block closes: the lines are parsed into a table, with any
@@ -496,7 +498,7 @@ impl Parser {
 
         // Phase 1: descend through open containers, matching each one's continuation marker.
         let Descent {
-            mut container,
+            container,
             all_matched,
             div_path,
             consumed,
@@ -540,7 +542,7 @@ impl Parser {
             return;
         }
 
-        if self.continue_raw_tex(container, all_matched, &cursor) {
+        if self.continue_raw_tex(container, all_matched, &cursor, following) {
             return;
         }
 
@@ -647,21 +649,8 @@ impl Parser {
             }
         }
 
-        let mut started_new = false;
-        if !blank {
-            loop {
-                cursor.note_indent();
-                if let Some(opened) = self.try_open(container, &mut cursor, following, line_index) {
-                    started_new = true;
-                    container = opened;
-                    // Trailing spaces after a bare marker must not open an indented code block.
-                    if self.is_container(container) && !cursor.is_blank() {
-                        continue;
-                    }
-                }
-                break;
-            }
-        }
+        let (container, started_new) =
+            self.open_line(container, &mut cursor, following, line_index);
 
         // Unmatched containers survive only for lazy paragraph continuation.
         let lazy = !all_matched
@@ -673,6 +662,40 @@ impl Parser {
         }
 
         self.add_line(container, started_new, blank, &mut cursor);
+    }
+
+    fn open_line(
+        &mut self,
+        mut container: usize,
+        cursor: &mut Cursor,
+        following: &[&str],
+        line_index: Option<usize>,
+    ) -> (usize, bool) {
+        let mut started = false;
+        if !cursor.is_blank() {
+            loop {
+                cursor.note_indent();
+                if let Some(opened) = self.try_open(container, cursor, following, line_index) {
+                    started = true;
+                    container = opened;
+                    // Trailing spaces after a bare marker must not open an indented code block.
+                    if self.is_container(container) && !cursor.is_blank() {
+                        continue;
+                    }
+                }
+                break;
+            }
+        }
+        (container, started)
+    }
+
+    fn process_fragment(&mut self, parent: usize, text: &str, following: &[&str]) {
+        carta_core::with_stack(|| {
+            let mut cursor = Cursor::new(text);
+            let (container, started) =
+                self.open_line(parent, &mut cursor, following, Some(self.source_line));
+            self.add_line(container, started, cursor.is_blank(), &mut cursor);
+        });
     }
 
     /// Try each open multi-line construct in turn, returning `true` as soon as one absorbs the line.

@@ -54,7 +54,7 @@ impl Parser {
                     return Some(index);
                 }
             }
-            if let Some(block) = self.open_raw_tex(container, cursor) {
+            if let Some(block) = self.open_raw_tex(container, cursor, following) {
                 return Some(block);
             }
             if !gates.blockquote && cursor.peek() == Some(b'>') {
@@ -540,7 +540,8 @@ impl Parser {
                     | Kind::BirdTracks
                     | Kind::FencedCode(_)
                     | Kind::HtmlBlock(_)
-                    | Kind::RawTex { .. },
+                    | Kind::RawTex { .. }
+                    | Kind::TexDefinition(_),
                 ) => {}
                 _ => {
                     // A bare marker leaves its container empty, not seeding an empty paragraph.

@@ -170,6 +170,26 @@ impl Parser {
         };
         let mut out = Vec::new();
         for &child in &node.children {
+            if let Some(node) = self.nodes.get(child)
+                && let Kind::TexDefinition(super::tex_definition::Definition::Body {
+                    valid_end,
+                    ..
+                }) = &node.kind
+                && *valid_end > 0
+            {
+                out.push(IrBlock::RawBlock(
+                    Format("tex".into()),
+                    node.text.get(..*valid_end).unwrap_or_default().to_owned(),
+                ));
+                out.push(IrBlock::Para(
+                    node.text
+                        .get(*valid_end..)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_owned(),
+                ));
+                continue;
+            }
             if let Some(Kind::HtmlElement(info)) = self.kind(child)
                 && !info.as_div
             {
@@ -280,6 +300,12 @@ impl Parser {
                 IrBlock::RawHtml(node.text.trim_end_matches('\n').to_owned())
             }
             Kind::RawTex { literate_code, .. } => Self::build_raw_tex(node, *literate_code)?,
+            Kind::TexDefinition(super::tex_definition::Definition::Body { .. }) => {
+                IrBlock::Para(node.text.trim().to_owned())
+            }
+            Kind::TexDefinition(super::tex_definition::Definition::Between(_)) => {
+                IrBlock::RawBlock(Format("tex".into()), node.text.clone())
+            }
             Kind::BlockQuote { allows_alert } => {
                 if *allows_alert
                     && self.extensions.contains(Extension::Alerts)
