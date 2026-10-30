@@ -155,6 +155,7 @@ fn build_context(
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
     overlay_variables(&mut context, &options.variables);
+    context.extend(options.variable_values.clone());
     if matches!(writer.meta_var_style(), MetaVarStyle::Pdf) {
         for (variable, command) in [
             ("multirow", "\\multirow{"),

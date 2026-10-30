@@ -14,7 +14,8 @@ use carta::{
     Error, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision, WrapMode,
     WriterOptions, render_document,
 };
-use clap::{ArgAction, CommandFactory, Parser};
+use carta_core::template::Value;
+use clap::{ArgAction, CommandFactory, FromArgMatches, Parser};
 
 mod datadir;
 mod file_scope;
@@ -94,6 +95,11 @@ struct Cli {
     /// repeated key accumulates into a list.
     #[arg(short = 'V', long = "variable", value_name = "KEY[:VAL]")]
     variable: Vec<String>,
+    /// Set a template variable from JSON: `KEY:JSON`, or bare `KEY` for true. Replaces earlier values.
+    #[arg(long = "variable-json", value_name = "KEY[:JSON]", value_parser = parse_json_variable)]
+    variable_json: Vec<(String, Value)>,
+    #[arg(skip)]
+    template_variables: BTreeMap<String, Value>,
     /// Text wrapping in the output: `auto` reflows to the column width, `none` keeps each block on a
     /// single line, `preserve` keeps the input's own line breaks.
     #[arg(long = "wrap", value_name = "auto|none|preserve", default_value = "auto", value_parser = parse_wrap)]
@@ -257,7 +263,10 @@ struct Cli {
 }
 
 fn main() -> ExitCode {
-    match run(&Cli::parse()) {
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
+    cli.template_variables = template_variables(&cli, &matches);
+    match run(&cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) if is_broken_pipe(&error) => ExitCode::SUCCESS,
         Err(error) => {
@@ -404,7 +413,9 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     {
         writer_options.highlight = highlight_options(cli, data_dir.as_deref(), &to_base)?;
     }
-    writer_options.variables = parse_variables(&cli.variable);
+    writer_options
+        .variable_values
+        .clone_from(&cli.template_variables);
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file, from)?;
     writer_options.source_name = Some(source_name(cli.input.first().map(PathBuf::as_path)));
@@ -702,6 +713,67 @@ fn parse_variables(specs: &[String]) -> Vec<(String, String)> {
             None => (spec.clone(), "true".to_owned()),
         })
         .collect()
+}
+
+fn parse_json_variable(spec: &str) -> std::result::Result<(String, Value), String> {
+    match spec.split_once([':', '=']) {
+        Some((key, source)) => serde_json::from_str(source)
+            .map(|value| (key.to_owned(), variable_value(value)))
+            .map_err(|error| format!("invalid JSON for variable '{key}': {error}")),
+        None => Ok((spec.to_owned(), Value::Bool(true))),
+    }
+}
+
+fn variable_value(value: serde_json::Value) -> Value {
+    match value {
+        serde_json::Value::Null => Value::Str(String::new()),
+        serde_json::Value::Bool(value) => Value::Bool(value),
+        serde_json::Value::Number(value) => Value::Str(value.to_string()),
+        serde_json::Value::String(value) => Value::Str(value),
+        serde_json::Value::Array(values) => {
+            Value::List(values.into_iter().map(variable_value).collect())
+        }
+        serde_json::Value::Object(values) => Value::Map(
+            values
+                .into_iter()
+                .map(|(key, value)| (key, variable_value(value)))
+                .collect(),
+        ),
+    }
+}
+
+fn template_variables(cli: &Cli, matches: &clap::ArgMatches) -> BTreeMap<String, Value> {
+    let strings = matches
+        .indices_of("variable")
+        .into_iter()
+        .flatten()
+        .zip(parse_variables(&cli.variable))
+        .map(|(position, (key, value))| (position, key, Value::Str(value), false));
+    let json = matches
+        .indices_of("variable_json")
+        .into_iter()
+        .flatten()
+        .zip(cli.variable_json.iter().cloned())
+        .map(|(position, (key, value))| (position, key, value, true));
+    let mut values: Vec<_> = strings.chain(json).collect();
+    values.sort_by_key(|(position, ..)| *position);
+    let mut variables = BTreeMap::new();
+    for (_, key, value, replace) in values {
+        if replace {
+            variables.insert(key, value);
+        } else {
+            let value = match variables.remove(&key) {
+                None => value,
+                Some(Value::List(mut items)) => {
+                    items.push(value);
+                    Value::List(items)
+                }
+                Some(first) => Value::List(vec![first, value]),
+            };
+            variables.insert(key, value);
+        }
+    }
+    variables
 }
 
 /// Parse `-M` specifiers into metadata values: `true`/`false` become booleans, a bare `KEY` becomes

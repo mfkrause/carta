@@ -1841,3 +1841,59 @@ fn file_scope_resolves_relative_input_paths_before_linking_headers() {
         assert_eq!(output.stdout.matches("href=\"#one__a.md__a\"").count(), 2);
     }
 }
+
+#[cfg(feature = "standalone")]
+#[test]
+fn json_variables_keep_types_and_follow_argument_order() {
+    let directory = input_directory("typed-template-variables");
+    fs::write(
+        directory.join("view.tpl"),
+        "$if(flag)$yes$else$no$endif$|$object.name$|$for(value)$$value$$sep$,$endfor$",
+    )
+    .unwrap();
+    let cases = [
+        (
+            vec![
+                "--variable-json",
+                "flag:false",
+                "--variable-json",
+                "object:{\"name\":\"ok\"}",
+                "--variable-json",
+                "value:[1,2]",
+            ],
+            "no|ok|1,2",
+        ),
+        (
+            vec![
+                "-V",
+                "value:first",
+                "--variable-json",
+                "value:[2,3]",
+                "-V",
+                "value:last",
+            ],
+            "no||2,3,last",
+        ),
+        (
+            vec![
+                "--variable-json",
+                "value:[1,2]",
+                "--variable-json",
+                "value:[3,4]",
+            ],
+            "no||3,4",
+        ),
+        (vec!["-V", "flag:false"], "yes||"),
+        (vec!["--variable-json", "value:null"], "no||"),
+    ];
+    for (variables, expected) in cases {
+        let mut arguments = vec!["-t", "plain", "--template", "view.tpl"];
+        arguments.extend(variables);
+        let output = run_in(&directory, &arguments, "");
+        assert!(output.success, "{}", output.stderr);
+        assert_eq!(output.stdout, expected);
+    }
+    let output = run(&["--variable-json", "value:{bad}"], "");
+    assert!(!output.success);
+    assert!(output.stderr.contains("invalid JSON for variable 'value'"));
+}

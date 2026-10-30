@@ -17,7 +17,7 @@ carta - Document converter
 
 ## Synopsis
 
-**carta** \[**-f**\|**--from**\] \[**--file-scope**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
+**carta** \[**-f**\|**--from**\] \[**--file-scope**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--variable-json**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
 
 ## Description
 
@@ -73,6 +73,9 @@ Render with this template file instead of the format's built-in default; implies
 
 **-V**, **--variable** *\<KEY\[:VAL\]\>*  
 Set a template variable: `KEY:VAL` (or `KEY=VAL`), or bare `KEY` for `true`. Repeatable; a repeated key accumulates into a list
+
+**--variable-json** *\<KEY\[:JSON\]\>*  
+Set a template variable from JSON: `KEY:JSON`, or bare `KEY` for true. Replaces earlier values
 
 **--wrap** *\<auto\|none\|preserve\>* \[default: auto\]  
 Text wrapping in the output: `auto` reflows to the column width, `none` keeps each block on a single line, `preserve` keeps the input's own line breaks

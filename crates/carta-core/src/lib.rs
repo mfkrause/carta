@@ -433,6 +433,11 @@ pub struct WriterOptions {
     #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub variables: Vec<(String, String)>,
 
+    /// Structured template values, applied after the raw string variables.
+    #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
+    pub variable_values: std::collections::BTreeMap<String, template::Value>,
+
     /// Metadata layered *above* the document's own (the `-M` layer): each key replaces the reader's
     /// value for that key when the context is built.
     #[cfg(feature = "template")]
