@@ -175,11 +175,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `jira` ✅
 ### `mediawiki` ✅
 ### `man` ✅
-
 ### `docx` ✅
-- Office Math sets binary and relational operators tight, with no surrounding thin space
-  (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`).
-
 ### `epub` ✅
 ### `ipynb` ✅
 ### `odt` ✅

@@ -405,3 +405,47 @@ fn math_symbols_use_canonical_commands_without_trailing_spaces() {
         )])]
     );
 }
+
+#[test]
+fn math_operators_and_command_boundaries_cross_runs_and_scripts() {
+    let archive = docx_from_body(
+        "<w:p><m:oMath><m:sSup><m:e><m:r><m:t>a</m:t></m:r></m:e>\
+         <m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup>\
+         <m:r><m:t>+</m:t></m:r><m:sSup><m:e><m:r><m:t>b</m:t></m:r></m:e>\
+         <m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup>\
+         <m:r><m:t>=</m:t></m:r><m:sSup><m:e><m:r><m:t>c</m:t></m:r></m:e>\
+         <m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup></m:oMath></w:p>\
+         <w:p><m:oMath><m:r><m:t>α</m:t></m:r><m:r><m:t>x</m:t></m:r></m:oMath></w:p>",
+    );
+    let document = DocxReader
+        .read(&archive, &ReaderOptions::default())
+        .unwrap();
+    let math = |text: &str| {
+        Block::Para(vec![Inline::Math(
+            carta_ast::MathType::InlineMath,
+            text.into(),
+        )])
+    };
+    assert_eq!(
+        document.blocks,
+        vec![math("a^{2} + b^{2} = c^{2}"), math("\\alpha x")]
+    );
+}
+
+#[test]
+fn math_runs_ignore_xml_indentation_and_keep_text_spaces() {
+    let archive = docx_from_body(
+        "<w:p><m:oMath><m:r>\n  <m:t>a+b=c</m:t>\n</m:r></m:oMath></w:p>\
+         <w:p><m:oMath><m:r><m:t>a b</m:t></m:r></m:oMath></w:p>",
+    );
+    let document = DocxReader
+        .read(&archive, &ReaderOptions::default())
+        .unwrap();
+    let math = |text: &str| {
+        Block::Para(vec![Inline::Math(
+            carta_ast::MathType::InlineMath,
+            text.into(),
+        )])
+    };
+    assert_eq!(document.blocks, vec![math("a + b = c"), math("a\\ b")]);
+}

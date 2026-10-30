@@ -8,8 +8,7 @@ use crate::xml::{Element, local_name};
 pub(super) fn omml_to_tex(element: &Element) -> String {
     let mut out = String::new();
     render_math_children(element, &mut out);
-    out.truncate(out.trim_end().len());
-    out
+    crate::mathml::trim_row(&out)
 }
 
 fn render_math_children(element: &Element, out: &mut String) {
@@ -21,7 +20,7 @@ fn render_math_children(element: &Element, out: &mut String) {
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn render_math(element: &Element, out: &mut String) {
     match local_name(&element.name) {
-        "r" | "t" => out.push_str(&map_math_text(&element.text())),
+        "t" => crate::mathml::append_math_text(out, &element.text()),
         "f" => {
             out.push_str("\\frac");
             push_group(element.child("num"), out);
@@ -264,7 +263,7 @@ fn render_matrix(element: &Element, out: &mut String) {
 fn render_element(element: &Element) -> String {
     let mut out = String::new();
     render_math(element, &mut out);
-    out
+    crate::mathml::trim_row(&out)
 }
 
 /// Renders an optional element and wraps it in `{}` as a script or fraction group.
@@ -273,6 +272,7 @@ fn push_group(element: Option<&Element>, out: &mut String) {
     if let Some(element) = element {
         render_math_children(element, out);
     }
+    out.truncate(out.trim_end().len());
     out.push('}');
 }
 
@@ -362,77 +362,4 @@ fn map_function(name: &str) -> String {
     } else {
         trimmed.to_owned()
     }
-}
-
-/// Maps a math run's text, translating a small set of common symbols to TeX commands and passing
-/// everything else through. Exotic symbols outside this set are emitted literally.
-fn map_math_text(text: &str) -> String {
-    let mut out = String::new();
-    for ch in text.chars() {
-        if let Some(command) = math_symbol(ch) {
-            out.push_str(command);
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
-fn math_symbol(ch: char) -> Option<&'static str> {
-    let command = match ch {
-        'α' => "\\alpha ",
-        'β' => "\\beta ",
-        'γ' => "\\gamma ",
-        'δ' => "\\delta ",
-        'ε' => "\\varepsilon ",
-        'ζ' => "\\zeta ",
-        'η' => "\\eta ",
-        'θ' => "\\theta ",
-        'λ' => "\\lambda ",
-        'μ' => "\\mu ",
-        'π' => "\\pi ",
-        'ρ' => "\\rho ",
-        'σ' => "\\sigma ",
-        'τ' => "\\tau ",
-        'φ' => "\\varphi ",
-        'χ' => "\\chi ",
-        'ψ' => "\\psi ",
-        'ω' => "\\omega ",
-        'Γ' => "\\Gamma ",
-        'Δ' => "\\Delta ",
-        'Θ' => "\\Theta ",
-        'Λ' => "\\Lambda ",
-        'Π' => "\\Pi ",
-        'Σ' => "\\Sigma ",
-        'Φ' => "\\Phi ",
-        'Ψ' => "\\Psi ",
-        'Ω' => "\\Omega ",
-        '∞' => "\\infty ",
-        '×' => "\\times ",
-        '÷' => "\\div ",
-        '±' => "\\pm ",
-        '∓' => "\\mp ",
-        '·' | '⋅' => "\\cdot ",
-        '≤' => "\\leq ",
-        '≥' => "\\geq ",
-        '≠' => "\\neq ",
-        '≈' => "\\approx ",
-        '≡' => "\\equiv ",
-        '∈' => "\\in ",
-        '∉' => "\\notin ",
-        '⊂' => "\\subset ",
-        '⊆' => "\\subseteq ",
-        '∪' => "\\cup ",
-        '∩' => "\\cap ",
-        '→' => "\\rightarrow ",
-        '⇒' => "\\Rightarrow ",
-        '⇔' => "\\Leftrightarrow ",
-        '∂' => "\\partial ",
-        '∇' => "\\nabla ",
-        '∀' => "\\forall ",
-        '∃' => "\\exists ",
-        '∅' => "\\varnothing ",
-        _ => return None,
-    };
-    Some(command)
 }

@@ -474,7 +474,6 @@ write = "usable"
 read-feature = "read-docx"
 write-feature = "write-docx"
 read-gaps = [
-  "Office Math sets binary and relational operators tight, with no surrounding thin space (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`).",
 ]
 write-gaps = [
   "A `lang` value carried by a span or div is dropped rather than set as a run language property.",

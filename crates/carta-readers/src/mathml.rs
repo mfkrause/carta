@@ -55,6 +55,33 @@ pub(crate) fn to_tex<T: MathTree>(math: &T) -> String {
     }
 }
 
+/// Append math characters with operator spacing and TeX command boundaries.
+#[cfg(feature = "docx")]
+pub(crate) fn append_math_text(out: &mut String, text: &str) {
+    let mut tokens = Tokens {
+        out: std::mem::take(out),
+        ..Tokens::default()
+    };
+    let mut bytes = [0; 4];
+    for character in text.chars() {
+        let (tex, role): (&str, Role) = match symbols::symbol(character) {
+            Some(symbol) => symbol,
+            None => (character.encode_utf8(&mut bytes), Role::Plain),
+        };
+        let starts_group =
+            tokens.out.ends_with(['{', '[']) && !ends_with_control_symbol(&tokens.out);
+        let spaced = matches!(role, Role::Spaced | Role::Infix);
+        if spaced && !starts_group {
+            tokens.push_gap();
+        }
+        tokens.push(tex, join_after(role));
+        if spaced {
+            tokens.push_gap();
+        }
+    }
+    *out = tokens.out;
+}
+
 /// What an element inherits from the construct that holds it.
 #[derive(Clone, Copy)]
 struct Context<'a> {
@@ -320,7 +347,8 @@ fn render_row<T: MathTree>(elements: &[&T], ctx: Context<'_>) -> String {
 
 /// Trim the spacing an edge operator leaves around a row, keeping a control space that the trim
 /// would otherwise strip to a bare backslash.
-fn trim_row(row: &str) -> String {
+/// Trim row edges while preserving an escaped final space.
+pub(crate) fn trim_row(row: &str) -> String {
     let trimmed = row.trim();
     if ends_with_lone_backslash(trimmed) {
         format!("{trimmed} ")

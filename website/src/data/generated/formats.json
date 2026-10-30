@@ -943,9 +943,7 @@
         "status": "usable",
         "ships": true,
         "feature": "read-docx",
-        "gaps": [
-          "Office Math sets binary and relational operators tight, with no surrounding thin space (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`)."
-        ]
+        "gaps": []
       },
       "write": {
         "status": "usable",

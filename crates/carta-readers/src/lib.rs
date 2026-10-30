@@ -33,7 +33,16 @@ mod inline_scan;
     feature = "mediawiki"
 ))]
 mod inline_text;
-#[cfg(any(feature = "html", feature = "odt", feature = "docbook"))]
+#[cfg(any(
+    feature = "html",
+    feature = "odt",
+    feature = "docbook",
+    feature = "docx"
+))]
+#[cfg_attr(
+    not(any(feature = "html", feature = "odt", feature = "docbook")),
+    allow(dead_code)
+)]
 mod mathml;
 #[cfg(feature = "rtf")]
 mod numeric;
