@@ -2146,3 +2146,16 @@ fn json_template_numbers_keep_precision_and_use_numeric_notation() {
         assert_eq!(output.stdout, expected);
     }
 }
+
+#[test]
+fn unused_defaults_variables_can_contain_cli_separators() {
+    let directory = input_directory("defaults-variable-names");
+    fs::write(
+        directory.join("options.yaml"),
+        "to: plain\nvariables: {\"a:b\": first, \"a=b\": second}\n",
+    )
+    .unwrap();
+    let output = run_in(&directory, &["-doptions"], "body");
+    assert!(output.success, "{}", output.stderr);
+    assert_eq!(output.stdout, "body\n");
+}

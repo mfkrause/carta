@@ -1,9 +1,11 @@
 #![allow(clippy::indexing_slicing)]
 
-use super::{Cli, parse_metadata, parse_toc_depth, parse_variables, parse_wrap, template_dir};
+use super::{
+    cli_command, parse_metadata_into, parse_toc_depth, parse_variables, parse_wrap, template_dir,
+};
 use carta::WrapMode;
 use carta::ast::MetaValue;
-use clap::CommandFactory;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 fn vars(args: &[&str]) -> Vec<(String, String)> {
@@ -36,7 +38,9 @@ fn variable_splits_on_the_first_colon_or_equals() {
 
 #[test]
 fn metadata_splits_on_the_first_colon_or_equals() {
-    let map = parse_metadata(
+    let mut map = BTreeMap::new();
+    parse_metadata_into(
+        &mut map,
         &["a:val", "b:true", "c:x=y"]
             .iter()
             .map(|s| (*s).to_owned())
@@ -49,7 +53,9 @@ fn metadata_splits_on_the_first_colon_or_equals() {
 
 #[test]
 fn metadata_typing_distinguishes_booleans_from_strings() {
-    let map = parse_metadata(
+    let mut map = BTreeMap::new();
+    parse_metadata_into(
+        &mut map,
         &["a=true", "b=false", "c=text", "d", "e=True"]
             .iter()
             .map(|s| (*s).to_owned())
@@ -64,7 +70,9 @@ fn metadata_typing_distinguishes_booleans_from_strings() {
 
 #[test]
 fn repeated_metadata_key_accumulates_into_a_list() {
-    let two = parse_metadata(&["k=first".to_owned(), "k=second".to_owned()]);
+    let mut two = BTreeMap::new();
+    parse_metadata_into(&mut two, &["k=first".to_owned()]);
+    parse_metadata_into(&mut two, &["k=second".to_owned()]);
     assert_eq!(
         two["k"],
         MetaValue::MetaList(vec![
@@ -72,7 +80,9 @@ fn repeated_metadata_key_accumulates_into_a_list() {
             MetaValue::MetaString("second".into()),
         ])
     );
-    let mixed = parse_metadata(&["k".to_owned(), "k=a".to_owned(), "k=b".to_owned()]);
+    let mut mixed = BTreeMap::new();
+    parse_metadata_into(&mut mixed, &["k".to_owned()]);
+    parse_metadata_into(&mut mixed, &["k=a".to_owned(), "k=b".to_owned()]);
     assert_eq!(
         mixed["k"],
         MetaValue::MetaList(vec![
@@ -98,7 +108,7 @@ fn template_dir_is_the_file_parent_or_current_dir() {
 
 #[test]
 fn cli_definition_is_valid() {
-    Cli::command().debug_assert();
+    cli_command().debug_assert();
 }
 
 #[test]

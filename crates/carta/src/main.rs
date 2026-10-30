@@ -823,7 +823,11 @@ fn variable_number(number: &serde_json::Number) -> String {
     format!("{sign}{first}.{rest}e{exponent}")
 }
 
-fn template_variables(cli: &Cli, matches: &clap::ArgMatches) -> BTreeMap<String, Value> {
+fn template_variables_into(
+    variables: &mut BTreeMap<String, Value>,
+    cli: &Cli,
+    matches: &clap::ArgMatches,
+) {
     let strings = matches
         .indices_of("variable")
         .into_iter()
@@ -838,7 +842,6 @@ fn template_variables(cli: &Cli, matches: &clap::ArgMatches) -> BTreeMap<String,
         .map(|(position, (key, value))| (position, key, value, true));
     let mut values: Vec<_> = strings.chain(json).collect();
     values.sort_by_key(|(position, ..)| *position);
-    let mut variables = BTreeMap::new();
     for (_, key, value, replace) in values {
         if replace {
             variables.insert(key, value);
@@ -854,7 +857,6 @@ fn template_variables(cli: &Cli, matches: &clap::ArgMatches) -> BTreeMap<String,
             variables.insert(key, value);
         }
     }
-    variables
 }
 
 /// Parse `-M` specifiers into metadata values: `true`/`false` become booleans, a bare `KEY` becomes

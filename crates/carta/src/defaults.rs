@@ -8,13 +8,16 @@ use carta::ast::MetaValue;
 use clap::{ArgAction, FromArgMatches};
 use serde_json::Value;
 
-use super::{Cli, cli_command, datadir, parse_metadata_into, template_variables};
+use super::{
+    Cli, cli_command, datadir, parse_metadata_into, template_variables_into, variable_value,
+};
 
 #[derive(Default)]
 struct Defaults {
     arguments: Vec<OsString>,
     inputs: Vec<PathBuf>,
     metadata: BTreeMap<String, MetaValue>,
+    variables: BTreeMap<String, carta_core::template::Value>,
     data_dir: Option<PathBuf>,
     active: Vec<PathBuf>,
     files: usize,
@@ -123,7 +126,7 @@ pub(super) fn parse() -> Result<Cli, ParseError> {
     let matches = cli_command()
         .try_get_matches_from(std::iter::once(OsString::from("carta")).chain(defaults.arguments))?;
     let mut cli = Cli::from_arg_matches(&matches)?;
-    cli.template_variables = template_variables(&cli, &matches);
+    cli.template_variables = defaults.variables;
     cli.metadata_values = defaults.metadata;
     defaults.inputs.append(&mut cli.input);
     cli.input = defaults.inputs;
@@ -146,15 +149,11 @@ impl Defaults {
         let matches = cli_command().try_get_matches_from(
             std::iter::once(OsString::from("carta")).chain(pending.iter().cloned()),
         )?;
-        let metadata: Vec<_> = matches
-            .get_many::<String>("metadata")
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect();
-        parse_metadata_into(&mut self.metadata, &metadata);
-        if let Some(directory) = matches.get_one::<PathBuf>("data_dir") {
-            self.data_dir = Some(directory.clone());
+        let cli = Cli::from_arg_matches(&matches)?;
+        parse_metadata_into(&mut self.metadata, &cli.metadata);
+        template_variables_into(&mut self.variables, &cli, &matches);
+        if let Some(directory) = cli.data_dir {
+            self.data_dir = Some(directory);
         }
         self.arguments.append(pending);
         Ok(())
@@ -263,10 +262,11 @@ impl Defaults {
                 let Value::Object(values) = value else {
                     return Err("expected a mapping".to_owned());
                 };
-                for (key, value) in values {
-                    self.arguments
-                        .push(format!("--variable-json={key}:{value}").into());
-                }
+                self.variables.extend(
+                    values
+                        .into_iter()
+                        .map(|(key, value)| (key, variable_value(value))),
+                );
             }
             "html-math-method" => self.math_method(&value)?,
             "filters" => {
