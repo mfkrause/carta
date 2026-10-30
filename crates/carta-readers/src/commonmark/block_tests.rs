@@ -617,3 +617,37 @@ fn repeated_unclosed_table_tags_keep_following_blocks() {
     let out = parse(&source, extensions, true).0;
     assert!(matches!(out.last(), Some(IrBlock::Heading(1, _))));
 }
+
+#[test]
+fn raw_html_content_uses_its_first_lines_indent() {
+    for tag in ["table", "section", "pre"] {
+        let source = format!("  <{tag}>\n  inside\n\n  # heading\n");
+        let out = blocks(&source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::RawHtml(open), IrBlock::Para(text), IrBlock::Heading(1, _)] if open == &format!("<{tag}>") && text == "inside"),
+            "{out:?}"
+        );
+    }
+}
+
+#[test]
+fn native_div_content_keeps_its_indent() {
+    let out = blocks("<div>\n  # heading\n\n    code\n</div>\n");
+    let [IrBlock::Div(_, content)] = out.as_slice() else {
+        panic!("expected one div: {out:?}");
+    };
+    assert!(
+        matches!(content.as_slice(), [IrBlock::Para(text), IrBlock::CodeBlock(_, code)] if text == "# heading" && code == "code"),
+        "{content:?}"
+    );
+}
+
+#[test]
+fn native_divs_without_parsed_html_need_a_block_boundary() {
+    let extensions =
+        carta_core::Extensions::from_list(&[Extension::NativeDivs, Extension::RawHtml]);
+    for source in ["before\n<div>\ninside\n", "  <div>\n  inside\n"] {
+        let out = parse(source, extensions, true).0;
+        assert!(matches!(out.as_slice(), [IrBlock::Para(_)]), "{out:?}");
+    }
+}

@@ -281,6 +281,8 @@ struct Node {
     /// following body line is classified against the new line alone rather than re-verifying the
     /// header and delimiter (which never change) every time.
     pipe_table: bool,
+    html_indent: usize,
+    html_indent_pending: bool,
 }
 
 impl Node {
@@ -295,6 +297,8 @@ impl Node {
             as_plain: false,
             last_line_blank: false,
             pipe_table: false,
+            html_indent: 0,
+            html_indent_pending: false,
         }
     }
 }
@@ -427,6 +431,13 @@ impl Parser {
         // Judge close fences at each div's own indent; deeper fences are content.
         let mut div_path: Vec<(usize, String)> = Vec::new();
         loop {
+            if let Some(node) = self.nodes.get_mut(container) {
+                if node.html_indent_pending {
+                    node.html_indent = cursor.indent();
+                    node.html_indent_pending = false;
+                }
+                cursor.advance_up_to_columns(node.html_indent);
+            }
             let Some(child) = self.last_open_child(container) else {
                 break;
             };
@@ -816,7 +827,12 @@ impl Parser {
         let is_div = open.tag == "div";
         // Parsed HTML needs `native_divs` or `markdown_in_html_blocks`.
         let as_div = is_div && native_divs;
-        if !as_div && !markdown_in_html {
+        if !markdown_in_html
+            && (!as_div
+                || self.greedy_paragraphs
+                    && (indent > 0
+                        || matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph))))
+        {
             return None;
         }
         // A paragraph still open here had no blank line before the element, so it reads tight.
@@ -830,13 +846,19 @@ impl Parser {
         let kind = Kind::HtmlElement(HtmlElementInfo {
             tag: open.tag,
             attr: open.attr,
-            raw_open: format!("{}{raw_open}", " ".repeat(indent)),
+            raw_open: if self.greedy_paragraphs {
+                raw_open
+            } else {
+                format!("{}{raw_open}", " ".repeat(indent))
+            },
             raw_close: String::new(),
             as_div,
             tighten_last: false,
         });
         let parent = self.place(container, &kind);
-        let index = self.append_child(parent, Node::new(kind));
+        let mut node = Node::new(kind);
+        node.html_indent_pending = self.greedy_paragraphs && !as_div;
+        let index = self.append_child(parent, node);
         if !trailing.trim().is_empty() {
             self.process_line(&trailing, &[], None);
         }

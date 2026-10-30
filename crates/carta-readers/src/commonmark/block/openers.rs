@@ -155,7 +155,11 @@ impl Parser {
                     {
                         let line = cursor.rest();
                         cursor.advance_chars(line.len());
-                        return Some(self.emit_raw_html_leaf(container, &line, end));
+                        let parent = self.place(container, &Kind::HtmlBlock(kind));
+                        if markdown_in_html && let Some(node) = self.nodes.get_mut(parent) {
+                            node.html_indent_pending = true;
+                        }
+                        return Some(self.emit_raw_html_leaf(parent, &line, end));
                     }
                     return None;
                 }

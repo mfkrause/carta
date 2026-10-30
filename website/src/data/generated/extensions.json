@@ -82,12 +82,6 @@
   "gaps": [
     {
       "names": [
-        "markdown_in_html_blocks"
-      ],
-      "description": "An HTML block left open at end of input (a `<!-- …` comment or a `<table>`/`<div>` with no close tag) is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block."
-    },
-    {
-      "names": [
         "native_spans"
       ],
       "description": "An emphasis run that opens before a `<span>` and whose closing marker sits just inside the matching `</span>` can leave both tags raw instead of forming a span."
