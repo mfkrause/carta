@@ -8,6 +8,7 @@ use crate::xml::{Element, local_name};
 pub(super) fn omml_to_tex(element: &Element) -> String {
     let mut out = String::new();
     render_math_children(element, &mut out);
+    out.truncate(out.trim_end().len());
     out
 }
 
@@ -411,7 +412,7 @@ fn math_symbol(ch: char) -> Option<&'static str> {
         '÷' => "\\div ",
         '±' => "\\pm ",
         '∓' => "\\mp ",
-        '⋅' => "\\cdot ",
+        '·' | '⋅' => "\\cdot ",
         '≤' => "\\leq ",
         '≥' => "\\geq ",
         '≠' => "\\neq ",
@@ -423,14 +424,14 @@ fn math_symbol(ch: char) -> Option<&'static str> {
         '⊆' => "\\subseteq ",
         '∪' => "\\cup ",
         '∩' => "\\cap ",
-        '→' => "\\to ",
+        '→' => "\\rightarrow ",
         '⇒' => "\\Rightarrow ",
         '⇔' => "\\Leftrightarrow ",
         '∂' => "\\partial ",
         '∇' => "\\nabla ",
         '∀' => "\\forall ",
         '∃' => "\\exists ",
-        '∅' => "\\emptyset ",
+        '∅' => "\\varnothing ",
         _ => return None,
     };
     Some(command)

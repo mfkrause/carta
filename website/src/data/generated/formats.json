@@ -944,8 +944,7 @@
         "ships": true,
         "feature": "read-docx",
         "gaps": [
-          "Office Math sets binary and relational operators tight, with no surrounding thin space (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`).",
-          "A few math symbols take a less idiomatic TeX spelling (`→` becomes `\\to` rather than `\\rightarrow`; `·` is kept literal rather than `\\cdot`)."
+          "Office Math sets binary and relational operators tight, with no surrounding thin space (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`)."
         ]
       },
       "write": {

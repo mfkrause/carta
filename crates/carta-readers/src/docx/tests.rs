@@ -390,3 +390,18 @@ fn text_box_traversal_keeps_siblings_and_skips_deletions() {
         );
     }
 }
+
+#[test]
+fn math_symbols_use_canonical_commands_without_trailing_spaces() {
+    let archive = docx_from_body("<w:p><m:oMath><m:r><m:t>→∅·α</m:t></m:r></m:oMath></w:p>");
+    let document = DocxReader
+        .read(&archive, &ReaderOptions::default())
+        .unwrap();
+    assert_eq!(
+        document.blocks,
+        vec![Block::Para(vec![Inline::Math(
+            carta_ast::MathType::InlineMath,
+            "\\rightarrow \\varnothing \\cdot \\alpha".into(),
+        )])]
+    );
+}
