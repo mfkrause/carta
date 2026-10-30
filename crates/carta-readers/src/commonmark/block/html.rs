@@ -3,12 +3,9 @@
 use super::{Cursor, Extension, Kind, Node, Parser, html_block, html_element};
 
 impl Parser {
-    /// The Markdown family reading raw HTML where inner content is not parsed: a block-level tag is
-    /// kept verbatim rather than opened as a native div or a markdown-in-HTML element.
+    /// Raw HTML reading for elements without parsed inner content.
     pub(super) fn markdown_raw_html(&self) -> bool {
-        self.greedy_paragraphs
-            && !self.extensions.contains(Extension::MarkdownInHtmlBlocks)
-            && !self.extensions.contains(Extension::NativeDivs)
+        self.greedy_paragraphs && !self.extensions.contains(Extension::MarkdownInHtmlBlocks)
     }
 
     /// In the Markdown family reading raw HTML, a block-level HTML tag that starts the line opens a
@@ -25,6 +22,7 @@ impl Parser {
         in_paragraph: bool,
         cursor: &mut Cursor,
         following: &[&str],
+        line_index: Option<usize>,
     ) -> Option<usize> {
         enum Opener {
             /// A single-line raw block holding `line[..end]`.
@@ -51,7 +49,7 @@ impl Parser {
                 // Self-closing/void, or no balanced close ahead: the tag alone is the raw block.
                 None if line_depth == 0
                     || !self.raw_html_span_closes(
-                        container, line_depth, &open.tag, following, literal,
+                        container, line_depth, &open.tag, following, literal, line_index,
                     ) =>
                 {
                     Opener::Single(open.len)
@@ -94,21 +92,43 @@ impl Parser {
     /// Emit a single-line raw HTML block holding `line[..end]`, re-feeding any trailing content on the
     /// line as a fresh line, and return the closed leaf.
     pub(super) fn emit_raw_html_leaf(&mut self, container: usize, line: &str, end: usize) -> usize {
-        let kept = line.get(..end).unwrap_or(line).to_owned();
-        let rest = line.get(end..).unwrap_or("").to_owned();
-        let kind = Kind::RawHtmlSpan {
-            tag: String::new(),
-            depth: 0,
-            literal: None,
-        };
-        let parent = self.place(container, &kind);
-        let index = self.append_child(parent, Node::new(kind));
-        self.append_text(index, &kept);
-        self.close(index);
-        if !rest.trim().is_empty() {
-            self.process_line(&rest, &[], None);
+        let no_close = self
+            .last_html_close_line
+            .is_none_or(|last| last <= self.source_line)
+            && line.get(end..).is_none_or(|rest| !rest.contains("</"));
+        let first = self.nodes.len();
+        let mut line = line;
+        let mut end = end;
+        loop {
+            let kind = Kind::RawHtmlSpan {
+                tag: String::new(),
+                depth: 0,
+                literal: None,
+            };
+            let parent = self.place(container, &kind);
+            let index = self.append_child(parent, Node::new(kind));
+            self.append_text(index, line.get(..end).unwrap_or(line));
+            self.close(index);
+            let rest = line.get(end..).unwrap_or("");
+            if no_close && rest.starts_with('<') {
+                let raw_text = html_block::raw_text_tag(rest).is_some();
+                let raw_element = self.markdown_raw_html()
+                    && html_element::parse_open_tag(rest).is_some_and(|open| {
+                        open.tag != "div" || !self.extensions.contains(Extension::NativeDivs)
+                    });
+                if (raw_text || raw_element)
+                    && let Some(next) = super::scan::scan_html_tag_end(rest, 0)
+                {
+                    line = rest;
+                    end = next;
+                    continue;
+                }
+            }
+            if !rest.trim().is_empty() {
+                self.process_line(rest, &[], None);
+            }
+            return first;
         }
-        index
     }
 
     /// Whether a raw HTML span opened at `depth` finds its balanced close somewhere in the following
@@ -120,7 +140,13 @@ impl Parser {
         tag: &str,
         following: &[&str],
         mut literal: Option<html_element::HtmlLiteral>,
+        line_index: Option<usize>,
     ) -> bool {
+        if line_index
+            .is_some_and(|current| self.last_html_close_line.is_none_or(|last| last <= current))
+        {
+            return false;
+        }
         let path = self.container_path(container);
         let mut depth = depth;
         for line in following {
@@ -136,6 +162,28 @@ impl Parser {
             depth = next;
         }
         false
+    }
+
+    /// Checks closing candidates without rescanning the remaining document for each opener.
+    pub(super) fn html_reaches_close(
+        &self,
+        kind: u8,
+        line: &str,
+        following: &[&str],
+        line_index: Option<usize>,
+    ) -> bool {
+        if html_block::closes(kind, line) {
+            return true;
+        }
+        if line_index.is_none() && !following.is_empty() {
+            return following.iter().any(|line| html_block::closes(kind, line));
+        }
+        let current = line_index.unwrap_or(self.source_line);
+        self.html_closing_lines
+            .get(usize::from(kind))
+            .copied()
+            .flatten()
+            .is_some_and(|last| last > current)
     }
 
     /// If this line carries the matching close tag of the innermost open HTML element, close that

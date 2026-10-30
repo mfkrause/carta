@@ -107,6 +107,7 @@ fn parse_inlines_shared(
         cite_cache,
         interesting: interesting_chars(ext),
         backtick_runs: None,
+        html_closing: std::cell::OnceCell::new(),
         raw_tex_groups: std::cell::OnceCell::new(),
         raw_tex_environments: std::cell::OnceCell::new(),
     };
@@ -172,6 +173,8 @@ struct InlineParser<'a> {
     /// never changes during inline parsing. A feature that mutated the buffer mid-parse would have
     /// to rebuild it.
     backtick_runs: Option<BTreeMap<usize, Vec<usize>>>,
+    /// Last terminators bound failed HTML scans when many openers have no close.
+    html_closing: std::cell::OnceCell<[Option<usize>; 4]>,
     /// Group opener offsets mapped to their closing ends, built on the first raw-TeX group scan.
     raw_tex_groups: std::cell::OnceCell<BTreeMap<usize, usize>>,
     /// Environment opening-group ends mapped to their matching closing-marker ends.

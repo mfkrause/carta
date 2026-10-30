@@ -241,3 +241,21 @@ fn declarations_stay_literal_in_markdown_paragraphs() {
         )]
     );
 }
+
+#[test]
+fn html_end_checks_keep_closed_tokens_before_unclosed_ones() {
+    let extensions = Extensions::from_list(&[Extension::RawHtml]);
+    for source in ["<!-->", "<!--->"] {
+        assert!(
+            matches!(pm(source, extensions).as_slice(), [Inline::RawInline(_, text)] if text == source)
+        );
+    }
+    let out = pm("<!-- ok --> <?pi ok?> <!--", extensions);
+    assert_eq!(
+        out.iter()
+            .filter(|inline| matches!(inline, Inline::RawInline(_, _)))
+            .count(),
+        2
+    );
+    assert_eq!(out.last(), Some(&str("<!--")));
+}

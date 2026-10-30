@@ -106,7 +106,7 @@ fn an_ordinary_info_string_is_not_a_marker() {
 use super::super::postprocess::{is_math_environment, raw_tex_env_name, raw_tex_scan};
 use super::{IrBlock, parse};
 use carta_ast::Format;
-use carta_core::presets;
+use carta_core::{Extension, presets};
 
 fn blocks(input: &str) -> Vec<IrBlock> {
     parse(input, presets::MARKDOWN, true).0
@@ -535,4 +535,85 @@ fn indented_inline_html_keeps_its_paragraph_open() {
             "{out:?}"
         );
     }
+}
+
+#[test]
+fn unclosed_html_keeps_following_paragraphs_and_references() {
+    for opening in ["<!--", "<?pi"] {
+        let source = format!("before\n{opening}\ninside\n\n# heading\n\n[x]: /target\n");
+        let (out, references, _, _) = parse(&source, presets::MARKDOWN, true);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(_), IrBlock::Heading(1, _)]),
+            "{out:?}"
+        );
+        assert!(references.contains_key("x"));
+    }
+}
+
+#[test]
+fn unclosed_raw_text_html_keeps_only_its_opening_tag_raw() {
+    for tag in ["pre", "script", "textarea", "style"] {
+        let source = format!("<{tag}>inside\n\n# heading\n");
+        let out = blocks(&source);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::RawHtml(opening), IrBlock::Para(text), IrBlock::Heading(1, _)] if opening == &format!("<{tag}>") && text == "inside"),
+            "{out:?}"
+        );
+    }
+}
+
+#[test]
+fn repeated_unclosed_comments_do_not_hide_later_blocks() {
+    let source = format!("{}\n# heading\n", "<!--\n".repeat(5_000));
+    let out = blocks(&source);
+    assert!(matches!(out.last(), Some(IrBlock::Heading(1, _))));
+}
+
+#[test]
+fn unclosed_table_tags_stay_raw_when_only_native_divs_are_enabled() {
+    let extensions =
+        carta_core::Extensions::from_list(&[Extension::NativeDivs, Extension::RawHtml]);
+    let out = parse("<table>\ninside\n", extensions, true).0;
+    assert!(
+        matches!(out.as_slice(), [IrBlock::RawHtml(tag), IrBlock::Para(text)] if tag == "<table>" && text == "inside"),
+        "{out:?}"
+    );
+}
+
+#[test]
+fn nested_commonmark_html_has_no_document_end_padding() {
+    for source in ["> <!--\n> inside\n", "- <!--\n  inside\n"] {
+        let out = parse(source, carta_core::Extensions::empty(), false).0;
+        let block = match out.first() {
+            Some(IrBlock::BlockQuote(blocks)) => blocks.first(),
+            Some(IrBlock::BulletList(items)) => items.first().and_then(|item| item.first()),
+            other => panic!("expected a container: {other:?}"),
+        };
+        assert!(
+            matches!(block, Some(IrBlock::RawHtml(text)) if text == "<!--\ninside\n"),
+            "{block:?}"
+        );
+    }
+}
+
+#[test]
+fn same_line_unclosed_tags_keep_following_blocks_without_recursion() {
+    for (tag, extensions) in [
+        ("pre", presets::MARKDOWN),
+        ("table", carta_core::Extensions::empty()),
+    ] {
+        let source = format!("{}# heading", format!("<{tag}>").repeat(2_000));
+        let out = parse(&source, extensions, true).0;
+        assert_eq!(out.len(), 2_001);
+        assert!(matches!(out.last(), Some(IrBlock::Heading(1, _))));
+    }
+}
+
+#[test]
+fn repeated_unclosed_table_tags_keep_following_blocks() {
+    let extensions =
+        carta_core::Extensions::from_list(&[Extension::NativeDivs, Extension::RawHtml]);
+    let source = format!("{}\n# heading", "<table>\n".repeat(5_000));
+    let out = parse(&source, extensions, true).0;
+    assert!(matches!(out.last(), Some(IrBlock::Heading(1, _))));
 }

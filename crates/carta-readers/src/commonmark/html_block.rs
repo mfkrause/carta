@@ -47,6 +47,22 @@ pub(super) fn raw_text_tag(rest: &str) -> Option<&'static str> {
         .find(|candidate| tag.eq_ignore_ascii_case(candidate))
 }
 
+/// The last possible closing line for each explicitly terminated HTML block kind.
+pub(super) fn last_closing_lines(lines: &[&str]) -> [Option<usize>; 6] {
+    let mut closing = [None; 6];
+    for (index, line) in lines.iter().enumerate() {
+        for (kind, last) in (1..=5).zip(closing.iter_mut().skip(1)) {
+            if kind == 1 && !line.contains("</") {
+                continue;
+            }
+            if closes(kind, line) {
+                *last = Some(index);
+            }
+        }
+    }
+    closing
+}
+
 /// Whether `line` satisfies the end condition for an HTML block of the given type. Types 6 and 7
 /// end at a blank line instead and are handled by the caller.
 pub(super) fn closes(kind: u8, line: &str) -> bool {

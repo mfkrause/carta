@@ -36,10 +36,15 @@ pub(crate) fn parse(
     let lines = split_lines(input);
     if greedy_paragraphs {
         parser.fence_close_candidates = build_fence_close_candidates(&lines);
+        if input.contains('<') {
+            parser.html_closing_lines = html_block::last_closing_lines(&lines);
+            parser.last_html_close_line = lines.iter().rposition(|line| line.contains("</"));
+        }
     }
     for index in 0..lines.len() {
         let line = lines.get(index).copied().unwrap_or("");
         let following = lines.get(index + 1..).unwrap_or(&[]);
+        parser.source_line = index;
         parser.process_line(line, following, Some(index));
     }
     parser.finalize_open_text_tables();
@@ -164,11 +169,8 @@ enum Kind {
     IndentedCode,
     FencedCode(FenceInfo),
     HtmlBlock(u8),
-    /// A raw HTML block in the Markdown family when inner content is not parsed (neither
-    /// `native_divs` nor `markdown_in_html_blocks` applies). A block-level open tag at the left
-    /// margin begins a span that accumulates lines verbatim (nested same-name tags counted, blank
-    /// lines kept) until a close tag brings `depth` back to zero; the whole span is one `RawBlock`.
-    /// A self-closing, void, or bare close tag opens a span already at `depth` zero: a single line.
+    /// Raw HTML collected through the matching close tag, counting nested same-name tags.
+    /// Literal HTML does not affect the tag count. A zero depth marks a standalone tag.
     RawHtmlSpan {
         tag: String,
         depth: usize,
@@ -332,6 +334,9 @@ struct Parser {
     /// Precomputed close-fence positions for the whole document, consulted from the root container so
     /// a fence opener does not rescan every remaining line (built only in greedy-paragraph mode).
     fence_close_candidates: FenceCloseCandidates,
+    html_closing_lines: [Option<usize>; 6],
+    last_html_close_line: Option<usize>,
+    source_line: usize,
 }
 
 impl Parser {
@@ -343,6 +348,9 @@ impl Parser {
             greedy_paragraphs,
             paragraph_fold: None,
             fence_close_candidates: FenceCloseCandidates::default(),
+            html_closing_lines: [None; 6],
+            last_html_close_line: None,
+            source_line: 0,
         }
     }
 
@@ -456,13 +464,17 @@ impl Parser {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     pub(super) fn process_line(
         &mut self,
         line: &str,
         following: &[&str],
         line_index: Option<usize>,
     ) {
+        carta_core::with_stack(|| self.process_line_nested(line, following, line_index));
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn process_line_nested(&mut self, line: &str, following: &[&str], line_index: Option<usize>) {
         let mut cursor = Cursor::new(line);
 
         // Phase 1: descend through open containers, matching each one's continuation marker.

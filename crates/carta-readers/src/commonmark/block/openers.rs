@@ -103,9 +103,14 @@ impl Parser {
                 return Some(block);
             }
             // Unparsed inner HTML: a block tag spans to its balanced close as one raw block.
-            if let Some(block) =
-                self.open_markdown_raw_html(container, indent, in_paragraph, cursor, following)
-            {
+            if let Some(block) = self.open_markdown_raw_html(
+                container,
+                indent,
+                in_paragraph,
+                cursor,
+                following,
+                line_index,
+            ) {
                 return Some(block);
             }
             if self.greedy_paragraphs
@@ -128,8 +133,11 @@ impl Parser {
                     || kind == 1
                         && (!markdown_in_html
                             || html_block::raw_text_tag(cursor.remaining()) == Some("style"));
+                let reaches_close = !self.greedy_paragraphs
+                    || !matches!(kind, 1..=5)
+                    || self.html_reaches_close(kind, cursor.remaining(), following, line_index);
                 if self.greedy_paragraphs && (in_paragraph || indent > 0) && inline_html {
-                    if !html_block::closes(kind, cursor.remaining()) {
+                    if reaches_close && !html_block::closes(kind, cursor.remaining()) {
                         self.paragraph_fold = match kind {
                             2 => Some(ParagraphFold::Comment),
                             3 => Some(ParagraphFold::ProcessingInstruction),
@@ -140,6 +148,16 @@ impl Parser {
                 }
                 if self.greedy_paragraphs && markdown_in_html && kind == 1 {
                     self.tighten_interrupted_paragraph(container);
+                }
+                if !reaches_close {
+                    if kind == 1
+                        && let Some(end) = scan::scan_html_tag_end(cursor.remaining(), 0)
+                    {
+                        let line = cursor.rest();
+                        cursor.advance_chars(line.len());
+                        return Some(self.emit_raw_html_leaf(container, &line, end));
+                    }
+                    return None;
                 }
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));

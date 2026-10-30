@@ -539,7 +539,39 @@ impl InlineParser<'_> {
         let rest = self.text.get(self.pos..).unwrap_or("");
         let declaration =
             self.notes.markdown && rest.starts_with("<!") && !rest.starts_with("<!--");
-        if !declaration && let Some((html, next)) = scan_html_tag(self.text, self.pos) {
+        let ending = if rest.starts_with("<!--")
+            && !rest.starts_with("<!-->")
+            && !rest.starts_with("<!--->")
+        {
+            Some((0, 4))
+        } else if rest.starts_with("<?") {
+            Some((1, 2))
+        } else if rest.starts_with("<![CDATA[") {
+            Some((2, 9))
+        } else if rest.starts_with("<!") {
+            Some((3, 2))
+        } else {
+            None
+        };
+        let closes = ending.is_none_or(|(index, prefix)| {
+            self.html_closing
+                .get_or_init(|| {
+                    [
+                        self.text.rfind("-->"),
+                        self.text.rfind("?>"),
+                        self.text.rfind("]]>"),
+                        self.text.rfind('>'),
+                    ]
+                })
+                .get(index)
+                .copied()
+                .flatten()
+                .is_some_and(|last| last >= self.pos + prefix)
+        });
+        if !declaration
+            && closes
+            && let Some((html, next)) = scan_html_tag(self.text, self.pos)
+        {
             self.pos = next;
             // With `raw_html` off, Markdown keeps tags literal; CommonMark emits raw HTML.
             if self.notes.markdown && !self.ext.contains(Extension::RawHtml) {

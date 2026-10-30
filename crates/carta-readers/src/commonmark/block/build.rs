@@ -299,16 +299,15 @@ impl Parser {
         Some(block)
     }
 
-    /// Finalize a raw HTML block's text. The markdown dialect drops a block's final newline; the
-    /// strict dialect instead pads an unterminated kind 1–5 block, which closes only on an explicit
-    /// end tag, so reaching end-of-input with it still open surfaces as a trailing blank line.
+    /// Finalizes raw HTML text, dropping its final newline in Markdown.
+    /// An unclosed `CommonMark` block at the document root keeps an extra final newline.
     pub(super) fn finalize_html_block(&self, node: &Node, kind: u8) -> String {
         let mut text = node.text.clone();
         if self.greedy_paragraphs {
             if text.ends_with('\n') {
                 text.pop();
             }
-        } else if node.open && matches!(kind, 1..=5) {
+        } else if node.open && node.parent == 0 && matches!(kind, 1..=5) {
             text.push('\n');
         }
         text
