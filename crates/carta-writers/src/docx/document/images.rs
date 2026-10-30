@@ -16,38 +16,48 @@ pub(super) fn image_drawing_for(
     alt: &[Inline],
     ctx: &mut Ctx,
 ) -> Option<Element> {
-    let (bytes, mime) = match ctx.media.get(target.url.as_str()) {
-        Some(item) => {
-            let mime = item
-                .mime
-                .clone()
-                .unwrap_or_else(|| mime_from_url(target.url.as_str()));
-            (item.bytes.clone(), mime)
-        }
-        None => carta_core::media::decode_data_uri(target.url.as_str())?,
+    let source = target.url.as_str();
+    let (rel_id, cx, cy) = if let Some(image) = ctx
+        .image_indices
+        .get(&target.url)
+        .and_then(|index| ctx.images.get(*index))
+    {
+        let (cx, cy) = image_extent(&image.bytes, &attr.attributes);
+        (image.rel_id, cx, cy)
+    } else {
+        let (bytes, mime) = match ctx.media.get(source) {
+            Some(item) => {
+                let mime = item.mime.clone().unwrap_or_else(|| mime_from_url(source));
+                (item.bytes.clone(), mime)
+            }
+            None => carta_core::media::decode_data_uri(source)?,
+        };
+        let (cx, cy) = image_extent(&bytes, &attr.attributes);
+        let rel_id = ctx.next_id;
+        ctx.next_id = ctx.next_id.saturating_add(1);
+        let extension = extension_for_mime(&mime);
+        let file_name = format!("rId{rel_id}.{extension}");
+        ctx.image_indices
+            .insert(target.url.clone(), ctx.images.len());
+        ctx.images.push(ImageMedia {
+            rel_id,
+            file_name,
+            mime,
+            bytes,
+        });
+        (rel_id, cx, cy)
     };
-    let (cx, cy) = image_extent(&bytes, &attr.attributes);
-
-    let rel_id = ctx.next_id;
-    ctx.next_id = ctx.next_id.saturating_add(3);
-    let extension = extension_for_mime(&mime);
-    let file_name = format!("rId{rel_id}.{extension}");
-    let alt_text = carta_ast::to_plain_text(alt);
-    let drawing = image_drawing(
+    let drawing_id = ctx.next_id;
+    ctx.next_id = ctx.next_id.saturating_add(2);
+    Some(image_drawing(
         rel_id,
+        drawing_id,
         cx,
         cy,
-        target.url.as_str(),
-        &alt_text,
+        source,
+        &carta_ast::to_plain_text(alt),
         target.title.as_str(),
-    );
-    ctx.images.push(ImageMedia {
-        rel_id,
-        file_name,
-        mime,
-        bytes,
-    });
-    Some(drawing)
+    ))
 }
 
 /// The drawn size of an image in English metric units. A requested width and height, given in pixels
@@ -147,14 +157,14 @@ fn mime_from_url(url: &str) -> String {
 /// `source` the reference was written as, while the drawing's description carries the alt text.
 fn image_drawing(
     rel_id: u32,
+    doc_id: u32,
     cx: i64,
     cy: i64,
     source: &str,
     description: &str,
     title: &str,
 ) -> Element {
-    let doc_id = rel_id.saturating_add(1);
-    let picture_id = rel_id.saturating_add(2);
+    let picture_id = doc_id.saturating_add(1);
     let cx = cx.to_string();
     let cy = cy.to_string();
 

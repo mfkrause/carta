@@ -177,6 +177,20 @@ pub(super) fn document_rels(images: &[ImageMedia], hyperlinks: &BTreeMap<String,
         &format!("{REL_BASE}/comments"),
         "comments.xml",
     ));
+    push_image_rels(&mut rels, images);
+    push_hyperlink_rels(&mut rels, hyperlinks);
+    rels.render_document()
+}
+
+/// The relationships shared by notes and comments for embedded images and external links.
+pub(super) fn auxiliary_rels(images: &[ImageMedia], hyperlinks: &BTreeMap<String, u32>) -> String {
+    let mut rels = Element::new("Relationships").attr("xmlns", RELATIONSHIPS_NS);
+    push_image_rels(&mut rels, images);
+    push_hyperlink_rels(&mut rels, hyperlinks);
+    rels.render_document()
+}
+
+fn push_image_rels(rels: &mut Element, images: &[ImageMedia]) {
     for image in images {
         rels.push(relationship(
             &format!("rId{}", image.rel_id),
@@ -184,17 +198,6 @@ pub(super) fn document_rels(images: &[ImageMedia], hyperlinks: &BTreeMap<String,
             &format!("media/{}", image.file_name),
         ));
     }
-    push_hyperlink_rels(&mut rels, hyperlinks);
-    rels.render_document()
-}
-
-/// The footnotes part references the same external hyperlink destinations as the body, since a link
-/// may sit in a footnote as readily as in the flow, so it carries the identical external
-/// relationships under their shared ids.
-pub(super) fn footnotes_rels(hyperlinks: &BTreeMap<String, u32>) -> String {
-    let mut rels = Element::new("Relationships").attr("xmlns", RELATIONSHIPS_NS);
-    push_hyperlink_rels(&mut rels, hyperlinks);
-    rels.render_document()
 }
 
 /// Appends one external relationship per distinct hyperlink destination, in the map's key order so

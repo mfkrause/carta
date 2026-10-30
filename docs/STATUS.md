@@ -235,7 +235,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `man` ✅
 
 ### `docx` ✅
-- Repeated images are embedded separately rather than shared.
 - A paragraph that ends in an inline equation (whether the equation renders to Office Math or, when
   it cannot be parsed, falls back to its raw dollar-delimited text) omits the trailing
   zero-width-space run that anchors such a paragraph.

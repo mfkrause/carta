@@ -102,10 +102,13 @@ fn write_docx(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         "word/_rels/document.xml.rels",
         package::document_rels(&rendered.images, &rendered.hyperlinks).as_bytes(),
     )?;
-    archive.deflate(
-        "word/_rels/footnotes.xml.rels",
-        package::footnotes_rels(&rendered.hyperlinks).as_bytes(),
-    )?;
+    let auxiliary_rels = package::auxiliary_rels(&rendered.images, &rendered.hyperlinks);
+    for part in ["footnotes", "comments"] {
+        archive.deflate(
+            &format!("word/_rels/{part}.xml.rels"),
+            auxiliary_rels.as_bytes(),
+        )?;
+    }
     archive.deflate("word/document.xml", rendered.document_xml.as_bytes())?;
     archive.deflate(
         "word/footnotes.xml",

@@ -100,3 +100,59 @@ fn native_numbered_captions_keep_language_and_direction() {
         );
     }
 }
+
+#[test]
+fn repeated_images_share_media_across_document_parts() {
+    use carta_ast::{Attr, Block, Inline};
+
+    let input = include_str!("../../../corpus/ast-ext/docx/image-link.json");
+    let mut document = carta_ast::from_json(input.as_bytes()).unwrap();
+    let Block::Para(inlines) = document.blocks.first().unwrap() else {
+        panic!("image fixture starts with a paragraph");
+    };
+    let inlines = inlines.clone();
+    let comment_start = Attr {
+        classes: vec!["comment-start".into()],
+        attributes: vec![("id".into(), "1".into())],
+        ..Attr::default()
+    };
+    let comment_end = Attr {
+        classes: vec!["comment-end".into()],
+        attributes: comment_start.attributes.clone(),
+        ..Attr::default()
+    };
+    document.blocks.push(Block::Para(vec![
+        Inline::Note(vec![Block::Para(inlines.clone())]),
+        Inline::Span(Box::new(comment_start), inlines),
+        Inline::Str("range".into()),
+        Inline::Span(Box::new(comment_end), Vec::new()),
+    ]));
+    let bytes = docx_bytes("docx", &carta_ast::to_json(&document).unwrap());
+    let entries = zip::read(&bytes).unwrap();
+    assert_eq!(
+        entries
+            .iter()
+            .filter(|entry| entry.name.starts_with("word/media/"))
+            .count(),
+        1
+    );
+    for (part, uses) in [("document", 2), ("footnotes", 1), ("comments", 1)] {
+        let entry = entries
+            .iter()
+            .find(|entry| entry.name == format!("word/{part}.xml"))
+            .unwrap();
+        let xml = std::str::from_utf8(&entry.data).unwrap();
+        assert_eq!(xml.matches("r:embed=\"rId9\"").count(), uses, "{part}");
+        let entry = entries
+            .iter()
+            .find(|entry| entry.name == format!("word/_rels/{part}.xml.rels"))
+            .unwrap();
+        let xml = std::str::from_utf8(&entry.data).unwrap();
+        assert!(
+            xml.split("/>")
+                .any(|relationship| relationship.contains("Id=\"rId9\"")
+                    && relationship.contains("Target=\"media/rId9.png\"")),
+            "{part}"
+        );
+    }
+}
