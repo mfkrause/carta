@@ -99,7 +99,7 @@ impl State {
 
     fn block(&mut self, block: &Block, width: usize) -> String {
         match block {
-            Block::Plain(inlines) | Block::Para(inlines) => self.paragraph(inlines, width),
+            Block::Plain(inlines) | Block::Para(inlines) => self.paragraph(inlines, width, 0),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => {
@@ -128,17 +128,18 @@ impl State {
         }
     }
 
-    fn paragraph(&mut self, inlines: &[Inline], width: usize) -> String {
+    fn paragraph(&mut self, inlines: &[Inline], width: usize, initial: usize) -> String {
         if !inlines
             .iter()
             .any(|inline| matches!(inline, Inline::Math(MathType::DisplayMath, _)))
         {
-            return fill(&self.pieces(inlines), width, self.wrap);
+            return fill_offset(&self.pieces(inlines), width, initial, self.wrap);
         }
         let mut out = String::new();
         let mut text_run: Vec<Inline> = Vec::new();
         let flush_text = |state: &mut Self, run: &mut Vec<Inline>, out: &mut String| {
-            if let Some(rendered) = state.text_segment(run, width) {
+            let offset = if out.is_empty() { initial } else { 0 };
+            if let Some(rendered) = state.text_segment(run, width, offset) {
                 if !out.is_empty() {
                     out.push('\n');
                 }
@@ -162,12 +163,12 @@ impl State {
         out
     }
 
-    fn text_segment(&mut self, inlines: &[Inline], width: usize) -> Option<String> {
+    fn text_segment(&mut self, inlines: &[Inline], width: usize, initial: usize) -> Option<String> {
         let trimmed = trim_surrounding_space(inlines);
         if trimmed.is_empty() {
             return None;
         }
-        let rendered = fill(&self.pieces(trimmed), width, self.wrap);
+        let rendered = fill_offset(&self.pieces(trimmed), width, initial, self.wrap);
         (!rendered.is_empty()).then_some(rendered)
     }
 
@@ -297,16 +298,26 @@ impl State {
         };
         for (index, block) in item.iter().enumerate() {
             let is_list = matches!(block, Block::BulletList(_) | Block::OrderedList(..));
-            let rendered = if index == 0 && starts_with_paragraph {
+            let rendered = if index == 0
+                && let Block::Plain(inlines) | Block::Para(inlines) = block
+            {
+                let initial = marker.len() + 1;
                 let checkbox = (task_markers && !self.legacy)
                     .then(|| task_checkbox(block))
                     .flatten();
                 let text = match checkbox {
                     Some((box_marker, rest)) => {
-                        let body = self.paragraph(&rest, width);
-                        format!("{box_marker} {body}")
+                        let mut body = vec![
+                            Inline::RawInline(
+                                carta_ast::Format("asciidoc".into()),
+                                box_marker.into(),
+                            ),
+                            Inline::Space,
+                        ];
+                        body.extend(rest);
+                        self.paragraph(&body, width, initial)
                     }
-                    None => self.block(block, width),
+                    None => self.paragraph(inlines, width, initial),
                 };
                 format!("{marker} {text}")
             } else {

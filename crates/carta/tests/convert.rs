@@ -9,6 +9,29 @@ use carta::{
 
 #[cfg(all(feature = "read-commonmark", feature = "write-asciidoc"))]
 #[test]
+fn list_markers_count_toward_the_first_wrapped_line() {
+    let mut options = WriterOptions::default();
+    options.columns = Some(10);
+    for (source, expected) in [
+        ("- alpha beta gamma", "* alpha\nbeta gamma"),
+        ("- [ ] alpha beta gamma", "* [ ]\nalpha beta\ngamma"),
+        ("- one\n  - alpha beta gamma", "* one\n** alpha\nbeta gamma"),
+        ("1. alpha beta gamma", "[arabic]\n. alpha\nbeta gamma"),
+    ] {
+        let output = convert_text(
+            "markdown",
+            "asciidoc",
+            source,
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        assert_eq!(output, expected);
+    }
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-asciidoc"))]
+#[test]
 fn inline_footnotes_wrap_with_the_surrounding_text() {
     use carta::ast::{Block, Document, Inline};
     let mut options = WriterOptions::default();
