@@ -879,7 +879,6 @@
         "ships": true,
         "feature": "write-man",
         "gaps": [
-          "Lists in table cells are flattened or misplaced.",
           "Long runs of adjacent inline equations wrap at different columns."
         ]
       }

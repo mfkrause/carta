@@ -37,12 +37,27 @@ body row 3
 T}@T{
 Cells may span rows.
 T}@T{
-.IP \(bu 2
+.br
+.in +2n
+.ti -2n
+\(bu\~
 Cells.
-.IP \(bu 2
+.br
+.in -2n
+.br
+.in +2n
+.ti -2n
+\(bu\~
 Contain.
-.IP \(bu 2
+.br
+.in -2n
+.br
+.in +2n
+.ti -2n
+\(bu\~
 Blocks.
+.br
+.in -2n
 T}@T{
 T}
 T{

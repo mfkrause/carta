@@ -30,9 +30,11 @@ epub2	common/literal-control-chars
 # and Typst references a `<label>`. The generic `#id` these writers emit lands elsewhere; the case
 # activates for each once its internal-link path does.
 
-# Block content (a list) inside an otherwise-empty table cell is not yet rendered at parity by these
-# writers, which flatten or misplace the cell's paragraphs and bullets.
+# Table cells use local paragraph spacing and indents to keep list markers inside the text block.
+# Empty items retain their markers.
 man	table/table-empty-cell
+man	table/table-cell-blocks
+man	table/table-grid-spans
 
 # The man writer's line fill breaks a long run of adjacent inline equations at a column that depends
 # on the run's width, so these wide math paragraphs wrap at points not worth comparing; content is the same.

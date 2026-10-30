@@ -24,6 +24,7 @@ impl Writer for ManWriter {
             width: options.columns.unwrap_or(FILL_COLUMN),
             wrap: options.wrap,
             options,
+            table_cell: false,
         };
         let body = state.blocks(&document.blocks);
         let mut out = body;
@@ -61,6 +62,7 @@ struct State<'a> {
     width: usize,
     wrap: WrapMode,
     options: &'a WriterOptions,
+    table_cell: bool,
 }
 
 /// The active font attributes, rendered to a `\f[..]` selector. Each emphasis inline pushes its
@@ -136,6 +138,8 @@ impl State<'_> {
                 let body = self.fill_inlines(items);
                 if suppress_para_marker {
                     body
+                } else if self.table_cell {
+                    format!(".sp\n{body}")
                 } else if body.is_empty() {
                     ".PP".to_owned()
                 } else {
@@ -143,7 +147,13 @@ impl State<'_> {
                 }
             }
             Block::Header(level, _, items) => self.header(*level, items),
-            Block::CodeBlock(attributes, text) => code_block(attributes, text, self.options),
+            Block::CodeBlock(attributes, text) => {
+                let paragraph = if self.table_cell { ".br" } else { ".IP" };
+                format!(
+                    "{paragraph}\n{}",
+                    code_block(attributes, text, self.options)
+                )
+            }
             Block::RawBlock(format, text) => raw_passthrough(format, text),
             Block::BlockQuote(items) => self.block_quote(items),
             Block::BulletList(items) => self.bullet_list(items),
@@ -167,14 +177,23 @@ impl State<'_> {
     }
 
     fn block_quote(&mut self, items: &[Block]) -> String {
-        format!(".RS\n{}\n.RE", self.blocks(items))
+        let body = self.blocks(items);
+        if self.table_cell {
+            format!(".br\n.in +7n\n{body}\n.br\n.in -7n")
+        } else {
+            format!(".RS\n{body}\n.RE")
+        }
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
-        let mut out = String::from(".PP\n");
+        let mut out = String::from(if self.table_cell { ".sp\n" } else { ".PP\n" });
         for (index, line) in lines.iter().enumerate() {
             if index > 0 {
-                out.push_str("\n.PD 0\n.P\n.PD\n");
+                out.push_str(if self.table_cell {
+                    "\n.br\n"
+                } else {
+                    "\n.PD 0\n.P\n.PD\n"
+                });
             }
             out.push_str(&self.inline_run(line));
         }
@@ -207,6 +226,19 @@ impl State<'_> {
     /// Renders a list marker and its body, quoting numbered markers.
     fn list_item(&mut self, marker: &str, quote: bool, relative: usize, item: &[Block]) -> String {
         let field = visible_width(marker) + 1;
+        if self.table_cell {
+            // Tagged paragraph macros end the text diversion used by a table cell.
+            let marker = marker.replace(' ', "\\ ");
+            let body = self.list_body(item, Some(relative));
+            let body = if body.is_empty() {
+                String::new()
+            } else {
+                format!("\n{body}")
+            };
+            return format!(
+                ".br\n.in +{field}n\n.ti -{field}n\n{marker}\\~{body}\n.br\n.in -{field}n"
+            );
+        }
         let head = if quote {
             format!(".IP \"{marker}\" {field}")
         } else {
@@ -236,8 +268,12 @@ impl State<'_> {
             if !out.is_empty() {
                 out.push('\n');
             }
-            let indent = relative.map_or_else(String::new, |width| format!(" {width}"));
-            let _ = write!(out, ".RS{indent}\n{body}\n.RE");
+            if self.table_cell {
+                out.push_str(&body);
+            } else {
+                let indent = relative.map_or_else(String::new, |width| format!(" {width}"));
+                let _ = write!(out, ".RS{indent}\n{body}\n.RE");
+            }
         }
         out
     }
@@ -249,12 +285,20 @@ impl State<'_> {
             if !out.is_empty() {
                 out.push('\n');
             }
-            let _ = write!(out, ".TP\n{}", self.inline_run(term));
+            let term = self.inline_run(term);
+            if self.table_cell {
+                let _ = write!(out, ".br\n{term}\n.br\n.in +7n");
+            } else {
+                let _ = write!(out, ".TP\n{term}");
+            }
             let blocks: Vec<Block> = definitions.iter().flatten().cloned().collect();
             let body = self.list_body(&blocks, None);
             if !body.is_empty() {
                 out.push('\n');
                 out.push_str(&body);
+            }
+            if self.table_cell {
+                out.push_str("\n.br\n.in -7n");
             }
         }
         out
@@ -302,7 +346,9 @@ impl State<'_> {
         for slot in grid.place_slots(&row.cells) {
             match slot {
                 GridSlot::Cell(_, cell) => {
+                    let table_cell = std::mem::replace(&mut self.table_cell, true);
                     let body = self.blocks(&cell.content);
+                    self.table_cell = table_cell;
                     blocks.push(if body.is_empty() {
                         "T{\nT}".to_owned()
                     } else if cell_opens_with_space(&cell.content) {
@@ -516,7 +562,9 @@ impl State<'_> {
     fn record_note(&mut self, blocks: &[Block]) -> String {
         let index = self.notes.len();
         self.notes.push(String::new());
+        let table_cell = std::mem::replace(&mut self.table_cell, false);
         let body = self.blocks(blocks);
+        self.table_cell = table_cell;
         if let Some(slot) = self.notes.get_mut(index) {
             *slot = body;
         }
@@ -906,7 +954,7 @@ fn code_block(attributes: &carta_ast::Attr, text: &str, options: &WriterOptions)
     }
     #[cfg(not(feature = "highlight"))]
     let _ = (attributes, options);
-    let mut out = String::from(".IP\n.EX");
+    let mut out = String::from(".EX");
     if !text.is_empty() {
         for line in text.strip_suffix('\n').unwrap_or(text).split('\n') {
             out.push('\n');
@@ -929,7 +977,7 @@ fn highlighted_code_block(
         .classes
         .iter()
         .find_map(|language| highlighter.highlight(language, text))?;
-    let mut out = String::from(".IP\n.EX");
+    let mut out = String::from(".EX");
     for line in lines {
         let mut rendered = String::new();
         for token in line {

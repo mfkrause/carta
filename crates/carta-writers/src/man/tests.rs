@@ -314,6 +314,67 @@ fn simple_table() {
 }
 
 #[test]
+fn table_lists_keep_their_markers_inside_the_text_block() {
+    let lists = [
+        (Block::BulletList(vec![vec![], vec![]]), "\\(bu\\~"),
+        (
+            Block::OrderedList(
+                ListAttributes {
+                    start: 1,
+                    style: ListNumberStyle::Decimal,
+                    delim: ListNumberDelim::Period,
+                },
+                vec![vec![Block::Plain(vec![s("one")])]],
+            ),
+            "1.\\~",
+        ),
+        (
+            Block::DefinitionList(vec![(
+                vec![s("term")],
+                vec![vec![Block::BulletList(vec![vec![para(vec![s("body")])]])]],
+            )]),
+            ".br\nterm\n.br\n.in +7n",
+        ),
+    ];
+    for (list, marker) in lists {
+        let table = Table {
+            col_specs: vec![carta_ast::ColSpec {
+                align: Alignment::AlignDefault,
+                width: ColWidth::ColWidthDefault,
+            }],
+            head: carta_ast::TableHead {
+                rows: vec![Row {
+                    cells: vec![Cell {
+                        attr: Attr::default(),
+                        align: Alignment::AlignDefault,
+                        row_span: 1,
+                        col_span: 1,
+                        content: vec![
+                            list,
+                            para(vec![Inline::Note(vec![Block::BulletList(vec![vec![
+                                para(vec![s("note")]),
+                            ]])])]),
+                        ],
+                    }],
+                    ..Row::default()
+                }],
+                ..carta_ast::TableHead::default()
+            },
+            ..Table::default()
+        };
+        let output = render(vec![
+            Block::Table(Box::new(table)),
+            Block::BulletList(vec![vec![para(vec![s("outside")])]]),
+        ]);
+        let (cell, after) = output.split_once(".TE").unwrap();
+        assert!(cell.contains(marker), "{cell}");
+        assert!(!cell.contains(".IP") && !cell.contains(".TP"), "{cell}");
+        assert!(after.contains(".IP \\(bu 2\noutside"), "{after}");
+        assert!(after.contains(".IP \\(bu 2\nnote"), "{after}");
+    }
+}
+
+#[test]
 fn paragraph_wraps_at_fill_column() {
     let mut inlines = Vec::new();
     for index in 0..30 {

@@ -15,11 +15,21 @@ _
 T{
 alpha
 T}@T{
-.PP
+.sp
 first paragraph
-.IP \(bu 2
+.br
+.in +2n
+.ti -2n
+\(bu\~
 one
-.IP \(bu 2
+.br
+.in -2n
+.br
+.in +2n
+.ti -2n
+\(bu\~
 two
+.br
+.in -2n
 T}
 .TE
