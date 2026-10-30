@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.The full caption text
+[cols="",options="header",]
+|===
+|h
+|v
+|===

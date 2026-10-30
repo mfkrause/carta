@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols=",",]
+|===
+|a |b
+|c |d
+|===

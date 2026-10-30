@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols=",",options="header",]
+|===
+|h1 |h2
+|group |values
+|k1 |v1
+|k2 |v2
+|===

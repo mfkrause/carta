@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+http://example.com/[x]
+
+http://example.com/[y]

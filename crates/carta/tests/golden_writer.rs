@@ -32,37 +32,6 @@ fn writer_mathml_output_snapshots_html() {
     }
 }
 
-const TARGETS: &[&str] = &[
-    "html",
-    "docbook",
-    "html4",
-    "json",
-    "plain",
-    "native",
-    "latex",
-    "commonmark",
-    "commonmark_x",
-    "markdown",
-    "markdown_github",
-    "markdown_phpextra",
-    "markdown_mmd",
-    "markdown_strict",
-    "gfm",
-    "rst",
-    "mediawiki",
-    "typst",
-    "dokuwiki",
-    "jira",
-    "asciidoc",
-    "man",
-    "opml",
-    "org",
-    "beamer",
-    "revealjs",
-    "ipynb",
-    "rtf",
-];
-
 /// Render every `corpus/ast/*` case to one target, skipping the target when its writer is not
 /// compiled in and skipping the `(target, feature/case)` pairs listed in `corpus/exclusions.tsv`.
 fn writer_snapshots_for(target: &str) {
@@ -151,6 +120,7 @@ writer_golden! {
     writer_output_snapshots_dokuwiki => "dokuwiki",
     writer_output_snapshots_jira => "jira",
     writer_output_snapshots_asciidoc => "asciidoc",
+    writer_output_snapshots_asciidoc_legacy => "asciidoc_legacy",
     writer_output_snapshots_man => "man",
     writer_output_snapshots_opml => "opml",
     writer_output_snapshots_org => "org",
@@ -158,18 +128,6 @@ writer_golden! {
     writer_output_snapshots_revealjs => "revealjs",
     writer_output_snapshots_ipynb => "ipynb",
     writer_output_snapshots_rtf => "rtf",
-}
-
-#[test]
-fn writer_output_snapshots_all_targets_partitioned() {
-    let mut expected: Vec<&str> = TARGETS.to_vec();
-    expected.sort_unstable();
-    let mut actual: Vec<&str> = WRITER_TARGETS.to_vec();
-    actual.sort_unstable();
-    assert_eq!(
-        actual, expected,
-        "TARGETS and the writer macro's test entries have diverged"
-    );
 }
 
 #[test]
@@ -181,11 +139,11 @@ fn targets_match_registry_text_writers() {
     // `html5` is a text alias of `html`; golden coverage uses `html` only.
     text.retain(|name| *name != "html5");
     text.sort_unstable();
-    let mut expected = TARGETS.to_vec();
+    let mut expected = WRITER_TARGETS.to_vec();
     expected.sort_unstable();
     assert_eq!(
         text, expected,
-        "TARGETS drifted from the registry's text writers (excluding the html5 alias)"
+        "golden targets drifted from the registry's text writers (excluding the html5 alias)"
     );
 }
 
