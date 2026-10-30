@@ -221,3 +221,53 @@ fn with_the_extension_off_an_example_marker_is_paragraph_text() {
     assert!(matches!(blocks("(@) one\n").as_slice(), [Block::Para(_)]));
     assert!(matches!(blocks("@a. one\n").as_slice(), [Block::Para(_)]));
 }
+
+#[test]
+fn four_space_rule_keeps_short_continuations_outside_list_items() {
+    let source = "- first\n\n  outside\n";
+    let enabled = greedy_blocks(source, &[Extension::FourSpaceRule]);
+    assert!(matches!(
+        enabled.as_slice(),
+        [Block::BulletList(_), Block::Para(_)]
+    ));
+    let disabled = greedy_blocks(source, &[]);
+    let [Block::BulletList(items)] = disabled.as_slice() else {
+        panic!("expected a bullet list: {disabled:?}");
+    };
+    assert!(matches!(
+        items[0].as_slice(),
+        [Block::Para(_), Block::Para(_)]
+    ));
+}
+
+#[test]
+fn long_list_markers_use_four_column_continuations_when_required() {
+    for (marker, extensions) in [
+        ("1000.", vec![Extension::FourSpaceRule]),
+        (
+            "(@longlabel)",
+            vec![Extension::ExampleLists, Extension::FancyLists],
+        ),
+        (
+            "(@longlabel)",
+            vec![
+                Extension::ExampleLists,
+                Extension::FancyLists,
+                Extension::FourSpaceRule,
+            ],
+        ),
+    ] {
+        let source = format!("{marker} first\n\n    continuation\n");
+        let parsed = greedy_blocks(&source, &extensions);
+        let [Block::OrderedList(_, items)] = parsed.as_slice() else {
+            panic!("expected one ordered list: {parsed:?}");
+        };
+        assert_eq!(
+            items[0],
+            vec![
+                Block::Para(vec![Inline::Str("first".into())]),
+                Block::Para(vec![Inline::Str("continuation".into())]),
+            ]
+        );
+    }
+}

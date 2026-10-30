@@ -265,7 +265,12 @@ impl Parser {
         } else {
             self.start_definition_item(container)?
         };
-        let indent = Self::consume_definition_marker(marker_indent, blank_after, cursor);
+        let content_indent = Self::consume_definition_marker(marker_indent, blank_after, cursor);
+        let indent = if self.extensions.contains(Extension::FourSpaceRule) {
+            marker_indent + TAB_STOP
+        } else {
+            content_indent
+        };
         Some(self.append_child(item, Node::new(Kind::Definition { indent })))
     }
 
@@ -399,7 +404,13 @@ impl Parser {
         if !parsed.blank_after {
             cursor.advance_columns(content_offset);
         }
-        let item_indent = marker_indent + parsed.marker_width + content_offset;
+        let item_indent = if self.extensions.contains(Extension::FourSpaceRule)
+            || matches!(parsed.style, ListNumberStyle::Example)
+        {
+            marker_indent + TAB_STOP
+        } else {
+            marker_indent + parsed.marker_width + content_offset
+        };
 
         let list_index = self.ensure_list(container, &parsed);
         let item = Node::new(Kind::Item(ItemInfo {

@@ -247,3 +247,21 @@ fn with_the_extension_off_a_colon_line_is_literal_paragraph_text() {
     assert!(matches!(blocks.as_slice(), [Block::Para(_)]));
     assert!(definition_items(&blocks).is_empty());
 }
+
+#[test]
+fn four_space_rule_controls_definition_continuation_columns() {
+    let source = "Term\n: first\n\n  outside\n";
+    let enabled = greedy_blocks(
+        source,
+        &[Extension::DefinitionLists, Extension::FourSpaceRule],
+    );
+    assert!(matches!(
+        enabled.as_slice(),
+        [Block::DefinitionList(_), Block::Para(_)]
+    ));
+    let disabled = greedy_blocks(source, &[Extension::DefinitionLists]);
+    let [Block::DefinitionList(entries)] = disabled.as_slice() else {
+        panic!("expected a definition list: {disabled:?}");
+    };
+    assert_eq!(entries[0].1[0].len(), 2);
+}

@@ -166,7 +166,7 @@ define_extensions! {
     AngleBracketsEscapable => "angle_brackets_escapable",
     /// Line breaks between East Asian wide characters carry no width and are dropped.
     EastAsianLineBreaks => "east_asian_line_breaks",
-    /// An indented code block requires four spaces of indentation rather than one tab stop.
+    /// List-item continuation blocks require four columns of indentation.
     FourSpaceRule => "four_space_rule",
     /// Typographic conventions of the Project Gutenberg style for plain-text output.
     Gutenberg => "gutenberg",
