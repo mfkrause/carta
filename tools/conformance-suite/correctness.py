@@ -49,6 +49,8 @@ def expectation(label):
                 reason = "Keep RST targets, captions, and directive options valid."
             if (source, target, stem) == ("latex", "latex", "nested-tables"):
                 reason = "Use a valid inner table environment."
+            if (source, target, stem) == ("typst", "html", "math-shorthands"):
+                reason = "Keep the bidirectional arrow glyph."
             if (
                 source == "ipynb"
                 and stem == "version-three"
