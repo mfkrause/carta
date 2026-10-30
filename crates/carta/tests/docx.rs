@@ -158,7 +158,7 @@ fn repeated_images_share_media_across_document_parts() {
 }
 
 #[test]
-fn final_inline_equations_have_a_text_anchor() {
+fn isolated_inline_equations_have_a_text_anchor() {
     use carta_ast::{Block, Document, Inline, MathType};
 
     for (inlines, anchors) in [
@@ -168,6 +168,22 @@ fn final_inline_equations_have_a_text_anchor() {
             1,
         ),
         (vec![Inline::Math(MathType::DisplayMath, "x".into())], 0),
+        (
+            vec![
+                Inline::Str("Text".into()),
+                Inline::Space,
+                Inline::Math(MathType::InlineMath, "x".into()),
+            ],
+            0,
+        ),
+        (
+            vec![
+                Inline::Math(MathType::InlineMath, "x".into()),
+                Inline::Space,
+                Inline::Math(MathType::InlineMath, "y".into()),
+            ],
+            0,
+        ),
         (
             vec![
                 Inline::Math(MathType::InlineMath, "x".into()),

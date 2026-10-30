@@ -374,7 +374,7 @@ fn is_east_asian(c: char) -> bool {
     )
 }
 
-/// Renders paragraph inlines and anchors a final inline equation with a text run.
+/// Renders paragraph inlines and anchors an isolated inline equation with a text run.
 pub(super) fn render_paragraph_runs(
     inlines: &[Inline],
     props: &RunProps,
@@ -382,7 +382,7 @@ pub(super) fn render_paragraph_runs(
     out: &mut Element,
 ) {
     render_runs(inlines, props, ctx, out);
-    if matches!(inlines.last(), Some(Inline::Math(MathType::InlineMath, _))) {
+    if matches!(inlines, [Inline::Math(MathType::InlineMath, _)]) {
         out.push(text_run(props, "\u{200B}"));
     }
 }
