@@ -6,14 +6,15 @@ use carta_ast::{
     Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType,
     QuoteType, Row, Table, Text,
 };
-use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
+use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     body_rows, caption_runs, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_groups, fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose,
-    is_uri, item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i64,
-    offset_quoted_table, ordered_marker, pad_marker, pieces_nonempty, quote_marks, table_form,
+    fill_groups, fill_hang, fill_offset, filled_cells, indent_block, indent_lines,
+    is_literate_code, is_loose, is_uri, item_separator, join_loose, label_matches_url, lay_row,
+    literate_tracks, measure_pieces, offset_as_i64, offset_quoted_table, ordered_marker,
+    pad_marker, pieces_nonempty, quote_block, quote_marks, table_form,
 };
 use crate::grid;
 
@@ -27,9 +28,7 @@ impl Writer for PlainWriter {
         let mut state = State {
             wrap: options.wrap,
             width,
-            smart: options.extensions.contains(Extension::Smart),
-            gutenberg: options.extensions.contains(Extension::Gutenberg),
-            four_space_rule: options.extensions.contains(Extension::FourSpaceRule),
+            extensions: options.extensions,
             ..State::default()
         };
         let body = state.blocks_to_string(&document.blocks, width, false, 0);
@@ -52,11 +51,7 @@ struct State {
     footnotes: Vec<String>,
     wrap: WrapMode,
     width: usize,
-    /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
-    /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
-    smart: bool,
-    gutenberg: bool,
-    four_space_rule: bool,
+    extensions: Extensions,
     table_measurements: BTreeMap<(usize, usize), [Vec<usize>; 2]>,
 }
 
@@ -66,9 +61,7 @@ impl Default for State {
             footnotes: Vec::new(),
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
-            smart: false,
-            gutenberg: false,
-            four_space_rule: false,
+            extensions: Extensions::empty(),
             table_measurements: BTreeMap::new(),
         }
     }
@@ -98,7 +91,7 @@ impl State {
             if !text.is_empty() {
                 first = false;
             }
-            if self.gutenberg {
+            if self.extensions.contains(Extension::Gutenberg) {
                 trim_overlapping_blank_lines(
                     &mut text,
                     rendered
@@ -135,7 +128,7 @@ impl State {
                 continue;
             }
             first = false;
-            if self.gutenberg {
+            if self.extensions.contains(Extension::Gutenberg) {
                 trim_overlapping_blank_lines(&mut text, parts.last().map(String::as_str));
             }
             parts.push(text);
@@ -171,7 +164,7 @@ impl State {
             }
             Block::Header(level, _, inlines) => {
                 let mut pieces = self.pieces(inlines);
-                if self.gutenberg {
+                if self.extensions.contains(Extension::Gutenberg) {
                     match level {
                         1 => {
                             uppercase_pieces(&mut pieces, 0);
@@ -186,6 +179,12 @@ impl State {
                     }
                 }
                 header_text(&pieces)
+            }
+            Block::CodeBlock(attr, text)
+                if self.extensions.contains(Extension::LiterateHaskell)
+                    && is_literate_code(attr) =>
+            {
+                literate_tracks(text)
             }
             Block::CodeBlock(_, text) => {
                 indent_block(text.strip_suffix('\n').unwrap_or(text), "    ", "    ")
@@ -233,8 +232,15 @@ impl State {
     }
 
     fn block_quote(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
-        let body = self.blocks_to_string(blocks, width.saturating_sub(2), true, initial);
-        indent_block(&offset_quoted_table(blocks, body), "  ", "  ")
+        let literate = self.extensions.contains(Extension::LiterateHaskell);
+        let margin = if literate { 3 } else { 2 };
+        let body = self.blocks_to_string(blocks, width.saturating_sub(margin), true, initial);
+        let body = offset_quoted_table(blocks, body);
+        if literate {
+            indent_block(&quote_block(&body), " ", " ")
+        } else {
+            indent_block(&body, "  ", "  ")
+        }
     }
 
     /// A figure with no attributes whose body is a single bare image (a `Plain` holding one image
@@ -282,7 +288,7 @@ impl State {
 
     fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
         let loose = is_loose(items);
-        let (first, rest) = if self.four_space_rule {
+        let (first, rest) = if self.extensions.contains(Extension::FourSpaceRule) {
             ("-   ", "    ")
         } else {
             ("- ", "  ")
@@ -312,7 +318,11 @@ impl State {
                 let number = attrs.start.saturating_add(offset_as_i64(offset));
                 let marker = ordered_marker(number, attrs.style, attrs.delim);
                 let first_field = (marker.chars().count() + 1).max(4);
-                let field = if self.four_space_rule { 4 } else { first_field };
+                let field = if self.extensions.contains(Extension::FourSpaceRule) {
+                    4
+                } else {
+                    first_field
+                };
                 let body = self.blocks_at(
                     item,
                     width.saturating_sub(field),
@@ -340,7 +350,11 @@ impl State {
                 let mut group = fill(&term_pieces, width, self.wrap);
                 for definition in definitions {
                     let loose = is_loose_definition(definition);
-                    let rest = if self.four_space_rule { "    " } else { "  " };
+                    let rest = if self.extensions.contains(Extension::FourSpaceRule) {
+                        "    "
+                    } else {
+                        "  "
+                    };
                     let body = self.blocks_at(
                         definition,
                         width.saturating_sub(rest.len()),
@@ -742,18 +756,20 @@ impl State {
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
         match inline {
-            Inline::Str(text) => out.push(Piece::text(if self.smart {
-                unsmarten(text)
-            } else {
-                text.clone()
-            })),
+            Inline::Str(text) => {
+                out.push(Piece::text(if self.extensions.contains(Extension::Smart) {
+                    unsmarten(text)
+                } else {
+                    text.clone()
+                }));
+            }
             Inline::Code(_, text) => out.push(Piece::text(text.clone())),
-            Inline::Emph(inlines) if self.gutenberg => {
+            Inline::Emph(inlines) if self.extensions.contains(Extension::Gutenberg) => {
                 out.push(Piece::text("_"));
                 self.extend_pieces(inlines, out);
                 out.push(Piece::text("_"));
             }
-            Inline::Strong(inlines) if self.gutenberg => {
+            Inline::Strong(inlines) if self.extensions.contains(Extension::Gutenberg) => {
                 let start = out.len();
                 self.extend_pieces(inlines, out);
                 uppercase_pieces(out, start);
@@ -795,7 +811,7 @@ impl State {
                 uppercase_pieces(out, start);
             }
             Inline::Quoted(kind, inlines) => {
-                let (open, close) = if self.smart {
+                let (open, close) = if self.extensions.contains(Extension::Smart) {
                     match kind {
                         QuoteType::SingleQuote => ('\'', '\''),
                         QuoteType::DoubleQuote => ('"', '"'),

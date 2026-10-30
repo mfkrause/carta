@@ -776,7 +776,6 @@ supported = [
 ]
 recognized-not-modeled = [
   "latex_macros",
-  "literate_haskell",
   "rebase_relative_paths",
 ]
 

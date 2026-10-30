@@ -44,6 +44,9 @@ $if(listings)$
 \newcommand{\passthrough}[1]{#1}
 \lstset{defaultdialect=[5.3]Lua}
 \lstset{defaultdialect=[x86masm]Assembler}
+$if(literate-code)$
+\lstnewenvironment{code}{\lstset{language=Haskell,basicstyle=\ttfamily}}{}
+$endif$
 $endif$
 $if(geometry)$
 \usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}

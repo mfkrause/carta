@@ -5,7 +5,10 @@ use std::collections::BTreeMap;
 use carta_ast::{Block, Document, Inline, MetaValue, single_block_inlines};
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, display_width, fill, fill_cell, fill_hang, indent_block};
+use crate::common::{
+    FILL_COLUMN, display_width, fill, fill_cell, fill_hang, indent_block, is_literate_code,
+    literate_tracks,
+};
 
 use self::block::{QUOTE_FENCE, block_separator, code_block, raw_block};
 use self::inline::{flatten, to_pieces};
@@ -28,6 +31,7 @@ impl Writer for RstWriter {
             wrap: options.wrap,
             width,
             smart: options.extensions.contains(Extension::Smart),
+            literate_code: options.extensions.contains(Extension::LiterateHaskell),
             ..State::default()
         };
         let body = state.blocks_to_string(&document.blocks, width, true);
@@ -116,6 +120,7 @@ struct State {
     /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
     /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
     smart: bool,
+    literate_code: bool,
     table_measurements: BTreeMap<(usize, DeferredState), [Vec<usize>; 3]>,
 }
 
@@ -130,6 +135,7 @@ impl Default for State {
             width: FILL_COLUMN,
             in_cell: false,
             smart: false,
+            literate_code: false,
             table_measurements: BTreeMap::new(),
         }
     }
@@ -201,6 +207,14 @@ impl State {
             Block::Plain(inlines) => self.lay(inlines, width, hang),
             Block::Para(inlines) => self.para(inlines, width, hang),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines, top),
+            Block::CodeBlock(attr, text) if self.literate_code && is_literate_code(attr) => {
+                let body = literate_tracks(text);
+                if attr.id.is_empty() {
+                    body
+                } else {
+                    format!(".. _{}:\n\n{body}", attr.id)
+                }
+            }
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => raw_block(format, text),
             Block::BlockQuote(blocks) => {

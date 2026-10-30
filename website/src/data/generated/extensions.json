@@ -65,7 +65,6 @@
   ],
   "recognizedNotModeled": [
     "latex_macros",
-    "literate_haskell",
     "rebase_relative_paths"
   ],
   "gaps": [],

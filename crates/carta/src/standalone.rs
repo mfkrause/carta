@@ -8,7 +8,9 @@ use carta_ast::{
 };
 use carta_core::sections::build_toc;
 use carta_core::template::{Template, Value};
-use carta_core::{MathMethod, MetaVarStyle, Result, Slot, TocStyle, Writer, WriterOptions};
+use carta_core::{
+    Extension, MathMethod, MetaVarStyle, Result, Slot, TocStyle, Writer, WriterOptions,
+};
 
 /// The deepest heading level a table of contents includes when no explicit depth is given.
 pub(crate) const DEFAULT_TOC_DEPTH: usize = 3;
@@ -497,6 +499,13 @@ fn insert_output_vars(
             context.insert("katex".to_owned(), Value::Bool(true));
             context.insert("katexurl".to_owned(), Value::Str(url.clone()));
         }
+    }
+    if writer.meta_var_style() == MetaVarStyle::Pdf
+        && options.extensions.contains(Extension::LiterateHaskell)
+        && body.contains("\\begin{code}")
+    {
+        context.insert("literate-code".to_owned(), Value::Bool(true));
+        context.insert("listings".to_owned(), Value::Bool(true));
     }
     insert_highlight_vars(context, writer, options, body);
     Ok(())

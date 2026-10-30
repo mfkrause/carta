@@ -1,5 +1,7 @@
 //! Block and inline serialization: the `State` walker that renders the document tree.
 
+use std::borrow::Cow;
+
 use std::fmt::Write as _;
 
 use carta_ast::{
@@ -126,16 +128,53 @@ impl State {
     /// without its own identifier gets a stable `cbN` one, whatever plain blocks precede it.
     fn code_block(&mut self, out: &mut String, attr: &Attr, text: &str) {
         self.code_block_id += 1;
+        let (attr, text) = if self.literate_code && crate::common::is_literate_code(attr) {
+            #[cfg(feature = "highlight")]
+            let attr = self.literate_code_attr(attr);
+            #[cfg(not(feature = "highlight"))]
+            let attr = attr.clone();
+            let text = if text.is_empty() {
+                String::new()
+            } else {
+                let mut lines = String::new();
+                for line in text.split('\n') {
+                    lines.push_str("> ");
+                    lines.push_str(line);
+                    lines.push('\n');
+                }
+                lines
+            };
+            (Cow::Owned(attr), Cow::Owned(text))
+        } else {
+            (Cow::Borrowed(attr), Cow::Borrowed(text))
+        };
         #[cfg(feature = "highlight")]
-        if self.code_block_highlighted(out, attr, text) {
+        if self.code_block_highlighted(out, &attr, &text) {
             return;
         }
         out.push_str("<pre");
-        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        render_attr_into(out, &attr, AttrOrder::Standard, self.flavor);
         out.push_str("><code>");
         out.push(FLUSH);
-        escape_attr_into(out, text);
+        escape_attr_into(out, &text);
         out.push_str("</code></pre>");
+    }
+
+    #[cfg(feature = "highlight")]
+    fn literate_code_attr(&self, attr: &Attr) -> Attr {
+        let mut attr = attr.clone();
+        if self
+            .highlighter
+            .as_ref()
+            .is_some_and(|highlighter| highlighter.registry().is_known("literatehaskell"))
+        {
+            for class in &mut attr.classes {
+                if class == "haskell" {
+                    *class = "literatehaskell".into();
+                }
+            }
+        }
+        attr
     }
 
     /// Emit the colorized form of a code block, returning whether it applied. It does not when

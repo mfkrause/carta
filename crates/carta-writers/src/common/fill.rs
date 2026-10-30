@@ -649,6 +649,36 @@ pub(crate) fn indent_block(body: &str, first: &str, rest: &str) -> String {
     out
 }
 
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "markdown",
+        feature = "gfm",
+        feature = "rst",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
+/// Prefix every line of a blockquote body with `> ` (a bare `>` on an otherwise empty line).
+pub(crate) fn quote_block(body: &str) -> String {
+    if body.is_empty() {
+        return "> ".to_owned();
+    }
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if index > 0 && line.is_empty() {
+            out.push('>');
+        } else {
+            out.push_str("> ");
+            out.push_str(line);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

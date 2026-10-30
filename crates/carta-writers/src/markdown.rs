@@ -10,11 +10,12 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, fill, fill_into, fill_offset, indent_block,
-    is_loose, item_separator, offset_as_i64, offset_quoted_table, ordered_marker, render_html_attr,
+    is_literate_code, is_loose, item_separator, literate_tracks, offset_as_i64,
+    offset_quoted_table, ordered_marker, quote_block, render_html_attr,
 };
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator,
-    offset_horizontal_rule, quote_block,
+    offset_horizontal_rule,
 };
 
 use self::helpers::{
@@ -415,12 +416,27 @@ impl State {
     }
 
     fn block_quote(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
-        let body = self.blocks_to_string(blocks, width.saturating_sub(2), initial);
-        quote_block(&offset_quoted_table(blocks, body))
+        let margin = if self.config.has(Extension::LiterateHaskell) {
+            3
+        } else {
+            2
+        };
+        let body = self.blocks_to_string(blocks, width.saturating_sub(margin), initial);
+        let body = quote_block(&offset_quoted_table(blocks, body));
+        if self.config.has(Extension::LiterateHaskell) {
+            indent_block(&body, " ", " ")
+        } else {
+            body
+        }
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         let hashes = atx_heading_marker(level);
+        let hashes = if self.config.has(Extension::LiterateHaskell) {
+            hashes.replace('#', "=")
+        } else {
+            hashes
+        };
         let text = self.inlines_oneline(inlines);
         let auto_identifiers = self.config.has(Extension::AutoIdentifiers)
             || self.config.has(Extension::GfmAutoIdentifiers);
@@ -439,13 +455,23 @@ impl State {
         };
         if text.is_empty() {
             format!("{hashes}{suffix}").trim_end().to_owned()
+        } else if self.config.has(Extension::LiterateHaskell) {
+            format!("{hashes} {text}{suffix} {hashes}")
         } else {
             format!("{hashes} {text}{suffix}")
         }
     }
 
     fn code_block(&mut self, attr: &Attr, text: &str) -> String {
-        let body = text.strip_suffix('\n').unwrap_or(text);
+        let literate = self.config.has(Extension::LiterateHaskell) && is_literate_code(attr);
+        if literate && attr.id.is_empty() && attr.attributes.is_empty() && attr.classes.len() == 2 {
+            return literate_tracks(text);
+        }
+        let body = if literate {
+            text
+        } else {
+            text.strip_suffix('\n').unwrap_or(text)
+        };
         let backtick = self.config.has(Extension::BacktickCodeBlocks);
         let fenced = backtick || self.config.has(Extension::FencedCodeBlocks);
         let info = if fenced {

@@ -11,13 +11,12 @@ use carta_core::{Extensions, Result, WrapMode, Writer, WriterOptions};
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_html_attr, escape_xml, fill, fill_groups,
     indent_block, is_loose, item_separator, normalize_image_attr, offset_as_i64, ordered_marker,
-    quote_marks, render_html_attr, render_html_fragment_attr,
+    quote_block, quote_marks, render_html_attr, render_html_fragment_attr,
 };
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, autolink, begins_character_reference, begins_named_entity,
     code_span, destination, indent_code, is_autolink_class, is_html_format, is_word_boundary,
-    longest_backtick_run, needs_separator, offset_horizontal_rule, push_html, quote_block,
-    wiki_link,
+    longest_backtick_run, needs_separator, offset_horizontal_rule, push_html, wiki_link,
 };
 
 /// Renders a document to `CommonMark` text.

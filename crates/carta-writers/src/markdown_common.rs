@@ -86,26 +86,6 @@ pub(crate) fn atx_heading_marker(level: i64) -> String {
     "#".repeat(usize::try_from(level.clamp(1, MAX_ATX_HEADING_LEVEL)).unwrap_or(1))
 }
 
-/// Prefix every line of a blockquote body with `> ` (a bare `>` on an otherwise empty line).
-pub(crate) fn quote_block(body: &str) -> String {
-    if body.is_empty() {
-        return "> ".to_owned();
-    }
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        if index > 0 && line.is_empty() {
-            out.push('>');
-        } else {
-            out.push_str("> ");
-            out.push_str(line);
-        }
-    }
-    out
-}
-
 /// Whether a raw node targets HTML and should pass its content through verbatim.
 pub(crate) fn is_html_format(format: &Format) -> bool {
     matches!(format.0.as_str(), "html" | "html4" | "html5")

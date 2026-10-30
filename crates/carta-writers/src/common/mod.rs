@@ -163,3 +163,33 @@ mod tests {
         );
     }
 }
+
+/// Whether a code block carries both the program language and literate presentation classes.
+#[cfg(any(
+    feature = "html",
+    feature = "latex",
+    feature = "markdown",
+    feature = "gfm",
+    feature = "rst",
+    feature = "plain"
+))]
+pub(crate) fn is_literate_code(attr: &carta_ast::Attr) -> bool {
+    ["haskell", "literate"]
+        .iter()
+        .all(|wanted| attr.classes.iter().any(|class| class == wanted))
+}
+
+/// Prefix literal program lines without padding a leading empty line.
+#[cfg(any(
+    feature = "markdown",
+    feature = "gfm",
+    feature = "rst",
+    feature = "plain"
+))]
+pub(crate) fn literate_tracks(text: &str) -> String {
+    let body = quote_block(text);
+    match body.strip_prefix("> \n") {
+        Some(rest) => format!(">\n{rest}"),
+        None => body,
+    }
+}

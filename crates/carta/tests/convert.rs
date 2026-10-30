@@ -543,3 +543,251 @@ fn literate_code_keeps_list_paragraphs_separate() {
         [Block::Para(_), Block::CodeBlock(_, _)]
     ));
 }
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "read-rst",
+    feature = "read-latex",
+    feature = "write-markdown",
+    feature = "write-rst",
+    feature = "write-latex",
+    feature = "write-plain"
+))]
+#[test]
+fn literate_writers_keep_empty_code_and_terminal_blank_lines() {
+    use carta::ast::{Attr, Block, Document};
+    for text in ["", "x = 1", "x\n", "\nx\n\n"] {
+        let document = Document {
+            blocks: vec![Block::CodeBlock(
+                Box::new(Attr {
+                    classes: vec!["haskell".into(), "literate".into()],
+                    ..Attr::default()
+                }),
+                text.into(),
+            )],
+            ..Document::default()
+        };
+        for (target, reader) in [
+            ("markdown+lhs", "markdown+lhs"),
+            ("rst+lhs", "rst+lhs"),
+            ("latex+lhs", "latex+lhs"),
+            ("plain+lhs", "markdown+lhs"),
+        ] {
+            let Output::Text(output) = carta::render_document(
+                target,
+                document.clone(),
+                Default::default(),
+                &WriterOptions::default(),
+            )
+            .unwrap() else {
+                panic!("expected text")
+            };
+            let (restored, _) =
+                carta::read_document(reader, output.as_bytes(), &ReaderOptions::default()).unwrap();
+            assert_eq!(restored, document, "{target} {text:?}");
+        }
+    }
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-markdown"))]
+#[test]
+fn literate_headings_keep_levels_equals_signs_and_link_targets() {
+    use carta::ast::{Attr, Block, Document, Inline, Target, to_plain_text};
+    let document = Document {
+        blocks: vec![
+            Block::Header(
+                1,
+                Box::new(Attr {
+                    id: "heading".into(),
+                    ..Attr::default()
+                }),
+                vec![Inline::Str("Heading=".into())],
+            ),
+            Block::Header(
+                3,
+                Box::new(Attr {
+                    id: "third".into(),
+                    ..Attr::default()
+                }),
+                vec![Inline::Str("Third".into())],
+            ),
+            Block::Para(vec![
+                Inline::Str("= prose".into()),
+                Inline::Space,
+                Inline::Code(Box::default(), "=".into()),
+                Inline::Space,
+                Inline::Link(
+                    Box::default(),
+                    vec![Inline::Str("go".into())],
+                    Box::new(Target {
+                        url: "#heading".into(),
+                        title: Default::default(),
+                    }),
+                ),
+            ]),
+        ],
+        ..Document::default()
+    };
+    let Output::Text(output) = carta::render_document(
+        "markdown+lhs",
+        document,
+        Default::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap() else {
+        panic!("expected text")
+    };
+    assert!(output.starts_with("= Heading= =\n\n=== Third ==="));
+    let (restored, _) =
+        carta::read_document("markdown+lhs", output.as_bytes(), &ReaderOptions::default()).unwrap();
+    let [
+        Block::Header(1, first, title),
+        Block::Header(3, _, _),
+        Block::Para(prose),
+    ] = restored.blocks.as_slice()
+    else {
+        panic!("unexpected blocks: {:?}", restored.blocks)
+    };
+    assert_eq!(first.id, "heading");
+    assert_eq!(to_plain_text(title), "Heading=");
+    assert_eq!(to_plain_text(prose), "= prose = go");
+    assert!(
+        prose
+            .iter()
+            .any(|inline| matches!(inline, Inline::Code(_, text) if text == "="))
+    );
+    assert!(
+        prose
+            .iter()
+            .any(|inline| matches!(inline, Inline::Link(_, _, target) if target.url == "#heading"))
+    );
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "read-rst",
+    feature = "write-markdown",
+    feature = "write-rst"
+))]
+#[test]
+fn literate_code_output_keeps_identifiers_and_rich_markdown_attributes() {
+    use carta::ast::{Attr, Block, Document};
+    for target in ["markdown+lhs", "rst+lhs"] {
+        let attributes = if target.starts_with("markdown") {
+            vec![("key".into(), "value".into())]
+        } else {
+            Vec::new()
+        };
+        let document = Document {
+            blocks: vec![Block::CodeBlock(
+                Box::new(Attr {
+                    id: "program".into(),
+                    classes: vec!["haskell".into(), "literate".into()],
+                    attributes,
+                }),
+                "x = 1\n".into(),
+            )],
+            ..Document::default()
+        };
+        let Output::Text(output) = carta::render_document(
+            target,
+            document.clone(),
+            Default::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap() else {
+            panic!("expected text")
+        };
+        let (restored, _) =
+            carta::read_document(target, output.as_bytes(), &ReaderOptions::default()).unwrap();
+        if target.starts_with("rst") {
+            let [Block::Div(anchor, blocks)] = restored.blocks.as_slice() else {
+                panic!("missing target: {restored:?}")
+            };
+            assert_eq!(anchor.id, "program");
+            assert!(matches!(blocks.as_slice(), [Block::CodeBlock(_, text)] if text == "x = 1\n"));
+        } else {
+            assert_eq!(restored, document, "{target} {output}");
+        }
+    }
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-markdown",
+    feature = "write-plain"
+))]
+#[test]
+fn literate_quotes_keep_nested_code_intact() {
+    use carta::ast::{Attr, Block, Document};
+    let document = Document {
+        blocks: vec![Block::BlockQuote(vec![Block::CodeBlock(
+            Box::new(Attr {
+                classes: vec!["haskell".into(), "literate".into()],
+                ..Attr::default()
+            }),
+            "x = 1\ny = 2".into(),
+        )])],
+        ..Document::default()
+    };
+    for target in ["markdown+lhs", "plain+lhs"] {
+        let Output::Text(output) = carta::render_document(
+            target,
+            document.clone(),
+            Default::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap() else {
+            panic!("expected text")
+        };
+        let (restored, _) =
+            carta::read_document("markdown+lhs", output.as_bytes(), &ReaderOptions::default())
+                .unwrap();
+        assert_eq!(restored, document, "{target} {output}");
+    }
+}
+
+#[cfg(all(feature = "read-latex", feature = "write-latex"))]
+#[test]
+fn code_in_tex_lists_keeps_program_indentation() {
+    use carta::ast::{Attr, Block, Document, Inline};
+    for literal in [false, true] {
+        let classes = if literal {
+            vec!["haskell".into(), "literate".into()]
+        } else {
+            Vec::new()
+        };
+        let document = Document {
+            blocks: vec![Block::BulletList(vec![vec![
+                Block::Para(vec![Inline::Str("text".into())]),
+                Block::CodeBlock(
+                    Box::new(Attr {
+                        classes,
+                        ..Attr::default()
+                    }),
+                    "x = 1\n  y = 2".into(),
+                ),
+            ]])],
+            ..Document::default()
+        };
+        let Output::Text(output) = carta::render_document(
+            "latex+lhs",
+            document,
+            Default::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap() else {
+            panic!("expected text")
+        };
+        let (mut restored, _) =
+            carta::read_document("latex+lhs", output.as_bytes(), &ReaderOptions::default())
+                .unwrap();
+        let mut code = Vec::new();
+        carta::walk::for_each_block(&mut restored.blocks, &mut |block| {
+            if let Block::CodeBlock(_, text) = block {
+                code.push(text.clone());
+            }
+        });
+        assert_eq!(code, ["x = 1\n  y = 2"], "{output}");
+    }
+}

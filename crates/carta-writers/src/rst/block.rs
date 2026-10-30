@@ -513,12 +513,12 @@ fn is_bare_title(attr: &Attr) -> bool {
         && attr.classes.first().map(Text::as_str) == Some("title")
 }
 
-/// The language argument of a code block: its first class that is not the line-numbering flag.
+/// The language class, excluding numbering and literate presentation flags.
 fn code_language(attr: &Attr) -> Option<&str> {
     attr.classes
         .iter()
         .map(Text::as_str)
-        .find(|class| *class != "numberLines")
+        .find(|class| !matches!(*class, "numberLines" | "literate"))
 }
 
 pub(super) fn code_block(attr: &Attr, text: &str) -> String {

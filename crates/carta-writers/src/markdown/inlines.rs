@@ -438,6 +438,7 @@ impl State {
         } else {
             text
         };
+        let literate = self.config.has(Extension::LiterateHaskell);
         let is_trigger = |byte: u8| {
             matches!(
                 byte,
@@ -456,7 +457,7 @@ impl State {
                     | b'&'
                     | b'_'
                     | b'\\'
-            )
+            ) || (literate && byte == b'=')
         };
         let mut out = String::with_capacity(text.len());
         let mut prev: Option<char> = None;
@@ -484,6 +485,7 @@ impl State {
             let tail = || text.get(offset..).unwrap_or_default();
             backslash_run = if ch == '\\' { backslash_run + 1 } else { 0 };
             match ch {
+                '=' if literate && word_start => out.push_str("&#61;"),
                 '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
                 '`' | '*' | '[' | ']' | '<' | '>' => {

@@ -604,3 +604,17 @@ mod listings {
         assert!(!out.contains("phantomsection"));
     }
 }
+
+#[test]
+fn list_indentation_keeps_literal_environment_contents_unchanged() {
+    let code = "before\n\\begin{code}\nx = 1\n\\begin{verbatim}\n  keep\n\\end{verbatim}\n\\end{code}\nafter";
+    assert_eq!(
+        super::indent_list_body(code),
+        "  before\n\\begin{code}\nx = 1\n\\begin{verbatim}\n  keep\n\\end{verbatim}\n\\end{code}\n  after"
+    );
+    let listing = "\\begin{lstlisting}[numbers=left]\n  keep\n\\end{lstlisting}\n\nafter";
+    assert_eq!(
+        super::indent_list_body(listing),
+        "\\begin{lstlisting}[numbers=left]\n  keep\n\\end{lstlisting}\n\n  after"
+    );
+}

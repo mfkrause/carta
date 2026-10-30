@@ -1388,3 +1388,77 @@ fn program_filename_selects_literate_input() {
     assert_eq!(document["blocks"][0]["t"], "CodeBlock");
     assert_eq!(document["blocks"][0]["c"][1], "square x = x * x");
 }
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-html",
+    feature = "highlight"
+))]
+#[test]
+fn literate_html_highlights_track_markers_and_keeps_the_code_identifier() {
+    let directory =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../carta-highlight/data/syntax-copyleft");
+    let program = directory.join("haskell.xml");
+    let literate = directory.join("literate-haskell.xml");
+    let result = run(
+        &[
+            "-f",
+            "markdown+lhs",
+            "-t",
+            "html+lhs",
+            "--syntax-definition",
+            program.to_str().unwrap(),
+            "--syntax-definition",
+            literate.to_str().unwrap(),
+        ],
+        "> x = 1\n",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert!(
+        result.stdout.contains("sourceCode literatehaskell"),
+        "{}",
+        result.stdout
+    );
+    assert!(result.stdout.contains("&gt;"), "{}", result.stdout);
+    assert!(result.stdout.contains("id=\"cb1-1\""), "{}", result.stdout);
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-latex",
+    feature = "write-beamer",
+    feature = "standalone"
+))]
+#[test]
+fn standalone_literate_code_defines_its_environment() {
+    for target in ["latex+lhs", "beamer+lhs"] {
+        let result = run(
+            &[
+                "-f",
+                "markdown+lhs",
+                "-t",
+                target,
+                "-s",
+                "--syntax-highlighting",
+                "none",
+            ],
+            "> x = 1\n",
+        );
+        assert!(result.success, "{}", result.stderr);
+        assert!(
+            result.stdout.contains("\\usepackage{listings}"),
+            "{}",
+            result.stdout
+        );
+        assert!(
+            result.stdout.contains("\\lstnewenvironment{code}"),
+            "{}",
+            result.stdout
+        );
+        assert!(
+            result.stdout.contains("\\begin{code}\nx = 1\n\\end{code}"),
+            "{}",
+            result.stdout
+        );
+    }
+}

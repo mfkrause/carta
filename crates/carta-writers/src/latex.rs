@@ -10,8 +10,8 @@ use carta_ast::{
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, checkbox_state, fill, indent_block, list_is_tight,
-    numeral, strip_checkbox, wrap_delim,
+    FILL_COLUMN, Piece, attribute_value, checkbox_state, fill, list_is_tight, numeral,
+    strip_checkbox, wrap_delim,
 };
 
 mod code;
@@ -601,7 +601,38 @@ fn ordered_list(
     lines.join("\n")
 }
 
-/// Render one list item: its blocks indented two columns under an `\item` line.
+fn indent_list_body(body: &str) -> String {
+    const LITERAL_ENVIRONMENTS: [(&str, &str); 5] = [
+        ("\\begin{code}", "\\end{code}"),
+        ("\\begin{verbatim}", "\\end{verbatim}"),
+        ("\\begin{Verbatim}", "\\end{Verbatim}"),
+        ("\\begin{lstlisting}", "\\end{lstlisting}"),
+        ("\\begin{Highlighting}", "\\end{Highlighting}"),
+    ];
+    let mut closing = None;
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        let trimmed = line.trim_start();
+        if closing.is_none() {
+            closing = LITERAL_ENVIRONMENTS
+                .iter()
+                .find_map(|(open, close)| trimmed.starts_with(open).then_some(*close));
+        }
+        if closing.is_none() && (index == 0 || !line.is_empty()) {
+            out.push_str("  ");
+        }
+        out.push_str(line);
+        if closing.is_some_and(|close| trimmed.starts_with(close)) {
+            closing = None;
+        }
+    }
+    out
+}
+
+/// Render a list item with two-column indentation outside literal code environments.
 #[allow(clippy::too_many_arguments)]
 fn list_item(
     item: &[Block],
@@ -625,7 +656,7 @@ fn list_item(
     if body.is_empty() {
         marker.to_owned()
     } else {
-        format!("{marker}\n{}", indent_block(&body, "  ", "  "))
+        format!("{marker}\n{}", indent_list_body(&body))
     }
 }
 

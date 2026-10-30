@@ -4,7 +4,9 @@
 use std::fmt::Write as _;
 
 use carta_ast::Attr;
-use carta_core::WriterOptions;
+use carta_core::{Extension, WriterOptions};
+
+use crate::common::is_literate_code;
 
 #[cfg(feature = "highlight")]
 use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
@@ -25,6 +27,7 @@ pub(crate) struct Hl<'a> {
     #[cfg(not(feature = "highlight"))]
     _lifetime: core::marker::PhantomData<&'a ()>,
     pub(super) in_table: bool,
+    literate_code: bool,
 }
 
 impl Hl<'_> {
@@ -41,13 +44,15 @@ pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
         highlighter: options.highlight.highlighter.as_deref(),
         idiomatic: options.highlight.idiomatic,
         in_table: false,
+        literate_code: options.extensions.contains(Extension::LiterateHaskell),
     }
 }
 #[cfg(not(feature = "highlight"))]
-pub(crate) fn code_highlighting(_options: &WriterOptions) -> Hl<'_> {
+pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
     Hl {
         _lifetime: core::marker::PhantomData,
         in_table: false,
+        literate_code: options.extensions.contains(Extension::LiterateHaskell),
     }
 }
 
@@ -62,15 +67,25 @@ pub(super) fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
 /// the reduced `Verbatim` inside a footnote).
 #[cfg(feature = "highlight")]
 pub(super) fn code_block_fallback(attr: &Attr, text: &str, hl: Hl<'_>, plain_env: &str) -> String {
-    if hl.idiomatic {
+    if hl.literate_code && is_literate_code(attr) {
+        code_block_env(attr, text, "code")
+    } else if hl.idiomatic {
         listings_code_block(attr, text)
     } else {
         code_block_env(attr, text, plain_env)
     }
 }
 #[cfg(not(feature = "highlight"))]
-pub(super) fn code_block_fallback(attr: &Attr, text: &str, _hl: Hl<'_>, plain_env: &str) -> String {
-    code_block_env(attr, text, plain_env)
+pub(super) fn code_block_fallback(attr: &Attr, text: &str, hl: Hl<'_>, plain_env: &str) -> String {
+    code_block_env(
+        attr,
+        text,
+        if hl.literate_code && is_literate_code(attr) {
+            "code"
+        } else {
+            plain_env
+        },
+    )
 }
 
 /// A code block rendered as a `lstlisting` environment. The listings package names the language, line
@@ -258,6 +273,9 @@ pub(super) fn listings_language(class: &str) -> Option<&'static str> {
 /// `Shaded`/`Highlighting` environment pair regardless of the surrounding context.
 #[cfg(feature = "highlight")]
 pub(super) fn highlighted_code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
+    if hl.literate_code && is_literate_code(attr) {
+        return None;
+    }
     let highlighter = hl.highlighter?;
     if attr.classes.is_empty() {
         return None;
@@ -423,7 +441,11 @@ fn escape_highlight(text: &str) -> String {
 }
 
 fn code_block_env(attr: &Attr, text: &str, environment: &str) -> String {
-    let body = text.strip_suffix('\n').unwrap_or(text);
+    let body = if environment == "code" {
+        text
+    } else {
+        text.strip_suffix('\n').unwrap_or(text)
+    };
     let verbatim = format!("\\begin{{{environment}}}\n{body}\n\\end{{{environment}}}");
     if attr.id.is_empty() {
         verbatim

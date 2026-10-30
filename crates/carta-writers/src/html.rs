@@ -5,7 +5,7 @@
 use std::fmt::Write as _;
 
 use carta_ast::{Attr, Block, Document, Inline};
-use carta_core::{MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{FILL_COLUMN, clean_prefix_len, display_width};
 
@@ -29,6 +29,7 @@ impl Writer for HtmlWriter {
             fill_width(options),
             math_output(options),
             highlighting(options),
+            options.extensions.contains(Extension::LiterateHaskell),
         ))
     }
 
@@ -62,6 +63,7 @@ impl Writer for Html4Writer {
             fill_width(options),
             math_output(options),
             highlighting(options),
+            options.extensions.contains(Extension::LiterateHaskell),
         ))
     }
 
@@ -233,6 +235,7 @@ pub(crate) fn render_slide_metadata(blocks: Vec<Block>, options: &WriterOptions)
             fill_width(options),
             math_output(options),
             highlighting(options),
+            options.extensions.contains(Extension::LiterateHaskell),
         ))
     })
 }
@@ -249,6 +252,7 @@ pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
         FILL_COLUMN,
         MathOutput::Delimited,
         no_highlighting(),
+        false,
     )
 }
 
@@ -271,6 +275,7 @@ pub(crate) fn render_epub_chapter(
         fill_width(options),
         math_output(options),
         highlighting(options),
+        options.extensions.contains(Extension::LiterateHaskell),
     ))
 }
 
@@ -349,10 +354,12 @@ fn render_with_flavor(
     width: usize,
     math: MathOutput,
     highlighting: Highlighting,
+    literate_code: bool,
 ) -> String {
     let mut state = State {
         flavor,
         math,
+        literate_code,
         ..State::default()
     };
     #[cfg(feature = "highlight")]
@@ -462,6 +469,7 @@ struct State {
     in_anchor: bool,
     flavor: Flavor,
     math: MathOutput,
+    literate_code: bool,
     /// Sequence number of the code block being rendered, incremented for every code block so a
     /// colorized block that names no identifier can synthesize a stable `cbN` one.
     code_block_id: usize,
