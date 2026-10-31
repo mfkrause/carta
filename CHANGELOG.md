@@ -5,6 +5,12 @@ All notable changes to carta are documented in this file.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.14](https://github.com/mfkrause/carta/compare/v0.0.13...v0.0.14) - 2026-10-31
+
+### Fixed
+
+- *(dokuwiki)* avoid exponential parsing of invalid footnotes
+
 ## [0.0.13](https://github.com/mfkrause/carta/compare/v0.0.12...v0.0.13) - 2026-10-30
 
 ### Added
