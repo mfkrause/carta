@@ -60,6 +60,26 @@ fn adversarially_nested_footnotes_do_not_stall() {
 }
 
 #[test]
+fn nested_footnotes_with_invalid_closing_spaces_stay_literal() {
+    use carta_ast::{Block, Inline};
+
+    for space in [' ', '\t'] {
+        let input = format!("{}x{space}))", "(".repeat(2_000));
+        let document = DokuwikiReader
+            .read(&input, &ReaderOptions::default())
+            .unwrap();
+        assert_eq!(
+            document.blocks,
+            vec![Block::Para(vec![
+                Inline::Str(format!("{}x", "(".repeat(2_000)).into()),
+                Inline::Space,
+                Inline::Str("))".into()),
+            ])]
+        );
+    }
+}
+
+#[test]
 fn a_delimiter_dense_run_does_not_blow_up() {
     // Repeated unclosed delimiters must not cause quadratic scans.
     let input = "//a ".repeat(4_000);

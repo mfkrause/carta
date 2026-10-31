@@ -154,9 +154,14 @@ fn scan_nested(
     if end.is_some() && !cache.probing {
         let begin = *pos;
         cache.probing = true;
-        let (_, closed) = scan(chars, pos, end, ctx, qctx, cache);
+        let (content, closed) = scan(chars, pos, end, ctx, qctx, cache);
         cache.probing = false;
-        if !closed {
+        // Reject invalid notes before building nested content that a failed opener will reparse.
+        if !closed
+            || end == Some(Closer::Note)
+                && (content.is_empty()
+                    || matches!(chars.get(pos.saturating_sub(3)), Some(' ' | '\t')))
+        {
             return (Vec::new(), false);
         }
         *pos = begin;
