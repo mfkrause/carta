@@ -7,6 +7,31 @@ use carta::{DocxOptions, EpubOptions, Result};
 
 use super::Cli;
 
+pub(super) fn is_html(target: &str) -> bool {
+    matches!(target, "html" | "html5" | "html4" | "revealjs")
+}
+
+pub(super) fn html_stylesheets(cli: &Cli, target: &str, options: &mut carta::WriterOptions) {
+    use carta_core::template::Value;
+
+    if !is_html(target) || cli.css.is_empty() {
+        return;
+    }
+    let mut stylesheets = match options.variable_values.remove("css") {
+        Some(Value::List(values)) => values,
+        Some(value) => vec![value],
+        None => Vec::new(),
+    };
+    stylesheets.extend(
+        cli.css
+            .iter()
+            .map(|path| Value::Str(path.to_string_lossy().into_owned())),
+    );
+    options
+        .variable_values
+        .insert("css".to_owned(), Value::List(stylesheets));
+}
+
 #[cfg(feature = "highlight")]
 use carta::Error;
 #[cfg(feature = "highlight")]

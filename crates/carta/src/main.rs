@@ -172,8 +172,7 @@ struct Cli {
     /// `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`).
     #[arg(long = "data-dir", value_name = "DIR")]
     data_dir: Option<PathBuf>,
-    /// Style an EPUB with this stylesheet, embedded in the book and linked from every page in place
-    /// of the built-in one. Repeatable; several sheets are linked in order.
+    /// Link a stylesheet in standalone HTML, or embed it in EPUB. Repeatable, in the given order.
     #[arg(
         short = 'c',
         long = "css",
@@ -412,7 +411,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     }
     // Only HTML targets inline data URIs; containers package media separately.
     #[cfg(feature = "write-html")]
-    let embed_resources = (cli.embed_resources || cli.self_contained) && to.starts_with("html");
+    let embed_resources = (cli.embed_resources || cli.self_contained) && options::is_html(&to_base);
 
     let mut writer_options = WriterOptions::default();
     writer_options.standalone = cli.standalone || cli.self_contained || to_base == "pdf";
@@ -442,12 +441,13 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options
         .variable_values
         .clone_from(&cli.template_variables);
+    options::html_stylesheets(cli, &to_base, &mut writer_options);
     writer_options.metadata.clone_from(&cli.metadata_values);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file, from)?;
     writer_options.source_name = Some(source_name(cli.input.first().map(PathBuf::as_path)));
-    if is_docx(to) {
+    if is_docx(&to_base) {
         writer_options.docx = docx_options(cli)?;
-    } else if to.starts_with("epub") {
+    } else if to_base.starts_with("epub") {
         writer_options.epub = Arc::new(epub_options(cli)?);
     }
 
@@ -492,7 +492,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     }
 
     // Containers gather tree resources; HTML embedding also reads rendered tags and styles.
-    if embeds_resources(to) {
+    if embeds_resources(&to_base) {
         let search_path = resource_search_path(cli);
         resources::gather_local_images(&mut document, &mut resources, &search_path);
     }

@@ -370,6 +370,106 @@ fn markdown_shortcut_switch_preserves_full_and_collapsed_references() {
     }
 }
 
+#[cfg(feature = "write-html")]
+#[test]
+fn html_stylesheets_link_in_order_without_reading_files() {
+    for format in ["html", "HTML5", "html4", "revealjs"] {
+        let result = run(
+            &[
+                "-t",
+                format,
+                "-s",
+                "-c",
+                "missing.css",
+                "--stylesheet",
+                "https://example.test/theme.css",
+            ],
+            "Text",
+        );
+        assert!(result.success, "{}", result.stderr);
+        let first = result.stdout.find("href=\"missing.css\"").unwrap();
+        let second = result
+            .stdout
+            .find("href=\"https://example.test/theme.css\"")
+            .unwrap();
+        assert!(first < second);
+        let baseline = run(&["-t", format, "-s"], "Text");
+        assert!(baseline.success, "{}", baseline.stderr);
+        assert!(!baseline.stdout.contains("missing.css"));
+    }
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn css_reaches_custom_templates_and_resource_embedding() {
+    let directory = input_directory("html-css");
+    fs::write(
+        directory.join("page.html"),
+        "$for(css)$$css$$sep$|$endfor$:$body$",
+    )
+    .unwrap();
+    fs::write(directory.join("theme.css"), "body { color: red; }").unwrap();
+    let result = run_in(
+        &directory,
+        &[
+            "--template",
+            "page.html",
+            "-c",
+            "first.css",
+            "-c",
+            "second.css",
+        ],
+        "Text",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert_eq!(result.stdout, "first.css|second.css:<p>Text</p>");
+    let result = run_in(
+        &directory,
+        &[
+            "--template",
+            "page.html",
+            "-V",
+            "css=variable.css",
+            "-c",
+            "cli.css",
+        ],
+        "---\ncss: metadata.css\n---\nText",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert_eq!(result.stdout, "variable.css|cli.css:<p>Text</p>");
+    let result = run_in(
+        &directory,
+        &["-t", "HTML5", "-s", "-c", "theme.css", "--embed-resources"],
+        "Text",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert!(result.stdout.contains("body { color: red; }"));
+    assert!(!result.stdout.contains("href=\"theme.css\""));
+}
+
+#[cfg(feature = "write-epub")]
+#[test]
+fn css_still_embeds_in_epub_output() {
+    let directory = input_directory("epub-cli-css");
+    fs::write(directory.join("theme.css"), "body { color: red; }").unwrap();
+    let result = run_in(
+        &directory,
+        &["-t", "EPUB3", "-o", "book.epub", "--css", "theme.css"],
+        "Text",
+    );
+    assert!(result.success, "{}", result.stderr);
+    let bytes = fs::read(directory.join("book.epub")).unwrap();
+    let parts = carta_core::container::zip::read(&bytes).unwrap();
+    assert!(
+        parts
+            .iter()
+            .any(|part| part.name == "EPUB/styles/stylesheet1.css"
+                && part.data == b"body { color: red; }")
+    );
+    assert!(parts.iter().any(|part| part.name == "EPUB/text/ch001.xhtml"
+        && String::from_utf8_lossy(&part.data).contains("href=\"../styles/stylesheet1.css\"")));
+}
+
 #[test]
 fn filenames_select_readers_case_insensitively() {
     let directory = input_directory("inferred-readers");

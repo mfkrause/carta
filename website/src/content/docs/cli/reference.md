@@ -185,7 +185,7 @@ Transform the document through this JSON filter before writing: a program that r
 Search this directory for user data (filters in `filters/`, templates in `templates/`, syntax definitions in `syntax/`) before the built-in locations. Defaults to `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`)
 
 **-c**, **--css** *\<FILE\>*  
-Style an EPUB with this stylesheet, embedded in the book and linked from every page in place of the built-in one. Repeatable; several sheets are linked in order
+Link a stylesheet in standalone HTML, or embed it in EPUB. Repeatable, in the given order
 
 **--epub-cover-image** *\<FILE\>*  
 Use this image as an EPUB's cover, generating a dedicated cover page
