@@ -37,7 +37,8 @@ pub struct CommonmarkReader;
 impl Reader for CommonmarkReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
-        let normalized = normalize(input);
+        let indent_width = indent_width(options);
+        let normalized = normalize(input, options.tab_stop);
         let definitions = FootnoteDefs::new();
         let macros = resolve::macros::Context::for_source(&normalized, ext, &definitions);
         let frontmatter::FrontMatter { meta, body } =
@@ -50,8 +51,13 @@ impl Reader for CommonmarkReader {
             .filter(|byte| *byte == b'\n')
             .count();
         let directories = origin::directories(input, options, skipped_lines);
-        let (ir, refs, footnotes, examples) =
-            block::parse_with_directories(source, ext, options.greedy_paragraphs, directories);
+        let (ir, refs, footnotes, examples) = block::parse_with_directories(
+            source,
+            ext,
+            options.greedy_paragraphs,
+            directories,
+            indent_width,
+        );
         let blocks = resolve::resolve_document(
             &ir,
             refs,
@@ -59,6 +65,7 @@ impl Reader for CommonmarkReader {
             &examples,
             ext,
             options.greedy_paragraphs,
+            indent_width,
             source,
             macros.as_ref(),
         );
@@ -241,12 +248,14 @@ fn parse_meta_blocks(
 ) -> Vec<Block> {
     let extensions = options.extensions;
     let greedy_paragraphs = options.greedy_paragraphs;
-    let normalized = normalize(text);
+    let indent_width = indent_width(options);
+    let normalized = normalize(text, options.tab_stop);
     let (ir, refs, footnotes, examples) = block::parse_with_directories(
         &normalized,
         extensions,
         greedy_paragraphs,
         origin::constant(origin::first_directory(options)),
+        indent_width,
     );
     resolve::resolve_document(
         &ir,
@@ -255,6 +264,7 @@ fn parse_meta_blocks(
         &examples,
         extensions,
         greedy_paragraphs,
+        indent_width,
         &normalized,
         macros,
     )
@@ -268,18 +278,20 @@ fn parse_table_cell(
     tight: bool,
     extensions: Extensions,
     greedy_paragraphs: bool,
+    indent_width: usize,
     macros: Option<&resolve::macros::Context<'_>>,
     directory: Option<&std::path::Path>,
 ) -> Vec<Block> {
     if text.is_empty() {
         return Vec::new();
     }
-    let normalized = normalize(text);
+    let normalized = normalize(text, 0);
     let (mut ir, refs, footnotes, examples) = block::parse_with_directories(
         &normalized,
         extensions,
         greedy_paragraphs,
         origin::constant(directory),
+        indent_width,
     );
     if tight {
         postprocess::demote_loose_paragraphs(&mut ir);
@@ -292,6 +304,7 @@ fn parse_table_cell(
             &examples,
             extensions,
             greedy_paragraphs,
+            indent_width,
             normalized.len(),
         )
     {
@@ -304,6 +317,7 @@ fn parse_table_cell(
         &examples,
         extensions,
         greedy_paragraphs,
+        indent_width,
         &normalized,
         None,
     )
@@ -311,11 +325,16 @@ fn parse_table_cell(
 
 const TAB_STOP: usize = 4;
 
-/// Normalize line endings to `\n`, strip a leading UTF-8 BOM, and expand tabs to spaces.
-///
-/// Tabs are expanded by character column (reset at each line) so the rest of the parser sees only
-/// spaces.
-fn normalize(input: &str) -> Cow<'_, str> {
+fn indent_width(options: &ReaderOptions) -> usize {
+    if options.greedy_paragraphs && options.tab_stop > 0 {
+        options.tab_stop
+    } else {
+        TAB_STOP
+    }
+}
+
+/// Normalize line endings, strip a leading BOM, and expand tabs on the configured column grid.
+fn normalize(input: &str, tab_stop: usize) -> Cow<'_, str> {
     let without_bom = input.strip_prefix('\u{feff}').unwrap_or(input);
     if memchr::memchr2(b'\r', b'\t', without_bom.as_bytes()).is_none() {
         return Cow::Borrowed(without_bom);
@@ -336,8 +355,8 @@ fn normalize(input: &str) -> Cow<'_, str> {
                 out.push('\n');
                 column = 0;
             }
-            '\t' => {
-                let width = TAB_STOP - (column % TAB_STOP);
+            '\t' if tab_stop > 0 => {
+                let width = tab_stop - (column % tab_stop);
                 for _ in 0..width {
                     out.push(' ');
                 }

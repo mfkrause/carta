@@ -13,8 +13,8 @@ use super::postprocess::{
     strip_one_trailing_newline, strip_trailing_blank_lines, tighten_last_block,
 };
 use super::{
-    ExampleMap, FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, grid, html_block, html_element,
-    scan, table, texttable,
+    ExampleMap, FootnoteDefs, IrBlock, IrDefItem, RefMap, grid, html_block, html_element, scan,
+    table, texttable,
 };
 
 mod build;
@@ -39,6 +39,7 @@ pub(crate) fn parse(
         extensions,
         greedy_paragraphs,
         super::origin::Directories::new(),
+        super::TAB_STOP,
     )
 }
 
@@ -47,8 +48,9 @@ pub(super) fn parse_with_directories(
     extensions: Extensions,
     greedy_paragraphs: bool,
     directories: super::origin::Directories,
+    indent_width: usize,
 ) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
-    let mut parser = Parser::new(extensions, greedy_paragraphs);
+    let mut parser = Parser::new(extensions, greedy_paragraphs, indent_width);
     parser.directories = directories;
     let lines = split_lines(input);
     if greedy_paragraphs {
@@ -159,7 +161,7 @@ enum Kind {
     List(ListInfo),
     Item(ItemInfo),
     /// A footnote definition, holding its normalized label. Its content is gathered like a list
-    /// item (a four-column continuation indent) and collected out of the body by [`Parser::finish`].
+    /// item with the configured indent and collected out of the body by [`Parser::finish`].
     FootnoteDef(String),
     /// A fenced div (see [`DivInfo`]). Content is parsed recursively; a bare colon-run line of at
     /// least the opening length closes it.
@@ -179,8 +181,7 @@ enum Kind {
         term: String,
         tight: bool,
     },
-    /// One definition body of a definition list. Its content continues under a four-column indent
-    /// like a list item; `indent` is the column its content begins at.
+    /// One definition body of a definition list; `indent` is its content's starting column.
     Definition {
         indent: usize,
     },
@@ -358,6 +359,7 @@ struct Parser {
     /// When set, most block openers do not interrupt an open paragraph (see
     /// [`ReaderOptions::greedy_paragraphs`](carta_core::ReaderOptions::greedy_paragraphs)).
     greedy_paragraphs: bool,
+    indent_width: usize,
     paragraph_fold: Option<ParagraphFold>,
     /// Precomputed close-fence positions for the whole document, consulted from the root container so
     /// a fence opener does not rescan every remaining line (built only in greedy-paragraph mode).
@@ -370,12 +372,13 @@ struct Parser {
 }
 
 impl Parser {
-    fn new(extensions: Extensions, greedy_paragraphs: bool) -> Self {
+    fn new(extensions: Extensions, greedy_paragraphs: bool, indent_width: usize) -> Self {
         Parser {
             nodes: vec![Node::new(Kind::Document)],
             refs: RefMap::new(),
             extensions,
             greedy_paragraphs,
+            indent_width,
             paragraph_fold: None,
             fence_close_candidates: FenceCloseCandidates::default(),
             html_closing_lines: [None; 6],
@@ -611,7 +614,7 @@ impl Parser {
                 .filter(|&c| matches!(self.kind(c), Some(Kind::Paragraph)))
         {
             cursor.note_indent();
-            if cursor.indent() < TAB_STOP
+            if cursor.indent() < self.indent_width
                 && let Some(level) = cursor.setext_underline()
             {
                 // The underline heads only what remains after leading link reference definitions.

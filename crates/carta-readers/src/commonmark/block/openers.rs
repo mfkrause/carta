@@ -2,8 +2,8 @@
 
 use super::{
     Cursor, DivInfo, Extension, ItemInfo, Kind, ListMarkerParse, ListNumberDelim, ListNumberStyle,
-    Node, ParagraphFold, Parser, TAB_STOP, continues_ordered, demote_lone_roman, div_open_fence,
-    grid, html_block, html_element, list_info, scan, strip_atx_closing, table, texttable,
+    Node, ParagraphFold, Parser, continues_ordered, demote_lone_roman, div_open_fence, grid,
+    html_block, html_element, list_info, scan, strip_atx_closing, table, texttable,
 };
 
 impl Parser {
@@ -20,15 +20,15 @@ impl Parser {
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
         let gates = self.greedy_gates(container, in_paragraph);
 
-        if indent >= TAB_STOP && !in_paragraph {
-            cursor.advance_columns(TAB_STOP);
+        if indent >= self.indent_width && !in_paragraph {
+            cursor.advance_columns(self.indent_width);
             let parent = self.place(container, &Kind::IndentedCode);
             let index = self.append_child(parent, Node::new(Kind::IndentedCode));
             self.append_line(index, cursor);
             return Some(index);
         }
 
-        if indent < TAB_STOP {
+        if indent < self.indent_width {
             cursor.skip_indent();
             if indent == 0
                 && !gates.blockquote
@@ -302,9 +302,9 @@ impl Parser {
         } else {
             self.start_definition_item(container)?
         };
-        let content_indent = Self::consume_definition_marker(marker_indent, blank_after, cursor);
+        let content_indent = self.consume_definition_marker(marker_indent, blank_after, cursor);
         let indent = if self.extensions.contains(Extension::FourSpaceRule) {
-            marker_indent + TAB_STOP
+            marker_indent + self.indent_width
         } else {
             content_indent
         };
@@ -373,11 +373,12 @@ impl Parser {
     }
 
     /// Consume a definition marker (`:`/`~` plus its following spaces) and return the column its
-    /// content begins at. One through four spaces widen the content indent by that many columns;
-    /// five or more collapse to a single column. An empty marker takes no content column at all, so
+    /// content begins at. Padding beyond the indent width collapses to a single column.
+    /// An empty marker takes no content column at all, so
     /// its body begins one column past the marker: deferred indented lines join it as their own
     /// paragraph rather than continuing it.
     pub(super) fn consume_definition_marker(
+        &self,
         marker_indent: usize,
         blank_after: bool,
         cursor: &mut Cursor,
@@ -386,7 +387,7 @@ impl Parser {
         let after_marker = cursor.indent();
         let content_offset = if blank_after {
             0
-        } else if after_marker > TAB_STOP {
+        } else if after_marker > self.indent_width {
             1
         } else {
             after_marker
@@ -437,8 +438,8 @@ impl Parser {
 
         cursor.advance_chars(parsed.marker_width);
         let after_marker = cursor.indent();
-        // 1-4 spaces widen the content indent; 5+ collapse to one (the rest reads as indented code).
-        let content_offset = if parsed.blank_after || after_marker > TAB_STOP {
+        // Excess padding collapses to one column so the rest can become indented code.
+        let content_offset = if parsed.blank_after || after_marker > self.indent_width {
             1
         } else {
             after_marker
@@ -449,7 +450,7 @@ impl Parser {
         let item_indent = if self.extensions.contains(Extension::FourSpaceRule)
             || matches!(parsed.style, ListNumberStyle::Example)
         {
-            marker_indent + TAB_STOP
+            marker_indent + self.indent_width
         } else {
             marker_indent + parsed.marker_width + content_offset
         };

@@ -41,6 +41,7 @@ pub(super) struct RefContext<'a> {
     /// superscript or subscript span may not hold an unescaped space, and a code span's content is
     /// stripped of all surrounding whitespace. The strict dialect leaves each of these alone.
     pub(super) markdown: bool,
+    pub(super) indent_width: usize,
     pub(super) examples: &'a ExampleMap,
     /// A running count of the citation groups resolved so far. Every `Cite` inline is stamped with
     /// the next value, and all the `Citation` entries inside one group share that number. The count
@@ -96,6 +97,7 @@ pub(super) fn resolve_document(
     examples: &ExampleMap,
     ext: Extensions,
     markdown: bool,
+    indent_width: usize,
     source: &str,
     macros: Option<&macros::Context<'_>>,
 ) -> Vec<Block> {
@@ -103,10 +105,27 @@ pub(super) fn resolve_document(
     if ext.contains(Extension::LatexMacros)
         && source.contains('\\')
         && let Some(blocks) = if let Some(macros) = macros {
-            macros.blocks(ir, &refs, footnotes, examples, ext, markdown, source_len)
+            macros.blocks(
+                ir,
+                &refs,
+                footnotes,
+                examples,
+                ext,
+                markdown,
+                indent_width,
+                source_len,
+            )
         } else {
             macros::resolve(
-                ir, &refs, footnotes, examples, ext, markdown, source_len, None,
+                ir,
+                &refs,
+                footnotes,
+                examples,
+                ext,
+                markdown,
+                indent_width,
+                source_len,
+                None,
             )
         }
     {
@@ -131,6 +150,7 @@ pub(super) fn resolve_document(
             directory: None,
             in_definition: false,
             markdown,
+            indent_width,
             examples,
             cite_count: &scratch_count,
             cite_budget: &scratch_budget,
@@ -144,6 +164,7 @@ pub(super) fn resolve_document(
         directory: None,
         in_definition: true,
         markdown,
+        indent_width,
         examples,
         cite_count: &scratch_count,
         cite_budget: &scratch_budget,
@@ -164,6 +185,7 @@ pub(super) fn resolve_document(
         directory: None,
         in_definition: false,
         markdown,
+        indent_width,
         examples,
         cite_count: &body_count,
         cite_budget: &body_budget,
@@ -760,6 +782,7 @@ fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, notes: RefContext) 
             cell.tight,
             ext,
             notes.markdown,
+            notes.indent_width,
             notes.macros,
             notes.directory,
         ),

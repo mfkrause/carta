@@ -57,6 +57,7 @@ impl<'a> Context<'a> {
         examples: &ExampleMap,
         ext: Extensions,
         markdown: bool,
+        indent_width: usize,
         source_len: usize,
     ) -> Option<Vec<Block>> {
         let blocks = resolve(
@@ -66,6 +67,7 @@ impl<'a> Context<'a> {
             examples,
             ext,
             markdown,
+            indent_width,
             source_len,
             Some(Rc::clone(&self.engine)),
         );
@@ -194,6 +196,7 @@ pub(super) fn resolve(
     examples: &ExampleMap,
     ext: Extensions,
     markdown: bool,
+    indent_width: usize,
     source_len: usize,
     inherited: Option<Engine>,
 ) -> Option<Vec<Block>> {
@@ -214,6 +217,7 @@ pub(super) fn resolve(
         directory: None,
         in_definition: false,
         markdown,
+        indent_width,
         examples,
         cite_count: &count,
         cite_budget: &budget,

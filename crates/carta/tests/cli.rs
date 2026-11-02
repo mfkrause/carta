@@ -298,6 +298,37 @@ fn no_format_flags_convert_markdown_to_html() {
     assert_eq!(result.stdout, "<p><em>text</em></p>\n");
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn markdown_tab_stops_change_code_spacing_and_indentation() {
+    for format in ["markdown", "commonmark", "gfm"] {
+        for stop in [2, 4, 8] {
+            let result = run(
+                &["-f", format, "-t", "html", "--tab-stop", &stop.to_string()],
+                "\u{feff}```\r\né\tb\r\nxy\tz\r\n```\r\n\r\n`a\tb`\r\n\r\n\tcode\r\n",
+            );
+            assert!(result.success, "{}", result.stderr);
+            let indented = if format == "markdown" || stop == 4 {
+                "<pre><code>code</code></pre>"
+            } else if stop == 2 {
+                "<p>code</p>"
+            } else {
+                "<pre><code>    code</code></pre>"
+            };
+            assert_eq!(
+                result.stdout,
+                format!(
+                    "<pre><code>é{}b\nxy{}z</code></pre>\n<p><code>a{}b</code></p>\n{indented}\n",
+                    " ".repeat(stop - 1),
+                    " ".repeat(stop - 2 % stop),
+                    " ".repeat(stop - 2 % stop),
+                ),
+                "{format}, tab stop {stop}"
+            );
+        }
+    }
+}
+
 #[test]
 fn filenames_select_readers_case_insensitively() {
     let directory = input_directory("inferred-readers");

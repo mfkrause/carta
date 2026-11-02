@@ -158,6 +158,7 @@ pub(super) fn parse_meta_inlines_with_options(
         directory: super::origin::first_directory(options),
         in_definition: false,
         markdown,
+        indent_width: super::indent_width(options),
         examples: &examples,
         cite_count: &cite_count,
         cite_budget: &cite_budget,

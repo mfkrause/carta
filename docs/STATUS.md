@@ -278,7 +278,7 @@ Notes list gaps and limitations only.
 | Standalone output + templates (`-s`, `--template`) | ✅ | Each writer's scaffold (CSS, preamble) is authored independently and is not byte-identical across tools. |
 | Table of contents (`--toc`) | ✅ | — |
 | Text wrapping (`--wrap`, `--columns`) | ✅ | — |
-| Tab expansion (`--tab-stop`) | 🚧 | — |
+| Tab expansion (`--tab-stop`) | ✅ | — |
 | Section numbering (`--number-sections`) | ✅ | — |
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | — |
 | Syntax highlighting | ✅ | — |

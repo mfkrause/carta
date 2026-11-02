@@ -1,8 +1,8 @@
 //! Container and leaf continuation: matching open blocks against each line and fence gating.
 
 use super::{
-    Continue, Cursor, Extension, FenceInfo, GreedyGates, ItemInfo, Kind, Parser, TAB_STOP,
-    fence_attr, raw_block_format,
+    Continue, Cursor, Extension, FenceInfo, GreedyGates, ItemInfo, Kind, Parser, fence_attr,
+    raw_block_format,
 };
 
 impl Parser {
@@ -42,7 +42,7 @@ impl Parser {
                 let indent = info.indent;
                 self.continue_item_like(index, indent, false, cursor)
             }
-            // Continues under a four-column indent; an unindented non-blank line ends it.
+            // Unindented non-blank lines end a footnote definition.
             Some(Kind::FootnoteDef(_)) => {
                 if cursor.is_blank() {
                     if self.nodes.get(index).is_some_and(|n| n.children.is_empty()) {
@@ -50,8 +50,8 @@ impl Parser {
                     } else {
                         Continue::Matched
                     }
-                } else if cursor.indent() >= TAB_STOP {
-                    cursor.advance_columns(TAB_STOP);
+                } else if cursor.indent() >= self.indent_width {
+                    cursor.advance_columns(self.indent_width);
                     Continue::Matched
                 } else {
                     Continue::NotMatched
@@ -64,11 +64,11 @@ impl Parser {
             }
             Some(Kind::IndentedCode) => {
                 if cursor.is_blank() {
-                    cursor.advance_up_to_columns(TAB_STOP);
+                    cursor.advance_up_to_columns(self.indent_width);
                     self.append_line(index, cursor);
                     Continue::MatchedLeaf
-                } else if cursor.indent() >= TAB_STOP {
-                    cursor.advance_columns(TAB_STOP);
+                } else if cursor.indent() >= self.indent_width {
+                    cursor.advance_columns(self.indent_width);
                     self.append_line(index, cursor);
                     Continue::MatchedLeaf
                 } else {
@@ -273,8 +273,8 @@ impl Parser {
                 }
                 Some(Kind::FootnoteDef(_)) => {
                     if !cursor.is_blank() {
-                        if cursor.indent() >= TAB_STOP {
-                            cursor.advance_columns(TAB_STOP);
+                        if cursor.indent() >= self.indent_width {
+                            cursor.advance_columns(self.indent_width);
                         } else {
                             return false;
                         }

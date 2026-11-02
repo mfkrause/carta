@@ -186,6 +186,7 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
         directory: None,
         in_definition: false,
         markdown: false,
+        indent_width: 4,
         examples: &examples,
         cite_count: &cite,
         cite_budget: &budget,

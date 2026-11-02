@@ -13,6 +13,19 @@ mod metadata_tables_markdown;
 mod origin;
 mod tex;
 
+#[test]
+fn zero_tab_stop_preserves_code_tabs() {
+    let mut options = ReaderOptions::default();
+    options.tab_stop = 0;
+    options.extensions = carta_core::presets::MARKDOWN_READ;
+    options.greedy_paragraphs = true;
+    let document = CommonmarkReader.read("```\na\tb\n```", &options).unwrap();
+    assert_eq!(
+        document.blocks,
+        [Block::CodeBlock(Box::default(), "a\tb".into())]
+    );
+}
+
 fn blocks(input: &str) -> Vec<Block> {
     CommonmarkReader
         .read(input, &ReaderOptions::default())

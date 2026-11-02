@@ -786,7 +786,7 @@ status = "usable"
 
 [[feature]]
 name = "Tab expansion (`--tab-stop`)"
-status = "in-development"
+status = "usable"
 
 [[feature]]
 name = "Section numbering (`--number-sections`)"
