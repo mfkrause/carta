@@ -1,4 +1,4 @@
-//! Command-line option builders for the EPUB, DOCX, and syntax-highlighting writer configuration.
+//! Validate target-specific options and build writer configuration.
 
 use std::fs;
 use std::path::Path;
@@ -30,6 +30,105 @@ pub(super) fn html_stylesheets(cli: &Cli, target: &str, options: &mut carta::Wri
     options
         .variable_values
         .insert("css".to_owned(), Value::List(stylesheets));
+}
+
+pub(super) fn validate(cli: &Cli, target: &str) -> std::result::Result<(), clap::Error> {
+    let html = is_html(target);
+    let epub = matches!(target, "epub" | "epub2" | "epub3");
+    let command = super::cli_command();
+    let require = |options: &[&str], supported: bool, requirement: &str| {
+        if !supported
+            && let Some(option) = options
+                .iter()
+                .find(|option| cli.specified_options.contains(**option))
+        {
+            let name = command
+                .get_arguments()
+                .find(|argument| argument.get_id() == *option)
+                .and_then(clap::Arg::get_long)
+                .unwrap_or(option);
+            return Err(super::cli_command().error(
+                clap::error::ErrorKind::ArgumentConflict,
+                format!("--{name} cannot affect '{target}' output; {requirement}"),
+            ));
+        }
+        Ok(())
+    };
+    if cli.ascii && target != "odt" {
+        return Err(super::cli_command().error(
+            clap::error::ErrorKind::ArgumentConflict,
+            "--ascii is only supported for ODT output",
+        ));
+    }
+    require(&["css"], html || epub, "use HTML or EPUB output")?;
+    require(
+        &["css"],
+        !html || cli.standalone || cli.self_contained || cli.template.is_some(),
+        "add --standalone or --template to include the stylesheet",
+    )?;
+    require(
+        &[
+            "epub_cover_image",
+            "epub_embed_font",
+            "epub_metadata",
+            "epub_subdirectory",
+            "split_level",
+        ],
+        epub,
+        "use EPUB output",
+    )?;
+    require(&["reference_doc"], target == "docx", "use DOCX output")?;
+    require(
+        &["pdf_engine", "pdf_engine_options"],
+        target == "pdf",
+        "use PDF output",
+    )?;
+    require(
+        &["mathjax", "katex", "mathml", "webtex"],
+        html || epub,
+        "use HTML or EPUB output",
+    )?;
+    require(
+        &["embed_resources", "self_contained"],
+        html,
+        "use HTML output",
+    )?;
+    require(
+        &["top_level_division"],
+        matches!(target, "docbook" | "docbook5"),
+        "use DocBook output",
+    )?;
+    #[cfg(feature = "highlight")]
+    {
+        let color = html || epub || matches!(target, "latex" | "beamer" | "docx" | "odt");
+        require(
+            &["highlight_style"],
+            color,
+            "use a format that supports code colors",
+        )?;
+        require(
+            &["syntax_highlighting", "no_highlight"],
+            color || matches!(target, "typst" | "pdf" | "man"),
+            "use a format that supports syntax highlighting",
+        )?;
+        require(
+            &["syntax_definition"],
+            color || matches!(target, "man" | "docbook" | "docbook5"),
+            "use a format that supports custom syntax definitions",
+        )?;
+        if cli
+            .syntax_highlighting
+            .as_deref()
+            .is_some_and(|mode| !matches!(mode, "none" | "default" | "idiomatic"))
+        {
+            require(
+                &["syntax_highlighting"],
+                color,
+                "use a format that supports code colors",
+            )?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(feature = "highlight")]

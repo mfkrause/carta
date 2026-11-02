@@ -57,7 +57,7 @@ Extract the input's embedded media to this directory, writing each resource as a
 Search these directories, in order, for a document's images and other resources before falling back to the working directory, when a container format embeds them. Directories are separated by the platform's path separator (`:` on Unix, `;` on Windows). Later values replace earlier ones
 
 **--embed-resources**\[=*\<EMBED_RESOURCES\>*\] \[default: false\]  
-Inline a document's referenced media into HTML output as `data:` URIs, producing a self-contained file with no external resource dependencies. Local resources are read from disk (honoring `--resource-path`); references that cannot be read are left as written. Ignored for non-HTML output\
+Inline a document's referenced media into HTML output as `data:` URIs, producing a self-contained file with no external resource dependencies. Local resources are read from disk (honoring `--resource-path`); references that cannot be read are left as written. HTML only\
 
 \
 *Possible values:*

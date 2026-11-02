@@ -75,8 +75,7 @@ struct Cli {
     resource_path: Option<String>,
     /// Inline a document's referenced media into HTML output as `data:` URIs, producing a
     /// self-contained file with no external resource dependencies. Local resources are read from disk
-    /// (honoring `--resource-path`); references that cannot be read are left as written. Ignored for
-    /// non-HTML output.
+    /// (honoring `--resource-path`); references that cannot be read are left as written. HTML only.
     #[arg(long = "embed-resources")]
     embed_resources: bool,
     /// Deprecated alias for `--embed-resources --standalone`: produce a self-contained standalone
@@ -266,6 +265,8 @@ struct Cli {
     defaults: Vec<PathBuf>,
     #[arg(skip)]
     metadata_values: BTreeMap<String, MetaValue>,
+    #[arg(skip)]
+    specified_options: std::collections::BTreeSet<String>,
 }
 
 fn cli_command() -> clap::Command {
@@ -388,14 +389,7 @@ fn run(cli: &Cli) -> Result<()> {
     } else {
         to
     };
-    if cli.ascii && to_base != "odt" {
-        cli_command()
-            .error(
-                clap::error::ErrorKind::ArgumentConflict,
-                "--ascii is only supported for ODT output",
-            )
-            .exit();
-    }
+    options::validate(cli, &carta::parse_format_spec(to)?.0).unwrap_or_else(|error| error.exit());
     convert_document(from, to, cli)
 }
 

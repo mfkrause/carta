@@ -471,6 +471,88 @@ fn css_still_embeds_in_epub_output() {
 }
 
 #[test]
+fn defaults_options_use_the_selected_output_format() {
+    let directory = input_directory("target-option-defaults");
+    fs::write(
+        directory.join("settings.yaml"),
+        "to: html\nstandalone: true\ncss: [theme.css]\n",
+    )
+    .unwrap();
+    let result = run_in(
+        &directory,
+        &["-d", "settings.yaml", "-o", "output.txt"],
+        "Text",
+    );
+    assert!(result.success, "{}", result.stderr);
+    assert!(
+        fs::read_to_string(directory.join("output.txt"))
+            .unwrap()
+            .contains("href=\"theme.css\"")
+    );
+    let result = run_in(&directory, &["-d", "settings.yaml", "-t", "plain"], "Text");
+    assert_eq!(result.code, Some(2));
+    assert!(result.stderr.contains("--css"));
+    let result = run(&["-o", "output.txt", "--css", "missing.css"], "Text");
+    assert_eq!(result.code, Some(2));
+    assert!(result.stderr.contains("'markdown' output"));
+}
+
+#[cfg(feature = "highlight")]
+#[test]
+fn highlighting_options_reject_targets_without_highlighting() {
+    for flags in [
+        vec!["--highlight-style", "missing.theme"],
+        vec!["--syntax-highlighting", "idiomatic"],
+        vec!["--no-highlight"],
+        vec!["--syntax-definition", "missing.xml"],
+    ] {
+        let mut arguments = vec!["-t", "plain"];
+        arguments.extend(flags);
+        let result = run(&arguments, "Text");
+        assert_eq!(result.code, Some(2), "{}", result.stderr);
+        assert!(result.stderr.contains("cannot affect 'plain' output"));
+    }
+}
+
+#[test]
+fn target_specific_options_fail_before_reading_files() {
+    for flags in [
+        vec!["--css", "missing.css"],
+        vec!["--stylesheet", "missing.css"],
+        vec!["--epub-cover-image", "missing.png"],
+        vec!["--epub-embed-font", "missing.ttf"],
+        vec!["--epub-metadata", "missing.xml"],
+        vec!["--epub-subdirectory", "Book"],
+        vec!["--split-level", "2"],
+        vec!["--epub-chapter-level", "2"],
+        vec!["--reference-doc", "missing.docx"],
+        vec!["--pdf-engine", "typst"],
+        vec!["--pdf-engine-opt", "--help"],
+        vec!["--mathjax"],
+        vec!["--katex"],
+        vec!["--mathml"],
+        vec!["--webtex"],
+        vec!["--embed-resources"],
+        vec!["--self-contained"],
+        vec!["--top-level-division", "chapter"],
+    ] {
+        let mut arguments = vec!["-t", "plain"];
+        arguments.extend(flags);
+        let result = run(&arguments, "Text");
+        assert_eq!(result.code, Some(2), "{arguments:?}: {}", result.stderr);
+        assert!(result.stdout.is_empty());
+        assert!(
+            result.stderr.contains("cannot affect 'plain' output"),
+            "{}",
+            result.stderr
+        );
+    }
+    let result = run(&["-t", "html", "--css", "missing.css"], "Text");
+    assert_eq!(result.code, Some(2));
+    assert!(result.stderr.contains("--standalone"));
+}
+
+#[test]
 fn filenames_select_readers_case_insensitively() {
     let directory = input_directory("inferred-readers");
     for (extension, source, expected) in [
@@ -1298,13 +1380,14 @@ fn sandbox_leaves_remote_references_external() {
 
 #[cfg(feature = "write-markdown")]
 #[test]
-fn embed_resources_is_ignored_for_non_html_output() {
+fn embed_resources_rejects_non_html_output() {
     let result = run(
         &["-f", "commonmark", "-t", "markdown", "--embed-resources"],
         "![logo](logo.png)\n",
     );
-    assert!(result.success, "stderr: {}", result.stderr);
-    assert_eq!(result.stdout, "![logo](logo.png)\n");
+    assert_eq!(result.code, Some(2));
+    assert!(result.stderr.contains("--embed-resources"));
+    assert!(result.stdout.is_empty());
 }
 
 #[cfg(all(feature = "write-html", feature = "fetch"))]
@@ -1360,10 +1443,11 @@ fn embed_resources_fetches_a_remote_image_over_http() {
             },
             "-t",
             target,
-            "--embed-resources",
             "--wrap=none",
         ];
-        if target != "html" {
+        if target == "html" {
+            arguments.push("--embed-resources");
+        } else {
             arguments.extend(["-o", output.to_str().unwrap()]);
         }
         let result = run(&arguments, &markdown);
@@ -2238,8 +2322,9 @@ fn defaults_search_files_and_reject_invalid_configuration() {
         &["--pdf-engine-opt", "-dmissing", "-tplain"],
         "text",
     );
-    assert!(output.success, "{}", output.stderr);
-    assert_eq!(output.stdout, "text\n");
+    assert_eq!(output.code, Some(2));
+    assert!(output.stderr.contains("--pdf-engine-opt"));
+    assert!(!output.stderr.contains("defaults file"));
 }
 
 #[test]

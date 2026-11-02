@@ -126,6 +126,13 @@ pub(super) fn parse() -> Result<Cli, ParseError> {
     let matches = cli_command()
         .try_get_matches_from(std::iter::once(OsString::from("carta")).chain(defaults.arguments))?;
     let mut cli = Cli::from_arg_matches(&matches)?;
+    cli.specified_options = matches
+        .ids()
+        .filter(|id| {
+            matches.value_source(id.as_str()) == Some(clap::parser::ValueSource::CommandLine)
+        })
+        .map(ToString::to_string)
+        .collect();
     cli.template_variables = defaults.variables;
     cli.metadata_values = defaults.metadata;
     defaults.inputs.append(&mut cli.input);
