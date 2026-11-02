@@ -224,7 +224,10 @@ impl<'a> InlineParser<'a> {
         }
 
         // Shortcut reference: skip the lookup with no definitions or a span past the label limit.
-        if is_active && !self.refs.is_empty() {
+        if is_active
+            && !self.refs.is_empty()
+            && (!self.notes.markdown || self.ext.contains(Extension::ShortcutReferenceLinks))
+        {
             let raw = self.raw_label(opener_index);
             if raw.len() <= MAX_LABEL_BYTES
                 && let Some(definition) = self.refs.get(&normalize_label(raw))

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 fn read_sources(first: &str, second: &str, macros: bool) -> Document {
     let input = format!("{first}\n\n{second}");
     let mut options = ReaderOptions::default();
-    options.extensions = carta_core::extensions::presets::MARKDOWN;
+    options.extensions = carta_core::extensions::presets::MARKDOWN_READ;
     options.extensions.insert(Extension::RebaseRelativePaths);
     if macros {
         options.extensions.insert(Extension::LatexMacros);

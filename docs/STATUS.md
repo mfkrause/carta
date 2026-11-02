@@ -264,8 +264,9 @@ toggle naming anything outside that set is rejected.
 `table_attributes`, `blank_before_blockquote`, `blank_before_header`, `mark`, `emoji`, `alerts`,
 `tex_math_single_backslash`, `tex_math_double_backslash`, `lists_without_preceding_blankline`,
 `intraword_underscores`, `backtick_code_blocks`, `fenced_code_blocks`, `escaped_line_breaks`,
-`space_in_atx_header`, `all_symbols_escapable`, `spaced_reference_links`, `short_subsuperscripts`,
-`mmd_title_block`, `mmd_header_identifiers`, `abbreviations`, `markdown_attribute`.
+`space_in_atx_header`, `all_symbols_escapable`, `spaced_reference_links`,
+`shortcut_reference_links`, `short_subsuperscripts`, `mmd_title_block`, `mmd_header_identifiers`,
+`abbreviations`, `markdown_attribute`.
 
 ---
 

@@ -10,6 +10,7 @@ fn ascii_identifiers_share_collisions_and_implicit_link_targets() {
             Extension::AutoIdentifiers,
             Extension::AsciiIdentifiers,
             Extension::ImplicitHeaderReferences,
+            Extension::ShortcutReferenceLinks,
             Extension::HeaderAttributes,
         ],
     );
@@ -125,6 +126,7 @@ fn trailing_header_labels_resolve_with_their_original_spaces() {
     let extensions = [
         Extension::MmdHeaderIdentifiers,
         Extension::ImplicitHeaderReferences,
+        Extension::ShortcutReferenceLinks,
     ];
     let source = "[CUSTOM  ID]\n\n# Heading [Custom ID]\n\n[Heading]\n\n[customid]\n";
     let document = read_markdown(source, &extensions);
@@ -149,7 +151,13 @@ fn trailing_header_labels_resolve_with_their_original_spaces() {
 #[test]
 fn reference_attributes_keep_image_paths_titles_and_continuations() {
     let source = "[photo]\n\n[photo]: image.png \"Title\" width=100\n height='50' class=\"wide blue\" key=one key=two\n\nRest.\n";
-    let document = read_markdown(source, &[Extension::MmdLinkAttributes]);
+    let document = read_markdown(
+        source,
+        &[
+            Extension::MmdLinkAttributes,
+            Extension::ShortcutReferenceLinks,
+        ],
+    );
     let Some(Block::Para(inlines)) = document.blocks.first() else {
         panic!()
     };

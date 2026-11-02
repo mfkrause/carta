@@ -139,7 +139,7 @@ fn an_unclosed_definition_does_not_change_the_valid_prefix() {
 
 fn read_macros(source: &str) -> Document {
     let mut options = ReaderOptions::default();
-    options.extensions = carta_core::extensions::presets::MARKDOWN;
+    options.extensions = carta_core::extensions::presets::MARKDOWN_READ;
     options.greedy_paragraphs = true;
     options.extensions.insert(Extension::LatexMacros);
     CommonmarkReader.read(source, &options).unwrap()

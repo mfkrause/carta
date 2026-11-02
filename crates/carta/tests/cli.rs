@@ -329,6 +329,47 @@ fn markdown_tab_stops_change_code_spacing_and_indentation() {
     }
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn markdown_shortcut_switch_preserves_full_and_collapsed_references() {
+    let source = "[link]; [link][]; [label][link]; ![link]\n\n[link]: /target\n";
+    for format in [
+        "markdown",
+        "markdown_github",
+        "markdown_phpextra",
+        "markdown_mmd",
+        "markdown_strict",
+    ] {
+        for enabled in [false, true] {
+            let format = format!(
+                "{format}-shortcut_reference_links{}",
+                if enabled {
+                    "+shortcut_reference_links"
+                } else {
+                    ""
+                }
+            );
+            let result = run(&["-f", &format, "-t", "html", "--wrap=none"], source);
+            assert!(result.success, "{}", result.stderr);
+            let (shortcut, image) = if enabled {
+                (
+                    "<a href=\"/target\">link</a>",
+                    "<img src=\"/target\" alt=\"link\" />",
+                )
+            } else {
+                ("[link]", "![link]")
+            };
+            assert_eq!(
+                result.stdout,
+                format!(
+                    "<p>{shortcut}; <a href=\"/target\">link</a>; <a href=\"/target\">label</a>; {image}</p>\n"
+                ),
+                "{format}"
+            );
+        }
+    }
+}
+
 #[test]
 fn filenames_select_readers_case_insensitively() {
     let directory = input_directory("inferred-readers");

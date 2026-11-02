@@ -762,6 +762,7 @@ supported = [
   "space_in_atx_header",
   "all_symbols_escapable",
   "spaced_reference_links",
+  "shortcut_reference_links",
   "short_subsuperscripts",
   "mmd_title_block",
   "mmd_header_identifiers",
