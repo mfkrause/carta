@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  one
+
+  \begin{enumerate}
+  \item
+    nested
+  \end{enumerate}
+\item
+  two
+\end{itemize}
+
+\begin{enumerate}
+\item
+  Linux
+
+  \begin{itemize}
+  \item
+    Fedora
+  \item
+    Debian
+  \end{itemize}
+\item
+  BSD
+
+  \begin{itemize}
+  \item
+    FreeBSD
+  \end{itemize}
+\end{enumerate}

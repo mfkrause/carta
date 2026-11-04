@@ -70,3 +70,12 @@ pub(crate) fn read_reference(
         Some((lookup_named(&name)?.to_string(), j + 1))
     }
 }
+
+#[cfg(feature = "asciidoc")]
+pub(crate) fn lookup_legacy(name: &str) -> Option<&'static str> {
+    LEGACY_ENTITIES
+        .binary_search_by(|(candidate, _)| (*candidate).cmp(name))
+        .ok()
+        .and_then(|index| LEGACY_ENTITIES.get(index))
+        .map(|(_, text)| *text)
+}

@@ -95,6 +95,7 @@ pub(super) fn read_documents(
 
     let mut options = options.clone();
     options.source_dir = super::source_dir(paths.first().map(PathBuf::as_path));
+    options.source_paths.clear();
     if paths.is_empty() {
         let bytes = read_input(None, text)?;
         return read_document(from, &bytes, &options);
@@ -112,6 +113,10 @@ pub(super) fn read_documents(
         };
         for path in paths {
             options.source_dir = super::source_dir(Some(path));
+            options.source_paths.clear();
+            if path != Path::new("-") {
+                options.source_paths.insert(0, path.clone());
+            }
             let bytes = read_input(Some(path), text)?;
             let (mut part, resources) = read_document(from, &bytes, &options)?;
             if scope_files {
@@ -121,6 +126,7 @@ pub(super) fn read_documents(
                     &identifiers,
                     &mut anchors,
                     extensions.contains(carta::Extension::RebaseRelativePaths),
+                    base != "asciidoc",
                 );
                 starts.push((name, document.blocks.len()));
             }
@@ -142,6 +148,9 @@ pub(super) fn read_documents(
             input.len(),
             super::source_dir(Some(path)).unwrap_or_default(),
         );
+        if path != Path::new("-") {
+            options.source_paths.insert(input.len(), path.clone());
+        }
         input.extend(read_input(Some(path), text)?);
     }
     read_document(from, &input, &options)

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span class="counter" name="lower">A</span>
+<span class="counter" name="lower">B</span>
+<span class="counter" name="upper">C</span>
+
+{counter:invalid:word} {counter:empty:}

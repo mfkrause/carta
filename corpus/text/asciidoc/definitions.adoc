@@ -1,0 +1,8 @@
+term:: definition
+next::
+* a
+* b
+
+last::no space
+
+:: Empty term definition.

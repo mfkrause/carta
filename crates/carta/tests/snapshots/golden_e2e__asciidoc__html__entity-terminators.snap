@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>&amp;w ©w  w &amp;euro w</p>
+<p>&amp;w</p>
+<p><strong>&amp;w</strong> <code>&amp;w</code></p>
+<p>&amp;w &amp;w</p>
+<p>AX AX</p>

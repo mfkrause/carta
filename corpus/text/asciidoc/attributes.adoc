@@ -1,0 +1,5 @@
+:company: Example Corp
+:flag:
+:stem: latexmath
+
+{company} {unknown} x{sp}y{nbsp}z{empty}.

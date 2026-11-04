@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+    1. top-level indented
+
+    1. tab-indented
+
+1.  first
+
+2.  second
+
+- parent
+
+  1.  nested first
+
+  2.  nested second
+
+<table>
+<thead>
+<tr>
+<th><p>before 1. a-style</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr>
+<th><p><em>before 1. e-style</em></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<div class="example">
+
+    1. ----
+
+</div>

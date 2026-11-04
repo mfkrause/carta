@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+http:x https:/x irc:x ftp:x mailto:x
+
+http:x(y) http:x? http:x,,y http:x.y http:x++y++ http:++x y++
+
+http:x irc:x wordftp:x http:x\y http:x&amp;y
+
+Label Label http:x[role=wide] Macro
+
+alice@example.com 123alice@example.com _alice@example.com

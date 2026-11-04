@@ -1,0 +1,19 @@
+----
+code
+---- // close
+after
+
+....
+literal
+.... // close
+after
+
+++++
+<span>raw</span>
+++++ // close
+after
+
+====
+example
+==== // close
+after

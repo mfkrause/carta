@@ -1,0 +1,6 @@
+[format=csv]
+|===
+A,B,C
+"one, two",three,four
+x,y,z
+|===

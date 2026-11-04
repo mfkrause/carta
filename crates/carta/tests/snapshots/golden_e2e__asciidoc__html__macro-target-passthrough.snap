@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>anchor:literal[] link:foo[] image:foo.png[] xref:foo[]
+footnote:foo[bar]</p>
+<p><a href="foo">foo</a> <a href="foo">foo</a></p>
+<p><a href="pass:">pass:</a>[]</p>

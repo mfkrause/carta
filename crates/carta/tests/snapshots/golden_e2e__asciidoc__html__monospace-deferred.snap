@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><a href="#missing" class="cross-reference"><code>missing</code></a>
+<code>{missing}</code></p>
+<p><a href="#known" class="cross-reference"><code>known</code></a>
+<code>value</code></p>
+<div id="known,Label" data-wrapper="1">
+<p>known</p>
+</div>
+<p><a href="#known" class="role cross-reference"><code>known</code></a>
+<a href="#missing"
+class="role cross-reference"><code>missing</code></a></p>

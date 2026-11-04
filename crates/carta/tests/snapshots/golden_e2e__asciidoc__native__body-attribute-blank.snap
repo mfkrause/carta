@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "para" ]
+, Para [ Str ":y:" , Space , Str "two" ]
+, Para [ Str "{y}" ]
+]

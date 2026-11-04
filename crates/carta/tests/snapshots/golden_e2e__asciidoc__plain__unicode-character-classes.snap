@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+é@example.com a@ΩΩ.com a@example.中中
+
+a@Ⅻ.com a@ͅ.com a@example.ְְ aͅb@example.com
+
+ͅ--a a--ְ Ⅻ—​²
+
+Text
+
+[ְ.role]
+
+Text

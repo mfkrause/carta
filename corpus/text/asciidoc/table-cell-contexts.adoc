@@ -1,0 +1,56 @@
+[cols="a"]
+|===
+|= Cell title
+
+Cell body.
+|===
+
+[cols="e"]
+|===
+|= Unparsed title
+
+Unparsed body.
+|===
+
+[cols="e"]
+|===
+|First paragraph.
+
+== Cell section
+
+Section body.
+|===
+
+[cols="m"]
+|===
+|First paragraph.
+
+=== Cell section
+
+Section body.
+|===
+
+====
+[cols="d"]
+|===
+|== Paragraph text
+
+Next paragraph.
+|===
+====
+
+== Outer
+
+[cols="s"]
+|===
+|=== Inner
+
+Inner body.
+|===
+
+[cols=e]
+|===
+|Before
+ 
+After
+|===

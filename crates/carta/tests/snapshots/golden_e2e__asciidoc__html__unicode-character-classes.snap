@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><a href="é@example.com">é@example.com</a> <a
+href="a@ΩΩ.com">a@ΩΩ.com</a> <a
+href="a@example.中中">a@example.中中</a></p>
+<p>a@Ⅻ.com a@ͅ.com a@example.ְְ aͅ<a
+href="b@example.com">b@example.com</a></p>
+<p>ͅ--a a--ְ Ⅻ—​²</p>
+<p>Text</p>
+<p><img src="x" alt="ְ.role" /></p>
+<div class="role" data-wrapper="1">
+<p>Text</p>
+</div>

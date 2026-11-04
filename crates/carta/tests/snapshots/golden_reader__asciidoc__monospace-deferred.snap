@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"late":{"t":"MetaString","c":"value"}},"blocks":[{"t":"Para","c":[{"t":"Link","c":[["",["cross-reference"],[]],[{"t":"Code","c":[["",[],[]],"missing"]}],["#missing",""]]},{"t":"Space"},{"t":"Code","c":[["",[],[]],"{missing}"]}]},{"t":"Para","c":[{"t":"Link","c":[["",["cross-reference"],[]],[{"t":"Code","c":[["",[],[]],"known"]}],["#known",""]]},{"t":"Space"},{"t":"Code","c":[["",[],[]],"value"]}]},{"t":"Div","c":[["known,Label",[],[["wrapper","1"]]],[{"t":"Para","c":[{"t":"Str","c":"known"}]}]]},{"t":"Para","c":[{"t":"Link","c":[["",["role","cross-reference"],[]],[{"t":"Code","c":[["",[],[]],"known"]}],["#known",""]]},{"t":"Space"},{"t":"Link","c":[["",["role","cross-reference"],[]],[{"t":"Code","c":[["",[],[]],"missing"]}],["#missing",""]]}]}]}

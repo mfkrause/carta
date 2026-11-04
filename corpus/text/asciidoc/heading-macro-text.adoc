@@ -1,0 +1,15 @@
+== Alpha {counter:x}
+
+== Alpha ((term))
+
+== Alpha indexterm2:[foo]
+
+== Alpha pass:[word]
+
+== Alpha menu:Tools[Build>Run]
+
+== Alpha btn:[Save]
+
+== Alpha kbd:[Ctrl+X]
+
+== Alpha [[key,Label]]

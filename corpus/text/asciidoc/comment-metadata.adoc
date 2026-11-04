@@ -1,0 +1,52 @@
+[role=discarded]
+////
+block comment
+////
+Visible after block comment.
+
+.Caption
+////
+comment consumes the title
+////
+[source]
+----
+code
+----
+
+[comment]
+////
+styled comment
+////
+Visible after styled comment.
+
+[[discarded-anchor]]
+////
+comment consumes the anchor
+////
+Visible after anchor comment.
+
+////
+plain comment
+////
+[role=kept]
+Visible after fresh block metadata.
+
+[role=kept-through-line-comment]
+// line comment
+Visible after line comment.
+
+====
+[role=discarded-inner]
+////
+inner comment
+////
+Visible inside the example.
+====
+
+* first item
++
+[role=discarded-list]
+////
+list comment
+////
+* second item

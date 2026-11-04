@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Code ( "" , [] , [] ) "missing" ]
+        ( "#missing" , "" )
+    , Space
+    , Code ( "" , [] , [] ) "{missing}"
+    ]
+, Para
+    [ Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Code ( "" , [] , [] ) "known" ]
+        ( "#known" , "" )
+    , Space
+    , Code ( "" , [] , [] ) "value"
+    ]
+, Div
+    ( "known,Label" , [] , [ ( "wrapper" , "1" ) ] )
+    [ Para [ Str "known" ] ]
+, Para
+    [ Link
+        ( "" , [ "role" , "cross-reference" ] , [] )
+        [ Code ( "" , [] , [] ) "known" ]
+        ( "#known" , "" )
+    , Space
+    , Link
+        ( "" , [ "role" , "cross-reference" ] , [] )
+        [ Code ( "" , [] , [] ) "missing" ]
+        ( "#missing" , "" )
+    ]
+]

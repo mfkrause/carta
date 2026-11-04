@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A <ref>First '''note'''.</ref> and <ref>First '''note'''.</ref>.
+
+Another <ref>Anonymous note</ref>.
+
+<references />

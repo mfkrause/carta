@@ -1,0 +1,92 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="example" data-options="hardbreaks">
+<p>one<br />
+two</p>
+</div>
+<p>after block</p>
+<div class="sidebar" data-options="hardbreaks">
+<p>one<br />
+two</p>
+</div>
+<p>after block</p>
+<div data-options="hardbreaks">
+<p>one<br />
+two</p>
+</div>
+<p>after block</p>
+<div data-wrapper="1" data-options="hardbreaks">
+<blockquote>
+<p>one<br />
+two</p>
+</blockquote>
+</div>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p><em>one<br />
+two</em></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p><code>one</code><br />
+<code>two</code></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p><strong>one<br />
+two</strong></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>

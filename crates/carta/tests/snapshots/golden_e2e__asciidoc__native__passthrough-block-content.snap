@@ -1,0 +1,55 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "_inline_passthrough_block_content" , [] , [] )
+    [ Str "Inline"
+    , Space
+    , Str "passthrough"
+    , Space
+    , Str "block"
+    , Space
+    , Str "content"
+    ]
+, Para [ Str "Heading" ]
+, Para
+    [ Str "Before"
+    , Space
+    , Str "First"
+    , LineBreak
+    , Str "Second"
+    , Space
+    , Str "after."
+    ]
+, Para
+    [ Str "Term:"
+    , Space
+    , Str "DefinitionNext:"
+    , Space
+    , Str "Other"
+    ]
+, Para
+    [ RawInline (Format "html") "</p>"
+    , Space
+    , RawInline (Format "html") "</i>"
+    ]
+, Para
+    [ Str "Before"
+    , LineBreak
+    , RawInline (Format "html") "</br>"
+    , Space
+    , Str "after."
+    ]
+, Para
+    [ Str "Before"
+    , Space
+    , RawInline (Format "html") "<!---->"
+    , Space
+    , Str "after."
+    ]
+, Para [ RawInline (Format "html") "<?reader note ?>" ]
+, Para
+    [ Str "Before" , LineBreak , LineBreak , Str "After" ]
+]

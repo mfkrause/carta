@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\textbar=== plain text \textbar===
+
+\textbar=== 2+\textbar{} wide \textbar{} next \textbar{} last
+\textbar===

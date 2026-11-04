@@ -1,0 +1,76 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para
+                   [ Image
+                       ( "" , [] , [] )
+                       [ Code ( "" , [] , [] ) "p" ]
+                       ( "x" , "" )
+                   ]
+               ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para
+                    [ Link
+                        ( "" , [] , [] )
+                        [ Code ( "" , [] , [] ) "l" ]
+                        ( "x" , "" )
+                    ]
+                ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para
+                    [ Note [ Para [ Code ( "" , [] , [] ) "note" ] ] ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para
+                   [ Span
+                       ( "" , [ "r" ] , [] )
+                       [ Code ( "" , [] , [] ) "span" ]
+                   ]
+               ]
+           ]
+       ])
+]

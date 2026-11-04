@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 0\tabcolsep) * \real{1.0000}}@{}}
+\toprule\noalign{}
+\vtop{\hbox{\strut one}\hbox{\strut two}} \\
+\midrule\noalign{}
+\endhead
+\midrule\noalign{}
+three\\
+four \\
+\bottomrule\noalign{}
+\endlastfoot
+\end{longtable}
+}

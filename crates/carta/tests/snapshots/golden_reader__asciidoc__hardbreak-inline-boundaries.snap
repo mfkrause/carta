@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"hardbreaks-option":{"t":"MetaBool","c":true},"x":{"t":"MetaString","c":"words"}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"first"},{"t":"Strong","c":[{"t":"Str","c":"bold"}]}]},{"t":"Para","c":[{"t":"Str","c":"firstwords"}]},{"t":"Para","c":[{"t":"Str","c":"first"},{"t":"LineBreak"},{"t":"LineBreak"},{"t":"Str","c":"second"}]},{"t":"Para","c":[{"t":"Str","c":"alpha"},{"t":"LineBreak"},{"t":"Str","c":"beta"}]},{"t":"Para","c":[{"t":"Str","c":"xy"}]}]}

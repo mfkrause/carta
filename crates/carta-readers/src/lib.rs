@@ -68,7 +68,8 @@ mod smart_fold;
     feature = "dokuwiki",
     feature = "latex",
     feature = "mediawiki",
-    feature = "rst"
+    feature = "rst",
+    feature = "asciidoc"
 ))]
 mod tabs;
 #[cfg(any(feature = "commonmark", feature = "latex"))]
@@ -199,3 +200,8 @@ pub use rtf::RtfReader;
 pub use tsv::TsvReader;
 #[cfg(feature = "typst")]
 pub use typst::TypstReader;
+
+#[cfg(feature = "asciidoc")]
+pub mod asciidoc;
+#[cfg(feature = "asciidoc")]
+pub use asciidoc::AsciidocReader;

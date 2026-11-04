@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol>
+<li><dl>
+<dt>A</dt>
+<dd>
+<p>Alpha</p>
+</dd>
+</dl></li>
+<li><dl>
+<dt>B</dt>
+<dd>
+<p>Beta</p>
+</dd>
+</dl></li>
+</ol>

@@ -1,0 +1,10 @@
+= Table line breaks
+:hardbreaks-option:
+
+|===
+|one
+two
+|[%hardbreaks]
+three
+four
+|===

@@ -1,0 +1,28 @@
+[asciidoc-heading=heading,asciidoc-section=section,asciidoc-identifier-source=source,asciidoc-icon=icon,wrapper=1]
+== Heading
+
+.Titled
+[asciidoc-heading=titled,asciidoc-section=titled]
+=== Nested
+
+[discrete,asciidoc-heading=discrete,asciidoc-section=discrete]
+==== Discrete
+
+icon:heart[asciidoc-icon=user,wrapper=1]
+
+anchor:spot[asciidoc-identifier-source=user] xref:spot[]
+
+++++
+<h2 c="1" b="2" a="3" b="4" asciidoc-heading="html-heading" asciidoc-section="html-section" wrapper="html">HTML</h2>
+++++
+
+++++
+<h2 z="1" data-x="2" a="3" x="4">Data</h2>
+++++
+
+++++
+<h2 asciidoc-carta-user-attribute-asciidoc-heading="html-prefix">Prefix</h2>
+++++
+
+[asciidoc-carta-user-attribute-asciidoc-heading=prefix]
+===== Prefix

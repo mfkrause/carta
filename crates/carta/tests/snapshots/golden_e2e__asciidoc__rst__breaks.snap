@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+--------------
+
+--------------
+
+--------------
+
+.. container:: page-break
+
+   --------------
+
+.. container:: page-break
+
+   --------------
+
+| A hard
+| break.
+
+.. container::
+
+   | a
+   | b
+
+| third
+| fourth
+
+| first
+| 
+| second

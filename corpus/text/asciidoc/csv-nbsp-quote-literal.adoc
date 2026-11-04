@@ -1,0 +1,4 @@
+[format=csv,options="noheader nofooter"]
+|===
+a, "x",c
+|===

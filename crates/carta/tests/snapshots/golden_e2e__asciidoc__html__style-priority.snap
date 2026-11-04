@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="_heading">Heading</h1>
+<div class="example">
+<p>example</p>
+</div>
+<pre><code>literal
+</code></pre>
+<p>==== unclosed</p>

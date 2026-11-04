@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+term  
+definition
+
+next  
+- a
+
+- b
+
+last  
+no space
+
+  
+Empty term definition.

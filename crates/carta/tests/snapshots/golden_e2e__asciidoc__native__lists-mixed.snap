@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Para [ Str "one" ]
+      , OrderedList
+          ( 1 , DefaultStyle , DefaultDelim )
+          [ [ Para [ Str "nested" ] ] ]
+      ]
+    , [ Para [ Str "two" ] ]
+    ]
+, OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Para [ Str "Linux" ]
+      , BulletList
+          [ [ Para [ Str "Fedora" ] ] , [ Para [ Str "Debian" ] ] ]
+      ]
+    , [ Para [ Str "BSD" ]
+      , BulletList [ [ Para [ Str "FreeBSD" ] ] ]
+      ]
+    ]
+]

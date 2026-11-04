@@ -1,0 +1,10 @@
+[lowerroman,start=5]
+. five
+. six
+[loweralpha]
+.. a
+.. b
+. seven
+
+4. Four
+5. Five

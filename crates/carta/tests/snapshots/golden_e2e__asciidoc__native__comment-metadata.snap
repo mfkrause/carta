@@ -1,0 +1,78 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visible"
+    , Space
+    , Str "after"
+    , Space
+    , Str "block"
+    , Space
+    , Str "comment."
+    ]
+, CodeBlock ( "" , [] , [] ) "code"
+, Para
+    [ Str "Visible"
+    , Space
+    , Str "after"
+    , Space
+    , Str "styled"
+    , Space
+    , Str "comment."
+    ]
+, Para
+    [ Str "Visible"
+    , Space
+    , Str "after"
+    , Space
+    , Str "anchor"
+    , Space
+    , Str "comment."
+    ]
+, Div
+    ( "" , [ "kept" ] , [ ( "wrapper" , "1" ) ] )
+    [ Para
+        [ Str "Visible"
+        , Space
+        , Str "after"
+        , Space
+        , Str "fresh"
+        , Space
+        , Str "block"
+        , Space
+        , Str "metadata."
+        ]
+    ]
+, Div
+    ( ""
+    , [ "kept-through-line-comment" ]
+    , [ ( "wrapper" , "1" ) ]
+    )
+    [ Para
+        [ Str "Visible"
+        , Space
+        , Str "after"
+        , Space
+        , Str "line"
+        , Space
+        , Str "comment."
+        ]
+    ]
+, Div
+    ( "" , [ "example" ] , [] )
+    [ Para
+        [ Str "Visible"
+        , Space
+        , Str "inside"
+        , Space
+        , Str "the"
+        , Space
+        , Str "example."
+        ]
+    ]
+, BulletList
+    [ [ Para [ Str "first" , Space , Str "item" ] ]
+    , [ Para [ Str "second" , Space , Str "item" ] ]
+    ]
+]

@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="example">
+<div class="title">
+<p>Example title</p>
+</div>
+<p>A paragraph.</p>
+<p>Another paragraph.</p>
+</div>
+<div class="sidebar">
+<p>Sidebar text.</p>
+</div>
+<div>
+<p>Open block.</p>
+</div>

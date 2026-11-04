@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[term]
+definition
+\item[next]
+\hfill
+\begin{itemize}
+\item
+  a
+\item
+  b
+\end{itemize}
+\item[last]
+no space
+\item[]
+Empty term definition.
+\end{description}

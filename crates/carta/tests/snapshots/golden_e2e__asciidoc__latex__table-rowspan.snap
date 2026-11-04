@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+A & B & C \\
+\midrule\noalign{}
+\endhead
+\midrule\noalign{}
+\multicolumn{3}{@{}l@{}}{%
+full} \\
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{2}{@{}l}{%
+\multirow{2}{*}{wide and tall}} & third \\
+& & last \\
+\end{longtable}
+}

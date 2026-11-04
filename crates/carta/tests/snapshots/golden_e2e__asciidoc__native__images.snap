@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Image
+        ( ""
+        , []
+        , [ ( "width" , "100px" ) , ( "height" , "200px" ) ]
+        )
+        [ Str "Photo" ]
+        ( "photo.png" , "" )
+    , Str "."
+    ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "A" , Space , Str "caption" ] ])
+    [ Plain
+        [ Image
+            ( ""
+            , []
+            , [ ( "width" , "100px" ) , ( "height" , "200px" ) ]
+            )
+            [ Str "Photo" ]
+            ( "photo.png" , "" )
+        ]
+    ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" )
+      , ( "alt" , "Photo" )
+      , ( "height" , "200" )
+      , ( "width" , "100" )
+      ]
+    )
+    [ Figure
+        ( "" , [] , [] )
+        (Caption Nothing [])
+        [ Plain [ Image ( "" , [] , [] ) [] ( "photo.png" , "" ) ] ]
+    ]
+]

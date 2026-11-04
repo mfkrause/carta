@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
++------+
+| [p]  |
++======+
+| l    |
++------+
+| [1]  |
++======+
+| span |
++======+
+
+[1] note

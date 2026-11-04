@@ -1,0 +1,5 @@
+[cols="<m,>s"]
+|===
+|Mono |Strong
+d|Default e|Italic
+|===

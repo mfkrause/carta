@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre class="code"><code>----
+*raw* {missing}
+----
+</code></pre>

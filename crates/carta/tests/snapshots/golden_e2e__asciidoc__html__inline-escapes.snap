@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><strong>a*b</strong> <em>a_b</em> <code>a`b</code> and
+<strong>spaced</strong>.</p>

@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+v.  five
+
+vi. six
+
+    a.  a
+
+    b.  b
+
+vii. seven
+
+4.  Four
+
+5.  Five

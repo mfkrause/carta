@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _point:
+
+See `Reference Text <#point>`__ and ` <#missing>`__.
+
+.. _other,Label:
+
+Heading
+=======
+
+See `other <#other>`__.
+
+.. container::
+   :name: multi,One,Two
+
+   See `multi <#multi>`__.
+
+.. _macro:
+
+See `AlphaBeta <#macro>`__.
+
+.. _bib:

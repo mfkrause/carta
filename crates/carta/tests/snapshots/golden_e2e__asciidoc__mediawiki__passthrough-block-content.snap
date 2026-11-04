@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="_inline_passthrough_block_content"></span>
+= Inline passthrough block content =
+
+Heading
+
+Before First<br />
+Second after.
+
+Term: DefinitionNext: Other
+
+</p> </i>
+
+Before<br />
+</br> after.
+
+Before <!----> after.
+
+<?reader note ?>
+
+Before<br />
+<br />
+After

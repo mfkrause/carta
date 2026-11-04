@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Header 1 ( "_heading" , [] , [] ) [ Str "Heading" ]
+               , BulletList [ [ Para [ Str "item" ] ] ]
+               , CodeBlock ( "" , [] , [] ) "code"
+               ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+]

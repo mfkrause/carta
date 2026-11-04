@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Escaped"
+    , Space
+    , Str "*stars*,"
+    , Space
+    , Str "dog's"
+    , Space
+    , Str "and"
+    , Space
+    , Str "dog\8217s."
+    , Space
+    , Str "\228\160\8928."
+    ]
+]

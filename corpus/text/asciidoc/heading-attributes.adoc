@@ -1,0 +1,6 @@
+:idprefix: section-
+:idseparator: -
+
+== A.b-c café
+
+== A.b-c café

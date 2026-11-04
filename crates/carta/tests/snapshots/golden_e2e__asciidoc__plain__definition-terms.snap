@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{value}
+
+  Definition Cedar Ridge
+
+{value}
+
+  Strong definition Cedar Ridge
+
+target
+
+  Link definition Cedar Ridge
+
+  Anchor definition Cedar Ridge
+
+[heart]
+
+  Icon definition Cedar Ridge
+
+[1]
+
+  Footnote definition Cedar Ridge
+
+1
+
+  Count 2
+
+User wrapper
+
+  Wrapper definition Cedar Ridge
+
+Target
+
+See Target and term-id and [2].
+
+[1] Note {value}
+
+[2]

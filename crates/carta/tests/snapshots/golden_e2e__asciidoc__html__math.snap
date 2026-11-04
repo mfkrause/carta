@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Inline <span class="math inline"><em>x</em><sup>2</sup></span> and
+<span class="math inline"><em>α</em></span>.</p>
+<p><span
+class="math display"><em>x</em><sup>2</sup> + <em>y</em><sup>2</sup></span></p>

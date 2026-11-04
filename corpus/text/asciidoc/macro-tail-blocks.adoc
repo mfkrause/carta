@@ -1,0 +1,12 @@
+image::x.png[] tail
+
+toc::[] tail
+
+```
+source
+``` tail
+
+* item
++
+image::x.png[] tail
+* next

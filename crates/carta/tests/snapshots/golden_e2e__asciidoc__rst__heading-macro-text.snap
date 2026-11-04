@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. __alpha:
+
+Alpha 1
+=======
+
+.. __alpha_2:
+
+Alpha term
+==========
+
+.. __alpha_3:
+
+Alpha foo
+=========
+
+.. __alpha_4:
+
+Alpha word
+==========
+
+.. __alpha_5:
+
+Alpha **Tools › Build › Run**
+=============================
+
+.. __alpha_6:
+
+Alpha **[Save]**
+================
+
+.. __alpha_7:
+
+Alpha **Ctrl**\ +\ **X**
+========================
+
+.. _key:
+
+.. __alpha_label:
+
+Alpha
+=====

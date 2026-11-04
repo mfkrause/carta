@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container::
+
+   \|=== empty cols \|===
+
+.. container::
+
+   \|=== trailing default column \| second \|===
+
+.. container::
+
+   \|=== wide value \|===
+
+.. container::
+
+   \|=== wrapped zero width \|===
+
+.. container::
+
+   \|=== wrapped one width \|===
+
+.. container::
+
+   \|=== signed width \|===

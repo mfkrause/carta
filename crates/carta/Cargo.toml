@@ -48,7 +48,7 @@ cli = [
 ]
 # Without `fetch`, remote resources remain external.
 fetch = ["dep:ureq"]
-full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "read-typst", "read-docbook", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-pdf", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "write-docbook", "highlight", "standalone", "metadata-file"]
+full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "read-typst", "read-docbook", "read-asciidoc", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-pdf", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "write-docbook", "highlight", "standalone", "metadata-file"]
 # Syntax highlighting and CLI catalog commands.
 highlight = ["dep:carta-highlight", "carta-core/highlight", "carta-writers?/highlight"]
 # Embeds the copyleft-or-unspecified-license grammar set, which is an explicit choice.
@@ -73,6 +73,7 @@ read-man = ["dep:carta-readers", "carta-readers/man"]
 read-latex = ["dep:carta-readers", "carta-readers/latex"]
 read-org = ["dep:carta-readers", "carta-readers/org"]
 read-rtf = ["dep:carta-readers", "carta-readers/rtf"]
+read-asciidoc = ["dep:carta-readers", "carta-readers/asciidoc"]
 read-docbook = ["dep:carta-readers", "carta-readers/docbook"]
 read-docx = ["dep:carta-readers", "carta-readers/docx"]
 read-epub = ["dep:carta-readers", "carta-readers/epub"]

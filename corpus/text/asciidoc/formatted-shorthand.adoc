@@ -1,0 +1,7 @@
+[.role#id%opt k=v]#text# [.r]**bold**
+
+[#x,role=foo]#text# [style.role]#text# [.a,.b]#text#
+
+prefix []*strong* []_italic_ []#span# [ ]##span##
+
+prefix [#]*strong* [#]#mark#

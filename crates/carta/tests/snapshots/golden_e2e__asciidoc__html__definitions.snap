@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>term</dt>
+<dd>
+<p>definition</p>
+</dd>
+<dt>next</dt>
+<dd>
+<ul>
+<li><p>a</p></li>
+<li><p>b</p></li>
+</ul>
+</dd>
+<dt>last</dt>
+<dd>
+<p>no space</p>
+</dd>
+<dt></dt>
+<dd>
+<p>Empty term definition.</p>
+</dd>
+</dl>

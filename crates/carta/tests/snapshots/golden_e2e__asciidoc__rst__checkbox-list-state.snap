@@ -1,0 +1,76 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- ☒ first checked bullet
+
+- ☐ later open bullet
+
+- ☒ later starred bullet
+
+- [X] uppercase stays literal
+
+- [y] invalid stays literal
+
+- [] empty stays literal
+
+- ☒ first bullet keeps the first state
+
+- ☒ [ ] later bullet keeps the first state
+
+- ☒ first dash item
+
+- ☐ later dash item
+
+- ☒ [ ] later dash with a repeated prefix
+
+#. first dot item has no checkbox glyph
+
+#. ☐ later dot item has a checkbox glyph
+
+#. ☒ later dot item has a checked glyph
+
+#. [X] uppercase stays literal
+
+#. [ ] first dot item consumes one prefix
+
+#. ☒ [ ] later dot item consumes one prefix
+
+3. first numbered item has no checkbox glyph
+
+4. ☒ later numbered item has a checked glyph
+
+5. ☐ later numbered item has an open glyph
+
+- outer bullet
+
+  - ☒ first nested bullet
+
+  - ☐ later nested bullet
+
+- ☒ later outer bullet
+
+#. outer ordered item
+
+   #. first nested ordered item
+
+   #. ☐ later nested ordered item
+
+#. ☒ later outer ordered item
+
+.. container:: callout-list
+
+   #. first automatic callout item
+
+   #. ☐ later automatic callout item
+
+.. container:: callout-list
+
+   #. first numbered callout item
+
+   #. ☐ later numbered callout item
+
+Task
+   - ☒ first list in a definition
+
+   - ☐ later list in a definition

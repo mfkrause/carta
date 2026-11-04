@@ -1,0 +1,29 @@
+[cols=""]
+|===
+empty cols
+|===
+
+[cols="2,"]
+|===
+trailing default column | second
+|===
+
+[cols="4294967296"]
+|===
+wide value
+|===
+
+[cols="18446744073709551616"]
+|===
+wrapped zero width
+|===
+
+[cols="18446744073709551617"]
+|===
+wrapped one width
+|===
+
+[cols="9223372036854775808"]
+|===
+signed width
+|===

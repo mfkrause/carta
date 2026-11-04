@@ -1,0 +1,18 @@
+:hardbreaks-option:
+
+first
+*bold*
+
+first
+{x}
+
+:x: words
+
+first +
++
+second
+
+++alpha
+beta++
+
+x&#10;y

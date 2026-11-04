@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. __first:
+
+First
+=====
+
+.. __skipped:
+
+Skipped
+-------
+
+.. __next:
+
+Next
+----
+
+.. __first_2:
+
+First
+=====
+
+.. _custom:
+
+Explicit
+========
+
+Discrete
+~~~~~~~~

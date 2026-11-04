@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "example" ] , [] )
+    [ Para
+        [ Str "before"
+        , SoftBreak
+        , Str "+++"
+        , LineBreak
+        , Str "inner"
+        ]
+    ]
+, Para [ Str "after" , SoftBreak , Str "====" ]
+]

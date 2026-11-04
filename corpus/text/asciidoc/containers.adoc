@@ -1,0 +1,15 @@
+.Example title
+====
+A paragraph.
+
+Another paragraph.
+====
+
+****
+Sidebar text.
+****
+
+[open]
+--
+Open block.
+--

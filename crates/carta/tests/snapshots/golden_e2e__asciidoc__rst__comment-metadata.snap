@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visible after block comment.
+
+::
+
+   code
+
+Visible after styled comment.
+
+Visible after anchor comment.
+
+.. container:: kept
+
+   Visible after fresh block metadata.
+
+.. container:: kept-through-line-comment
+
+   Visible after line comment.
+
+.. container:: example
+
+   Visible inside the example.
+
+- first item
+
+- second item

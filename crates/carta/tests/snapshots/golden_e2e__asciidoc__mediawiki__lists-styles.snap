@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol start="5" style="list-style-type: lower-roman;">
+<li><p>five</p></li>
+<li><p>six</p>
+<ol style="list-style-type: lower-alpha;">
+<li><p>a</p></li>
+<li><p>b</p></li></ol></li>
+<li><p>seven</p></li></ol>
+
+<ol start="4">
+<li><p>Four</p></li>
+<li><p>Five</p></li></ol>

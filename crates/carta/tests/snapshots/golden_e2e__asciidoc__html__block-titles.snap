@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div>
+<div class="title">
+<p>Paragraph title</p>
+</div>
+<p>Some content.</p>
+</div>
+<div>
+<div class="title">
+<p>List title</p>
+</div>
+<ul>
+<li><p>first</p></li>
+<li><p>second</p></li>
+</ul>
+</div>

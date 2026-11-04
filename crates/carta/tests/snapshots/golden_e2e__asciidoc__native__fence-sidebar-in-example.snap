@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "sidebar" ] , [] )
+    [ Para
+        [ Str "before"
+        , SoftBreak
+        , Str "--"
+        , SoftBreak
+        , Str "inner"
+        ]
+    ]
+, Para [ Str "after" , SoftBreak , Str "****" ]
+]

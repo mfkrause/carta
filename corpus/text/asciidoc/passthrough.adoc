@@ -1,0 +1,11 @@
+A +*literal*+ and ++<b>literal</b>++ word.
+
+A +++<b>bold</b>+++ word.
+
+pass:[<em>emphasis</em>]
+
+++++
+<div>Content</div>
+++++
+
++++<span class="red">text</span>+++

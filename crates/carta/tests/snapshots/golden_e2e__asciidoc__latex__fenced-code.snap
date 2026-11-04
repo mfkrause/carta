@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+print("hello")
+\end{verbatim}
+
+\begin{verbatim}
+puts 1
+\end{verbatim}

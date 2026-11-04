@@ -14,7 +14,8 @@ mod helpers;
 mod smart;
 
 use super::classify::{
-    BlockKind, InlineKind, block_kind, inline_kind, is_inline_element, is_raw_block_tag,
+    BlockKind, InlineKind, block_kind, inline_kind, is_block_end_tag, is_inline_element,
+    is_raw_block_tag,
 };
 use super::mathml;
 use super::notes::{ENDNOTES_ROLE, has_role, noteref_target};
@@ -155,8 +156,37 @@ impl Converter {
             match node {
                 Node::Text(text) => push_text(pending, text),
                 Node::Comment(_) => self.append_inline(pending, node),
+                Node::Raw { text, block } => {
+                    if *block && self.raw_html() {
+                        flush(pending, out);
+                        out.push(Block::RawBlock(Format("html".into()), text.clone().into()));
+                    } else {
+                        self.append_inline(pending, node);
+                    }
+                }
                 Node::Element(e) => {
                     if e.name == "head" {
+                        if e.end_only {
+                            flush(pending, out);
+                        }
+                        continue;
+                    }
+                    if e.end_only && matches!(e.name.as_str(), "body" | "html") {
+                        flush(pending, out);
+                        continue;
+                    }
+                    if e.end_only {
+                        if self.raw_html() {
+                            if is_block_end_tag(&e.name) {
+                                flush(pending, out);
+                                out.push(Block::RawBlock(
+                                    Format("html".into()),
+                                    close_tag(&e.name).into(),
+                                ));
+                            } else {
+                                self.append_inline(pending, node);
+                            }
+                        }
                         continue;
                     }
                     if e.name == "script" && !is_math_script(e) {
@@ -185,6 +215,17 @@ impl Converter {
                     }
                     if e.name == "a" && self.anchor_block_split(e).is_some() {
                         self.emit_block_anchor(e, out, pending);
+                        continue;
+                    }
+                    if e.name == "table" && !table_has_cells(e) {
+                        flush(pending, out);
+                        if self.raw_html() {
+                            self.emit_raw_block(e, out);
+                        } else {
+                            let mut child_pending = Vec::new();
+                            self.process(e.children.iter(), out, &mut child_pending);
+                            flush(&mut child_pending, out);
+                        }
                         continue;
                     }
                     if let Some(kind) = block_kind(&e.name) {
@@ -263,6 +304,8 @@ impl Converter {
                         Box::new(attr),
                         self.child_blocks(&e.children, Flow::Framed),
                     ));
+                } else if self.raw_html() {
+                    self.emit_raw_block(e, out);
                 } else {
                     out.extend(self.child_blocks(&e.children, Flow::Framed));
                 }
@@ -684,7 +727,7 @@ impl Converter {
                 self.append_text(out, text);
                 return;
             }
-            Node::Comment(text) => {
+            Node::Comment(text) | Node::Raw { text, .. } => {
                 if self.raw_html() {
                     out.push(Inline::RawInline(
                         Format("html".into()),
@@ -695,6 +738,15 @@ impl Converter {
             }
             Node::Element(e) => e,
         };
+        if e.end_only {
+            if self.raw_html() {
+                out.push(Inline::RawInline(
+                    Format("html".into()),
+                    close_tag(&e.name).into(),
+                ));
+            }
+            return;
+        }
         if e.name == "math" && self.raw_html() {
             let tex = mathml::to_tex(e);
             if !tex.is_empty() {
@@ -725,16 +777,7 @@ impl Converter {
                 });
             }
             InlineKind::LineBreak => out.push(Inline::LineBreak),
-            InlineKind::Span => {
-                let inner = self.build_inlines(&e.children);
-                if !self.ext.contains(Extension::NativeSpans) {
-                    out.extend(inner);
-                } else if is_small_caps(e) {
-                    out.push(Inline::SmallCaps(inner));
-                } else {
-                    out.push(Inline::Span(Box::new(extract_attr(e, &[])), inner));
-                }
-            }
+            InlineKind::Span => self.span_inline(out, e),
             InlineKind::Bdo => {
                 let inner = self.build_inlines(&e.children);
                 if let Some(dir) = attr_value(e, "dir") {
@@ -800,6 +843,34 @@ impl Converter {
                     }
                 }
             }
+        }
+    }
+
+    fn span_inline(&self, out: &mut Vec<Inline>, e: &Element) {
+        let inner = self.build_inlines(&e.children);
+        if !self.ext.contains(Extension::NativeSpans) {
+            if self.raw_html() {
+                out.push(Inline::RawInline(
+                    Format("html".into()),
+                    if e.end_only {
+                        close_tag(&e.name)
+                    } else {
+                        open_tag(e)
+                    }
+                    .into(),
+                ));
+            }
+            out.extend(inner);
+            if self.raw_html() && e.closed && !e.end_only {
+                out.push(Inline::RawInline(
+                    Format("html".into()),
+                    close_tag(&e.name).into(),
+                ));
+            }
+        } else if is_small_caps(e) {
+            out.push(Inline::SmallCaps(inner));
+        } else {
+            out.push(Inline::Span(Box::new(extract_attr(e, &[])), inner));
         }
     }
 
@@ -897,4 +968,20 @@ impl Converter {
             ));
         }
     }
+}
+
+fn table_has_cells(table: &Element) -> bool {
+    table.children.iter().any(|node| match node {
+        Node::Element(row) if row.name == "tr" => row_has_cells(row),
+        Node::Element(section) if matches!(section.name.as_str(), "thead" | "tbody" | "tfoot") => {
+            row_elements(section).into_iter().any(row_has_cells)
+        }
+        _ => false,
+    })
+}
+
+fn row_has_cells(row: &Element) -> bool {
+    row.children.iter().any(
+        |node| matches!(node, Node::Element(cell) if matches!(cell.name.as_str(), "td" | "th")),
+    )
 }

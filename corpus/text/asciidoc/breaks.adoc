@@ -1,0 +1,25 @@
+'''
+
+---
+
+* * *
+
+<<<
+
+[%always]
+<<<
+
+A hard +
+break.
+
+[%hardbreaks]
+a
+b
+
+
+third  +
+fourth
+
+first +
++
+second

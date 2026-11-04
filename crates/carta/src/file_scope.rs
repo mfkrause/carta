@@ -59,6 +59,7 @@ pub(super) fn apply(
     identifiers: &BTreeMap<PathBuf, String>,
     anchors: &mut BTreeSet<String>,
     rebased: bool,
+    rewrite_files: bool,
 ) -> String {
     let prefix = if path == Path::new("-") {
         String::new()
@@ -84,6 +85,9 @@ pub(super) fn apply(
             return;
         };
         let (file, fragment) = target.url.split_once('#').unwrap_or((&target.url, ""));
+        if !rewrite_files && !file.is_empty() {
+            return;
+        }
         if has_scheme(file) || file.contains('?') {
             return;
         }

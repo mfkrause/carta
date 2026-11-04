@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="example">
+<pre>listing body</pre>
+</div>
+
+after
+
+<div class="sidebar">
+<pre>literal body
+</pre>
+</div>
+
+after
+
+<blockquote>pass body
+</blockquote>
+after

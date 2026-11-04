@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[include]
+absent.adoc
+\item[include]
+absent.adoc{[}opts=optional
+\end{description}

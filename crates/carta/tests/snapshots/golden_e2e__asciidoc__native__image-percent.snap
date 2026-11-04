@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Image
+        ( ""
+        , []
+        , [ ( "width" , "50px" ) , ( "height" , "20px" ) ]
+        )
+        [ Str "Photo" ]
+        ( "photo.png" , "" )
+    ]
+]

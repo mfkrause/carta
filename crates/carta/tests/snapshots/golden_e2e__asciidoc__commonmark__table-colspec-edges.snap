@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div data-wrapper="1" cols="">
+
+|=== empty cols |===
+
+</div>
+
+<div data-wrapper="1" cols="2,">
+
+|=== trailing default column | second |===
+
+</div>
+
+<div data-wrapper="1" cols="4294967296">
+
+|=== wide value |===
+
+</div>
+
+<div data-wrapper="1" cols="18446744073709551616">
+
+|=== wrapped zero width |===
+
+</div>
+
+<div data-wrapper="1" cols="18446744073709551617">
+
+|=== wrapped one width |===
+
+</div>
+
+<div data-wrapper="1" cols="9223372036854775808">
+
+|=== signed width |===
+
+</div>

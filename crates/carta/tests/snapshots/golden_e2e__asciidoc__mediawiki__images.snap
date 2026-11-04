@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An [[File:photo.png|100x200px|Photo]].
+
+<div class="figure">
+[[File:photo.png|100x200px|Photo]]
+</div>
+
+<div data-wrapper="1" alt="Photo" height="200" width="100">
+<div class="figure">
+[[File:photo.png]]
+</div>
+</div>

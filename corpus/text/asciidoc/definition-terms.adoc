@@ -1,0 +1,16 @@
+:value: Cedar Ridge
+:icons: font
+
+{value}:: Definition {value}
+*{value}*:: Strong definition {value}
+xref:target[]:: Link definition {value}
+[[term-id,Term Label]]:: Anchor definition {value}
+icon:heart[asciidoc-icon=user]:: Icon definition {value}
+footnote:n[Note {value}]:: Footnote definition {value}
+{counter:term}:: Count {counter:term}
+[.role]#User wrapper#:: Wrapper definition {value}
+
+[[target]]
+== Target
+
+See xref:target[] and xref:term-id[] and footnoteref:[n].

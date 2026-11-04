@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"one"}]},{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"nested"}]},{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"deep"}]}]]}]]}],[{"t":"Para","c":[{"t":"Str","c":"two"}]}]]},{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"separate"}]}],[{"t":"Para","c":[{"t":"Str","c":"list"}]}]]},{"t":"OrderedList","c":[[1,{"t":"DefaultStyle"},{"t":"DefaultDelim"}],[[{"t":"Para","c":[{"t":"Str","c":"numbered"}]},{"t":"OrderedList","c":[[1,{"t":"DefaultStyle"},{"t":"DefaultDelim"}],[[{"t":"Para","c":[{"t":"Str","c":"nested"}]}]]]}],[{"t":"Para","c":[{"t":"Str","c":"second"}]}]]]},{"t":"Div","c":[["",["callout-list"],[]],[{"t":"OrderedList","c":[[1,{"t":"DefaultStyle"},{"t":"DefaultDelim"}],[[{"t":"Para","c":[{"t":"Str","c":"first"},{"t":"SoftBreak"},{"t":"Str","c":"<2.1>"},{"t":"Space"},{"t":"Str","c":"nested"},{"t":"Space"},{"t":"Str","c":"text"}]}],[{"t":"Para","c":[{"t":"Str","c":"third"}]}]]]}]]}]}

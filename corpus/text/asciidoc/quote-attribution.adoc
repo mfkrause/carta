@@ -1,0 +1,41 @@
+[quote, Ada, Work, Page 3]
+____
+A quotation.
+____
+
+[verse, Ada, Work, Page 4]
+____
+First line
+Second line
+____
+
+[quote,,Work]
+____
+An empty author field.
+____
+
+[quote, Ada, ]
+____
+An empty trailing title.
+____
+
+[quote,,]
+____
+No citation fields.
+____
+
+[, Ada, Work]
+____
+No quote style.
+____
+
+[verse, Ada, Work]
+First line
+Second line
+
+.Caption
+[role=attributed]
+[verse, Ada, Work, Page 5]
+____
+Attributed verse.
+____

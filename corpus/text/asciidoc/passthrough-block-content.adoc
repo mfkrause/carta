@@ -1,0 +1,17 @@
+== Inline passthrough block content
+
+pass:[<h2>Heading</h2>]
+
+Before pass:[<p>First</p><p>Second</p>] after.
+
+pass:[<dl><dt>Term</dt><dd>Definition</dd><dt>Next</dt><dd>Other</dd></dl>]
+
+pass:[</p>] pass:[</i]
+
+Before pass:[<br> </br>] after.
+
+Before +++<!+++ after.
+
++++<?reader note?>+++
+
++++Before<hr>After+++

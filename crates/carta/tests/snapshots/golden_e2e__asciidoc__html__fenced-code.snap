@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre class="python"><code>print(&quot;hello&quot;)</code></pre>
+<pre class="ruby"><code>puts 1</code></pre>

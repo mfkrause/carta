@@ -1,0 +1,4 @@
+A paragraph with two lines
+and  extra spaces.
+
+New paragraph.

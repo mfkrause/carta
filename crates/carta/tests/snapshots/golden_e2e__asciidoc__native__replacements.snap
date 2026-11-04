@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "a\8201\8212\8201b"
+    , Space
+    , Str "\8230"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "\174"
+    , Space
+    , Str "\8482"
+    , Space
+    , Str "\8594"
+    , Space
+    , Str "\8592"
+    , Space
+    , Str "\8658"
+    , Space
+    , Str "\8656"
+    ]
+, Para
+    [ Str "word\8212\8203word"
+    , Space
+    , Str "\8217quotes\8217."
+    ]
+]

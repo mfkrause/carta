@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: example
+
+   A paragraph.
+
+   Another paragraph.
+
+.. container:: sidebar
+
+   Sidebar text.
+
+.. container::
+
+   Open block.

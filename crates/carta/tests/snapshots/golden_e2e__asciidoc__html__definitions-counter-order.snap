@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt><span class="counter" name="x">1</span></dt>
+<dd>
+
+</dd>
+<dt>term <span class="counter" name="y">1</span></dt>
+<dd>
+<p>body <span class="counter" name="z">1</span></p>
+</dd>
+</dl>

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. __heading:
+
+Heading
+=======
+
+.. container:: example
+
+   example
+
+::
+
+   literal
+
+==== unclosed

@@ -1,0 +1,94 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li><p><label><input type="checkbox" checked="" />first checked
+bullet</label></p></li>
+<li><p><label><input type="checkbox" />later open
+bullet</label></p></li>
+<li><p><label><input type="checkbox" checked="" />later starred
+bullet</label></p></li>
+<li><p>[X] uppercase stays literal</p></li>
+<li><p>[y] invalid stays literal</p></li>
+<li><p>[] empty stays literal</p></li>
+</ul>
+<ul class="task-list">
+<li><p><label><input type="checkbox" checked="" />first bullet keeps the
+first state</label></p></li>
+<li><p><label><input type="checkbox" checked="" />[ ] later bullet keeps
+the first state</label></p></li>
+</ul>
+<ul class="task-list">
+<li><p><label><input type="checkbox" checked="" />first dash
+item</label></p></li>
+<li><p><label><input type="checkbox" />later dash item</label></p></li>
+<li><p><label><input type="checkbox" checked="" />[ ] later dash with a
+repeated prefix</label></p></li>
+</ul>
+<ol>
+<li><p>first dot item has no checkbox glyph</p></li>
+<li><p><label><input type="checkbox" />later dot item has a checkbox
+glyph</label></p></li>
+<li><p><label><input type="checkbox" checked="" />later dot item has a
+checked glyph</label></p></li>
+<li><p>[X] uppercase stays literal</p></li>
+</ol>
+<ol>
+<li><p>[ ] first dot item consumes one prefix</p></li>
+<li><p><label><input type="checkbox" checked="" />[ ] later dot item
+consumes one prefix</label></p></li>
+</ol>
+<ol start="3">
+<li><p>first numbered item has no checkbox glyph</p></li>
+<li><p><label><input type="checkbox" checked="" />later numbered item
+has a checked glyph</label></p></li>
+<li><p><label><input type="checkbox" />later numbered item has an open
+glyph</label></p></li>
+</ol>
+<ul>
+<li><p>outer bullet</p>
+<ul class="task-list">
+<li><p><label><input type="checkbox" checked="" />first nested
+bullet</label></p></li>
+<li><p><label><input type="checkbox" />later nested
+bullet</label></p></li>
+</ul></li>
+<li><p><label><input type="checkbox" checked="" />later outer
+bullet</label></p></li>
+</ul>
+<ol>
+<li><p>outer ordered item</p>
+<ol>
+<li><p>first nested ordered item</p></li>
+<li><p><label><input type="checkbox" />later nested ordered
+item</label></p></li>
+</ol></li>
+<li><p><label><input type="checkbox" checked="" />later outer ordered
+item</label></p></li>
+</ol>
+<div class="callout-list">
+<ol>
+<li><p>first automatic callout item</p></li>
+<li><p><label><input type="checkbox" />later automatic callout
+item</label></p></li>
+</ol>
+</div>
+<div class="callout-list">
+<ol>
+<li><p>first numbered callout item</p></li>
+<li><p><label><input type="checkbox" />later numbered callout
+item</label></p></li>
+</ol>
+</div>
+<dl>
+<dt>Task</dt>
+<dd>
+<ul class="task-list">
+<li><p><label><input type="checkbox" checked="" />first list in a
+definition</label></p></li>
+<li><p><label><input type="checkbox" />later list in a
+definition</label></p></li>
+</ul>
+</dd>
+</dl>

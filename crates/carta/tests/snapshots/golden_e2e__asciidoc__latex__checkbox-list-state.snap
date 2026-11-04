@@ -1,0 +1,115 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item[$\boxtimes$]
+  first checked bullet
+\item[$\square$]
+  later open bullet
+\item[$\boxtimes$]
+  later starred bullet
+\item
+  {[}X{]} uppercase stays literal
+\item
+  {[}y{]} invalid stays literal
+\item
+  {[}{]} empty stays literal
+\end{itemize}
+
+\begin{itemize}
+\item[$\boxtimes$]
+  first bullet keeps the first state
+\item[$\boxtimes$]
+  {[} {]} later bullet keeps the first state
+\end{itemize}
+
+\begin{itemize}
+\item[$\boxtimes$]
+  first dash item
+\item[$\square$]
+  later dash item
+\item[$\boxtimes$]
+  {[} {]} later dash with a repeated prefix
+\end{itemize}
+
+\begin{enumerate}
+\item
+  first dot item has no checkbox glyph
+\item
+  ☐ later dot item has a checkbox glyph
+\item
+  ☒ later dot item has a checked glyph
+\item
+  {[}X{]} uppercase stays literal
+\end{enumerate}
+
+\begin{enumerate}
+\item
+  {[} {]} first dot item consumes one prefix
+\item
+  ☒ {[} {]} later dot item consumes one prefix
+\end{enumerate}
+
+\begin{enumerate}
+\setcounter{enumi}{2}
+\item
+  first numbered item has no checkbox glyph
+\item
+  ☒ later numbered item has a checked glyph
+\item
+  ☐ later numbered item has an open glyph
+\end{enumerate}
+
+\begin{itemize}
+\item
+  outer bullet
+
+  \begin{itemize}
+  \item[$\boxtimes$]
+    first nested bullet
+  \item[$\square$]
+    later nested bullet
+  \end{itemize}
+\item[$\boxtimes$]
+  later outer bullet
+\end{itemize}
+
+\begin{enumerate}
+\item
+  outer ordered item
+
+  \begin{enumerate}
+  \item
+    first nested ordered item
+  \item
+    ☐ later nested ordered item
+  \end{enumerate}
+\item
+  ☒ later outer ordered item
+\end{enumerate}
+
+\begin{enumerate}
+\item
+  first automatic callout item
+\item
+  ☐ later automatic callout item
+\end{enumerate}
+
+\begin{enumerate}
+\item
+  first numbered callout item
+\item
+  ☐ later numbered callout item
+\end{enumerate}
+
+\begin{description}
+\item[Task]
+\hfill
+\begin{itemize}
+\item[$\boxtimes$]
+  first list in a definition
+\item[$\square$]
+  later list in a definition
+\end{itemize}
+\end{description}

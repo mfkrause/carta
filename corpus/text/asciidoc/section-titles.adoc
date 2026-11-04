@@ -1,0 +1,19 @@
+.Caption
+== Same
+
+body
+
+.Subcaption
+=== Same
+
+child
+
+[discrete]
+== Same
+
+break
+
+.Second
+== Same
+
+last

@@ -422,6 +422,6 @@ pub(super) fn is_checkbox(e: &Element) -> bool {
 pub(super) fn contains_checkbox(e: &Element) -> bool {
     e.children.iter().any(|node| match node {
         Node::Element(child) => is_checkbox(child) || contains_checkbox(child),
-        Node::Text(_) | Node::Comment(_) => false,
+        Node::Text(_) | Node::Comment(_) | Node::Raw { .. } => false,
     })
 }

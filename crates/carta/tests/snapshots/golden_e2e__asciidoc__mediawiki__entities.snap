@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+x&amp;apos;y x&amp;mdash;y x&amp;alpha;y xäy x&amp;y
+
+x y x y x�y
+
+&amp;#x+65;

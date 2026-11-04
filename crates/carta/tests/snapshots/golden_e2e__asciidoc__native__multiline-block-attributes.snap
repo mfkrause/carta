@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "red\nblue" ] , [ ( "wrapper" , "1" ) ] )
+    [ Para [ Str "x" ] ]
+, BlockQuote
+    [ Para [ Str "quote" ]
+    , Para [ Str "\8212" , Space , Str "Author" ]
+    ]
+, Div
+    ( "" , [ "red blue" ] , [ ( "wrapper" , "1" ) ] )
+    [ Para [ Str "text" ] ]
+]

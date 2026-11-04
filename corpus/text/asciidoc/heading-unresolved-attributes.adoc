@@ -1,0 +1,5 @@
+:name: Example
+
+== {name} and {missing}
+
+== image:photo.png[Photo] stem:[x] `code`

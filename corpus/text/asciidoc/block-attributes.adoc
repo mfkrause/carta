@@ -1,0 +1,6 @@
+[role=a]
+[role=b]
+[id=first]
+[id=last]
+[key=value]
+Paragraph.

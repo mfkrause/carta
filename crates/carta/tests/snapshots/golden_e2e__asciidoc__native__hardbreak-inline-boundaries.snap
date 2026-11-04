@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "first" , Strong [ Str "bold" ] ]
+, Para [ Str "firstwords" ]
+, Para
+    [ Str "first" , LineBreak , LineBreak , Str "second" ]
+, Para [ Str "alpha" , LineBreak , Str "beta" ]
+, Para [ Str "xy" ]
+]

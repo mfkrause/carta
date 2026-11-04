@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "section-a-b-c-caf\233" , [] , [] )
+    [ Str "A.b-c" , Space , Str "caf\233" ]
+, Header
+    1
+    ( "section-a-b-c-caf\233-2" , [] , [] )
+    [ Str "A.b-c" , Space , Str "caf\233" ]
+]

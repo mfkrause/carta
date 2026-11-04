@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+* one
+** nested
+*** deep
+* two
+
+* separate
+* list
+
+# numbered
+## nested
+# second
+
+<div class="callout-list">
+# first &lt;2.1&gt; nested text
+# third
+
+</div>

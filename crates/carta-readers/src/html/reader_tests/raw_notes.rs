@@ -229,6 +229,218 @@ fn raw_html_keeps_an_unknown_inline_element_verbatim() {
     );
 }
 
+fn raw_inline(text: &str) -> Inline {
+    Inline::RawInline(carta_ast::Format("html".into()), text.into())
+}
+
+fn raw_html_block(text: &str) -> Block {
+    Block::RawBlock(carta_ast::Format("html".into()), text.into())
+}
+
+#[test]
+fn raw_html_preserves_orphan_inline_end_tags() {
+    let result = read_raw_html("<p>a</i>b</span>c<br></br>d</br>e</img></p>");
+    let [Block::Para(inlines)] = result.as_slice() else {
+        panic!("expected a paragraph");
+    };
+    assert_eq!(
+        inlines.as_slice(),
+        [
+            Inline::Str("a".into()),
+            raw_inline("</i>"),
+            Inline::Str("b".into()),
+            raw_inline("</span>"),
+            Inline::Str("c".into()),
+            Inline::LineBreak,
+            Inline::Str("d".into()),
+            raw_inline("</br>"),
+            Inline::Str("e".into()),
+            raw_inline("</img>"),
+        ]
+    );
+}
+
+#[test]
+fn raw_html_consumes_only_adjacent_self_closing_tags() {
+    assert_eq!(read_raw_html("<hr></hr>"), [Block::HorizontalRule]);
+    assert!(matches!(
+        read_raw_html("<p><img src=\"x\"></img></p>").as_slice(),
+        [Block::Para(inlines)] if matches!(inlines.as_slice(), [Inline::Image(_, _, target)] if target.url == "x")
+    ));
+}
+
+#[test]
+fn raw_html_preserves_end_tags_after_explicit_self_closing_tags() {
+    assert_eq!(
+        read_raw_html("<hr/></hr>"),
+        [Block::HorizontalRule, raw_html_block("</hr>"),]
+    );
+    assert!(matches!(
+        read_raw_html("<p><img src=\"x\"/></img></p>").as_slice(),
+        [Block::Para(inlines)] if matches!(inlines.as_slice(), [
+            Inline::Image(_, _, target),
+            Inline::RawInline(format, text),
+        ] if target.url == "x" && format.0 == "html" && text == "</img>")
+    ));
+}
+
+#[test]
+fn raw_html_normalizes_declarations_and_processing_instructions() {
+    assert_eq!(
+        read_raw_html("<!>"),
+        [Block::Plain(vec![raw_inline("<!---->")])]
+    );
+    assert_eq!(
+        read_raw_html("<!foo a=b>"),
+        [raw_html_block("<!FOO a=\"b\">")]
+    );
+    assert_eq!(
+        read_raw_html("<?foo a=b?>"),
+        [raw_html_block("<?foo a=\"b\" ?>")]
+    );
+    assert_eq!(
+        read_raw_html("<!bogus/>"),
+        [raw_html_block("<!BOGUS>"), raw_html_block("</!bogus>"),]
+    );
+    assert!(read_raw_html("<?XML version=\"1.0\"?>").is_empty());
+    assert_eq!(
+        read_raw_html("<?3>"),
+        [Block::Plain(vec![Inline::Str("<?3>".into())])]
+    );
+}
+
+#[test]
+fn raw_html_repairs_unclosed_comment_tokens() {
+    for (source, expected) in [
+        ("<!--", "<!---->"),
+        ("<!--x>", "<!--x>-->"),
+        ("<!--x--!", "<!--x-->"),
+        ("<!--x--!\n", "<!--x--!\n-->"),
+    ] {
+        assert_eq!(
+            read_raw_html(source),
+            [Block::Plain(vec![raw_inline(expected)])],
+            "{source:?}"
+        );
+    }
+}
+
+#[test]
+fn html_without_raw_html_drops_declarations_comments_and_processing_instructions() {
+    assert_eq!(
+        blocks("<!foo><?foo><!-- x --><?3>"),
+        [Block::Plain(vec![Inline::Str("<?3>".into())])]
+    );
+}
+
+#[test]
+fn raw_html_preserves_orphan_block_end_tags() {
+    let result = read_raw_html("</p></div></article></meta></script></style></dt></tr>");
+    let expected = [
+        "</p>",
+        "</div>",
+        "</article>",
+        "</meta>",
+        "</script>",
+        "</style>",
+        "</dt>",
+        "</tr>",
+    ];
+    assert_eq!(result, expected.map(raw_html_block));
+}
+
+#[test]
+fn html_without_raw_html_drops_orphan_end_tags() {
+    assert!(blocks("</i></p></div></meta></script></style></br>").is_empty());
+}
+
+#[test]
+fn html_without_raw_html_drops_void_closers() {
+    for source in ["<p><br></br>x</p>", "<p><br/>x</br></p>"] {
+        assert_eq!(
+            para_inlines(source),
+            [Inline::LineBreak, Inline::Str("x".into())]
+        );
+    }
+    for source in ["<hr></hr>", "<hr/></hr>"] {
+        assert_eq!(blocks(source), [Block::HorizontalRule]);
+    }
+    for source in [
+        "<p><img src=\"x\"></img></p>",
+        "<p><img src=\"x\"/></img></p>",
+    ] {
+        assert!(matches!(
+            para_inlines(source).as_slice(),
+            [Inline::Image(_, _, target)] if target.url == "x"
+        ));
+    }
+}
+
+#[test]
+fn raw_html_splits_text_at_orphan_document_end_tags() {
+    for tag in ["head", "body", "html"] {
+        assert_eq!(
+            read_raw_html(&format!("before </{tag}> after")),
+            [
+                Block::Plain(vec![Inline::Str("before".into())]),
+                Block::Plain(vec![Inline::Str("after".into())]),
+            ],
+            "{tag}"
+        );
+    }
+}
+
+#[test]
+fn raw_html_falls_back_for_tables_without_cells() {
+    for (source, tags) in [
+        ("<table></table>", vec!["<table>", "</table>"]),
+        (
+            "<table><tr></tr></table>",
+            vec!["<table>", "<tr>", "</tr>", "</table>"],
+        ),
+    ] {
+        assert_eq!(
+            read_raw_html(source),
+            tags.into_iter().map(raw_html_block).collect::<Vec<_>>(),
+            "{source}"
+        );
+    }
+
+    let caption = read_raw_html("<table><caption>Caption</caption></table>");
+    assert!(matches!(
+        caption.as_slice(),
+        [
+            Block::RawBlock(_, _),
+            Block::RawBlock(_, _),
+            Block::Plain(text),
+            Block::RawBlock(_, _),
+            Block::RawBlock(_, _)
+        ] if text == &[Inline::Str("Caption".into())]
+    ));
+}
+
+#[test]
+fn html_without_raw_html_falls_back_for_tables_without_cells() {
+    assert!(blocks("<table></table>").is_empty());
+    assert!(blocks("<table><tr></tr></table>").is_empty());
+    assert_eq!(
+        blocks("<table><caption>Caption</caption></table>"),
+        [Block::Plain(vec![Inline::Str("Caption".into())])]
+    );
+}
+
+#[test]
+fn tables_with_empty_cells_remain_semantic_tables() {
+    assert!(matches!(
+        read_raw_html("<table><tr><td></td></tr></table>").as_slice(),
+        [Block::Table(_)]
+    ));
+    assert!(matches!(
+        blocks("<table><tr><td></td></tr></table>").as_slice(),
+        [Block::Table(_)]
+    ));
+}
+
 #[test]
 fn raw_html_unwraps_a_grouping_main_element() {
     let result = read_raw_html("<main><p>m</p></main>");

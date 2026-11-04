@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"author":{"t":"MetaList","c":[{"t":"MetaInlines","c":[{"t":"Str","c":"Jane"},{"t":"Space"},{"t":"Str","c":"Doe"},{"t":"Space"},{"t":"Str","c":"("},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"jane@example.org"}],["mailto:jane@example.org",""]]},{"t":"Str","c":")"}]},{"t":"MetaInlines","c":[{"t":"Str","c":"John"},{"t":"Space"},{"t":"Str","c":"Smith"}]}]},"custom":{"t":"MetaString","c":"value"},"date":{"t":"MetaString","c":"2026-02-03"},"remark":{"t":"MetaString","c":"Draft"},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"Title"}]}]},"version":{"t":"MetaString","c":"2.1"}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Body."}]}]}

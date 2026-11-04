@@ -80,25 +80,15 @@
     },
     "asciidoc_legacy": {
       "accepted": [
-        "ascii_identifiers",
-        "auto_identifiers",
-        "east_asian_line_breaks",
-        "gfm_auto_identifiers"
+        "east_asian_line_breaks"
       ],
-      "enabled": [
-        "auto_identifiers"
-      ]
+      "enabled": []
     },
     "asciidoctor": {
       "accepted": [
-        "ascii_identifiers",
-        "auto_identifiers",
-        "east_asian_line_breaks",
-        "gfm_auto_identifiers"
+        "east_asian_line_breaks"
       ],
-      "enabled": [
-        "auto_identifiers"
-      ]
+      "enabled": []
     },
     "beamer": {
       "accepted": [

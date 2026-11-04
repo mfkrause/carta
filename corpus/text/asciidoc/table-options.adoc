@@ -1,0 +1,5 @@
+[%noheader%nofooter,cols="2,1"]
+|===
+|A |B
+|C |D
+|===

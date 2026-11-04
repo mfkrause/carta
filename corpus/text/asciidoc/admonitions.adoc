@@ -1,0 +1,16 @@
+NOTE: A simple note.
+Next line.
+
+[WARNING]
+.A warning title
+====
+Danger.
+
+* first
+* second
+====
+
+[NOTE]
+----
+ordinary listing
+----

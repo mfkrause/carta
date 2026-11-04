@@ -1,0 +1,13 @@
+[discrete#x]
+== A
+
+<<x>> xref:x[] `xref:x[]`
+
+[#y]
+== B
+
+<<y>> xref:y[]
+
+[[z,Inline label]]
+
+<<z>>

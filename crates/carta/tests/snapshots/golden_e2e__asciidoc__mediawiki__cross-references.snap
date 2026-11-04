@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See [[#section|A section]] and [[#missing|missing]].
+
+<span id="section"></span>
+= A section =
+
+An <span id="anchor"></span>anchor.
+
+See [[#anchor|Label]] and [[#section|A section]].

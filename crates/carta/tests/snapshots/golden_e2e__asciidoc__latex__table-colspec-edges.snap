@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\textbar=== empty cols \textbar===
+
+\textbar=== trailing default column \textbar{} second \textbar===
+
+\textbar=== wide value \textbar===
+
+\textbar=== wrapped zero width \textbar===
+
+\textbar=== wrapped one width \textbar===
+
+\textbar=== signed width \textbar===

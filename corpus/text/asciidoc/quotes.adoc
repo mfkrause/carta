@@ -1,0 +1,6 @@
+[quote,Author,Book]
+____
+First paragraph.
+
+Second paragraph.
+____

@@ -1,0 +1,11 @@
+* A multiline
+  item.
++
+----
+code
+----
++
+Another paragraph.
+* Next item
+
+* Separate list

@@ -1,0 +1,51 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{quote}
+A quotation.
+
+--- Ada, Work, Page 3
+\end{quote}
+
+\begin{quote}
+First line\\
+Second line
+
+--- Ada, Work, Page 4
+\end{quote}
+
+\begin{quote}
+An empty author field.
+
+--- , Work
+\end{quote}
+
+\begin{quote}
+An empty trailing title.
+
+--- Ada
+\end{quote}
+
+\begin{quote}
+No citation fields.
+\end{quote}
+
+\begin{quote}
+No quote style.
+\end{quote}
+
+\begin{quote}
+First line\\
+Second line
+
+--- Ada, Work
+\end{quote}
+
+Caption
+
+\begin{quote}
+Attributed verse.
+
+--- Ada, Work, Page 5
+\end{quote}

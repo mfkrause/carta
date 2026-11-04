@@ -1,0 +1,6 @@
+Inline stem:[x^2] and latexmath:[\alpha].
+
+[stem]
+++++
+x^2 + y^2
+++++

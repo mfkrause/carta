@@ -47,9 +47,13 @@ impl ParseError {
 }
 
 pub(super) fn parse() -> Result<Cli, ParseError> {
+    parse_arguments(std::env::args_os().skip(1))
+}
+
+fn parse_arguments(arguments: impl IntoIterator<Item = OsString>) -> Result<Cli, ParseError> {
     let mut defaults = Defaults::default();
     let mut pending = Vec::new();
-    let mut arguments = std::env::args_os().skip(1);
+    let mut arguments = normalize_optional_boolean_arguments(arguments)?.into_iter();
     let command = cli_command();
     while let Some(argument) = arguments.next() {
         if argument == "--" {
@@ -138,6 +142,134 @@ pub(super) fn parse() -> Result<Cli, ParseError> {
     defaults.inputs.append(&mut cli.input);
     cli.input = defaults.inputs;
     Ok(cli)
+}
+
+fn normalize_optional_boolean_arguments(
+    arguments: impl IntoIterator<Item = OsString>,
+) -> Result<Vec<OsString>, clap::Error> {
+    let command = cli_command();
+    let mut arguments = arguments.into_iter();
+    let mut normalized = Vec::new();
+    let mut options_enabled = true;
+    while let Some(argument) = arguments.next() {
+        if argument == "--" {
+            options_enabled = false;
+            normalized.push(argument);
+            continue;
+        }
+        let Some(text) = argument.to_str().filter(|_| options_enabled) else {
+            normalized.push(argument);
+            continue;
+        };
+        if let Some(long) = text.strip_prefix("--") {
+            let (name, value) = long
+                .split_once('=')
+                .map_or((long, None), |(name, value)| (name, Some(value)));
+            if let Some(option) = long_option(&command, name) {
+                if is_optional_boolean(option)
+                    && let Some(value) = value.and_then(boolean_value)
+                {
+                    normalized
+                        .push(format!("--{}={value}", option.get_long().unwrap_or(name)).into());
+                    continue;
+                }
+                let consumes_next = value.is_none() && takes_value(option);
+                normalized.push(argument);
+                if consumes_next && let Some(value) = arguments.next() {
+                    normalized.push(value);
+                }
+                continue;
+            }
+        }
+
+        if let Some(shorts) = text
+            .strip_prefix('-')
+            .filter(|value| !value.starts_with('-'))
+        {
+            if let Some(short) = shorts.chars().next()
+                && let Some(option) = short_option(&command, short)
+            {
+                let suffix = &shorts[short.len_utf8()..];
+                if is_optional_boolean(option) {
+                    if suffix.starts_with('=') {
+                        return Err(command.clone().error(
+                            clap::error::ErrorKind::InvalidValue,
+                            format!("short option '-{short}' does not accept '=VALUE'"),
+                        ));
+                    }
+                    if !suffix.is_empty()
+                        && let Some(value) = boolean_value(suffix)
+                    {
+                        let Some(long) = option.get_long() else {
+                            normalized.push(argument);
+                            continue;
+                        };
+                        normalized.push(format!("--{long}={value}").into());
+                        continue;
+                    }
+                }
+            }
+            let consumes_next = short_option_consumes_next(shorts, &command);
+            normalized.push(argument);
+            if consumes_next && let Some(value) = arguments.next() {
+                normalized.push(value);
+            }
+            continue;
+        }
+
+        normalized.push(argument);
+    }
+    Ok(normalized)
+}
+
+fn long_option<'a>(command: &'a clap::Command, name: &str) -> Option<&'a clap::Arg> {
+    command.get_arguments().find(|option| {
+        option.get_long() == Some(name)
+            || option
+                .get_all_aliases()
+                .is_some_and(|aliases| aliases.contains(&name))
+    })
+}
+
+fn short_option(command: &clap::Command, name: char) -> Option<&clap::Arg> {
+    command
+        .get_arguments()
+        .find(|option| option.get_short() == Some(name))
+}
+
+fn is_optional_boolean(option: &clap::Arg) -> bool {
+    matches!(option.get_action(), ArgAction::Set)
+        && option.is_require_equals_set()
+        && option.get_value_parser().type_id() == std::any::TypeId::of::<bool>()
+}
+
+fn boolean_value(value: &str) -> Option<&'static str> {
+    if value.eq_ignore_ascii_case("true") {
+        Some("true")
+    } else if value.eq_ignore_ascii_case("false") {
+        Some("false")
+    } else {
+        None
+    }
+}
+
+fn short_option_consumes_next(shorts: &str, command: &clap::Command) -> bool {
+    let mut remaining = shorts;
+    while let Some(name) = remaining.chars().next() {
+        let suffix = &remaining[name.len_utf8()..];
+        let Some(option) = short_option(command, name) else {
+            return false;
+        };
+        if is_optional_boolean(option) {
+            if boolean_value(suffix).is_some() {
+                return false;
+            }
+        } else if takes_value(option) {
+            return suffix.is_empty();
+        }
+        remaining = suffix;
+    }
+    false
 }
 
 fn takes_value(argument: &clap::Arg) -> bool {
@@ -460,5 +592,109 @@ fn metadata_value(value: Value) -> MetaValue {
                 .map(|(key, value)| (key.into(), metadata_value(value)))
                 .collect(),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic, clippy::unwrap_used)]
+
+    use super::{ParseError, parse_arguments};
+    use crate::Cli;
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+
+    fn parse_cli(arguments: &[&str]) -> Cli {
+        match parse_arguments(arguments.iter().map(|argument| OsString::from(*argument))) {
+            Ok(cli) => cli,
+            Err(ParseError::Argument(error)) => panic!("{error}"),
+            Err(ParseError::Defaults(message, _)) => panic!("{message}"),
+        }
+    }
+
+    #[test]
+    fn preserve_tabs_accepts_pandoc_long_and_short_forms() {
+        for (arguments, expected) in [
+            (&["-p"][..], true),
+            (&["-ptrue"][..], true),
+            (&["-pTRUE"][..], true),
+            (&["-pfalse"][..], false),
+            (&["-pFalse"][..], false),
+            (&["--preserve-tabs=TRUE"][..], true),
+            (&["--preserve-tabs=False"][..], false),
+            (&["-pfalse", "-ptrue"][..], true),
+            (
+                &["--preserve-tabs=true", "--preserve-tabs=FALSE"][..],
+                false,
+            ),
+        ] {
+            let cli = parse_cli(arguments);
+            assert_eq!(cli.preserve_tabs, expected, "{arguments:?}");
+        }
+    }
+
+    #[test]
+    fn optional_boolean_forms_match_pandoc_for_standalone() {
+        for (arguments, expected) in [
+            (&["-sfalse"][..], false),
+            (&["--standalone=TRUE"][..], true),
+            (&["--standalone=FALSE"][..], false),
+        ] {
+            assert_eq!(parse_cli(arguments).standalone, expected, "{arguments:?}");
+        }
+        assert!(parse_arguments([OsString::from("-s=false")]).is_err());
+    }
+
+    #[test]
+    fn short_boolean_groups_keep_clap_parsing() {
+        for argument in ["-spfalse", "-psfalse"] {
+            assert_eq!(parse_cli(&[argument]).from.as_deref(), Some("alse"));
+        }
+    }
+
+    #[test]
+    fn preserve_tabs_without_equals_does_not_consume_the_next_input() {
+        for arguments in [&["--preserve-tabs", "false"][..], &["-p", "false"][..]] {
+            let cli = parse_cli(arguments);
+            assert!(cli.preserve_tabs, "{arguments:?}");
+            assert_eq!(cli.input, [PathBuf::from("false")], "{arguments:?}");
+        }
+
+        let cli = parse_cli(&["--", "-pfalse"]);
+        assert!(!cli.preserve_tabs);
+        assert_eq!(cli.input, [PathBuf::from("-pfalse")]);
+    }
+
+    #[test]
+    fn required_option_values_that_look_like_options_stay_values() {
+        for value in ["-pfalse", "--standalone=TRUE"] {
+            let cli = parse_cli(&["--pdf-engine-opt", value]);
+            assert_eq!(cli.pdf_engine_options, [value]);
+            assert!(!cli.preserve_tabs);
+            assert!(!cli.standalone);
+        }
+    }
+
+    #[test]
+    fn preserve_tabs_rejects_pandoc_invalid_values_and_short_equals() {
+        for argument in [
+            "-p=false",
+            "--preserve-tabs=yes",
+            "--preserve-tabs=0",
+            "--preserve-tabs=1",
+            "--preserve-tabs=",
+        ] {
+            assert!(
+                parse_arguments([OsString::from(argument)]).is_err(),
+                "{argument:?}"
+            );
+        }
+
+        for arguments in [&["-p", "--tab-stop=0"][..], &["--tab-stop=0", "-p"][..]] {
+            assert!(
+                parse_arguments(arguments.iter().map(|argument| OsString::from(*argument)))
+                    .is_err()
+            );
+        }
     }
 }

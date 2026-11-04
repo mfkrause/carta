@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Monospace attribute runs
+
+{missing}tail
+
+preresolvedpost
+
+prepost
+
+two wordstail
+
+prefirst secondpost
+
+preresolvedpost
+
+onetwo
+
+`ab`
+
+prefix suffix
+
+a*resolved*b resolved [1]
+
+  preresolvedpost
+  -----------------
+
+[1] note resolved

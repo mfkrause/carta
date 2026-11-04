@@ -1,0 +1,144 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "example" ] , [ ( "options" , "hardbreaks" ) ] )
+    [ Para [ Str "one" , LineBreak , Str "two" ] ]
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Div
+    ( "" , [ "sidebar" ] , [ ( "options" , "hardbreaks" ) ] )
+    [ Para [ Str "one" , LineBreak , Str "two" ] ]
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Div
+    ( "" , [] , [ ( "options" , "hardbreaks" ) ] )
+    [ Para [ Str "one" , LineBreak , Str "two" ] ]
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" ) , ( "options" , "hardbreaks" ) ]
+    )
+    [ BlockQuote [ Para [ Str "one" , LineBreak , Str "two" ] ]
+    ]
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Str "one" , LineBreak , Str "two" ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Str "one" , LineBreak , Str "two" ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Emph [ Str "one" , LineBreak , Str "two" ] ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Str "one" , LineBreak , Str "two" ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para
+                   [ Code ( "" , [] , [] ) "one"
+                   , LineBreak
+                   , Code ( "" , [] , [] ) "two"
+                   ]
+               ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "after" , SoftBreak , Str "block" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Strong [ Str "one" , LineBreak , Str "two" ] ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "after" , SoftBreak , Str "block" ]
+]

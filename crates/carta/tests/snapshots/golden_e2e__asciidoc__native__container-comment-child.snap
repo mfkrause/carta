@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "example" ] , [] )
+    [ CodeBlock ( "" , [] , [] ) "listing body" ]
+, Para [ Str "after" ]
+, Div
+    ( "" , [ "sidebar" ] , [] )
+    [ CodeBlock ( "" , [] , [] ) "literal body\n" ]
+, Para [ Str "after" ]
+, BlockQuote [ Plain [ Str "pass" , Space , Str "body" ] ]
+, Para [ Str "after" ]
+]

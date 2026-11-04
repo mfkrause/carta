@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container::
+
+   0
+
+no id
+
+.. container::
+
+   - list item
+
+.. container::
+
+.. container::
+   :name: named
+
+Heading
+=======
+
++------+
+| cell |
++======+
+
++-----------------------------------------------------------------------+
+| .. container::                                                        |
+|                                                                       |
+|    cell with an empty ID                                              |
++=======================================================================+
+
+Inline mark stays a span.

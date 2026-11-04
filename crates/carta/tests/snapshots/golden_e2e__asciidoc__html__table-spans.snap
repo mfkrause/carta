@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><p>A</p></th>
+<th><p>B</p></th>
+<th><p>C</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td colspan="2" style="text-align: center;"><p>wide</p></td>
+<td><p>third</p></td>
+</tr>
+</tbody><tfoot>
+<tr>
+<td><p>repeat</p></td>
+<td><p>repeat</p></td>
+<td><p>repeat</p></td>
+</tr>
+</tfoot>
+
+</table>

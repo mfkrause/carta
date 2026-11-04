@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>Term</dt>
+<dd>{| class="wikitable"
+|-
+! first
+
+second line
+|-
+! next
+|}</dd></dl>

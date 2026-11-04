@@ -1,0 +1,3 @@
+include::absent.adoc
+
+include::absent.adoc[opts=optional

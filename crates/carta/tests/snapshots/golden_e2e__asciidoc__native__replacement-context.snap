@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "x\8230y"
+    , Space
+    , Str "\169ABC"
+    , Space
+    , Str "-->x"
+    , Space
+    , Str "<--x"
+    , Space
+    , Str "a\8201\8212\8201b"
+    , Space
+    , Str "---"
+    ]
+, Para
+    [ Str "<----"
+    , Space
+    , Str "<----x"
+    , Space
+    , Str "x-->y"
+    , Space
+    , Str "x<--y"
+    ]
+, Para
+    [ Str "a"
+    , Space
+    , Strong [ Str "b" ]
+    , Str "-\8594x"
+    , Space
+    , Str "a-\8594x"
+    ]
+, Para [ Str "a\8212\8203b" ]
+, Para [ Str "a*bold*" ]
+]

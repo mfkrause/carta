@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
++------------+
+| Cell body. |
++============+
+
++--+
+|  |
++==+
+
++--------------------------+
+| *First paragraph.*       |
+|                          |
+| .. rubric:: Cell section |
+|    :name: _cell_section  |
+|                          |
+| Section body.            |
++==========================+
+
++---------------------------+
+| ``First`` ``paragraph.``  |
+|                           |
+| .. rubric:: Cell section  |
+|    :name: _cell_section_2 |
+|                           |
+| Section body.             |
++===========================+
+
+.. container:: example
+
+   +-------------------+
+   | == Paragraph text |
+   |                   |
+   | Next paragraph.   |
+   +===================+
+
+.. __outer:
+
+Outer
+=====
+
++-------------------+
+| .. rubric:: Inner |
+|    :name: _inner  |
+|                   |
+| Inner body.       |
++===================+
+
++------------------+
+| *Before   After* |
++==================+

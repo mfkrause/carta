@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  one
+
+  \begin{itemize}
+  \item
+    nested
+
+    \begin{itemize}
+    \item
+      deep
+    \end{itemize}
+  \end{itemize}
+\item
+  two
+\end{itemize}
+
+\begin{itemize}
+\item
+  separate
+\item
+  list
+\end{itemize}
+
+\begin{enumerate}
+\item
+  numbered
+
+  \begin{enumerate}
+  \item
+    nested
+  \end{enumerate}
+\item
+  second
+\end{enumerate}
+
+\begin{enumerate}
+\item
+  first \textless2.1\textgreater{} nested text
+\item
+  third
+\end{enumerate}

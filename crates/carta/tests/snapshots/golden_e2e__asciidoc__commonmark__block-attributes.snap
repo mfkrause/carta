@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="last" class="a b" data-wrapper="1" data-key="value">
+
+Paragraph.
+
+</div>

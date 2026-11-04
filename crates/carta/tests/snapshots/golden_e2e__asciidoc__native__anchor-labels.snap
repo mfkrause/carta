@@ -1,0 +1,55 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span ( "point" , [] , [] ) []
+    , SoftBreak
+    , Str "See"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "Reference" , Space , Str "Text" ]
+        ( "#point" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] ) [] ( "#missing" , "" )
+    , Str "."
+    ]
+, Header 1 ( "other,Label" , [] , [] ) [ Str "Heading" ]
+, Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "other" ]
+        ( "#other" , "" )
+    , Str "."
+    ]
+, Div
+    ( "multi,One,Two" , [] , [ ( "wrapper" , "1" ) ] )
+    [ Para
+        [ Str "See"
+        , Space
+        , Link
+            ( "" , [ "cross-reference" ] , [] )
+            [ Str "multi" ]
+            ( "#multi" , "" )
+        , Str "."
+        ]
+    ]
+, Para
+    [ Span ( "macro" , [] , [] ) []
+    , SoftBreak
+    , Str "See"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "AlphaBeta" ]
+        ( "#macro" , "" )
+    , Str "."
+    ]
+, Para [ Span ( "bib" , [] , [] ) [] ]
+]

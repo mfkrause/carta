@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div data-wrapper="1" data-format="csv" data-options="noheader">
+|=== &quot;x&quot;&quot;y&quot;,z |===
+
+</div>

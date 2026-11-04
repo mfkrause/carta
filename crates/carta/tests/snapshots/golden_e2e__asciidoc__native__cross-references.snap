@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "A" , Space , Str "section" ]
+        ( "#section" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "missing" ]
+        ( "#missing" , "" )
+    , Str "."
+    ]
+, Header
+    1
+    ( "section" , [] , [] )
+    [ Str "A" , Space , Str "section" ]
+, Para
+    [ Str "An"
+    , Space
+    , Span ( "anchor" , [] , [] ) []
+    , Str "anchor."
+    ]
+, Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "Label" ]
+        ( "#anchor" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "A" , Space , Str "section" ]
+        ( "#section" , "" )
+    , Str "."
+    ]
+]

@@ -56,7 +56,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| AsciiDoc (`asciidoc`) | ❌ | ✅ |
+| AsciiDoc (`asciidoc`) | ✅ | ✅ |
 | AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ✅ |
 | Asciidoctor (`asciidoctor`) | ➖ | ✅ |
 | Haddock (`haddock`) | ❌ | ❌ |
@@ -167,6 +167,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
   allowance based on the source length.
 
 ### `typst` ✅
+### `asciidoc` ✅
 ### `org` ✅
 ### `rst` ✅
 ### `dokuwiki` ✅
@@ -185,9 +186,9 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `opml` ✅
 ### `tsv` ✅
 
-**Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`,
-`endnotexml`, `fb2`, `haddock`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `mdoc`,
-`muse`, `pod`, `pptx`, `ris`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki`, `xlsx`, `xml`.
+**Not started:** `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `endnotexml`, `fb2`,
+`haddock`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `mdoc`, `muse`, `pod`,
+`pptx`, `ris`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 

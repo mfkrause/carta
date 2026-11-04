@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [] , [ ( "wrapper" , "1" ) , ( "cols" , "1,2" ) ] )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "|"
+        , Span
+            ( "" , [ "counter" ] , [ ( "name" , "n" ) ] ) [ Str "3" ]
+        , Space
+        , Str "x|y"
+        , SoftBreak
+        , Str "|second"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+]

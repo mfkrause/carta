@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Inline"
+    , Space
+    , Math InlineMath "x^2"
+    , Space
+    , Str "and"
+    , Space
+    , Math InlineMath "\\alpha"
+    , Str "."
+    ]
+, Para [ Math DisplayMath "x^2 + y^2\n" ]
+]

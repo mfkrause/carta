@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 data-asciidoc-heading="heading" data-asciidoc-icon="icon"
+data-asciidoc-identifier-source="source" data-asciidoc-section="section"
+data-wrapper="1" id="_heading">Heading</h1>
+<div id="_nested" data-asciidoc-heading="titled"
+data-asciidoc-section="titled">
+<div class="title">
+<p>Titled</p>
+</div>
+<h2>Nested</h2>
+<h3 data-asciidoc-heading="discrete"
+data-asciidoc-section="discrete">Discrete</h3>
+<p><img src="./images/icons/heart.png" class="icon"
+data-asciidoc-icon="user" data-wrapper="1" /></p>
+<p><span id="spot" data-asciidoc-identifier-source="user"></span> <a
+href="#spot" class="cross-reference"></a></p>
+<h2 data-c="1" data-a="3" data-b="4"
+data-asciidoc-heading="html-heading"
+data-asciidoc-section="html-section" data-wrapper="html">HTML</h2>
+<h2 data-z="1" data-a="3" data-x="4">Data</h2>
+<h2
+data-asciidoc-carta-user-attribute-asciidoc-heading="html-prefix">Prefix</h2>
+<h3 data-asciidoc-carta-user-attribute-asciidoc-heading="prefix"
+id="_prefix">Prefix</h3>
+</div>

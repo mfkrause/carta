@@ -1,0 +1,15 @@
+[[point,Reference Text]]
+See <<point>> and <<missing,>>.
+
+[[other,Label]]
+== Heading
+
+See <<other>>.
+
+[[multi,One,Two]]
+See <<multi>>.
+
+anchor:macro,Alpha,Beta[]
+See <<macro>>.
+
+[[[bib]]]

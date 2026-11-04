@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline :math:`x^2` and :math:`\alpha`.
+
+.. math::
+
+   x^2 + y^2

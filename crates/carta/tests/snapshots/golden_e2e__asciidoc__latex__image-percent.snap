@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\includegraphics[width=0.52083in,height=0.20833in,alt={Photo}]{photo.png}

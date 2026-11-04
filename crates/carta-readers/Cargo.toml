@@ -23,11 +23,12 @@ workspace = true
 
 [features]
 yaml = ["commonmark", "dep:granit-parser"]
-default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org", "rtf", "docx", "epub", "odt", "typst", "docbook"]
+default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org", "rtf", "docx", "epub", "odt", "typst", "docbook", "asciidoc"]
 commonmark = ["latex", "dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = ["carta-ast/serde", "carta-core/serde"]
 html = []
 docbook = []
+asciidoc = ["html", "dep:unicode-general-category"]
 docx = ["carta-core/container"]
 epub = ["html", "carta-core/container"]
 odt = ["carta-core/container"]

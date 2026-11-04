@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<thead>
+<tr>
+<th><p>A</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>B</p></td>
+</tr>
+<tr>
+<td><p>C</p></td>
+</tr>
+</tbody><tfoot>
+<tr>
+<td><p>D</p></td>
+</tr>
+</tfoot>
+&#10;</table>

@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+|=== empty cols |===
+
+|=== trailing default column | second |===
+
+|=== wide value |===
+
+|=== wrapped zero width |===
+
+|=== wrapped one width |===
+
+|=== signed width |===

@@ -1,0 +1,9 @@
+Operating systems::
+Linux:::
+. Fedora
+. Debian
+BSD:::
+. FreeBSD
+Cloud::
+PaaS:::
+. Service

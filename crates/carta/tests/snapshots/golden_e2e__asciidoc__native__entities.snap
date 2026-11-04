@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "x&apos;y"
+    , Space
+    , Str "x&mdash;y"
+    , Space
+    , Str "x&alpha;y"
+    , Space
+    , Str "x\228y"
+    , Space
+    , Str "x&y"
+    ]
+, Para
+    [ Str "x"
+    , Space
+    , Str "y"
+    , Space
+    , Str "x"
+    , SoftBreak
+    , Str "y"
+    , Space
+    , Str "x\65533y"
+    ]
+, Para [ Str "&#x+65;" , SoftBreak ]
+]

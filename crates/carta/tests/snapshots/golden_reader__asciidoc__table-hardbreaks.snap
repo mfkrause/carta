@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"hardbreaks-option":{"t":"MetaBool","c":true},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Table"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"breaks"}]}},"blocks":[{"t":"Table","c":[["",[],[]],[null,[]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Para","c":[{"t":"Str","c":"one"},{"t":"LineBreak"},{"t":"Str","c":"two"}]}]]]]]],[[["",[],[]],0,[],[]]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Div","c":[["",[],[["wrapper","1"],["options","hardbreaks"]]],[{"t":"Para","c":[{"t":"Str","c":"three"},{"t":"LineBreak"},{"t":"Str","c":"four"}]}]]}]]]]]]]}]}

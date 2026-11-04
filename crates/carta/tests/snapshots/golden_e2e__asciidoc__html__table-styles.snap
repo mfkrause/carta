@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p><code>Mono</code></p></th>
+<th style="text-align: right;"><p><strong>Strong</strong></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody><tfoot>
+<tr>
+<td style="text-align: left;"><p>Default</p></td>
+<td style="text-align: right;"><p><em>Italic</em></p></td>
+</tr>
+</tfoot>
+
+</table>

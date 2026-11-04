@@ -1,0 +1,30 @@
+[#]
+0
+
+[]
+no id
+
+[#]
+* list item
+
+[#]
+toc::[]
+
+[#named]
+toc::[]
+
+[#]
+== Heading
+
+[#]
+|===
+|cell
+|===
+
+[cols="1"]
+|===
+|[#]
+cell with an empty ID
+|===
+
+Inline [#]#mark# stays a span.

@@ -1,0 +1,6 @@
+:hardbreaks-option:
+
+[format=csv]
+|===
+"open,x
+|===

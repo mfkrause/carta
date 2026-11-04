@@ -1,0 +1,167 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Str "Cell" , Space , Str "body." ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] ) AlignDefault (RowSpan 1) (ColSpan 1) []
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para
+                   [ Emph [ Str "First" , Space , Str "paragraph." ] ]
+               , Header
+                   1
+                   ( "_cell_section" , [] , [] )
+                   [ Str "Cell" , Space , Str "section" ]
+               , Para [ Str "Section" , Space , Str "body." ]
+               ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para
+                   [ Code ( "" , [] , [] ) "First"
+                   , Space
+                   , Code ( "" , [] , [] ) "paragraph."
+                   ]
+               , Header
+                   1
+                   ( "_cell_section_2" , [] , [] )
+                   [ Str "Cell" , Space , Str "section" ]
+               , Para [ Str "Section" , Space , Str "body." ]
+               ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Div
+    ( "" , [ "example" ] , [] )
+    [ Table
+        ( "" , [] , [] )
+        (Caption Nothing [])
+        [ ( AlignDefault , ColWidthDefault ) ]
+        (TableHead
+           ( "" , [] , [] )
+           [ Row
+               ( "" , [] , [] )
+               [ Cell
+                   ( "" , [] , [] )
+                   AlignDefault
+                   (RowSpan 1)
+                   (ColSpan 1)
+                   [ Para
+                       [ Str "=="
+                       , Space
+                       , Str "Paragraph"
+                       , Space
+                       , Str "text"
+                       ]
+                   , Para [ Str "Next" , Space , Str "paragraph." ]
+                   ]
+               ]
+           ])
+        [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+        (TableFoot ( "" , [] , [] ) [])
+    ]
+, Header 1 ( "_outer" , [] , [] ) [ Str "Outer" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Header 2 ( "_inner" , [] , [] ) [ Str "Inner" ]
+               , Para [ Str "Inner" , Space , Str "body." ]
+               ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para
+                   [ Emph
+                       [ Str "Before"
+                       , SoftBreak
+                       , Str "\160"
+                       , SoftBreak
+                       , Str "After"
+                       ]
+                   ]
+               ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+]

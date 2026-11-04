@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{\textbf{Ctrl}}+{\textbf{Shift}}+{\textbf{F}} {\textbf{{[}Cancel{]}}}
+{\textbf{File~›~Open~›~Recent}}
+
+\pandocbounded{\includegraphics[keepaspectratio]{./images/icons/heart.png}}
+\protect\phantomsection\label{point}{}
+
+{visible} {}

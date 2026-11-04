@@ -1,0 +1,30 @@
+[cols="1",options="noheader,nofooter"]
+|===
+|[[only]]
+|[[next]]
+Next line
+|[[labeled,label]]
+Label text
+|[[inline]] remainder
+|before
+[[middle]]
+after
+
+[[after-blank]]
+After blank
+|[[space inside]]
+Whitespace id
+|[[bad]bracket]]
+Malformed id
+|[[trailing]]   
+Trailing spaces
+|===
+
+[cols="1",options="noheader,nofooter"]
+|===
+|.{counter:dangling}
+|.{counter:ordered} title
+{counter:ordered} body
+|===
+{counter:dangling}
+{counter:ordered}

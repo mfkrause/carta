@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\url{https://example.org/a?b=c}, \url{me@example.com}
+
+\url{https://example.org} \textless{}\url{me@example.com}\textgreater{}
+
+\href{files/report.pdf}{Report} and \href{me@example.com}{Email}.
+
+\url{https://example.org/a__b}
+
+\href{My\%20Documents/report.pdf}{Report}
+
+\url{https://example.test/a(b)}

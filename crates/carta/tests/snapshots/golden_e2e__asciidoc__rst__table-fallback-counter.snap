@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container::
+
+   \|=== \|3 x|y \|second \|===

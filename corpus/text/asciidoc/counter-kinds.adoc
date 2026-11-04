@@ -1,0 +1,3 @@
+{counter:lower:a} {counter:lower} {counter:upper:C}
+
+{counter:invalid:word} {counter:empty:}

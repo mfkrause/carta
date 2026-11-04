@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Figure
+          ( "" , [] , [] )
+          (Caption Nothing [])
+          [ Plain [ Image ( "" , [] , [] ) [] ( "x" , "" ) ] ]
+      ]
+    ]
+, BulletList [ [ Para [ Str "Next" ] ] ]
+, DefinitionList
+    [ ( [ Str "Term" ] , [ [ Div ( "toc" , [] , [] ) [] ] ] )
+    , ( [ Str "Next" ] , [ [ Para [ Str "value" ] ] ] )
+    , ( [ Str "*" , Space , Str "audio" ]
+      , [ [ Para
+              [ Str "x[]" , Space , Str "*" , Space , Str "Other" ]
+          , BulletList [ [ Para [ Str "Last" ] ] ]
+          ]
+        ]
+      )
+    , ( [ Str "Term" ]
+      , [ [ Plain
+              [ Image ( "" , [] , [] ) [ Str "x" ] ( "x" , "" ) ]
+          ]
+        ]
+      )
+    , ( [ Str "Next" ] , [ [ Para [ Str "value" ] ] ] )
+    , ( [ Str "*" , Space , Str "image" ]
+      , [ [ Para [ Str "x[]" , LineBreak , Str "Next" ] ] ]
+      )
+    , ( [ Str "*" , Space , Str "image" ]
+      , [ [ Para
+              [ Str "x[]"
+              , Space
+              , Str "tail"
+              , SoftBreak
+              , Str "Next"
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "*" , Space , Str "A" ]
+      , [ [ Div ( "toc" , [] , [] ) [] ] ]
+      )
+    , ( [ Str "B" ]
+      , [ [ Para [ Str "x" ]
+          , BulletList [ [ Para [ Str "y" ] ] ]
+          ]
+        ]
+      )
+    ]
+]

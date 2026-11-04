@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="section-a-b-c-café"></span>
+= A.b-c café =
+
+<span id="section-a-b-c-café-2"></span>
+= A.b-c café =

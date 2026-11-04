@@ -1,0 +1,86 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link ( "" , [] , [] ) [ Str "http:x" ] ( "http:x" , "" )
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "https:/x" ] ( "https:/x" , "" )
+    , Space
+    , Link ( "" , [] , [] ) [ Str "irc:x" ] ( "irc:x" , "" )
+    , Space
+    , Link ( "" , [] , [] ) [ Str "ftp:x" ] ( "ftp:x" , "" )
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "mailto:x" ] ( "mailto:x" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] ) [ Str "http:x(y" ] ( "http:x(y" , "" )
+    , Str ")"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "http:x" ] ( "http:x" , "" )
+    , Str "?"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "http:x" ] ( "http:x" , "" )
+    , Str ",,y"
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "http:x.y" ] ( "http:x.y" , "" )
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http:x++y++" ]
+        ( "http:x++y++" , "" )
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "http:++x" ] ( "http:++x" , "" )
+    , Space
+    , Str "y++"
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "http:x" ] ( "http:x" , "" )
+    , Space
+    , Link ( "" , [] , [] ) [ Str "irc:x" ] ( "irc:x" , "" )
+    , Space
+    , Str "word"
+    , Link ( "" , [] , [] ) [ Str "ftp:x" ] ( "ftp:x" , "" )
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "http:x\\y" ] ( "http:x\\y" , "" )
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http:x&amp;y" ]
+        ( "http:x&amp;y" , "" )
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "Label" ] ( "http:x" , "" )
+    , Space
+    , Link ( "" , [] , [] ) [ Str "Label" ] ( "x" , "" )
+    , Space
+    , Link ( "" , [] , [] ) [ Str "http:x" ] ( "http:x" , "" )
+    , Str "[role=wide]"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "Macro" ] ( "http:x" , "" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "alice@example.com" ]
+        ( "alice@example.com" , "" )
+    , Space
+    , Str "123"
+    , Link
+        ( "" , [] , [] )
+        [ Str "alice@example.com" ]
+        ( "alice@example.com" , "" )
+    , Space
+    , Str "_"
+    , Link
+        ( "" , [] , [] )
+        [ Str "alice@example.com" ]
+        ( "alice@example.com" , "" )
+    ]
+]

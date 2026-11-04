@@ -1,0 +1,69 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><div class="red
+&#10;blue" data-wrapper="1">
+<p>x</p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr>
+<th><p>first</p>
+<div class="red blue" data-wrapper="1">
+<p>second</p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr>
+<th><div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>x continued</p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr>
+<th><p>first</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr>
+<th><p>visible</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<table>
+<tbody>
+</tbody>
+</table>

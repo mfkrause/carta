@@ -1,0 +1,5 @@
+anchor:+literal+[] link:+foo+[] image:+foo+.png[] xref:+foo+[] footnote:+foo+[bar]
+
+link:++foo++[] link:pass:[foo][]
+
+link:pass:[][]

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "last"
+    , [ "a b" ]
+    , [ ( "wrapper" , "1" ) , ( "key" , "value" ) ]
+    )
+    [ Para [ Str "Paragraph." ] ]
+]

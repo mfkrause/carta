@@ -130,6 +130,9 @@ pub struct ReaderOptions {
     /// Each entry applies until the next offset. An empty path selects the working directory.
     /// Readers that resolve companion files use these entries instead of `source_dir`.
     pub source_dirs: std::collections::BTreeMap<usize, std::path::PathBuf>,
+    /// Source filenames keyed by starting UTF-8 byte offset. Readers use these names to identify
+    /// recursive includes. Standard input has no entry.
+    pub source_paths: std::collections::BTreeMap<usize, std::path::PathBuf>,
 }
 
 impl Default for ReaderOptions {
@@ -141,6 +144,7 @@ impl Default for ReaderOptions {
             greedy_paragraphs: false,
             source_dir: None,
             source_dirs: std::collections::BTreeMap::new(),
+            source_paths: std::collections::BTreeMap::new(),
         }
     }
 }

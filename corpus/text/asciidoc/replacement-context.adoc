@@ -1,0 +1,11 @@
+x...y (C)ABC -->x <--x a -- b ---
+
+<---- <----x x-->y x<--y
+
+a *b*-->x a\-->x
+
+a// comment
+--b
+
+a// comment
+*bold*

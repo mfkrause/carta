@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Div","c":[["",[],[["wrapper","1"],["options","loop,autoplay"]]],[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"sound.ogg"}],["sound.ogg",""]]}]}]]},{"t":"Div","c":[["",["video"],[["wrapper","1"],["width","320"]]],[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"movie.mp4"}],["movie.mp4",""]]}]}]]},{"t":"Div","c":[["contents",[],[["levels","2"]]],[]]}]}

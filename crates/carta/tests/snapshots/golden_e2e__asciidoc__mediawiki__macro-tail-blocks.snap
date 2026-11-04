@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="figure">
+[[File:x.png]]
+</div>
+
+<pre>tail
+</pre>
+<div id="toc">
+</div>
+
+<pre>tail
+</pre>
+<pre>source</pre>
+<pre>tail
+</pre>
+<ul>
+<li><p>item</p>
+<div class="figure">
+[[File:x.png]]
+</div>
+<p>tail</p></li>
+<li><p>next</p></li></ul>

@@ -17,6 +17,19 @@ fn main() {
     let table: BTreeMap<String, serde_json::Value> =
         serde_json::from_str(&source).expect("parse entities.json");
 
+    let mut legacy = String::from(
+        "#[cfg(feature = \"asciidoc\")]\npub(crate) static LEGACY_ENTITIES: &[(&str, &str)] = &[\n",
+    );
+    for (name, entity) in &table {
+        if let Some(name) = name.strip_prefix('&').filter(|name| !name.ends_with(';')) {
+            let characters = entity
+                .get("characters")
+                .and_then(serde_json::Value::as_str)
+                .expect("entity characters");
+            let _ = writeln!(legacy, "    ({name:?}, {characters:?}),");
+        }
+    }
+    legacy.push_str("];\n");
     let mut entries: Vec<(String, String)> = table
         .into_iter()
         .filter_map(|(name, entity)| {
@@ -36,6 +49,7 @@ fn main() {
         let _ = writeln!(generated, "    ({name:?}, {characters:?}),");
     }
     generated.push_str("];\n");
+    generated.push_str(&legacy);
 
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR");
     fs::write(Path::new(&out_dir).join("entities_table.rs"), generated)

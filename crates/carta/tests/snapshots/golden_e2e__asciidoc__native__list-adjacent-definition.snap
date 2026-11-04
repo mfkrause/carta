@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Para [ Str "Term" ]
+      , DefinitionList
+          [ ( [ Str "*" , Space , Str "Another" ]
+            , [ [ Para [ Str "Definition" ] ] ]
+            )
+          ]
+      ]
+    , [ Para [ Str "Separate" ] ]
+    ]
+, BulletList
+    [ [ DefinitionList
+          [ ( [ Str "Separate" ] , [ [ Para [ Str "Definition" ] ] ] )
+          ]
+      ]
+    ]
+]

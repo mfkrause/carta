@@ -1,0 +1,8 @@
+See <<section>> and <<missing>>.
+
+[[section]]
+== A section
+
+An [[anchor,Label]]anchor.
+
+See <<anchor>> and xref:section[].

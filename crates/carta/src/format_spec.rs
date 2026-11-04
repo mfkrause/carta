@@ -64,9 +64,8 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::TaskLists,
             Extension::TexMathDollars,
         ]),
-        "asciidoc" | "asciidoctor" | "asciidoc_legacy" => {
-            Extensions::from_list(&[Extension::AutoIdentifiers])
-        }
+        "asciidoc" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        "asciidoctor" | "asciidoc_legacy" => Extensions::empty(),
         "plain" => Extensions::from_list(&[
             Extension::BlankBeforeBlockquote,
             Extension::BlankBeforeHeader,
@@ -243,12 +242,15 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::EastAsianLineBreaks,
             Extension::Smart,
         ]),
-        "asciidoc" | "asciidoctor" | "asciidoc_legacy" => Extensions::from_list(&[
+        "asciidoc" => Extensions::from_list(&[
             Extension::AsciiIdentifiers,
             Extension::AutoIdentifiers,
             Extension::EastAsianLineBreaks,
             Extension::GfmAutoIdentifiers,
         ]),
+        "asciidoctor" | "asciidoc_legacy" => {
+            Extensions::from_list(&[Extension::EastAsianLineBreaks])
+        }
         "markdown" | "markdown_github" | "markdown_mmd" | "markdown_phpextra"
         | "markdown_strict" | "opml" | "plain" => Extensions::from_list(&[
             Extension::Abbreviations,

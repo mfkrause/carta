@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span ( "" , [ "kbd" ] , [] ) [ Strong [ Str "Ctrl" ] ]
+    , Str "+"
+    , Span ( "" , [ "kbd" ] , [] ) [ Strong [ Str "Shift" ] ]
+    , Str "+"
+    , Span ( "" , [ "kbd" ] , [] ) [ Strong [ Str "F" ] ]
+    , Space
+    , Span
+        ( "" , [ "button" ] , [] ) [ Strong [ Str "[Cancel]" ] ]
+    , Space
+    , Span
+        ( "" , [ "menu" ] , [] )
+        [ Strong [ Str "File\160\8250\160Open\160\8250\160Recent" ]
+        ]
+    ]
+, Para
+    [ Image
+        ( "" , [ "red icon" ] , [] )
+        []
+        ( "./images/icons/heart.png" , "" )
+    , Space
+    , Span ( "point" , [] , [] ) []
+    ]
+, Para
+    [ Span
+        ( "" , [ "index" ] , [ ( "term" , "visible" ) ] )
+        [ Str "visible" ]
+    , Space
+    , Span
+        ( "" , [ "index" ] , [ ( "term" , "hidden,index" ) ] ) []
+    ]
+]

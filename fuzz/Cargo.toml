@@ -345,3 +345,10 @@ debug = 1
 
 # Detached from the root workspace: cargo-fuzz needs nightly and a sanitizer (see fuzz/README.md).
 [workspace]
+
+[[bin]]
+name = "read_asciidoc"
+path = "fuzz_targets/read_asciidoc.rs"
+test = false
+doc = false
+bench = false

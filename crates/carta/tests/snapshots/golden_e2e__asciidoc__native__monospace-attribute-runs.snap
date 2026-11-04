@@ -1,0 +1,68 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "_monospace_attribute_runs" , [] , [] )
+    [ Str "Monospace"
+    , Space
+    , Str "attribute"
+    , Space
+    , Str "runs"
+    ]
+, Para [ Code ( "" , [] , [] ) "{missing}tail" ]
+, Para [ Code ( "" , [] , [] ) "preresolvedpost" ]
+, Para [ Code ( "" , [] , [] ) "prepost" ]
+, Para
+    [ Code ( "" , [] , [] ) "two"
+    , Space
+    , Code ( "" , [] , [] ) "wordstail"
+    ]
+, Para
+    [ Code ( "" , [] , [] ) "prefirst"
+    , SoftBreak
+    , Code ( "" , [] , [] ) "secondpost"
+    ]
+, Para [ Code ( "" , [ "role" ] , [] ) "preresolvedpost" ]
+, Para
+    [ Code ( "" , [] , [] ) "one"
+    , Code ( "" , [] , [] ) "two"
+    ]
+, Para [ Str "`ab`" ]
+, Para [ Str "prefix" , Space , Str "suffix" ]
+, Para
+    [ Code ( "" , [] , [] ) "a*resolved*b"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Code ( "" , [] , [] ) "resolved" ]
+        ( "https://example.test" , "" )
+    , Space
+    , Note
+        [ Para
+            [ Code ( "" , [] , [] ) "note"
+            , Space
+            , Code ( "" , [] , [] ) "resolved"
+            ]
+        ]
+    ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Para [ Code ( "" , [] , [] ) "preresolvedpost" ] ]
+           ]
+       ])
+    [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [] ]
+    (TableFoot ( "" , [] , [] ) [])
+]

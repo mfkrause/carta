@@ -1,0 +1,1 @@
+Escaped \*stars\*, dog\'s and dog's. &auml;&#160;&#x22E0;.

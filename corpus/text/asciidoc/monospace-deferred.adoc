@@ -1,0 +1,10 @@
+`xref:missing[]` `{missing}`
+
+`xref:known[]` `{late}`
+
+[[known,Label]]
+known
+
+:late: value
+
+[.role]`xref:known[]` [.role]`xref:missing[]`

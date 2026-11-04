@@ -1,0 +1,5 @@
+x&apos;y x&mdash;y x&alpha;y x&auml;y x&AMP;y
+
+x&#9;y x&#10;y x&#xD800;y
+
+&#x+65; &#13;

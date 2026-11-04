@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _id:
+
+text **bold**
+
+.. _x:
+
+text text text
+
+prefix **strong** *italic* span span
+
+prefix **strong** mark

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="_and">Example and {missing}</h1>
+<h1 id="_code"><img src="photo.png" alt="Photo" /> <span
+class="math inline"><em>x</em></span> <code>code</code></h1>

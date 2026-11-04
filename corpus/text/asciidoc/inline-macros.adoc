@@ -1,0 +1,5 @@
+kbd:[Ctrl+Shift+F] btn:[Cancel] menu:File[Open > Recent]
+
+icon:heart[role=red] anchor:point[]
+
+((visible)) (((hidden, index)))

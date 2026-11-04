@@ -1,0 +1,13 @@
+== First
+
+==== Skipped
+
+=== Next
+
+== First
+
+[#custom]
+== Explicit
+
+[discrete]
+==== Discrete

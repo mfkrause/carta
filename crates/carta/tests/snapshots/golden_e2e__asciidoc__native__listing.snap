@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ CodeBlock
+    ( "" , [ "rust" ] , [] ) "fn main() { \9312 \9313\n}\n"
+, Div
+    ( "" , [ "callout-list" ] , [] )
+    [ OrderedList
+        ( 1 , DefaultStyle , DefaultDelim )
+        [ [ Para [ Str "First" ] ] , [ Para [ Str "Second" ] ] ]
+    ]
+]

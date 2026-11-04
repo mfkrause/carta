@@ -112,8 +112,11 @@ struct Cli {
     #[arg(long = "ascii")]
     ascii: bool,
     /// Column grid a tab in the input advances to (default 4).
-    #[arg(long = "tab-stop", value_name = "N", value_parser = parse_tab_stop)]
+    #[arg(long = "tab-stop", value_name = "N", allow_hyphen_values = true, value_parser = parse_tab_stop)]
     tab_stop: Option<usize>,
+    /// Leave tabs as written in the input.
+    #[arg(short = 'p', long = "preserve-tabs")]
+    preserve_tabs: bool,
     /// Open the document's top heading level with this division, in a format whose sectioning
     /// hierarchy is named.
     #[arg(long = "top-level-division", value_name = "default|section|chapter|part", default_value = "default", value_parser = parse_top_level_division)]
@@ -450,7 +453,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
 
     let mut reader_options = ReaderOptions::default();
     reader_options.columns = writer_options.columns.unwrap_or(72);
-    reader_options.tab_stop = cli.tab_stop.unwrap_or(reader_options.tab_stop);
+    reader_options.tab_stop = reader_tab_stop(cli, reader_options.tab_stop);
     let (mut document, resources) =
         input::read_documents(from, &cli.input, &reader_options, cli.file_scope)?;
 
@@ -518,6 +521,14 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     };
 
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+fn reader_tab_stop(cli: &Cli, default: usize) -> usize {
+    if cli.preserve_tabs {
+        0
+    } else {
+        cli.tab_stop.unwrap_or(default)
+    }
 }
 
 /// Read `path` to a string, treating its absence as a miss rather than an error: `Ok(None)` when the
@@ -710,10 +721,65 @@ fn parse_toc_depth(value: &str) -> std::result::Result<usize, String> {
 }
 
 fn parse_tab_stop(value: &str) -> std::result::Result<usize, String> {
-    match value.parse::<usize>() {
-        Ok(stop @ 1..) => Ok(stop),
-        _ => Err(format!("'{value}' is not a column count greater than 0")),
+    let source = value;
+    let mut value = trim_cli_whitespace(value);
+    while let Some(inner) = value
+        .strip_prefix('(')
+        .and_then(|value| value.strip_suffix(')'))
+    {
+        value = trim_cli_whitespace(inner);
     }
+    let negative = value.starts_with('-');
+    if negative {
+        value = trim_cli_whitespace(&value[1..]);
+    }
+
+    let (radix, digits) = if let Some(digits) = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+    {
+        (16_u64, digits)
+    } else if let Some(digits) = value
+        .strip_prefix("0o")
+        .or_else(|| value.strip_prefix("0O"))
+    {
+        (8_u64, digits)
+    } else {
+        (10_u64, value)
+    };
+    let parsed = parse_wrapping_int(digits, radix)
+        .map(|stop| if negative { stop.wrapping_neg() } else { stop });
+    match parsed.filter(|stop| *stop > 0) {
+        Some(stop) => usize::try_from(stop)
+            .map_err(|_| format!("'{source}' is not a column count greater than 0")),
+        None => Err(format!("'{source}' is not a column count greater than 0")),
+    }
+}
+
+fn parse_wrapping_int(digits: &str, radix: u64) -> Option<i64> {
+    if digits.is_empty() {
+        return None;
+    }
+    let mut value = 0_u64;
+    for byte in digits.bytes() {
+        let digit = match byte {
+            b'0'..=b'9' => u64::from(byte - b'0'),
+            b'a'..=b'f' => u64::from(byte - b'a') + 10,
+            b'A'..=b'F' => u64::from(byte - b'A') + 10,
+            _ => return None,
+        };
+        if digit >= radix {
+            return None;
+        }
+        value = value.wrapping_mul(radix).wrapping_add(digit);
+    }
+    Some(value.cast_signed())
+}
+
+fn trim_cli_whitespace(value: &str) -> &str {
+    value.trim_matches(|character: char| {
+        character.is_whitespace() && !matches!(character, '\u{85}' | '\u{2028}' | '\u{2029}')
+    })
 }
 
 fn parse_split_level(value: &str) -> std::result::Result<usize, String> {

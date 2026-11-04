@@ -1,0 +1,8 @@
+|===
+plain text
+|===
+
+[cols="2*^,3*"]
+|===
+2+| wide | next | last
+|===

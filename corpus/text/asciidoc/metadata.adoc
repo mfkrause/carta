@@ -1,0 +1,6 @@
+= A *Title*
+Jane Doe <jane@example.org>; John Smith
+v2.1, 2026-02-03: Draft
+:custom: value
+
+Body.

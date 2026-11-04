@@ -1,0 +1,16 @@
+[quote]
+== Heading
+
+[verse]
+====
+example
+====
+
+[quote]
+....
+literal
+....
+
+[NOTE]
+====
+unclosed

@@ -1,0 +1,5 @@
+audio::sound.ogg[options="loop,autoplay"]
+
+video::movie.mp4[width=320,role=video]
+
+toc::[id=contents,levels=2]

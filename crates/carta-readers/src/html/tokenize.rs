@@ -13,6 +13,11 @@ pub(super) enum Token {
     Text(String),
     /// An HTML comment, carrying its full literal form with the `<!--` and `-->` delimiters.
     Comment(String),
+    /// A declaration or processing instruction preserved as normalized raw markup.
+    Raw {
+        text: String,
+        block: bool,
+    },
 }
 
 /// Elements whose content is read verbatim up to the matching end tag. Entities are still resolved
@@ -45,7 +50,7 @@ pub(super) fn tokenize(input: &str) -> Vec<Token> {
 fn read_markup(input: &str, pos: usize, tokens: &mut Vec<Token>) -> Option<usize> {
     match input.as_bytes().get(pos + 1)? {
         b'!' => Some(read_declaration(input, pos, tokens)),
-        b'?' => Some(skip_to_gt(input, pos + 1)),
+        b'?' => read_processing_instruction(input, pos, tokens),
         b'/' => read_end_tag(input, pos, tokens),
         b if b.is_ascii_alphabetic() => Some(read_start_tag(input, pos, tokens)),
         _ => None,
@@ -56,14 +61,225 @@ fn read_markup(input: &str, pos: usize, tokens: &mut Vec<Token>) -> Option<usize
 /// form; a `<![CDATA[ … ]]>` section yields its content as verbatim text; a `<!doctype …>`
 /// declaration is skipped.
 fn read_declaration(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
-    let bytes = input.as_bytes();
-    if bytes.get(pos + 2) == Some(&b'-') && bytes.get(pos + 3) == Some(&b'-') {
+    if input.get(pos..pos + 4) == Some("<!--") {
         return read_comment(input, pos, tokens);
     }
     if input.get(pos + 2..pos + 9) == Some("[CDATA[") {
         return read_cdata(input, pos, tokens);
     }
-    skip_to_gt(input, pos)
+    let after_bang = pos + 2;
+    if is_doctype(input, after_bang) {
+        return skip_to_gt(input, pos + 1);
+    }
+    if input
+        .get(after_bang..)
+        .and_then(|rest| rest.chars().next())
+        .is_some_and(char::is_alphabetic)
+    {
+        read_declaration_tag(input, after_bang, tokens)
+    } else {
+        read_bogus_comment(input, pos, tokens)
+    }
+}
+
+fn is_doctype(input: &str, start: usize) -> bool {
+    let Some(rest) = input.get(start..) else {
+        return false;
+    };
+    let Some(name) = rest.get(.."doctype".len()) else {
+        return false;
+    };
+    name.eq_ignore_ascii_case("doctype")
+        && rest
+            .as_bytes()
+            .get("doctype".len())
+            .is_none_or(|byte| byte.is_ascii_whitespace() || *byte == b'>')
+}
+
+fn read_declaration_tag(input: &str, start: usize, tokens: &mut Vec<Token>) -> usize {
+    let name_end = tag_name_end(input, start);
+    let name = input.get(start..name_end).unwrap_or_default();
+    let (attributes_end, after) = tag_end(input, name_end, false);
+    let (attributes, self_closing) = render_attributes(input, name_end, attributes_end);
+    let close_name = format!(
+        "!{}",
+        input
+            .get(start..name_end)
+            .unwrap_or_default()
+            .to_lowercase()
+    );
+    let name = name.rsplit_once(':').map_or_else(
+        || format!("!{}", name.to_uppercase()),
+        |(_, local)| local.to_uppercase(),
+    );
+    tokens.push(Token::Raw {
+        text: format!("<{name}{attributes}>"),
+        block: true,
+    });
+    if self_closing {
+        tokens.push(Token::Raw {
+            text: format!("</{close_name}>"),
+            block: true,
+        });
+    }
+    after
+}
+
+fn tag_name_end(input: &str, start: usize) -> usize {
+    let mut end = start;
+    for (offset, character) in input.get(start..).unwrap_or_default().char_indices() {
+        if character.is_ascii_whitespace() || matches!(character, '/' | '>') {
+            break;
+        }
+        end = start + offset + character.len_utf8();
+    }
+    end
+}
+
+fn read_processing_instruction(input: &str, pos: usize, tokens: &mut Vec<Token>) -> Option<usize> {
+    let start = pos + 2;
+    let mut chars = input.get(start..)?.char_indices();
+    let first = chars.next()?.1;
+    if !first.is_alphabetic() {
+        return None;
+    }
+    let mut name_end = start + first.len_utf8();
+    for (offset, character) in chars {
+        if character.is_alphanumeric() || matches!(character, ':' | '_' | '-' | '.') {
+            name_end = start + offset + character.len_utf8();
+        } else {
+            break;
+        }
+    }
+    let name = input.get(start..name_end).unwrap_or_default();
+    let (attributes_end, after) = tag_end(input, name_end, true);
+    if name.eq_ignore_ascii_case("xml") {
+        return Some(after);
+    }
+    let (attributes, _) = render_attributes(input, name_end, attributes_end);
+    let raw = if let Some((_, local)) = name.rsplit_once(':') {
+        format!("<{}{attributes}>", local.to_lowercase())
+    } else {
+        format!("<?{}{attributes} ?>", name.to_lowercase())
+    };
+    tokens.push(Token::Raw {
+        text: raw,
+        block: true,
+    });
+    Some(after)
+}
+
+fn tag_end(input: &str, start: usize, processing_instruction: bool) -> (usize, usize) {
+    let bytes = input.as_bytes();
+    let mut quote = None;
+    let mut position = start;
+    while let Some(&byte) = bytes.get(position) {
+        if let Some(end_quote) = quote {
+            if byte == end_quote {
+                quote = None;
+            }
+        } else if matches!(byte, b'\'' | b'"') {
+            quote = Some(byte);
+        } else if byte == b'>' {
+            let content_end = if processing_instruction
+                && position > start
+                && bytes.get(position - 1) == Some(&b'?')
+            {
+                position - 1
+            } else {
+                position
+            };
+            return (content_end, position + 1);
+        }
+        position += 1;
+    }
+    (bytes.len(), bytes.len())
+}
+
+fn render_attributes(input: &str, start: usize, end: usize) -> (String, bool) {
+    let mut output = String::new();
+    let mut position = start;
+    let mut self_closing = false;
+    while position < end {
+        position = skip_whitespace(input, position);
+        if position >= end {
+            break;
+        }
+        if input.as_bytes().get(position) == Some(&b'/') {
+            self_closing = true;
+            position += 1;
+            continue;
+        }
+        let attr_start = position;
+        let attr_end = input
+            .get(attr_start..end)
+            .unwrap_or_default()
+            .char_indices()
+            .find_map(|(offset, character)| {
+                (character.is_ascii_whitespace() || matches!(character, '=' | '/' | '>'))
+                    .then_some(attr_start + offset)
+            })
+            .unwrap_or(end);
+        if attr_end == attr_start {
+            position += 1;
+            continue;
+        }
+        let name = collect_lower(input, attr_start, attr_end);
+        position = attr_end;
+        output.push(' ');
+        output.push_str(&name);
+        position = skip_whitespace(input, position);
+        if input.as_bytes().get(position) != Some(&b'=') || position >= end {
+            continue;
+        }
+        position = skip_whitespace(input, position + 1).min(end);
+        let value = if let Some(&quote @ (b'\'' | b'"')) = input.as_bytes().get(position) {
+            let value_start = position + 1;
+            position = value_start;
+            while position < end && input.as_bytes().get(position) != Some(&quote) {
+                position += 1;
+            }
+            let value = input.get(value_start..position).unwrap_or_default();
+            position = (position + 1).min(end);
+            decode_entities(value)
+        } else {
+            let value_start = position;
+            while position < end
+                && !input
+                    .as_bytes()
+                    .get(position)
+                    .is_some_and(u8::is_ascii_whitespace)
+            {
+                position += 1;
+            }
+            decode_entities(input.get(value_start..position).unwrap_or_default())
+        };
+        output.push_str("=\"");
+        for character in value.chars() {
+            match character {
+                '&' => output.push_str("&amp;"),
+                '"' => output.push_str("&quot;"),
+                '<' => output.push_str("&lt;"),
+                '>' => output.push_str("&gt;"),
+                _ => output.push(character),
+            }
+        }
+        output.push('"');
+    }
+    (output, self_closing)
+}
+
+fn read_bogus_comment(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
+    let start = pos + 2;
+    let bytes = input.as_bytes();
+    let end = bytes
+        .get(start..)
+        .and_then(|rest| memchr::memchr(b'>', rest))
+        .map_or(bytes.len(), |offset| start + offset);
+    let after = if end < bytes.len() { end + 1 } else { end };
+    let body = input.get(start..end).unwrap_or_default();
+    tokens.push(Token::Comment(format!("<!--{body}-->")));
+    after
 }
 
 /// Consume `<![CDATA[ … ]]>`, emitting its content as a single text token. A CDATA section holds
@@ -100,21 +316,45 @@ fn read_comment(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
     let bytes = input.as_bytes();
     let mut i = pos + 4;
     while i < bytes.len() {
+        if i == pos + 4
+            && (bytes.get(i) == Some(&b'>')
+                || bytes.get(i) == Some(&b'-') && bytes.get(i + 1) == Some(&b'>'))
+        {
+            tokens.push(Token::Comment("<!---->".into()));
+            return if bytes.get(i) == Some(&b'>') {
+                i + 1
+            } else {
+                i + 2
+            };
+        }
         if bytes.get(i) == Some(&b'-')
             && bytes.get(i + 1) == Some(&b'-')
-            && bytes.get(i + 2) == Some(&b'>')
+            && matches!(bytes.get(i + 2), Some(b'>' | b'!'))
         {
-            let end = i + 3;
-            tokens.push(Token::Comment(
-                input.get(pos..end).unwrap_or_default().to_string(),
-            ));
+            let end = if bytes.get(i + 2) == Some(&b'!') {
+                if bytes.get(i + 3) == Some(&b'>') {
+                    i + 4
+                } else {
+                    i += 1;
+                    continue;
+                }
+            } else {
+                i + 3
+            };
+            let body = input.get(pos + 4..i).unwrap_or_default();
+            tokens.push(Token::Comment(format!("<!--{body}-->")));
             return end;
         }
         i += 1;
     }
-    tokens.push(Token::Comment(
-        input.get(pos..).unwrap_or_default().to_string(),
-    ));
+    let body = input
+        .get(pos + 4..)
+        .unwrap_or_default()
+        .strip_suffix("--!")
+        .filter(|_| !input.ends_with(['\n', '\r']))
+        .or_else(|| input.get(pos + 4..))
+        .unwrap_or_default();
+    tokens.push(Token::Comment(format!("<!--{body}-->")));
     bytes.len()
 }
 
@@ -143,7 +383,7 @@ fn read_end_tag(input: &str, pos: usize, tokens: &mut Vec<Token>) -> Option<usiz
         }
         i += 1;
     }
-    let name = collect_lower(input, start, i);
+    let name = tag_name(input, start, i);
     tokens.push(Token::End(name));
     Some(skip_to_gt(input, i - 1))
 }
@@ -158,7 +398,7 @@ fn read_start_tag(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
         }
         i += 1;
     }
-    let name = collect_lower(input, start, i);
+    let name = tag_name(input, start, i);
     let (attrs, next, self_closing) = read_attributes(input, i);
 
     if let Some(decode) = raw_text_mode(&name) {
@@ -342,6 +582,15 @@ fn skip_whitespace(input: &str, pos: usize) -> usize {
         i += 1;
     }
     i
+}
+
+fn tag_name(input: &str, start: usize, end: usize) -> String {
+    // Pandoc ignores namespace prefixes on HTML tags.
+    collect_lower(input, start, end)
+        .rsplit(':')
+        .next()
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// Lowercase a tag or attribute name. Names are ASCII in practice, so the common path lowers the

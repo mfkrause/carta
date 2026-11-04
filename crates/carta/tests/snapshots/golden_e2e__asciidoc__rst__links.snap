@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+https://example.org/a?b=c, `me@example.com <me@example.com>`__
+
+https://example.org <`me@example.com <me@example.com>`__>
+
+`Report <files/report.pdf>`__ and `Email <me@example.com>`__.
+
+https://example.org/a__b
+
+`Report <My Documents/report.pdf>`__
+
+https://example.test/a(b)

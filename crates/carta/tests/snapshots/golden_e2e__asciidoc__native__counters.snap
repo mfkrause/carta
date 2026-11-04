@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span
+        ( "" , [ "counter" ] , [ ( "name" , "item" ) ] ) [ Str "1" ]
+    , Space
+    , Span
+        ( "" , [ "counter" ] , [ ( "name" , "item" ) ] ) [ Str "2" ]
+    , Space
+    , Span
+        ( "" , [ "counter" ] , [ ( "name" , "other" ) ] )
+        [ Str "3" ]
+    , Space
+    , Span
+        ( "" , [ "counter" ] , [ ( "name" , "other" ) ] )
+        [ Str "4" ]
+    ]
+]

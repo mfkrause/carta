@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A [1] and [2].
+
+Another [3].
+
+[1] First note.
+
+[2] First note.
+
+[3] Anonymous note

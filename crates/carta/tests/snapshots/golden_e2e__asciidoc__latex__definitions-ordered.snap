@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{enumerate}
+\item
+  \begin{description}
+  \item[A]
+  Alpha
+  \end{description}
+\item
+  \begin{description}
+  \item[B]
+  Beta
+  \end{description}
+\end{enumerate}

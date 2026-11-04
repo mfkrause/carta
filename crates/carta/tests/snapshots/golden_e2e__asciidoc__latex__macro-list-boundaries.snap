@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  \begin{figure}
+  \centering
+  \pandocbounded{\includegraphics[keepaspectratio]{x}}
+  \end{figure}
+\end{itemize}
+
+\begin{itemize}
+\item
+  Next
+\end{itemize}
+
+\begin{description}
+\item[Term]
+\protect\phantomsection\label{toc}
+
+\item[Next]
+value
+\item[* audio]
+x{[}{]} * Other
+
+\begin{itemize}
+\item
+  Last
+\end{itemize}
+\item[Term]
+\pandocbounded{\includegraphics[keepaspectratio,alt={x}]{x}}
+\item[Next]
+value
+\item[* image]
+x{[}{]}\\
+Next
+\item[* image]
+x{[}{]} tail Next
+\item[* A]
+\protect\phantomsection\label{toc}
+
+\item[B]
+x
+
+\begin{itemize}
+\item
+  y
+\end{itemize}
+\end{description}

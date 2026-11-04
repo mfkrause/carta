@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span
+        ( "" , [ "foo bar" ] , [ ( "wrapper" , "1" ) ] )
+        [ Strong [ Str "x" ] ]
+    , Space
+    , Str "and"
+    , Space
+    , Link ( "" , [ "b" ] , [] ) [ Str "Hello" ] ( "page" , "" )
+    , Str "."
+    ]
+]

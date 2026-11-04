@@ -1,0 +1,105 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [] , [ ( "wrapper" , "1" ) , ( "cols" , "" ) ] )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "empty"
+        , Space
+        , Str "cols"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+, Div
+    ( "" , [] , [ ( "wrapper" , "1" ) , ( "cols" , "2," ) ] )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "trailing"
+        , Space
+        , Str "default"
+        , Space
+        , Str "column"
+        , Space
+        , Str "|"
+        , Space
+        , Str "second"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" ) , ( "cols" , "4294967296" ) ]
+    )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "wide"
+        , Space
+        , Str "value"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" )
+      , ( "cols" , "18446744073709551616" )
+      ]
+    )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "wrapped"
+        , Space
+        , Str "zero"
+        , Space
+        , Str "width"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" )
+      , ( "cols" , "18446744073709551617" )
+      ]
+    )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "wrapped"
+        , Space
+        , Str "one"
+        , Space
+        , Str "width"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" )
+      , ( "cols" , "9223372036854775808" )
+      ]
+    )
+    [ Para
+        [ Str "|==="
+        , SoftBreak
+        , Str "signed"
+        , Space
+        , Str "width"
+        , SoftBreak
+        , Str "|==="
+        ]
+    ]
+]

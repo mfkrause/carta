@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li><p>A multiline item.</p>
+<pre>code</pre>
+<p>Another paragraph.</p></li>
+<li><p>Next item</p></li></ul>
+
+* Separate list

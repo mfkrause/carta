@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Monospace attribute runs}\label{_monospace_attribute_runs}
+
+\texttt{\{missing\}tail}
+
+\texttt{preresolvedpost}
+
+\texttt{prepost}
+
+\texttt{two} \texttt{wordstail}
+
+\texttt{prefirst} \texttt{secondpost}
+
+\texttt{preresolvedpost}
+
+\texttt{one}\texttt{two}
+
+`ab`
+
+prefix suffix
+
+\texttt{a*resolved*b} \href{https://example.test}{\texttt{resolved}}
+\footnote{\texttt{note} \texttt{resolved}}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}l@{}}
+\toprule\noalign{}
+\texttt{preresolvedpost} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\end{longtable}
+}

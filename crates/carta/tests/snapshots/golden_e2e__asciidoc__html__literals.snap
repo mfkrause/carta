@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre><code>one
+  two
+</code></pre>
+<pre><code>three
+</code></pre>
+<pre><code>four
+five
+</code></pre>
+<pre><code>*literal*
+</code></pre>

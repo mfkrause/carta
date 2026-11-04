@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="_and"></span>
+= Example and {missing} =
+
+<span id="_code"></span>
+= [[File:photo.png|Photo]] <math display="inline">x</math> <code>code</code> =

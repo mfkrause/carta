@@ -1,0 +1,44 @@
+* [x] first checked bullet
+* [ ] later open bullet
+* [*] later starred bullet
+* [X] uppercase stays literal
+* [y] invalid stays literal
+* [] empty stays literal
+
+* [x] [ ] first bullet keeps the first state
+* [x] [ ] later bullet keeps the first state
+
+- [*] first dash item
+- [ ] later dash item
+- [x] [ ] later dash with a repeated prefix
+
+. [x] first dot item has no checkbox glyph
+. [ ] later dot item has a checkbox glyph
+. [*] later dot item has a checked glyph
+. [X] uppercase stays literal
+
+. [x] [ ] first dot item consumes one prefix
+. [x] [ ] later dot item consumes one prefix
+
+3. [ ] first numbered item has no checkbox glyph
+4. [x] later numbered item has a checked glyph
+5. [ ] later numbered item has an open glyph
+
+* outer bullet
+** [x] first nested bullet
+** [ ] later nested bullet
+* [*] later outer bullet
+
+. outer ordered item
+.. [x] first nested ordered item
+.. [ ] later nested ordered item
+. [*] later outer ordered item
+
+<.> [x] first automatic callout item
+<.> [ ] later automatic callout item
+
+<1> [x] first numbered callout item
+<2> [ ] later numbered callout item
+
+Task:: * [x] first list in a definition
+* [ ] later list in a definition

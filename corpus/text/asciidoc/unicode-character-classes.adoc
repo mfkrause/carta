@@ -1,0 +1,13 @@
+é@example.com a@ΩΩ.com a@example.中中
+
+a@Ⅻ.com a@ͅ.com a@example.ְְ aͅb@example.com
+
+ͅ--a a--ְ Ⅻ--²
+
+[ͅ.role]
+Text
+
+image:x[ְ.role]
+
+[Ⅻ.role]
+Text

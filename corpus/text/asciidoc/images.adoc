@@ -1,0 +1,6 @@
+An image:photo.png[Photo,100,200].
+
+.A caption
+image::photo.png[Photo,100,200]
+
+image::photo.png[alt=Photo,width=100,height=200]

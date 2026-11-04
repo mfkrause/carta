@@ -10,6 +10,11 @@ pub(super) enum Node {
     Text(String),
     /// An HTML comment, carrying its full literal form with the `<!--` and `-->` delimiters.
     Comment(String),
+    /// A normalized declaration or processing instruction.
+    Raw {
+        text: String,
+        block: bool,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -60,10 +65,12 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
         end_only: false,
     }];
 
-    for token in tokens {
+    let mut tokens = tokens.into_iter().peekable();
+    while let Some(token) = tokens.next() {
         match token {
             Token::Text(text) => push_child(&mut stack, Node::Text(text)),
             Token::Comment(text) => push_child(&mut stack, Node::Comment(text)),
+            Token::Raw { text, block } => push_child(&mut stack, Node::Raw { text, block }),
             Token::Start {
                 name,
                 attrs,
@@ -72,6 +79,14 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
                 close_implied(&mut stack, &name);
                 let spec_void = is_void(&name);
                 let standalone = self_closing || spec_void;
+                let consumes_adjacent_end = !self_closing
+                    && (matches!(name.as_str(), "br" | "hr")
+                        || name == "img" && attrs.iter().any(|(key, _)| key == "src"));
+                if consumes_adjacent_end
+                    && matches!(tokens.peek(), Some(Token::End(close)) if close == &name)
+                {
+                    tokens.next();
+                }
                 let element = Element {
                     name,
                     attrs,
@@ -88,6 +103,17 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
             }
             Token::End(name) => {
                 if is_void(&name) {
+                    push_child(
+                        &mut stack,
+                        Node::Element(Element {
+                            name,
+                            attrs: Vec::new(),
+                            children: Vec::new(),
+                            void: false,
+                            closed: true,
+                            end_only: true,
+                        }),
+                    );
                     continue;
                 }
                 if stack.iter().any(|e| e.name == name) {
@@ -132,7 +158,7 @@ fn is_blank_anchor(e: &Element) -> bool {
     e.children.iter().all(|node| match node {
         Node::Text(text) => text.trim().is_empty(),
         Node::Comment(_) => true,
-        Node::Element(_) => false,
+        Node::Raw { .. } | Node::Element(_) => false,
     })
 }
 
@@ -254,13 +280,13 @@ pub(super) fn locate(nodes: &[Node]) -> (Option<&Element>, Vec<&Node>) {
 
 fn find_element<'a>(nodes: &'a [Node], name: &str) -> Option<&'a Element> {
     nodes.iter().find_map(|node| match node {
-        Node::Element(e) if e.name == name => Some(e),
+        Node::Element(e) if e.name == name && !e.end_only => Some(e),
         _ => None,
     })
 }
 
 fn is_named_element(node: &Node, name: &str) -> bool {
-    matches!(node, Node::Element(e) if e.name == name)
+    matches!(node, Node::Element(e) if e.name == name && !e.end_only)
 }
 
 pub(super) fn attr_value(e: &Element, key: &str) -> Option<String> {
@@ -292,7 +318,7 @@ pub(super) fn gather_text(nodes: &[Node], out: &mut String) {
         match node {
             Node::Text(text) => out.push_str(text),
             Node::Element(e) => gather_text(&e.children, out),
-            Node::Comment(_) => {}
+            Node::Comment(_) | Node::Raw { .. } => {}
         }
     }
 }

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ OrderedList
+    ( 5 , LowerRoman , DefaultDelim )
+    [ [ Para [ Str "five" ] ]
+    , [ Para [ Str "six" ]
+      , OrderedList
+          ( 1 , LowerAlpha , DefaultDelim )
+          [ [ Para [ Str "a" ] ] , [ Para [ Str "b" ] ] ]
+      ]
+    , [ Para [ Str "seven" ] ]
+    ]
+, OrderedList
+    ( 4 , DefaultStyle , DefaultDelim )
+    [ [ Para [ Str "Four" ] ] , [ Para [ Str "Five" ] ] ]
+]

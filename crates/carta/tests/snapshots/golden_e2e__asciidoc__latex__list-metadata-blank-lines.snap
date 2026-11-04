@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[term]
+X
+\item[tagged]
+Y
+\end{description}
+
+\begin{itemize}
+\item
+  Bullet
+
+  Z
+\end{itemize}
+
+\begin{itemize}
+\item
+  Tagged bullet
+
+  W
+\end{itemize}

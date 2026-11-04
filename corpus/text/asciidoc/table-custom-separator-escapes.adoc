@@ -1,0 +1,14 @@
+[separator=";"]
+|===
+;a\|b ;c
+|===
+
+[separator=";"]
+|===
+;a\;b ;c
+|===
+
+[separator=";"]
+|===
+l;a\;b ;c
+|===

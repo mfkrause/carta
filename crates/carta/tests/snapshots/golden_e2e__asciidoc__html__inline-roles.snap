@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><span class="foo bar" data-wrapper="1"><strong>x</strong></span> and
+<a href="page" class="b">Hello</a>.</p>

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><kbd><strong>Ctrl</strong></kbd>+<kbd><strong>Shift</strong></kbd>+<kbd><strong>F</strong></kbd>
+<span class="button"><strong>[Cancel]</strong></span> <span
+class="menu"><strong>File › Open › Recent</strong></span></p>
+<p><img src="./images/icons/heart.png" class="red icon" /> <span
+id="point"></span></p>
+<p><span class="index" data-term="visible">visible</span> <span
+class="index" data-term="hidden,index"></span></p>

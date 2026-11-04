@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Escaped *stars*, dog's and dog’s. ä ⋠.</p>

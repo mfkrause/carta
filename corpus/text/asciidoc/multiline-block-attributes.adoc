@@ -1,0 +1,11 @@
+[role="red
+blue"]
+x
+
+[quote,
+Author]
+quote
+
+[.red
+.blue]
+text

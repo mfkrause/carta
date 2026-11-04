@@ -101,9 +101,11 @@ pub(super) fn is_raw_block_tag(name: &str) -> bool {
             | "canvas"
             | "caption"
             | "center"
+            | "col"
             | "colgroup"
             | "details"
             | "dir"
+            | "dt"
             | "fieldset"
             | "figcaption"
             | "footer"
@@ -118,6 +120,34 @@ pub(super) fn is_raw_block_tag(name: &str) -> bool {
             | "progress"
             | "summary"
             | "svg"
+            | "tbody"
+            | "td"
+            | "tfoot"
+            | "th"
+            | "thead"
+            | "tr"
             | "video"
     )
+}
+
+pub(super) fn is_block_end_tag(name: &str) -> bool {
+    block_kind(name).is_some()
+        || is_raw_block_tag(name)
+        || matches!(
+            name,
+            "area"
+                | "dd"
+                | "del"
+                | "embed"
+                | "ins"
+                | "li"
+                | "main"
+                | "meta"
+                | "script"
+                | "source"
+                | "style"
+                | "textarea"
+                | "title"
+                | "track"
+        )
 }

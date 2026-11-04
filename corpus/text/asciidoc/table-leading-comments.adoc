@@ -1,0 +1,12 @@
+|===
+// comment
+|a |b
+|===
+
+[format=csv]
+|===
+// comment
+a,b
+// between rows
+c,d
+|===

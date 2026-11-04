@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[include]
+sub dir/file.adoc{[}{]}
+\end{description}

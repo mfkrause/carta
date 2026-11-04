@@ -1,0 +1,18 @@
+term::[]
+
+X
+
+tagged::
+[role=term-body]
+
+Y
+
+* Bullet
+[]
+
+Z
+
+* Tagged bullet
+[role=bullet-body]
+
+W

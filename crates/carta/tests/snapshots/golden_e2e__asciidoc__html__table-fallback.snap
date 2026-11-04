@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>|=== plain text |===</p>
+<div data-wrapper="1" cols="2*^,3*">
+<p>|=== 2+| wide | next | last |===</p>
+</div>

@@ -1,0 +1,42 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- .. figure:: x
+
+- Next
+
+Term
+   .. container::
+      :name: toc
+
+Next
+   value
+
+\* audio
+   x[] \* Other
+
+   - Last
+
+Term
+   |x|
+Next
+   value
+
+\* image
+   | x[]
+   | Next
+
+\* image
+   x[] tail Next
+
+\* A
+   .. container::
+      :name: toc
+
+B
+   x
+
+   - y
+
+.. |x| image:: x

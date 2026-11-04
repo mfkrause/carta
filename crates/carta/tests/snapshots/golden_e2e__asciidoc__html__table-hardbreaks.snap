@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody><tfoot>
+<tr>
+<td><div data-wrapper="1" data-options="hardbreaks">
+<p>three<br />
+four</p>
+</div></td>
+</tr>
+</tfoot>
+
+</table>

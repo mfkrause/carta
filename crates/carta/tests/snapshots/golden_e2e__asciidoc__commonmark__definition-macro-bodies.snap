@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- ![movie.mp4](movie.mp4)
+
+<!-- -->
+
+- Outer
+
+  - <figure>
+    <img src="nested.png" />
+    </figure>
+
+  
+<figure>
+<img src="same.png" />
+</figure>
+
+Named  
+<div id="toc">
+
+</div>
+
+  
+<figure>
+<img src="next.png" />
+</figure>
+
+Indented  
+![sound.mp3](sound.mp3)
+
+A  
+
+B and C  
+D
+
+Bad  
+
+include  
+missing\[

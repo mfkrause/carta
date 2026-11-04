@@ -1,0 +1,19 @@
+* video::movie.mp4[]
+
+* Outer
++
+** image::nested.png[]
+
+::image::same.png[]
+
+Named::toc::[]
+
+::
+image::next.png[]
+
+Indented::
+  audio::sound.mp3[]
+
+A::B and C::D
+
+Bad::include::missing[

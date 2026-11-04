@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ CodeBlock ( "" , [] , [] ) "one\n  two\n"
+, CodeBlock ( "" , [] , [] ) "three\n"
+, CodeBlock ( "" , [] , [] ) "four\nfive\n"
+, CodeBlock ( "" , [] , [] ) "*literal*\n"
+]

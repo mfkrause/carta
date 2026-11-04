@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+one
+  two
+\end{verbatim}
+
+\begin{verbatim}
+three
+\end{verbatim}
+
+\begin{verbatim}
+four
+five
+\end{verbatim}
+
+\begin{verbatim}
+*literal*
+\end{verbatim}

@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="note">
+
+<div class="title">
+
+Note
+
+</div>
+
+A simple note. Next line.
+
+</div>
+
+<div class="warning">
+
+<div class="title">
+
+A warning title
+
+</div>
+
+Danger.
+
+- first
+
+- second
+
+</div>
+
+    ordinary listing

@@ -1,0 +1,7 @@
+[cols=m]
+|===
+|image:x[p]
+|link:x[l]
+|footnote:id[note]
+|[.r]#span#
+|===

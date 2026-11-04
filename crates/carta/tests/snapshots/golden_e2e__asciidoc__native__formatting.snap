@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Strong [ Str "bold" , Space , Emph [ Str "italic" ] ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "unconstrained" ]
+    , Str "word."
+    ]
+, Para
+    [ Code ( "" , [] , [] ) "code"
+    , Space
+    , Strong [ Code ( "" , [] , [] ) "bold" ]
+    , Space
+    , Code ( "" , [] , [] ) "words"
+    , Space
+    , Str "and"
+    , Space
+    , Span
+        ( "" , [ "red" ] , [] ) [ Str "a" , Space , Str "span" ]
+    , Str "."
+    ]
+, Para
+    [ Span ( "" , [ "mark" ] , [] ) [ Str "marked" ]
+    , Space
+    , Subscript [ Str "sub" ]
+    , Space
+    , Str "H"
+    , Superscript [ Str "2" ]
+    , Space
+    , Str "and"
+    , Space
+    , Quoted DoubleQuote [ Str "quoted" ]
+    , Str ","
+    , Space
+    , Quoted DoubleQuote [ Str "double" , Space , Str "quoted" ]
+    , Space
+    , Str "and"
+    , Space
+    , Quoted
+        DoubleQuote
+        [ Str "escaped" , Space , Str "`" , Space , Str "tick" ]
+    , Str "."
+    ]
+]

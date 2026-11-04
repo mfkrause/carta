@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+bold italic and unconstrainedword.
+
+code bold words and a span.
+
+marked _(sub) H² and “quoted”, “double quoted” and “escaped ` tick”.

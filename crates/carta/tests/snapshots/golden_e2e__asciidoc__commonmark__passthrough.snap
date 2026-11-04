@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A \*literal\* and \<b\>literal\</b\> word.
+
+A **bold** word.
+
+*emphasis*
+
+<div>
+
+Content
+
+</div>
+
+<span class="red">text</span>

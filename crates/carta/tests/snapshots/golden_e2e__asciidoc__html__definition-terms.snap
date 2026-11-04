@@ -1,0 +1,55 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>{value}</dt>
+<dd>
+<p>Definition Cedar Ridge</p>
+</dd>
+<dt><strong>{value}</strong></dt>
+<dd>
+<p>Strong definition Cedar Ridge</p>
+</dd>
+<dt><a href="#target" class="cross-reference">target</a></dt>
+<dd>
+<p>Link definition Cedar Ridge</p>
+</dd>
+<dt><span id="term-id"></span></dt>
+<dd>
+<p>Anchor definition Cedar Ridge</p>
+</dd>
+<dt><span class="icon" data-asciidoc-icon="user"
+name="heart">[heart]</span></dt>
+<dd>
+<p>Icon definition Cedar Ridge</p>
+</dd>
+<dt><a href="#fn1" class="footnote-ref" id="fnref1"
+role="doc-noteref"><sup>1</sup></a></dt>
+<dd>
+<p>Footnote definition Cedar Ridge</p>
+</dd>
+<dt><span class="counter" name="term">1</span></dt>
+<dd>
+<p>Count <span class="counter" name="term">2</span></p>
+</dd>
+<dt><span class="role">User wrapper</span></dt>
+<dd>
+<p>Wrapper definition Cedar Ridge</p>
+</dd>
+</dl>
+<h1 id="target">Target</h1>
+<p>See <a href="#target" class="cross-reference">Target</a> and <a
+href="#term-id" class="cross-reference">term-id</a> and <a href="#fn2"
+class="footnote-ref" id="fnref2"
+role="doc-noteref"><sup>2</sup></a>.</p>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>Note {value}<a href="#fnref1" class="footnote-back"
+role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p><a href="#fnref2" class="footnote-back"
+role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>

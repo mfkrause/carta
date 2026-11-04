@@ -514,9 +514,9 @@
       "family": "lightweight",
       "aliases": [],
       "read": {
-        "status": "not-started",
-        "ships": false,
-        "feature": null,
+        "status": "usable",
+        "ships": true,
+        "feature": "read-asciidoc",
         "gaps": []
       },
       "write": {

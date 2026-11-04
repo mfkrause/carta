@@ -1,0 +1,10 @@
+&amp w &copy w &nbsp w &euro w
+
+&amp
+w
+
+*&amp w* `&amp w`
+
+&AMP w &ampw
+
+&#18446744073709551681;X &#x10000000000000041;X

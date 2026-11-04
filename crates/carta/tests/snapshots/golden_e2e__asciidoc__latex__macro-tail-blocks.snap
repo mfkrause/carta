@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{x.png}}
+\end{figure}
+
+\begin{verbatim}
+tail
+\end{verbatim}
+
+\protect\phantomsection\label{toc}
+
+
+\begin{verbatim}
+tail
+\end{verbatim}
+
+\begin{verbatim}
+source
+\end{verbatim}
+
+\begin{verbatim}
+tail
+\end{verbatim}
+
+\begin{itemize}
+\item
+  item
+
+  \begin{figure}
+  \centering
+  \pandocbounded{\includegraphics[keepaspectratio]{x.png}}
+  \end{figure}
+
+  tail
+\item
+  next
+\end{itemize}

@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="_monospace_attribute_runs">Monospace attribute runs</h1>
+<p><code>{missing}tail</code></p>
+<p><code>preresolvedpost</code></p>
+<p><code>prepost</code></p>
+<p><code>two</code> <code>wordstail</code></p>
+<p><code>prefirst</code> <code>secondpost</code></p>
+<p><code class="role">preresolvedpost</code></p>
+<p><code>one</code><code>two</code></p>
+<p>`ab`</p>
+<p>prefix suffix</p>
+<p><code>a*resolved*b</code> <a
+href="https://example.test"><code>resolved</code></a> <a href="#fn1"
+class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
+<table>
+<thead>
+<tr>
+<th><p><code>preresolvedpost</code></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p><code>note</code> <code>resolved</code><a href="#fnref1"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>

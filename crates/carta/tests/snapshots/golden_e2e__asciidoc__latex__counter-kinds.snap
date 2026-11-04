@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{A} {B} {C}
+
+\{counter:invalid:word\} \{counter:empty:\}

@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- <figure>
+  <img src="x" />
+  </figure>
+
+<!-- -->
+
+- Next
+
+Term  
+<div id="toc">
+
+</div>
+
+Next  
+value
+
+\* audio  
+x\[\] \* Other
+
+- Last
+
+Term  
+![x](x)
+
+Next  
+value
+
+\* image  
+x\[\]\
+Next
+
+\* image  
+x\[\] tail Next
+
+\* A  
+<div id="toc">
+
+</div>
+
+B  
+x
+
+- y

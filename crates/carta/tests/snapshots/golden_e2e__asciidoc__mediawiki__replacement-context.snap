@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+x…y ©ABC --&gt;x &lt;--x a — b ---
+
+&lt;---- &lt;----x x--&gt;y x&lt;--y
+
+a '''b'''-→x a-→x
+
+a—​b
+
+a*bold*

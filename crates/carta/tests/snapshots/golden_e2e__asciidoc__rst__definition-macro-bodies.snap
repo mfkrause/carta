@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- |movie.mp4|
+
+- Outer
+
+  - .. figure:: nested.png
+
+   .. figure:: same.png
+
+Named
+   .. container::
+      :name: toc
+
+   .. figure:: next.png
+
+Indented
+   |sound.mp3|
+A
+
+B and C
+   D
+
+Bad
+
+include
+   missing[
+
+.. |movie.mp4| image:: movie.mp4
+.. |sound.mp3| image:: sound.mp3

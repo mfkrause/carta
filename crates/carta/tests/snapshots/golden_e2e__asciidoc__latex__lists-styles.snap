@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{enumerate}
+\def\labelenumi{\roman{enumi}.}
+\setcounter{enumi}{4}
+\item
+  five
+\item
+  six
+
+  \begin{enumerate}
+  \def\labelenumii{\alph{enumii}.}
+  \item
+    a
+  \item
+    b
+  \end{enumerate}
+\item
+  seven
+\end{enumerate}
+
+\begin{enumerate}
+\setcounter{enumi}{3}
+\item
+  Four
+\item
+  Five
+\end{enumerate}

@@ -1,0 +1,28 @@
+ 1. top-level indented
+
+	1. tab-indented
+
+1. first
+ 2. second
+
+* parent
+ 1. nested first
+ 2. nested second
+
+[cols="a",options="noheader,nofooter"]
+|===
+|before
+ 1. a-style
+|===
+
+[cols="e",options="noheader,nofooter"]
+|===
+|before
+ 1. e-style
+|===
+
+====
+ 1. ----
+====
+----
+----

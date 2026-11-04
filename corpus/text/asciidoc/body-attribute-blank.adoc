@@ -1,0 +1,7 @@
+para
+
+:x: one
+
+:y: two
+
+{y}

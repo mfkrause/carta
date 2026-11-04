@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{id}{text} {\textbf{bold}}
+
+\protect\phantomsection\label{x}{text} {text} {text}
+
+prefix {\textbf{strong}} {\emph{italic}} {span} {span}
+
+prefix {\textbf{strong}} {mark}

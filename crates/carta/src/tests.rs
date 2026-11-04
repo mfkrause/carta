@@ -1,10 +1,12 @@
 #![allow(clippy::indexing_slicing)]
 
 use super::{
-    cli_command, parse_metadata_into, parse_toc_depth, parse_variables, parse_wrap, template_dir,
+    Cli, cli_command, parse_metadata_into, parse_tab_stop, parse_toc_depth, parse_variables,
+    parse_wrap, template_dir,
 };
 use carta::WrapMode;
 use carta::ast::MetaValue;
+use clap::Parser;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -126,4 +128,86 @@ fn toc_depth_accepts_one_through_six_and_rejects_the_rest() {
     assert!(parse_toc_depth("0").is_err());
     assert!(parse_toc_depth("7").is_err());
     assert!(parse_toc_depth("two").is_err());
+}
+
+#[test]
+fn tab_stop_accepts_pandoc_integer_syntax() {
+    for (value, expected) in [
+        ("4", 4),
+        ("04", 4),
+        ("0x4", 4),
+        ("0X4", 4),
+        ("0o10", 8),
+        ("0O10", 8),
+        ("(4)", 4),
+        ("(( 4 ))", 4),
+        (" \t4\n", 4),
+        ("\u{a0}4\u{2003}", 4),
+    ] {
+        assert_eq!(parse_tab_stop(value), Ok(expected), "{value:?}");
+    }
+    assert_eq!(
+        parse_tab_stop(&format!("0x{:x}", isize::MAX)),
+        Ok(isize::MAX as usize)
+    );
+    for value in [
+        "18446744073709551620",
+        "0x10000000000000004",
+        "0o2000000000000000000004",
+        "36893488147419103236",
+        "340282366920938463463374607431768211460",
+    ] {
+        assert_eq!(parse_tab_stop(value), Ok(4), "{value}");
+    }
+    for value in [
+        "-18446744073709551612",
+        "(-18446744073709551612)",
+        "-0xfffffffffffffffc",
+        "- 18446744073709551612",
+        "(- 18446744073709551612)",
+        "(\t- \t18446744073709551612\t)",
+    ] {
+        assert_eq!(parse_tab_stop(value), Ok(4), "{value:?}");
+    }
+}
+
+#[test]
+fn tab_stop_rejects_nonpositive_and_out_of_range_values() {
+    for value in [
+        "+4",
+        "-4",
+        "-18446744073709551616",
+        "-18446744073709551620",
+        "0",
+        "0x0",
+        "0o0",
+        "0b100",
+        "0x+4",
+        "-0x+4",
+        "18446744073709551616",
+        "18446744073709551615",
+        "0xffffffffffffffff",
+        "1_000",
+        "4.0",
+        "\u{85}4\u{85}",
+        "\u{2028}4\u{2028}",
+        "\u{2029}4\u{2029}",
+    ] {
+        assert!(parse_tab_stop(value).is_err(), "{value:?}");
+    }
+    assert!(parse_tab_stop(&(isize::MAX as u128 + 1).to_string()).is_err());
+}
+
+#[test]
+fn cli_accepts_negative_wrapped_tab_stops_with_both_argument_forms() {
+    for value in ["-18446744073709551612", "-0xfffffffffffffffc"] {
+        let equals_argument = format!("--tab-stop={value}");
+        let equals = Cli::try_parse_from(["carta", equals_argument.as_str()]).unwrap();
+        let separate = Cli::try_parse_from(["carta", "--tab-stop", value]).unwrap();
+        assert_eq!(equals.tab_stop, Some(4), "equals form: {value}");
+        assert_eq!(separate.tab_stop, Some(4), "separate form: {value}");
+    }
+
+    assert!(Cli::try_parse_from(["carta", "--tab-stop=-4"]).is_err());
+    assert!(Cli::try_parse_from(["carta", "--tab-stop", "-4"]).is_err());
 }

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+`é@example.com <é@example.com>`__ `a@ΩΩ.com <a@ΩΩ.com>`__
+`a@example.中中 <a@example.中中>`__
+
+a@Ⅻ.com a@ͅ.com a@example.ְְ aͅ\ `b@example.com <b@example.com>`__
+
+ͅ--a a--ְ Ⅻ—​²
+
+Text
+
+|ְ.role|
+
+.. container:: role
+
+   Text
+
+.. |ְ.role| image:: x

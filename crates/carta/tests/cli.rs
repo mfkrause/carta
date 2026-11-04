@@ -586,6 +586,8 @@ fn asciidoc_filenames_select_the_asciidoc_reader() {
         fs::write(&path, "= Sample\n\nA *strong* word.\n").unwrap();
         let path = path.to_str().unwrap();
         let explicit = run(&["-f", "asciidoc", "-t", "json", path], "");
+        #[cfg(all(feature = "read-asciidoc", feature = "write-json"))]
+        assert!(explicit.success, "{}", explicit.stderr);
         let inferred = run(&["-t", "json", path], "");
         assert_eq!(inferred.code, explicit.code, "{extension}");
         assert_eq!(inferred.stdout, explicit.stdout, "{extension}");
@@ -1162,6 +1164,43 @@ fn list_extensions_reflects_the_requested_format() {
     assert!(extensions.contains(&"+raw_html"), "{extensions:?}");
     assert!(extensions.contains(&"-smart"), "{extensions:?}");
     assert!(extensions.contains(&"-pipe_tables"), "{extensions:?}");
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-asciidoc"))]
+#[test]
+fn asciidoc_writer_aliases_report_and_enforce_their_extensions() {
+    for (format, expected) in [
+        (
+            "asciidoc",
+            vec![
+                "-ascii_identifiers",
+                "+auto_identifiers",
+                "-east_asian_line_breaks",
+                "-gfm_auto_identifiers",
+            ],
+        ),
+        ("asciidoctor", vec!["-east_asian_line_breaks"]),
+        ("asciidoc_legacy", vec!["-east_asian_line_breaks"]),
+    ] {
+        let argument = format!("--list-extensions={format}");
+        let result = run(&[&argument], "");
+        assert!(result.success, "{}: {}", argument, result.stderr);
+        assert_eq!(lines(&result.stdout), expected);
+
+        for extension in [
+            "auto_identifiers",
+            "ascii_identifiers",
+            "east_asian_line_breaks",
+            "gfm_auto_identifiers",
+        ] {
+            for sign in ['+', '-'] {
+                let target = format!("{format}{sign}{extension}");
+                let result = run(&["-f", "markdown", "-t", &target], "# Title\n");
+                let accepted = format == "asciidoc" || extension == "east_asian_line_breaks";
+                assert_eq!(result.success, accepted, "{target}: {}", result.stderr);
+            }
+        }
+    }
 }
 
 #[test]
@@ -2434,4 +2473,48 @@ fn unused_defaults_variables_can_contain_cli_separators() {
     let output = run_in(&directory, &["-doptions"], "body");
     assert!(output.success, "{}", output.stderr);
     assert_eq!(output.stdout, "body\n");
+}
+
+#[test]
+#[cfg(all(feature = "read-asciidoc", feature = "write-json"))]
+fn asciidoc_preserve_tabs_reaches_the_reader() {
+    for (flags, expected) in [
+        (&[][..], "    code"),
+        (&["--tab-stop=8"][..], "        code"),
+        (&["--preserve-tabs", "--tab-stop=8"][..], "\tcode"),
+        (&["--tab-stop=8", "--preserve-tabs"][..], "\tcode"),
+        (&["-pTRUE"][..], "\tcode"),
+        (&["-pfalse"][..], "    code"),
+    ] {
+        let mut arguments = vec!["-f", "asciidoc", "-t", "json"];
+        arguments.extend(flags);
+        let result = run(&arguments, "----\n\tcode\n----\n");
+        assert!(result.success, "{flags:?}: {}", result.stderr);
+        let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(document["blocks"][0]["c"][1], expected, "{flags:?}");
+    }
+}
+
+#[test]
+#[cfg(all(feature = "read-asciidoc", feature = "write-json"))]
+fn asciidoc_file_scope_preserves_cross_file_targets() {
+    let directory = input_directory("asciidoc-file-scope");
+    fs::write(
+        directory.join("first.adoc"),
+        "== Same\n\nxref:_same[local] link:second.adoc#_same[cross]\n",
+    )
+    .unwrap();
+    fs::write(directory.join("second.adoc"), "== Same\n").unwrap();
+    let result = run_in(
+        &directory,
+        &["--file-scope", "-t", "json", "first.adoc", "second.adoc"],
+        "",
+    );
+    assert!(result.success, "{}", result.stderr);
+    let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+    let blocks = &document["blocks"];
+    assert_eq!(blocks[0]["c"][1][0], "first.adoc___same");
+    assert_eq!(blocks[1]["c"][0]["c"][2][0], "#first.adoc___same");
+    assert_eq!(blocks[1]["c"][2]["c"][2][0], "second.adoc#_same");
+    assert_eq!(blocks[2]["c"][1][0], "second.adoc___same");
 }

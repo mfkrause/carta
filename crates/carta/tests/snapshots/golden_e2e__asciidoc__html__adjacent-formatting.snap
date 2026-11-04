@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><strong>ab</strong> <strong>cd</strong> <em>ef</em> <em>gh</em></p>

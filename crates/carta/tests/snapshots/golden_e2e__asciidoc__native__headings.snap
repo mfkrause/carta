@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "_first" , [] , [] ) [ Str "First" ]
+, Header 2 ( "_skipped" , [] , [] ) [ Str "Skipped" ]
+, Header 2 ( "_next" , [] , [] ) [ Str "Next" ]
+, Header 1 ( "_first_2" , [] , [] ) [ Str "First" ]
+, Header 1 ( "custom" , [] , [] ) [ Str "Explicit" ]
+, Header 3 ( "" , [] , [] ) [ Str "Discrete" ]
+]

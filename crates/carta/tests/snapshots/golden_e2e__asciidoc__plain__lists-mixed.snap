@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- one
+
+  1.  nested
+
+- two
+
+1.  Linux
+
+    - Fedora
+
+    - Debian
+
+2.  BSD
+
+    - FreeBSD

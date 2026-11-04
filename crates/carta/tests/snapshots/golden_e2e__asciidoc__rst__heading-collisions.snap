@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. __name:
+
+Name
+====
+
+.. __name_2:
+
+Name_2
+======
+
+.. __name_2:
+
+Name
+====

@@ -1,0 +1,83 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="example" data-options="hardbreaks">
+one<br />
+two
+
+</div>
+
+after block
+
+<div class="sidebar" data-options="hardbreaks">
+one<br />
+two
+
+</div>
+
+after block
+
+<div data-options="hardbreaks">
+one<br />
+two
+
+</div>
+
+after block
+
+<div data-wrapper="1" data-options="hardbreaks">
+<blockquote>one<br />
+two
+</blockquote>
+</div>
+
+after block
+
+{| class="wikitable"
+|-
+! one<br />
+two
+|}
+
+after block
+
+{| class="wikitable"
+|-
+! one<br />
+two
+|}
+
+after block
+
+{| class="wikitable"
+|-
+! ''one<br />
+two''
+|}
+
+after block
+
+{| class="wikitable"
+|-
+! one<br />
+two
+|}
+
+after block
+
+{| class="wikitable"
+|-
+! <code>one</code><br />
+<code>two</code>
+|}
+
+after block
+
+{| class="wikitable"
+|-
+! '''one<br />
+two'''
+|}
+
+after block

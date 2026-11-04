@@ -1,0 +1,32 @@
+:word: resolved
+:empty:
+:many: two words
+:lines: first +\
+second
+
+== Monospace attribute runs
+
+`{missing}tail`
+
+`pre{word}post`
+
+`pre{empty}post`
+
+`{many}tail`
+
+`pre{lines}post`
+
+[.role]`pre{word}post`
+
+`one`{empty}`two`
+
+`a``{empty}``b`
+
+prefix ``{empty}`` suffix
+
+`a*{word}*b link:https://example.test[{word}] footnote:[note {word}]`
+
+[cols=m]
+|===
+|pre{word}post
+|===

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\|=== plain text \|===
+
+.. container::
+
+   \|=== 2+\| wide \| next \| last \|===

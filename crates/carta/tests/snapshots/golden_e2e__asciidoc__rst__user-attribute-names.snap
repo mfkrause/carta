@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. __heading:
+
+Heading
+=======
+
+.. container::
+   :name: _nested
+
+   .. rubric:: Nested
+
+   .. rubric:: Discrete
+
+   |image1|
+
+   .. _spot:
+
+   ` <#spot>`__
+
+   .. rubric:: HTML
+
+   .. rubric:: Data
+
+   .. rubric:: Prefix
+
+   .. rubric:: Prefix
+      :name: _prefix
+
+.. |image1| image:: ./images/icons/heart.png

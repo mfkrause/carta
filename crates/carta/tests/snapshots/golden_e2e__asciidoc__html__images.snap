@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An <img src="photo.png" width="100" height="200" alt="Photo" />.</p>
+<figure>
+<img src="photo.png" width="100" height="200" alt="Photo" />
+<figcaption>A caption</figcaption>
+</figure>
+<div data-wrapper="1" alt="Photo" height="200" width="100">
+<figure>
+<img src="photo.png" />
+</figure>
+</div>

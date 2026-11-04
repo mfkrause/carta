@@ -1,0 +1,14 @@
+[format=unknown]
+|===
+|one |two
+|===
+
+[format=unknown]
+,===
+one,two
+,===
+
+[format=unknown]
+:===
+one:two
+:===
