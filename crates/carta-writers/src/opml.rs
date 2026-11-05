@@ -1,6 +1,7 @@
 //! Render the document model as nested `<outline>` elements.
 
 use carta_ast::{Block, Document, Inline};
+use carta_core::sections::section_opening;
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::FILL_COLUMN;
@@ -14,7 +15,8 @@ pub struct OpmlWriter;
 impl Writer for OpmlWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
-        let sections = sectionize(&document.blocks);
+        let blocks = carta_core::sections::merge_heading_divs(&document.blocks);
+        let sections = sectionize(&blocks);
         let mut out = String::new();
         for section in &sections {
             render_section(section, 0, width, options.wrap, &mut out);
@@ -53,50 +55,47 @@ struct Section<'a> {
     children: Vec<Section<'a>>,
 }
 
-/// Split a block sequence into the top-level sections it contains. Blocks before the first header
+/// Split a block sequence into the top-level sections it contains. Blocks before the first section
 /// belong to no section and are discarded.
 fn sectionize(blocks: &[Block]) -> Vec<Section<'_>> {
-    let mut index = 0;
-    while index < blocks.len() {
-        if matches!(blocks.get(index), Some(Block::Header(..))) {
-            break;
-        }
-        index += 1;
-    }
     let mut sections = Vec::new();
-    while index < blocks.len() {
-        let Some(Block::Header(level, _, heading)) = blocks.get(index) else {
+    let mut index = blocks
+        .iter()
+        .position(|block| section_opening(block).is_some())
+        .unwrap_or(blocks.len());
+    while let Some(block) = blocks.get(index) {
+        let Some(open) = section_opening(block) else {
             index += 1;
             continue;
         };
-        let level = *level;
-        let start = index + 1;
-        let mut end = start;
-        while let Some(block) = blocks.get(end) {
-            if let Block::Header(next_level, _, _) = block
-                && *next_level <= level
-            {
-                break;
+        let inner = if let Some(body) = open.body {
+            index += 1;
+            body
+        } else {
+            let start = index + 1;
+            let mut end = start;
+            while let Some(next) = blocks.get(end) {
+                if section_opening(next).is_some_and(|next| next.level <= open.level) {
+                    break;
+                }
+                end += 1;
             }
-            end += 1;
-        }
-        let inner = blocks.get(start..end).unwrap_or_default();
-        let mut body = Vec::new();
-        let mut child_start = inner.len();
-        for (offset, block) in inner.iter().enumerate() {
-            if matches!(block, Block::Header(..)) {
-                child_start = offset;
-                break;
-            }
-            body.push(block);
-        }
-        let children = sectionize(inner.get(child_start..).unwrap_or_default());
+            index = end;
+            blocks.get(start..end).unwrap_or_default()
+        };
+        let child_start = inner
+            .iter()
+            .position(|block| section_opening(block).is_some())
+            .unwrap_or(inner.len());
         sections.push(Section {
-            heading,
-            body,
-            children,
+            heading: open.title,
+            body: inner
+                .get(..child_start)
+                .unwrap_or_default()
+                .iter()
+                .collect(),
+            children: sectionize(inner.get(child_start..).unwrap_or_default()),
         });
-        index = end;
     }
     sections
 }

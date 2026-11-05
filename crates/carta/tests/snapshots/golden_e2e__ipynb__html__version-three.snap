@@ -2,12 +2,12 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div class="cell markdown">
-<h1 id="first">First</h1>
-</div>
-<div class="cell markdown">
-<h6 id="deeper-heading">Deeper <em>heading</em></h6>
-</div>
+<section id="first" class="cell markdown">
+<h1>First</h1>
+</section>
+<section id="deeper-heading" class="cell markdown">
+<p class="heading">Deeper <em>heading</em></p>
+</section>
 <div class="cell code" data-execution_count="1" data-collapsed="false"
 data-language="python">
 <pre class="python"><code>print(1)</code></pre>

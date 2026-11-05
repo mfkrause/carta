@@ -353,6 +353,162 @@ fn clean_toc_inlines_nested(inlines: &[Inline]) -> Vec<Inline> {
     out
 }
 
+/// The leading class of a division that serves as its opening heading's section.
+pub const SECTION_CLASS: &str = "section";
+
+/// Turn each division that opens with a heading into that heading's section before
+/// sectioned output is rendered. Divisions are reached from the top level through divisions only. A
+/// division qualifies when every later heading in it is deeper, it is not a slide column, and its
+/// identifier does not conflict with the heading's. The section's attributes lead with
+/// [`SECTION_CLASS`], take the heading's identifier (or the division's), put the heading's classes
+/// before the division's, and list the division's other key/value pairs before the heading's. The
+/// heading keeps everything except its identifier.
+#[must_use]
+pub fn merge_heading_divs(blocks: &[Block]) -> std::borrow::Cow<'_, [Block]> {
+    if blocks.iter().any(has_heading_div) {
+        std::borrow::Cow::Owned(blocks.iter().map(merge_heading_div).collect())
+    } else {
+        std::borrow::Cow::Borrowed(blocks)
+    }
+}
+
+/// The opening heading of a section division, as [`merge_heading_divs`] leaves it.
+#[must_use]
+pub fn section_heading<'a>(
+    attr: &Attr,
+    blocks: &'a [Block],
+) -> Option<(i64, &'a Attr, &'a [Inline])> {
+    match blocks.first() {
+        Some(Block::Header(level, heading, inlines))
+            if attr
+                .classes
+                .first()
+                .is_some_and(|class| class == SECTION_CLASS) =>
+        {
+            Some((*level, heading, inlines))
+        }
+        _ => None,
+    }
+}
+
+/// A block that opens a section: a header, or a section division led by its header.
+#[derive(Debug, Clone, Copy)]
+pub struct SectionOpening<'a> {
+    /// The header's level.
+    pub level: i64,
+    /// The header's own attributes.
+    pub heading: &'a Attr,
+    /// The section's attributes: the header's own, or the division's.
+    pub section: &'a Attr,
+    /// The header's text.
+    pub title: &'a [Inline],
+    /// A division's blocks after its header; `None` for a bare header, whose body follows it.
+    pub body: Option<&'a [Block]>,
+}
+
+/// The section a block opens, if it opens one.
+#[must_use]
+pub fn section_opening(block: &Block) -> Option<SectionOpening<'_>> {
+    match block {
+        Block::Header(level, heading, title) => Some(SectionOpening {
+            level: *level,
+            heading,
+            section: heading,
+            title,
+            body: None,
+        }),
+        Block::Div(section, children) => {
+            section_heading(section, children).map(|(level, heading, title)| SectionOpening {
+                level,
+                heading,
+                section,
+                title,
+                body: Some(children.get(1..).unwrap_or_default()),
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The classes of `attr` without the [`SECTION_CLASS`] marker.
+pub fn without_section_class(attr: &Attr) -> impl Iterator<Item = &Text> {
+    attr.classes
+        .iter()
+        .filter(|class| class.as_str() != SECTION_CLASS)
+}
+
+fn has_heading_div(block: &Block) -> bool {
+    crate::with_stack(|| match block {
+        Block::Div(attr, inner) => {
+            merged_heading(attr, inner).is_some() || inner.iter().any(has_heading_div)
+        }
+        _ => false,
+    })
+}
+
+fn merge_heading_div(block: &Block) -> Block {
+    crate::with_stack(|| {
+        let Block::Div(attr, inner) = block else {
+            return block.clone();
+        };
+        let mut inner = merge_heading_divs(inner).into_owned();
+        let Some(section) = merged_section_attr(attr, &inner) else {
+            return Block::Div(attr.clone(), inner);
+        };
+        if let Some(Block::Header(_, heading, _)) = inner.first_mut() {
+            heading.id = Text::default();
+        }
+        Block::Div(Box::new(section), inner)
+    })
+}
+
+/// The opening heading's attributes when the division qualifies to become its section.
+fn merged_heading<'a>(attr: &Attr, blocks: &'a [Block]) -> Option<&'a Attr> {
+    let (Block::Header(level, heading, _), rest) = blocks.split_first()? else {
+        return None;
+    };
+    let column = attr
+        .classes
+        .iter()
+        .any(|class| class == "column" || class == "columns");
+    let shallower = rest
+        .iter()
+        .any(|block| matches!(block, Block::Header(inner, ..) if inner <= level));
+    let conflict = !attr.id.is_empty() && !heading.id.is_empty() && attr.id != heading.id;
+    (!column && !shallower && !conflict).then_some(&**heading)
+}
+
+fn merged_section_attr(attr: &Attr, blocks: &[Block]) -> Option<Attr> {
+    let heading = merged_heading(attr, blocks)?;
+    let mut classes = vec![Text::from(SECTION_CLASS)];
+    for class in heading.classes.iter().chain(&attr.classes) {
+        if !classes.contains(class) {
+            classes.push(class.clone());
+        }
+    }
+    let mut attributes: Vec<_> = attr
+        .attributes
+        .iter()
+        .filter(|(key, _)| {
+            !heading
+                .attributes
+                .iter()
+                .any(|(existing, _)| existing == key)
+        })
+        .cloned()
+        .collect();
+    attributes.extend(heading.attributes.iter().cloned());
+    Some(Attr {
+        id: if heading.id.is_empty() {
+            attr.id.clone()
+        } else {
+            heading.id.clone()
+        },
+        classes,
+        attributes,
+    })
+}
+
 fn section_number_attr(class: &str) -> Attr {
     Attr {
         id: Text::default(),

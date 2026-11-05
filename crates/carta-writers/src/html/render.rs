@@ -6,8 +6,9 @@ use std::fmt::Write as _;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, Inline, ListAttributes, ListNumberStyle, MathType, Row,
-    Table, TableBody, Target,
+    Table, TableBody, Target, Text,
 };
+use carta_core::sections::{SECTION_CLASS, section_heading, without_section_class};
 #[cfg(feature = "highlight")]
 use carta_highlight::{SourceLine, Token};
 
@@ -61,23 +62,7 @@ impl State<'_> {
                 self.inlines(out, inlines);
                 out.push_str("</p>");
             }
-            Block::Header(level, attr, inlines) => {
-                let tag = header_tag(*level);
-                let _ = write!(out, "<{tag}");
-                if self.flavor.is_html5_family() {
-                    render_attr_into(out, attr, AttrOrder::Header, self.flavor);
-                } else {
-                    render_attr_into(
-                        out,
-                        &heading_attr_html4(attr),
-                        AttrOrder::Header,
-                        self.flavor,
-                    );
-                }
-                out.push('>');
-                self.inlines(out, inlines);
-                let _ = write!(out, "</{tag}>");
-            }
+            Block::Header(level, attr, inlines) => self.heading(out, *level, attr, inlines),
             Block::CodeBlock(attr, text) => self.code_block(out, attr, text),
             Block::RawBlock(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
             Block::BlockQuote(blocks) => {
@@ -119,37 +104,83 @@ impl State<'_> {
                     out.push_str(&content);
                     return;
                 }
-                let section = self.flavor == Flavor::Epub3
-                    && attr.classes.iter().any(|class| class == "section");
-                if section {
-                    let stripped = Attr {
-                        id: attr.id.clone(),
-                        classes: attr
-                            .classes
-                            .iter()
-                            .filter(|class| class.as_str() != "section")
-                            .cloned()
-                            .collect(),
-                        attributes: attr.attributes.clone(),
-                    };
-                    out.push_str("<section");
-                    render_attr_into(out, &stripped, AttrOrder::Standard, self.flavor);
-                    out.push_str(">\n");
-                    self.blocks(out, blocks);
-                    out.push_str("\n</section>");
-                } else {
-                    out.push_str("<div");
-                    render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
-                    out.push_str(">\n");
-                    self.blocks(out, blocks);
-                    out.push_str("\n</div>");
-                }
+                self.division(out, attr, blocks);
             }
             Block::Figure(attr, caption, blocks) => self.figure(out, attr, caption, blocks),
             Block::HorizontalRule => out.push_str("<hr />"),
             Block::LineBlock(lines) => self.line_block(out, lines),
             Block::Table(table) => self.table(out, table),
         }
+    }
+
+    /// Render a heading. A heading deeper than level six becomes a `heading` paragraph.
+    fn heading(&mut self, out: &mut String, level: i64, attr: &Attr, inlines: &[Inline]) {
+        let (tag, attr) = if level > 6 {
+            let mut classes = vec![Text::from("heading")];
+            classes.extend(attr.classes.iter().cloned());
+            let attr = Attr {
+                id: attr.id.clone(),
+                classes,
+                attributes: attr.attributes.clone(),
+            };
+            ("p", Cow::Owned(attr))
+        } else {
+            (header_tag(level), Cow::Borrowed(attr))
+        };
+        let _ = write!(out, "<{tag}");
+        if self.flavor.is_html5_family() {
+            render_attr_into(out, &attr, AttrOrder::Header, self.flavor);
+        } else {
+            render_attr_into(
+                out,
+                &heading_attr_html4(&attr),
+                AttrOrder::Header,
+                self.flavor,
+            );
+        }
+        out.push('>');
+        self.inlines(out, inlines);
+        let _ = write!(out, "</{tag}>");
+    }
+
+    /// Render a division. In html5 dialects a division with the section class becomes a
+    /// `<section>`; html4 keeps a `<div>` but drops that class from a heading's section.
+    fn division(&mut self, out: &mut String, attr: &Attr, blocks: &[Block]) {
+        let heading = section_heading(attr, blocks).is_some();
+        let section = match self.flavor {
+            Flavor::Html5 | Flavor::Slides | Flavor::Epub3 => {
+                attr.classes.iter().any(|class| class == SECTION_CLASS)
+            }
+            Flavor::Html4 => heading,
+            Flavor::Epub2 => false,
+        };
+        let tag = if section && self.flavor.is_html5_family() {
+            "section"
+        } else {
+            "div"
+        };
+        let attr = if section {
+            Cow::Owned(Attr {
+                id: attr.id.clone(),
+                classes: without_section_class(attr).cloned().collect(),
+                attributes: attr.attributes.clone(),
+            })
+        } else {
+            Cow::Borrowed(attr)
+        };
+        let _ = write!(out, "<{tag}");
+        render_attr_into(out, &attr, AttrOrder::Standard, self.flavor);
+        out.push_str(">\n");
+        match blocks.split_first() {
+            // Keep the line after a section heading even when the rest renders empty.
+            Some((first, rest)) if heading && !rest.is_empty() => {
+                self.block(out, first);
+                out.push('\n');
+                self.blocks(out, rest);
+            }
+            _ => self.blocks(out, blocks),
+        }
+        let _ = write!(out, "\n</{tag}>");
     }
 
     /// Render a code block. A block whose class names a known syntax definition (or that requests

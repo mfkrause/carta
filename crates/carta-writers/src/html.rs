@@ -159,7 +159,7 @@ impl<'a> SlideRenderer<'a> {
     pub(crate) fn section_open(attr: &Attr, class_words: &[&str]) -> String {
         let mut classes: Vec<carta_ast::Text> =
             class_words.iter().map(|word| (*word).into()).collect();
-        classes.extend(attr.classes.iter().cloned());
+        classes.extend(carta_core::sections::without_section_class(attr).cloned());
         let mut tag = String::from("<section");
         render_id_into(&mut tag, &attr.id);
         render_class_into(&mut tag, &classes);
@@ -367,8 +367,15 @@ fn render_with_flavor(
     }
     #[cfg(not(feature = "highlight"))]
     let () = highlighting;
+    // EPUB pages arrive already sectioned by the EPUB writer.
+    let blocks = match flavor {
+        Flavor::Epub2 | Flavor::Epub3 => std::borrow::Cow::Borrowed(blocks),
+        Flavor::Html5 | Flavor::Html4 | Flavor::Slides => {
+            carta_core::sections::merge_heading_divs(blocks)
+        }
+    };
     let mut out = String::new();
-    state.blocks(&mut out, blocks);
+    state.blocks(&mut out, &blocks);
     state.push_footnote_section(&mut out);
     let mut filled = restore(reflow(&out, wrap, width));
     filled.truncate(filled.trim_end_matches('\n').len());
