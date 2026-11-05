@@ -36,11 +36,6 @@ after block
 
 after block
 
-  one two
-  ---------
-
-after block
-
 +-----+
 | one |
 | two |
@@ -55,7 +50,16 @@ after block
 
 after block
 
-  one two
-  ---------
++-----+
+| one |
+| two |
++=====+
+
+after block
+
++-----+
+| one |
+| two |
++=====+
 
 after block

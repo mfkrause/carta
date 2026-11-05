@@ -145,10 +145,15 @@ impl State {
         hang: bool,
         initial: usize,
     ) -> String {
-        if loose {
+        let body = if loose {
             self.blocks_to_string(blocks, width, hang, initial)
         } else {
             self.blocks_tight(blocks, width, hang, initial)
+        };
+        if matches!(blocks.first(), Some(Block::DefinitionList(_))) {
+            format!("\n\n{body}")
+        } else {
+            body
         }
     }
 
@@ -187,6 +192,9 @@ impl State {
                 literate_tracks(text)
             }
             Block::CodeBlock(_, text) => {
+                if text.trim_end_matches('\n').is_empty() {
+                    return String::new();
+                }
                 indent_block(text.strip_suffix('\n').unwrap_or(text), "    ", "    ")
             }
             Block::RawBlock(format, text) => {

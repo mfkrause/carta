@@ -127,10 +127,7 @@ pub(crate) fn boundary_space_count(cell: &Cell) -> usize {
 
 /// Whether a simple cell contains a forced line break, which forces the multiline form.
 pub(crate) fn cell_has_break(cell: &Cell) -> bool {
-    is_simple_cell(cell)
-        && cell_inlines(cell)
-            .iter()
-            .any(|inline| matches!(inline, Inline::LineBreak))
+    is_simple_cell(cell) && super::has_line_break(cell_inlines(cell))
 }
 
 /// A row of column underlines: a run of dashes per column width, joined by single spaces.

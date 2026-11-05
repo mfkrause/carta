@@ -214,6 +214,7 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
     let marks_alignment = match (section_above, section_below) {
         // The boundary that closes the head carries the marks; with no head, the top border.
         (Some(Section::Head), Some(below)) => below != &Section::Head,
+        (Some(Section::Head), None) => true,
         (None, _) => table.head.is_empty(),
         _ => false,
     };

@@ -55,10 +55,10 @@ pub(crate) trait NotesHost {
         let body = self.offset_note_body(blocks, field);
         // Only paragraph-led note bodies share the marker line.
         let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
-        let rendered = if body.is_empty() {
-            marker.clone()
-        } else if starts_inline {
+        let rendered = if starts_inline {
             format!("{marker} {body}")
+        } else if body.is_empty() {
+            marker.clone()
         } else {
             format!("{marker}\n{body}")
         };

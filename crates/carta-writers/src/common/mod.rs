@@ -29,6 +29,40 @@ pub(crate) use width::*;
 
 use carta_ast::QuoteType;
 
+#[cfg_attr(
+    not(any(
+        feature = "latex",
+        feature = "plain",
+        feature = "markdown",
+        feature = "gfm"
+    )),
+    allow(dead_code)
+)]
+pub(crate) fn has_line_break(inlines: &[carta_ast::Inline]) -> bool {
+    use carta_ast::Inline;
+    let mut pending = vec![inlines];
+    while let Some(inlines) = pending.pop() {
+        for inline in inlines {
+            match inline {
+                Inline::LineBreak => return true,
+                Inline::Emph(children)
+                | Inline::Strong(children)
+                | Inline::Underline(children)
+                | Inline::Strikeout(children)
+                | Inline::SmallCaps(children)
+                | Inline::Superscript(children)
+                | Inline::Subscript(children)
+                | Inline::Quoted(_, children)
+                | Inline::Span(_, children)
+                | Inline::Link(_, children, _)
+                | Inline::Cite(_, children) => pending.push(children),
+                _ => {}
+            }
+        }
+    }
+    false
+}
+
 /// The open and close smart-quote glyphs for a quote kind.
 #[cfg_attr(
     not(any(
