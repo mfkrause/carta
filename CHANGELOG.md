@@ -5,6 +5,37 @@ All notable changes to carta are documented in this file.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.14](https://github.com/mfkrause/carta/compare/v0.0.13...v0.0.14) - 2026-11-05
+
+### Added
+
+- *(writers)* render heading-led divisions as sections in html and opml
+- *(asciidoc)* add asciidoc reader
+- *(epub)* section heading-led divisions and share chapters between loose blocks
+- *(slides)* build slides and sections from heading-led divisions
+
+### Fixed
+
+- *(docx)* continue body text after tables and figures
+- *(html)* force text presentation of arrows that render as emoji
+- *(rst)* preserve formatting and normalize block layout
+- *(mediawiki)* preserve spacing and table rendering context
+- *(writers)* align HTML and CommonMark output with Pandoc
+- *(latex)* match Pandoc rendering of AsciiDoc block content
+- *(plain)* preserve nested definitions and table line breaks
+- *(cli)* reject options that cannot affect the target
+- *(html)* apply CLI stylesheets to standalone output
+- *(core)* list the section number before other heading attributes
+- *(markdown)* honor shortcut reference switches
+- *(markdown)* honor configured tab stops
+- *(dokuwiki)* avoid exponential parsing of invalid footnotes
+
+### Other
+
+- *(conformance)* replace writer exclusions with documented controls
+- *(markdown)* cover disabled shortcut reference links
+- *(asciidoc)* use native paths for nested include expectations
+
 ## [0.0.13](https://github.com/mfkrause/carta/compare/v0.0.12...v0.0.13) - 2026-10-30
 
 ### Added
