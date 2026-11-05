@@ -30,8 +30,9 @@ a;b & c \\
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
 \toprule\noalign{}
 \begin{verbatim}
-a;b
-\end{verbatim} & c \\
+a;b 
+\end{verbatim}
+& c \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}

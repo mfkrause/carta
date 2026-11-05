@@ -197,7 +197,13 @@ fn block_to_string(
         Block::Header(level, attr, inlines) => {
             header(*level, attr, inlines, width, dialect, wrap, smart, hl)
         }
-        Block::CodeBlock(attr, text) => code_block(attr, text, hl),
+        Block::CodeBlock(attr, text) => {
+            let mut rendered = code_block(attr, text, hl);
+            if hl.in_table {
+                rendered.push('\n');
+            }
+            rendered
+        }
         Block::RawBlock(format, text) => {
             if is_latex_format(&format.0) {
                 text.strip_suffix('\n').unwrap_or(text).to_owned()
@@ -253,7 +259,9 @@ fn header(
     let mut content = InlineLayout::default();
     content.push(Piece::text(format!("\\{command}{star}")));
     if let Some(short) = short_title(inlines, width, dialect, wrap, smart, hl) {
-        content.push(Piece::text(format!("[{short}]")));
+        content.push(Piece::text("["));
+        content.append(short);
+        content.push(Piece::text("]"));
     }
     content.push(Piece::text("{"));
     if needs_texorpdfstring(inlines) {
@@ -328,6 +336,8 @@ fn div(
     let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl);
     if attr.id.is_empty() {
         body
+    } else if body.is_empty() {
+        phantom_label(&attr.id)
     } else {
         format!("{}\n{body}", phantom_label(&attr.id))
     }
@@ -431,7 +441,10 @@ fn has_class(attr: &Attr, class: &str) -> bool {
 
 /// The anchor markup emitted for an element carrying an identifier outside a movable argument.
 fn phantom_label(id: &str) -> String {
-    format!("\\protect\\phantomsection\\label{{{}}}", to_label(id))
+    format!(
+        "\\protect\\phantomsection\\label{{{}}}",
+        escaping::cross_reference_label(id)
+    )
 }
 
 /// The anchor markup for an identifier inside a heading. A `\label` placed in a section's movable
@@ -665,10 +678,19 @@ fn definition_list(
         lines.push("\\tightlist".to_owned());
     }
     for (term, definitions) in items {
-        let header = format!(
-            "\\item[{}]",
-            inlines_to_string(term, width, dialect, wrap, smart, hl)
-        );
+        let term = inlines_to_string(term, width, dialect, wrap, smart, hl);
+        let term = if term.contains("\\hyperref[") {
+            format!("{{{term}}}")
+        } else {
+            term
+        };
+        let mut header = format!("\\item[{term}]");
+        if matches!(
+            definitions.first().and_then(|blocks| blocks.first()),
+            Some(Block::CodeBlock(..))
+        ) {
+            header.push_str(" ~ ");
+        }
         let mut bodies: Vec<String> = definitions
             .iter()
             .map(|definition| {
@@ -797,14 +819,12 @@ fn figure(
         render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl),
     ];
     let caption_body = caption_body(caption, width, dialect, wrap, smart, hl);
-    if !caption_body.is_empty() || !attr.id.is_empty() {
-        let label = if attr.id.is_empty() {
-            String::new()
-        } else {
-            format!("\\label{{{}}}", to_label(&attr.id))
-        };
-        parts.push(format!("\\caption{{{caption_body}}}{label}"));
-    }
+    let label = if attr.id.is_empty() {
+        String::new()
+    } else {
+        format!("\\label{{{}}}", to_label(&attr.id))
+    };
+    parts.push(format!("\\caption{{{caption_body}}}{label}"));
     parts.push("\\end{figure}".to_owned());
     parts.join("\n")
 }
@@ -910,7 +930,7 @@ fn short_title(
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
-) -> Option<String> {
+) -> Option<InlineLayout> {
     let visible: Vec<Inline> = inlines
         .iter()
         .filter(|inline| !contains_fragile(inline))
@@ -919,7 +939,7 @@ fn short_title(
     if visible.len() == inlines.len() || visible.is_empty() {
         return None;
     }
-    Some(inline_pieces(&visible, width, dialect, wrap, smart, hl).flatten())
+    Some(inline_pieces(&visible, width, dialect, wrap, smart, hl))
 }
 
 /// Whether an inline expands to a construct invalid in a heading's movable short-title argument: a

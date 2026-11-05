@@ -17,6 +17,7 @@ expression: output
     \begin{figure}
     \centering
     \pandocbounded{\includegraphics[keepaspectratio]{nested.png}}
+    \caption{}
     \end{figure}
   \end{itemize}
 \end{itemize}
@@ -26,14 +27,15 @@ expression: output
 \begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio]{same.png}}
+\caption{}
 \end{figure}
 \item[Named]
 \protect\phantomsection\label{toc}
-
 \item[]
 \begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio]{next.png}}
+\caption{}
 \end{figure}
 \item[Indented]
 \pandocbounded{\includegraphics[keepaspectratio,alt={sound.mp3}]{sound.mp3}}

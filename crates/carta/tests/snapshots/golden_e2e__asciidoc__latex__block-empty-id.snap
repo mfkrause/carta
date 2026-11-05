@@ -13,7 +13,6 @@ no id
 
 \protect\phantomsection\label{named}
 
-
 \section{Heading}
 
 {\def\LTcaptype{none} % do not increment counter
@@ -41,4 +40,4 @@ cell with an empty ID
 \end{longtable}
 }
 
-Inline {mark} stays a span.
+Inline \hl{mark} stays a span.

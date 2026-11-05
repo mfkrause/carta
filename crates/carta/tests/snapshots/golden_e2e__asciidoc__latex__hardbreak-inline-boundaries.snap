@@ -7,7 +7,7 @@ first\textbf{bold}
 firstwords
 
 first\\
-\\
+\strut \\
 second
 
 alpha\\

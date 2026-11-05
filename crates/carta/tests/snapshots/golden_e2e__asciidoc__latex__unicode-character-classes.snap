@@ -2,12 +2,12 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-\url{\%C3\%A9@example.com} \url{a@\%CE\%A9\%CE\%A9.com}
-\url{a@example.\%E4\%B8\%AD\%E4\%B8\%AD}
+\href{é@example.com}{é@example.com} \href{a@ΩΩ.com}{a@ΩΩ.com}
+\href{a@example.中中}{a@example.中中}
 
 a@Ⅻ.com a@ͅ.com a@example.ְְ aͅ\url{b@example.com}
 
-ͅ-\/-a a-\/-ְ Ⅻ---​²
+ͅ-\/-a a-\/-ְ Ⅻ---\hspace{0pt}²
 
 Text
 

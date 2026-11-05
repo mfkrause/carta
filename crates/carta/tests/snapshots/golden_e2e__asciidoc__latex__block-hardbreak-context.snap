@@ -53,10 +53,10 @@ after block
 after block
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}l@{}}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 0\tabcolsep) * \real{1.0000}}@{}}
 \toprule\noalign{}
-\emph{one\\
-two} \\
+\emph{\vtop{\hbox{\strut one}\hbox{\strut two}}} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
@@ -95,10 +95,10 @@ after block
 after block
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}l@{}}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 0\tabcolsep) * \real{1.0000}}@{}}
 \toprule\noalign{}
-\textbf{one\\
-two} \\
+\textbf{\vtop{\hbox{\strut one}\hbox{\strut two}}} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}

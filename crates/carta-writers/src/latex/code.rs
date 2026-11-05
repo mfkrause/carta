@@ -19,6 +19,7 @@ use super::phantom_label;
 
 /// Rendering context for code presentation and nested table cells.
 #[derive(Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct Hl<'a> {
     #[cfg(feature = "highlight")]
     highlighter: Option<&'a Highlighter>,
@@ -27,6 +28,7 @@ pub(crate) struct Hl<'a> {
     #[cfg(not(feature = "highlight"))]
     _lifetime: core::marker::PhantomData<&'a ()>,
     pub(super) in_table: bool,
+    pub(super) stacked_lines: bool,
     literate_code: bool,
 }
 
@@ -44,6 +46,7 @@ pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
         highlighter: options.highlight.highlighter.as_deref(),
         idiomatic: options.highlight.idiomatic,
         in_table: false,
+        stacked_lines: false,
         literate_code: options.extensions.contains(Extension::LiterateHaskell),
     }
 }
@@ -52,6 +55,7 @@ pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
     Hl {
         _lifetime: core::marker::PhantomData,
         in_table: false,
+        stacked_lines: false,
         literate_code: options.extensions.contains(Extension::LiterateHaskell),
     }
 }
@@ -446,7 +450,8 @@ fn code_block_env(attr: &Attr, text: &str, environment: &str) -> String {
     } else {
         text.strip_suffix('\n').unwrap_or(text)
     };
-    let verbatim = format!("\\begin{{{environment}}}\n{body}\n\\end{{{environment}}}");
+    let newline = if text.is_empty() { "" } else { "\n" };
+    let verbatim = format!("\\begin{{{environment}}}\n{body}{newline}\\end{{{environment}}}");
     if attr.id.is_empty() {
         verbatim
     } else {

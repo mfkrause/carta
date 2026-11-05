@@ -5,8 +5,6 @@ expression: output
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}l@{}}
 \toprule\noalign{}
- \\
-\midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot

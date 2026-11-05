@@ -5,6 +5,7 @@ expression: output
 \begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio]{x.png}}
+\caption{}
 \end{figure}
 
 \begin{verbatim}
@@ -12,7 +13,6 @@ tail
 \end{verbatim}
 
 \protect\phantomsection\label{toc}
-
 
 \begin{verbatim}
 tail
@@ -33,6 +33,7 @@ tail
   \begin{figure}
   \centering
   \pandocbounded{\includegraphics[keepaspectratio]{x.png}}
+  \caption{}
   \end{figure}
 
   tail

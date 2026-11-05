@@ -30,7 +30,7 @@ before \protect\phantomsection\label{middle}{} after
 After blank
 \end{minipage} \\
 \protect\phantomsection\label{spaceux20inside}{} Whitespace id \\
-\protect\phantomsection\label{badux5dbracket}{} Malformed id \\
+\protect\phantomsection\label{badux5cux255Dbracket}{} Malformed id \\
 \end{longtable}
 }
 

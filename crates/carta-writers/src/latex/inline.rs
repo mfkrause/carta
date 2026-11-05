@@ -94,6 +94,22 @@ pub(super) fn push_inlines(
     hl: Hl<'_>,
 ) {
     carta_core::with_stack(|| {
+        if hl.stacked_lines
+            && inlines
+                .iter()
+                .any(|inline| matches!(inline, Inline::LineBreak))
+        {
+            out.push(Piece::text("\\vtop{"));
+            for segment in inlines.split(|inline| matches!(inline, Inline::LineBreak)) {
+                out.push(Piece::text("\\hbox{\\strut "));
+                push_inlines(
+                    segment, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+                );
+                out.push(Piece::text("}"));
+            }
+            out.push(Piece::text("}"));
+            return;
+        }
         let mut remaining = inlines.iter().peekable();
         while let Some(inline) = remaining.next() {
             push_inline(
@@ -233,6 +249,9 @@ fn push_inline(
         Inline::Space => out.push(Piece::Space),
         Inline::SoftBreak => out.push(Piece::Soft),
         Inline::LineBreak => {
+            if matches!(out.pieces.last(), None | Some(Piece::Hard)) {
+                out.push(Piece::text("\\strut "));
+            }
             out.push(Piece::text("\\\\"));
             out.push(Piece::Hard);
         }
@@ -257,9 +276,14 @@ fn push_inline(
             );
         }
         Inline::Image(attr, inlines, target) => {
-            out.push(Piece::text(image(attr, inlines, target, smart)));
+            let protect = if in_header { "\\protect" } else { "" };
+            out.push(Piece::text(format!(
+                "{protect}{}",
+                image(attr, inlines, target, smart)
+            )));
         }
         Inline::Span(attr, inlines) => {
+            let mark = attr.id.is_empty() && attr.classes.iter().any(|class| class == "mark");
             let mut open = if attr.id.is_empty() {
                 String::new()
             } else if in_header {
@@ -267,10 +291,18 @@ fn push_inline(
             } else {
                 phantom_label(&attr.id)
             };
-            open.push('{');
+            open.push_str(if mark { "\\hl{" } else { "{" });
             out.push(Piece::text(open));
             push_inlines(
-                inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+                inlines,
+                out,
+                width,
+                dialect,
+                wrap,
+                smart,
+                in_header,
+                in_soul || mark,
+                hl,
             );
             out.push(Piece::text("}"));
         }
@@ -342,6 +374,7 @@ fn push_link(
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
         && label_matches_url(text, &target.url)
+        && target.url.is_ascii()
     {
         out.push(Piece::text(format!("{box_open}\\url{{{url}}}{box_close}")));
         return;
@@ -356,6 +389,7 @@ fn push_link(
         )));
         return;
     }
+    let url = super::escaping::escape_href(&target.url);
     out.push(Piece::text(format!("{box_open}\\href{{{url}}}{{")));
     push_inlines(
         inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,

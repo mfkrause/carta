@@ -6,5 +6,5 @@ expression: output
 
 \texttt{code} \textbf{\texttt{bold}} \texttt{words} and {a span}.
 
-{marked} \textsubscript{sub} H\textsuperscript{2} and ``quoted'',
+\hl{marked} \textsubscript{sub} H\textsuperscript{2} and ``quoted'',
 ``double quoted'' and ``escaped ` tick''.

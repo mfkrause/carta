@@ -7,6 +7,7 @@ expression: output
   \begin{figure}
   \centering
   \pandocbounded{\includegraphics[keepaspectratio]{x}}
+  \caption{}
   \end{figure}
 \end{itemize}
 
@@ -18,7 +19,6 @@ expression: output
 \begin{description}
 \item[Term]
 \protect\phantomsection\label{toc}
-
 \item[Next]
 value
 \item[* audio]
@@ -39,7 +39,6 @@ Next
 x{[}{]} tail Next
 \item[* A]
 \protect\phantomsection\label{toc}
-
 \item[B]
 x
 

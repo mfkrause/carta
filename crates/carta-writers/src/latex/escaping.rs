@@ -88,6 +88,7 @@ pub(super) fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> Text {
             ' ' if mode == EscapeMode::Code => out.push_str("\\ "),
             '`' if mode == EscapeMode::Code => out.push_str("\\textasciigrave{}"),
             '\u{a0}' => out.push('~'),
+            '\u{200b}' => out.push_str("\\hspace{0pt}"),
             '\u{2026}' if mode == EscapeMode::Text && smart => {
                 push_control_word(&mut out, "\\ldots", next, mode);
             }
@@ -148,6 +149,14 @@ fn push_control_word(out: &mut Text, command: &str, next: Option<char>, mode: Es
 /// Escape a URL for `\href`/`\url`/`\includegraphics`: percent-encode the bytes LaTeX cannot carry
 /// in a URL argument, map a backslash to a forward slash, and escape the surviving `#` and `%`.
 pub(super) fn escape_url(url: &str) -> String {
+    escape_uri(url, true)
+}
+
+pub(super) fn escape_href(url: &str) -> String {
+    escape_uri(url, false)
+}
+
+fn escape_uri(url: &str, encode_unicode: bool) -> String {
     let mut out = String::with_capacity(url.len());
     for ch in url.chars() {
         match ch {
@@ -157,7 +166,9 @@ pub(super) fn escape_url(url: &str) -> String {
             ' ' | '"' | '<' | '>' | '[' | ']' | '^' | '`' | '{' | '|' | '}' => {
                 percent_encode(ch, &mut out);
             }
-            other if !other.is_ascii() || (other as u32) < 0x20 => percent_encode(other, &mut out),
+            other if (encode_unicode && !other.is_ascii()) || (other as u32) < 0x20 => {
+                percent_encode(other, &mut out);
+            }
             other => out.push(other),
         }
     }

@@ -10,8 +10,7 @@ expression: output
 \midrule\noalign{}
 \endhead
 \midrule\noalign{}
-three\\
-four \\
+\vtop{\hbox{\strut three}\hbox{\strut four}} \\
 \bottomrule\noalign{}
 \endlastfoot
 \end{longtable}

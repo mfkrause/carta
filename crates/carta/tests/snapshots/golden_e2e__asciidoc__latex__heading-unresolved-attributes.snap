@@ -4,5 +4,6 @@ expression: output
 ---
 \section{Example and \{missing\}}\label{_and}
 
-\section[ \(x\) \texttt{code}]{\texorpdfstring{\pandocbounded{\includegraphics[keepaspectratio,alt={Photo}]{photo.png}}
+\section[ \(x\)
+\texttt{code}]{\texorpdfstring{\protect\pandocbounded{\includegraphics[keepaspectratio,alt={Photo}]{photo.png}}
 \(x\) \texttt{code}}{Photo x code}}\label{_code}

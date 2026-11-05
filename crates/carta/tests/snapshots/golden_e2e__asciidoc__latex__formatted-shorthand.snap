@@ -8,4 +8,4 @@ expression: output
 
 prefix {\textbf{strong}} {\emph{italic}} {span} {span}
 
-prefix {\textbf{strong}} {mark}
+prefix {\textbf{strong}} \hl{mark}

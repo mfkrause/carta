@@ -12,9 +12,7 @@ expression: output
 a
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
 b
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-c
-\end{minipage} \\
+\end{minipage} & c \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}

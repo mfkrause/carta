@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use carta_ast::{Alignment, Block, Cell, ColWidth, Inline, Row, Table};
+use carta_ast::{Alignment, Block, Cell, ColWidth, Row, Table};
 use carta_core::{WrapMode, budget};
 
 use crate::common::{Piece, display_width};
@@ -256,6 +256,9 @@ fn render_section<'a>(
     smart: bool,
     hl: Hl<'a>,
 ) -> Vec<String> {
+    if plan.columns == 0 {
+        return Vec::new();
+    }
     let context = TableContext {
         plan,
         head,
@@ -396,6 +399,9 @@ fn layout_row(tokens: &[Token], width: usize, wrap: WrapMode) -> String {
             }
             Token::Space => pending_space = true,
             Token::Break => {
+                if pending_space {
+                    out.push(' ');
+                }
                 out.push('\n');
                 column = 0;
                 line_start = true;
@@ -473,7 +479,14 @@ fn render_cell(cell: &Cell, start: usize, context: &TableContext) -> String {
         context.smart,
         context.hl,
     );
-    if context.plan.explicit && (context.head || !is_simple_cell(cell)) {
+    if context.plan.explicit
+        && (context.head || !is_simple_cell(cell))
+        && context
+            .plan
+            .fractions
+            .get(start)
+            .is_some_and(|width| *width > 0.0)
+    {
         minipage(
             context.head,
             column_command(&resolved_align(cell, start, context.plan)),
@@ -538,45 +551,19 @@ fn cell_content(
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
+    let mut hl = hl;
+    hl.stacked_lines = stacked_lines;
     if is_simple_cell(cell) {
         match cell.content.first() {
             Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-                if stacked_lines
-                    && inlines
-                        .iter()
-                        .any(|inline| matches!(inline, Inline::LineBreak))
-                {
-                    stacked_cell(inlines, width, dialect, wrap, smart, hl)
-                } else {
-                    let text = inline_pieces(inlines, width, dialect, wrap, smart, hl).flatten();
-                    text.trim_start_matches(' ').to_owned()
-                }
+                let text = inline_pieces(inlines, width, dialect, wrap, smart, hl).flatten();
+                text.trim_start_matches(' ').to_owned()
             }
             _ => String::new(),
         }
     } else {
         render_blocks(&cell.content, width, 0, dialect, wrap, smart, hl)
     }
-}
-
-/// Render a single paragraph that carries hard line breaks as a stack of struts: one
-/// `\hbox{\strut …}` per break-delimited segment, wrapped in a `\vtop` so the cell grows downward.
-fn stacked_cell(
-    inlines: &[Inline],
-    width: usize,
-    dialect: Dialect,
-    wrap: WrapMode,
-    smart: bool,
-    hl: Hl<'_>,
-) -> String {
-    let mut boxes = String::new();
-    for segment in inlines.split(|inline| matches!(inline, Inline::LineBreak)) {
-        let text = inline_pieces(segment, width, dialect, wrap, smart, hl).flatten();
-        boxes.push_str("\\hbox{\\strut ");
-        boxes.push_str(&text);
-        boxes.push('}');
-    }
-    format!("\\vtop{{{boxes}}}")
 }
 
 /// Whether a cell holds at most a single paragraph, so it can render without a minipage box.
@@ -594,7 +581,7 @@ fn simple_cell_has_break(cell: &Cell) -> bool {
     matches!(
         cell.content.as_slice(),
         [Block::Plain(inlines) | Block::Para(inlines)]
-            if inlines.iter().any(|inline| matches!(inline, Inline::LineBreak))
+            if crate::common::has_line_break(inlines)
     )
 }
 
