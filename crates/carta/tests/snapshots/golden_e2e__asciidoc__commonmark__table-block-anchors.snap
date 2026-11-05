@@ -8,23 +8,17 @@ expression: output
 </colgroup>
 <tbody>
 <tr>
-<td><div id="next" data-wrapper="1">
-<p>Next line</p>
-</div></td>
+<td><p id="next">Next line</p></td>
 </tr>
 <tr>
-<td><div id="labeled,label" data-wrapper="1">
-<p>Label text</p>
-</div></td>
+<td><p id="labeled,label">Label text</p></td>
 </tr>
 <tr>
 <td><p><span id="inline"></span> remainder</p></td>
 </tr>
 <tr>
 <td><p>before <span id="middle"></span> after</p>
-<div id="after-blank" data-wrapper="1">
-<p>After blank</p>
-</div></td>
+<p id="after-blank">After blank</p></td>
 </tr>
 <tr>
 <td><p><span id="space inside"></span> Whitespace id</p></td>
@@ -56,5 +50,5 @@ expression: output
 </tfoot>
 &#10;</table>
 
-<span class="counter" name="dangling">1</span>
-<span class="counter" name="ordered">3</span>
+<span class="counter" name="dangling">1</span> <span class="counter"
+name="ordered">3</span>

@@ -2,14 +2,10 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div class="red
-blue" data-wrapper="1">
-<p>x</p>
-</div>
+<p class="red
+blue">x</p>
 <blockquote>
 <p>quote</p>
 <p>— Author</p>
 </blockquote>
-<div class="red blue" data-wrapper="1">
-<p>text</p>
-</div>
+<p class="red blue">text</p>

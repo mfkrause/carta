@@ -89,6 +89,36 @@ impl State<'_> {
             Block::OrderedList(attrs, items) => self.ordered_list(out, attrs, items),
             Block::DefinitionList(items) => self.definition_list(out, items),
             Block::Div(attr, blocks) => {
+                if blocks.len() == 1
+                    && attr
+                        .attributes
+                        .iter()
+                        .any(|(key, value)| key == "wrapper" && value == "1")
+                {
+                    let attr = Attr {
+                        attributes: attr
+                            .attributes
+                            .iter()
+                            .filter(|(key, _)| key != "wrapper")
+                            .cloned()
+                            .collect(),
+                        ..attr.as_ref().clone()
+                    };
+                    let mut content = String::new();
+                    self.blocks(&mut content, blocks);
+                    if let Some(end) = content.find('>') {
+                        let position = if content[..end].ends_with(" /") {
+                            end - 2
+                        } else {
+                            end
+                        };
+                        let mut attributes = String::new();
+                        render_attr_into(&mut attributes, &attr, AttrOrder::Standard, self.flavor);
+                        content.insert_str(position, &attributes);
+                    }
+                    out.push_str(&content);
+                    return;
+                }
                 let section = self.flavor == Flavor::Epub3
                     && attr.classes.iter().any(|class| class == "section");
                 if section {

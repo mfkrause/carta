@@ -6,9 +6,7 @@ expression: output
 <code>{missing}</code></p>
 <p><a href="#known" class="cross-reference"><code>known</code></a>
 <code>value</code></p>
-<div id="known,Label" data-wrapper="1">
-<p>known</p>
-</div>
+<p id="known,Label">known</p>
 <p><a href="#known" class="role cross-reference"><code>known</code></a>
 <a href="#missing"
 class="role cross-reference"><code>missing</code></a></p>

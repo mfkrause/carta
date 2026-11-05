@@ -2,6 +2,5 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div data-wrapper="1" cols="1,2">
-<p>|=== |<span class="counter" name="n">3</span> x|y |second |===</p>
-</div>
+<p cols="1,2">|=== |<span class="counter" name="n">3</span> x|y |second
+|===</p>

@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-- ![movie.mp4](movie.mp4)
+- ![](movie.mp4)
 
 <!-- -->
 
@@ -28,7 +28,7 @@ Named
 </figure>
 
 Indented  
-![sound.mp3](sound.mp3)
+![](sound.mp3)
 
 A  
 

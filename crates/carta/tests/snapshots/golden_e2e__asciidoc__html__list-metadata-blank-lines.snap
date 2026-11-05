@@ -9,9 +9,7 @@ expression: output
 </dd>
 <dt>tagged</dt>
 <dd>
-<div class="term-body" data-wrapper="1">
-<p>Y</p>
-</div>
+<p class="term-body">Y</p>
 </dd>
 </dl>
 <ul>
@@ -20,7 +18,5 @@ expression: output
 </ul>
 <ul>
 <li><p>Tagged bullet</p>
-<div class="bullet-body" data-wrapper="1">
-<p>W</p>
-</div></li>
+<p class="bullet-body">W</p></li>
 </ul>

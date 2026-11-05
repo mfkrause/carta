@@ -2,9 +2,7 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div data-wrapper="1" data-subs="+quotes">
 *plain*
-</div>
 <div id="raw" class="role" data-subs="normal">
 <div class="title">
 <p>Title</p>
@@ -12,9 +10,7 @@ expression: output
 <p>One</p>
 <p>Two</p>
 </div>
-<div id="first" data-wrapper="1">
-<p>First</p>
-</div>
+<p id="first">First</p>
 <p>Second</p>
 <div>
 <div class="title">

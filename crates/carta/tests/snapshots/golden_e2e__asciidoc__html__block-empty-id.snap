@@ -2,15 +2,11 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div data-wrapper="1">
 <p>0</p>
-</div>
 <p>no id</p>
-<div data-wrapper="1">
 <ul>
 <li><p>list item</p></li>
 </ul>
-</div>
 <div>
 
 </div>
@@ -33,9 +29,7 @@ expression: output
 </colgroup>
 <thead>
 <tr>
-<th><div data-wrapper="1">
-<p>cell with an empty ID</p>
-</div></th>
+<th><p>cell with an empty ID</p></th>
 </tr>
 </thead>
 <tbody>

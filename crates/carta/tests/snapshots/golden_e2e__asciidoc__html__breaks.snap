@@ -5,18 +5,12 @@ expression: output
 <hr />
 <hr />
 <hr />
-<div class="page-break" data-wrapper="1">
-<hr />
-</div>
-<div class="page-break" data-options="always" data-wrapper="1">
-<hr />
-</div>
+<hr class="page-break" />
+<hr class="page-break" data-options="always" />
 <p>A hard<br />
 break.</p>
-<div data-wrapper="1" data-options="hardbreaks">
-<p>a<br />
+<p data-options="hardbreaks">a<br />
 b</p>
-</div>
 <p>third<br />
 fourth</p>
 <p>first<br />

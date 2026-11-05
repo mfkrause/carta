@@ -31,6 +31,26 @@ pub(super) fn has_table_head(table: &Table) -> bool {
 
 pub(super) fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
     let alt = to_plain_text(inlines);
+    let extension = target.url.rsplit('.').next().unwrap_or_default();
+    let media = match extension {
+        "mp4" | "webm" | "ogv" | "mov" | "avi" => Some("video"),
+        "mp3" | "ogg" | "wav" | "m4a" | "flac" | "aac" | "opus" => Some("audio"),
+        _ => None,
+    };
+    if let Some(tag) = media
+        && flavor.is_html5_family()
+    {
+        let url = escape_attr(&target.url);
+        let mut out = format!(
+            "<{tag}{BREAK}src=\"{url}\"{} controls=\"\"",
+            title_attr(&target.title)
+        );
+        render_attr_into(&mut out, attr, AttrOrder::Standard, flavor);
+        let _ = write!(out, "><a{BREAK}href=\"{url}\">");
+        super::escape_text_into(&mut out, &alt);
+        let _ = write!(out, "</a></{tag}>");
+        return out;
+    }
     // EPUB XHTML always carries `alt` (possibly empty); other flavors omit an empty one
     let alt_attr = if inlines.is_empty() && !matches!(flavor, Flavor::Epub3 | Flavor::Epub2) {
         String::new()

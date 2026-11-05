@@ -8,9 +8,9 @@ expression: output
 <span id="x" class="mark">text</span>
 <span class="style.role">text</span> <span class="a">text</span>
 
-prefix <span class="" data-wrapper="1">**strong**</span>
-<span class="" data-wrapper="1">*italic*</span>
-<span class="">span</span> <span class="">span</span>
+prefix <span class="" data-wrapper="1">**strong**</span> <span class=""
+data-wrapper="1">*italic*</span> <span class="">span</span>
+<span class="">span</span>
 
 prefix <span data-wrapper="1">**strong**</span>
 <span class="mark">mark</span>

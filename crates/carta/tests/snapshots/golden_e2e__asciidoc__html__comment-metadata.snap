@@ -6,12 +6,8 @@ expression: output
 <pre><code>code</code></pre>
 <p>Visible after styled comment.</p>
 <p>Visible after anchor comment.</p>
-<div class="kept" data-wrapper="1">
-<p>Visible after fresh block metadata.</p>
-</div>
-<div class="kept-through-line-comment" data-wrapper="1">
-<p>Visible after line comment.</p>
-</div>
+<p class="kept">Visible after fresh block metadata.</p>
+<p class="kept-through-line-comment">Visible after line comment.</p>
 <div class="example">
 <p>Visible inside the example.</p>
 </div>

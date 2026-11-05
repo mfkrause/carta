@@ -10,6 +10,4 @@ href="b@example.com">b@example.com</a></p>
 <p>ͅ--a a--ְ Ⅻ—​²</p>
 <p>Text</p>
 <p><img src="x" alt="ְ.role" /></p>
-<div class="role" data-wrapper="1">
-<p>Text</p>
-</div>
+<p class="role">Text</p>

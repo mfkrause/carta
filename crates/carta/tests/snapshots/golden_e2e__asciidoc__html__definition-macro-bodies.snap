@@ -3,7 +3,8 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 <ul>
-<li><img src="movie.mp4" alt="movie.mp4" /></li>
+<li><video src="movie.mp4" controls=""><a
+href="movie.mp4">movie.mp4</a></video></li>
 </ul>
 <ul>
 <li><p>Outer</p>
@@ -34,7 +35,8 @@ expression: output
 </dd>
 <dt>Indented</dt>
 <dd>
-<img src="sound.mp3" alt="sound.mp3" />
+<audio src="sound.mp3" controls=""><a
+href="sound.mp3">sound.mp3</a></audio>
 </dd>
 <dt>A</dt>
 <dd>

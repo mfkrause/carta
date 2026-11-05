@@ -99,7 +99,9 @@ impl State {
             if let Some(previous) = previous {
                 if needs_separator(previous, block) {
                     out.push_str("\n\n<!-- -->\n\n");
-                } else if self.in_item && matches!(previous, Block::Plain(_)) {
+                } else if matches!(previous, Block::Plain(_))
+                    && (self.in_item || matches!(block, Block::RawBlock(..)))
+                {
                     out.push('\n');
                 } else {
                     out.push_str("\n\n");
@@ -258,13 +260,24 @@ impl State {
     /// Render an inline sequence to a single line, collapsing breakable and forced breaks to spaces.
     /// Used where a construct cannot span lines, such as a heading.
     fn inlines_oneline(&mut self, inlines: &[Inline], line_start: bool) -> String {
-        let (pieces, _groups) = self.pieces(inlines, line_start);
+        let (pieces, groups) = self.pieces(inlines, line_start);
         let mut out = String::new();
-        for piece in &pieces {
+        let mut position = 0;
+        while let Some(piece) = pieces.get(position) {
+            if let Some(&(_, end)) = groups.iter().find(|(start, _)| *start == position) {
+                out.push_str(&fill(
+                    pieces.get(position..end).unwrap_or_default(),
+                    self.width,
+                    self.wrap,
+                ));
+                position = end;
+                continue;
+            }
             match piece {
                 Piece::Text(text) => out.push_str(text),
                 Piece::Space | Piece::Soft | Piece::Hard => out.push(' '),
             }
+            position += 1;
         }
         out
     }
@@ -361,11 +374,19 @@ impl State {
                 if attr_is_empty(attr) {
                     self.extend_pieces(inlines, out, false);
                 } else {
-                    push_html(
-                        out,
-                        &format!("<span{}>", render_html_attr(attr)),
-                        self.in_anchor,
-                    );
+                    let tag = format!("<span{}>", render_html_attr(attr));
+                    if self.in_anchor {
+                        push_html(out, &tag, true);
+                    } else {
+                        let mut pieces = html_tag_pieces(&tag);
+                        if let Some(space) = pieces
+                            .iter_mut()
+                            .find(|piece| matches!(piece, Piece::Space))
+                        {
+                            *space = Piece::text(" ");
+                        }
+                        out.extend(pieces);
+                    }
                     self.extend_pieces(inlines, out, false);
                     out.push(Piece::text("</span>"));
                 }
@@ -508,7 +529,9 @@ impl State {
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
         if attr_is_empty(attr) && !self.in_anchor {
             out.push(Piece::text("!["));
-            self.extend_pieces(inlines, out, false);
+            if !matches!(inlines, [Inline::Str(text)] if text == target.url) {
+                self.extend_pieces(inlines, out, false);
+            }
             out.push(Piece::text(format!("]({})", destination(target))));
             return;
         }

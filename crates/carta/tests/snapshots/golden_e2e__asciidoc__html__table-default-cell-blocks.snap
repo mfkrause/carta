@@ -5,11 +5,9 @@ expression: output
 <table>
 <thead>
 <tr>
-<th><div class="red
+<th><p class="red
 
-blue" data-wrapper="1">
-<p>x</p>
-</div></th>
+blue">x</p></th>
 </tr>
 </thead>
 <tbody>
@@ -19,9 +17,7 @@ blue" data-wrapper="1">
 <thead>
 <tr>
 <th><p>first</p>
-<div class="red blue" data-wrapper="1">
-<p>second</p>
-</div></th>
+<p class="red blue">second</p></th>
 </tr>
 </thead>
 <tbody>

@@ -42,9 +42,7 @@ no id
 </colgroup>
 <thead>
 <tr>
-<th><div data-wrapper="1">
-<p>cell with an empty ID</p>
-</div></th>
+<th><p>cell with an empty ID</p></th>
 </tr>
 </thead>
 <tbody>

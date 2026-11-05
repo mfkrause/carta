@@ -2,12 +2,10 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div data-wrapper="1" data-options="loop,autoplay">
-<img src="sound.ogg" alt="sound.ogg" />
-</div>
-<div class="video" data-wrapper="1" width="320">
-<img src="movie.mp4" alt="movie.mp4" />
-</div>
+<audio src="sound.ogg" controls="" data-options="loop,autoplay"><a
+href="sound.ogg">sound.ogg</a></audio>
+<video src="movie.mp4" controls="" class="video" width="320"><a
+href="movie.mp4">movie.mp4</a></video>
 <div id="contents" data-levels="2">
 
 </div>

@@ -17,12 +17,10 @@ two</p>
 two</p>
 </div>
 <p>after block</p>
-<div data-wrapper="1" data-options="hardbreaks">
-<blockquote>
+<blockquote data-options="hardbreaks">
 <p>one<br />
 two</p>
 </blockquote>
-</div>
 <p>after block</p>
 <table>
 <thead>

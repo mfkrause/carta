@@ -12,10 +12,8 @@ two</p></th>
 <tbody>
 </tbody><tfoot>
 <tr>
-<td><div data-wrapper="1" data-options="hardbreaks">
-<p>three<br />
-four</p>
-</div></td>
+<td><p data-options="hardbreaks">three<br />
+four</p></td>
 </tr>
 </tfoot>
 &#10;</table>

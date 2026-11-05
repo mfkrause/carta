@@ -7,9 +7,8 @@ class="cross-reference">Reference Text</a> and <a href="#missing"
 class="cross-reference"></a>.</p>
 <h1 id="other,Label">Heading</h1>
 <p>See <a href="#other" class="cross-reference">other</a>.</p>
-<div id="multi,One,Two" data-wrapper="1">
-<p>See <a href="#multi" class="cross-reference">multi</a>.</p>
-</div>
+<p id="multi,One,Two">See <a href="#multi"
+class="cross-reference">multi</a>.</p>
 <p><span id="macro"></span> See <a href="#macro"
 class="cross-reference">AlphaBeta</a>.</p>
 <p><span id="bib"></span></p>

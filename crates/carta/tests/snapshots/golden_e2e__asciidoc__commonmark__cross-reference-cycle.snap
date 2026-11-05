@@ -2,4 +2,5 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-# <a href="#self" class="cross-reference"><span class="cross-reference">self</span></a>
+# <a href="#self" class="cross-reference"><span
+class="cross-reference">self</span></a>

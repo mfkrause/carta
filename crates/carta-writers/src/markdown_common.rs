@@ -164,7 +164,10 @@ pub(crate) fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
     let [Inline::Str(text)] = inlines else {
         return None;
     };
-    if is_uri(&target.url) && label_matches_url(text, &target.url) {
+    if !target.url.starts_with("mailto:")
+        && is_uri(&target.url)
+        && label_matches_url(text, &target.url)
+    {
         return Some(format!("<{}>", target.url));
     }
     if target.url == format!("mailto:{text}") {

@@ -2,15 +2,11 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-<div data-wrapper="1" cols="a">
-<p>|=== |[verse] text |===</p>
-</div>
+<p cols="a">|=== |[verse] text |===</p>
 <table>
 <tbody>
 </tbody>
 </table>
-<div data-wrapper="1" cols="a,a">
-<p>|=== |<span class="counter" name="retry">1</span> |[role=bad]
-|===</p>
-</div>
+<p cols="a,a">|=== |<span class="counter" name="retry">1</span>
+|[role=bad] |===</p>
 <p><span class="counter" name="retry">2</span></p>

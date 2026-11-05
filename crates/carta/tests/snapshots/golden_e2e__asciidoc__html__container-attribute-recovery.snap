@@ -8,7 +8,5 @@ expression: output
 <ul>
 <li><p>Parent</p>
 <p>****</p>
-<div id="id" data-wrapper="1">
-<p>****</p>
-</div></li>
+<p id="id">****</p></li>
 </ul>
