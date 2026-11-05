@@ -1,23 +1,31 @@
 //! Build nested EPUB sections and split chapters at the selected heading level.
 
 use carta_ast::{Attr, Block, Inline, Text, slug, to_plain_text};
+use carta_core::sections::{SECTION_CLASS, section_heading, without_section_class};
 use std::collections::{BTreeMap, BTreeSet};
-
-/// The `section` marker class an EPUB section wrapper carries; the HTML writer keys its
-/// `<section>` rendering off it.
-const SECTION_CLASS: &str = "section";
 
 /// Transform a flat block sequence into the nested section structure an EPUB body uses. Each heading
 /// and the blocks beneath it (up to the next heading of the same or a shallower level) become a
 /// `Div` marked with the [`SECTION_CLASS`], a `level{N}` class, and the heading's own classes; the
 /// heading's identifier moves onto that wrapper, and the heading keeps its classes and key/value
-/// pairs. Content preceding the first heading is gathered into a leading section headed by the
-/// document title (an `unnumbered` section whose identifier derives from that title).
+/// pairs. Unless the body opens with a level-one heading or a heading-led division, the content before the first
+/// level-one heading is gathered into a leading section headed by the document title (an
+/// `unnumbered` section whose identifier derives from that title).
 pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
-    let boundary = blocks
-        .iter()
-        .position(|block| matches!(block, Block::Header(..)))
-        .unwrap_or(blocks.len());
+    let blocks = &*carta_core::sections::merge_heading_divs(blocks);
+    let opens_section = match blocks.first() {
+        Some(Block::Header(level, ..)) => *level == 1,
+        Some(Block::Div(_, children)) => matches!(children.first(), Some(Block::Header(..))),
+        _ => false,
+    };
+    let boundary = if opens_section {
+        0
+    } else {
+        blocks
+            .iter()
+            .position(|block| opening_level(block).is_some_and(|level| level <= 1))
+            .unwrap_or(blocks.len())
+    };
     let (preamble, rest) = blocks.split_at(boundary);
     let mut out = Vec::new();
     // seed with every explicit id in the document so a derived slug cannot duplicate an author's own
@@ -36,41 +44,56 @@ pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
     out
 }
 
-/// Group a header-led block sequence into nested section `Div`s. A block that is not a header (the
-/// content directly under a section, before any sub-heading) is carried through unchanged.
+/// Group a header-led block sequence into nested section `Div`s. A division that already is its
+/// heading's section keeps its own attributes; any other division is sectioned within. Remaining
+/// blocks (the content directly under a section, before any sub-heading) are carried through.
 fn build_sections(blocks: &[Block], seen: &mut BTreeSet<String>) -> Vec<Block> {
     let mut out = Vec::new();
     let mut remaining = blocks;
     while let Some((first, rest)) = remaining.split_first() {
-        if let Block::Header(level, attr, inlines) = first {
-            let end = rest
-                .iter()
-                .position(|block| matches!(block, Block::Header(inner, ..) if *inner <= *level))
-                .unwrap_or(rest.len());
-            let (body, tail) = rest.split_at(end);
-            let id = section_id(attr, inlines, seen);
-            let inner = build_sections(body, seen);
-            out.push(section_div(*level, attr, inlines, id, inner));
-            remaining = tail;
-        } else {
-            out.push(first.clone());
-            remaining = rest;
+        remaining = rest;
+        match first {
+            Block::Header(level, attr, inlines) => {
+                let end = rest
+                    .iter()
+                    .position(|block| opening_level(block).is_some_and(|inner| inner <= *level))
+                    .unwrap_or(rest.len());
+                let (body, tail) = rest.split_at(end);
+                let id = section_id(attr, inlines, seen);
+                let inner = build_sections(body, seen);
+                out.push(section_div(*level, attr, inlines, id, inner));
+                remaining = tail;
+            }
+            Block::Div(attr, children) => match section_heading(attr, children) {
+                Some((level, _, inlines)) => {
+                    let id = section_id(attr, inlines, seen);
+                    let section = section_attr(level, id, attr, without_section_class(attr));
+                    let mut inner = children.get(..1).unwrap_or_default().to_vec();
+                    inner.extend(build_sections(children.get(1..).unwrap_or_default(), seen));
+                    out.push(Block::Div(Box::new(section), inner));
+                }
+                None => out.push(Block::Div(attr.clone(), build_sections(children, seen))),
+            },
+            _ => out.push(first.clone()),
         }
     }
     out
 }
 
+/// The level of the heading a block opens a section with: a heading, or any division led by one.
+fn opening_level(block: &Block) -> Option<i64> {
+    match block {
+        Block::Header(level, ..) => Some(*level),
+        Block::Div(_, children) => match children.first() {
+            Some(Block::Header(level, ..)) => Some(*level),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn section_div(level: i64, attr: &Attr, inlines: &[Inline], id: Text, body: Vec<Block>) -> Block {
-    let mut classes = vec![
-        Text::from(SECTION_CLASS),
-        Text::from(format!("level{level}")),
-    ];
-    classes.extend(attr.classes.iter().cloned());
-    let section_attr = Attr {
-        id,
-        classes,
-        attributes: attr.attributes.clone(),
-    };
+    let section = section_attr(level, id, attr, attr.classes.iter());
     let heading = Block::Header(
         level,
         Box::new(Attr {
@@ -83,7 +106,26 @@ fn section_div(level: i64, attr: &Attr, inlines: &[Inline], id: Text, body: Vec<
     let mut children = Vec::with_capacity(body.len() + 1);
     children.push(heading);
     children.extend(body);
-    Block::Div(Box::new(section_attr), children)
+    Block::Div(Box::new(section), children)
+}
+
+/// A section wrapper's attributes: the section marker, `level{N}`, then `classes`.
+fn section_attr<'a>(
+    level: i64,
+    id: Text,
+    attr: &Attr,
+    classes: impl Iterator<Item = &'a Text>,
+) -> Attr {
+    let mut all = vec![
+        Text::from(SECTION_CLASS),
+        Text::from(format!("level{level}")),
+    ];
+    all.extend(classes.cloned());
+    Attr {
+        id,
+        classes: all,
+        attributes: attr.attributes.clone(),
+    }
 }
 
 /// The identifier a section wrapper carries. A heading's own identifier is kept verbatim; a heading
@@ -148,7 +190,7 @@ fn synthetic_section(title: &[Inline], preamble: &[Block], seen: &mut BTreeSet<S
     );
     let mut children = Vec::with_capacity(preamble.len() + 1);
     children.push(heading);
-    children.extend(preamble.iter().cloned());
+    children.extend(build_sections(preamble, seen));
     Block::Div(Box::new(section_attr), children)
 }
 
@@ -169,12 +211,21 @@ fn is_promotable_section(block: &Block, split_level: i64) -> bool {
 }
 
 /// Break the sectioned blocks into chapters, one block list per output file. A section at a level up
-/// to `split_level` starts a new file; deeper sections stay within their ancestor's file. With the
-/// default `split_level` of one, each top-level section becomes its own chapter.
+/// to `split_level` gets its own file; deeper sections stay within their ancestor's file. Each run of
+/// other top-level blocks, deeper sections included, shares one file.
 pub(crate) fn split_chapters(blocks: Vec<Block>, split_level: i64) -> Vec<Vec<Block>> {
-    let mut chapters = Vec::new();
+    let mut chapters: Vec<Vec<Block>> = Vec::new();
+    let mut in_run = false;
     for block in blocks {
-        push_chapter(block, split_level, &mut chapters);
+        if is_promotable_section(&block, split_level) {
+            push_chapter(block, split_level, &mut chapters);
+            in_run = false;
+        } else if let Some(run) = chapters.last_mut().filter(|_| in_run) {
+            run.push(block);
+        } else {
+            chapters.push(vec![block]);
+            in_run = true;
+        }
     }
     chapters
 }
