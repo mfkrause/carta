@@ -14,8 +14,9 @@ pub struct RevealjsWriter;
 
 impl Writer for RevealjsWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        let level = slide_level(&document.blocks);
-        let slides = segment(&document.blocks, level);
+        let blocks = carta_core::sections::merge_heading_divs(&document.blocks);
+        let level = slide_level(&blocks);
+        let slides = segment(&blocks, level);
         let mut renderer = SlideRenderer::new(options);
         let mut deck = Deck::new(level);
         if slides.is_empty() {
@@ -137,7 +138,12 @@ impl Deck {
         has_children: bool,
     ) {
         match slide {
-            Slide::Section { level, attr, title } if *level == top => {
+            Slide::Section {
+                level,
+                attr,
+                section,
+                title,
+            } if *level == top => {
                 if self.outer_open {
                     self.append_outer_close(top);
                 }
@@ -146,7 +152,7 @@ impl Deck {
                     self.separate(popped + 1);
                 }
                 self.open_levels.push(top);
-                let marker = Self::section_marker(renderer, *level, attr, title);
+                let marker = Self::section_marker(renderer, *level, attr, section, title);
                 if has_children {
                     self.out.push_str("<section>\n");
                     self.out.push_str(&marker);
@@ -156,12 +162,17 @@ impl Deck {
                 }
                 self.first = false;
             }
-            Slide::Section { level, attr, title } => {
+            Slide::Section {
+                level,
+                attr,
+                section,
+                title,
+            } => {
                 let popped = self.pop_to(*level);
                 if !self.first {
                     self.separate(popped + 1);
                 }
-                let marker = Self::section_marker(renderer, *level, attr, title);
+                let marker = Self::section_marker(renderer, *level, attr, section, title);
                 self.out.push_str(&marker);
                 self.open_levels.push(*level);
                 self.first = false;
@@ -214,10 +225,11 @@ impl Deck {
         renderer: &mut SlideRenderer<'_>,
         level: i64,
         attr: &carta_ast::Attr,
+        section: &carta_ast::Attr,
         title: &[Inline],
     ) -> String {
         let open =
-            SlideRenderer::section_open(attr, &["title-slide", "slide", &level_class(level)]);
+            SlideRenderer::section_open(section, &["title-slide", "slide", &level_class(level)]);
         let heading = renderer.title(level, attr, title);
         format!("{open}\n{heading}\n\n</section>")
     }
@@ -234,7 +246,7 @@ impl Deck {
         let rendered_body = renderer.body(body);
         if let Some(title) = title {
             let open =
-                SlideRenderer::section_open(title.attr, &["slide", &level_class(self.level)]);
+                SlideRenderer::section_open(title.section, &["slide", &level_class(self.level)]);
             let heading = renderer.title(self.level, title.attr, title.inlines);
             if body.is_empty() {
                 format!("{open}\n{heading}\n</section>")

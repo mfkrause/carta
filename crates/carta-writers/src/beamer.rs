@@ -3,6 +3,7 @@
 use std::sync::LazyLock;
 
 use carta_ast::{Attr, Block, Document, Inline};
+use carta_core::sections::section_opening;
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::latex::{
@@ -22,9 +23,10 @@ impl Writer for BeamerWriter {
         }
         let smart = options.extensions.contains(Extension::Smart);
         let hl = code_highlighting(options);
-        let level = slide_level(&document.blocks);
+        let blocks = carta_core::sections::merge_heading_divs(&document.blocks);
+        let level = slide_level(&blocks);
         let width = options.columns.unwrap_or(crate::common::FILL_COLUMN);
-        let units: Vec<String> = segment(&document.blocks, level)
+        let units: Vec<String> = segment(&blocks, level)
             .iter()
             .map(|slide| render_slide(slide, level, width, options.wrap, smart, hl))
             .collect();
@@ -109,8 +111,17 @@ fn render_slide(
     hl: Hl<'_>,
 ) -> String {
     match slide {
-        Slide::Section { level, attr, title } => {
-            render_heading(*level, attr, title, width, wrap, smart, hl)
+        Slide::Section {
+            level,
+            attr,
+            section,
+            title,
+        } => {
+            let attr = Attr {
+                id: section.id.clone(),
+                ..(*attr).clone()
+            };
+            render_heading(*level, &attr, title, width, wrap, smart, hl)
         }
         Slide::Frame { title, body } => {
             render_frame(title.as_ref(), body, level, width, wrap, smart, hl)
@@ -143,8 +154,8 @@ fn render_frame(
                 smart,
                 hl,
             ));
-            if !title.attr.id.is_empty() {
-                lines.push(anchor(&title.attr.id));
+            if !title.section.id.is_empty() {
+                lines.push(anchor(&title.section.id));
             }
         }
         None => lines.push(format!("\\begin{{frame}}{options}")),
@@ -163,12 +174,17 @@ fn render_frame(
 fn frame_options(title: Option<&FrameTitle>, fragile: bool) -> String {
     let mut options: Vec<String> = Vec::new();
     if let Some(title) = title {
-        for class in &title.attr.classes {
+        for class in &title.section.classes {
             if FRAME_CLASSES.contains(&class.as_str()) {
                 options.push(class.to_string());
             }
         }
-        if let Some((_, value)) = title.attr.attributes.iter().find(|(key, _)| key == "label") {
+        if let Some((_, value)) = title
+            .section
+            .attributes
+            .iter()
+            .find(|(key, _)| key == "label")
+        {
             options.push(format!("label={value}"));
         }
     }
@@ -247,10 +263,7 @@ fn render_block_env(
 fn shallowest_header(blocks: &[Block]) -> Option<i64> {
     blocks
         .iter()
-        .filter_map(|block| match block {
-            Block::Header(level, _, _) => Some(*level),
-            _ => None,
-        })
+        .filter_map(|block| section_opening(block).map(|open| open.level))
         .min()
 }
 
