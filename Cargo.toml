@@ -24,7 +24,7 @@ caseless = "0.2"
 compact_str = { version = "0.9" }
 memchr = "2"
 miniz_oxide = "0.9"
-fancy-regex = "0.19"
+fancy-regex = "0.20"
 regex-automata = "0.4"
 regex-syntax = "0.8"
 quick-xml = "0.42"
