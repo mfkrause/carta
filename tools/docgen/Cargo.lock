@@ -49,7 +49,7 @@ checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "carta"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "carta-ast"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "compact_str",
  "itoa",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "carta-core"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "carta-ast",
  "carta-highlight",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "carta-highlight"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "fancy-regex",
  "miniz_oxide",
@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "carta-readers"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -116,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "carta-writers"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -202,9 +202,9 @@ dependencies = [
 
 [[package]]
 name = "fancy-regex"
-version = "0.19.0"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "476de73bddf2ef8490aa4ee8f1cf40b430bf1d56c48c22080e5186952cd580e6"
+checksum = "20ed7f62ce0ae0da1a8b93c3c7104ab7e0760a74491e097c701fff966e945390"
 dependencies = [
  "bit-set",
  "regex-automata",
