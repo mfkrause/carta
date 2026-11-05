@@ -43,6 +43,7 @@ impl Writer for MediawikiWriter {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 struct State {
+    html: bool,
     has_notes: bool,
     in_link: bool,
     in_term: bool,
@@ -64,7 +65,9 @@ impl State {
     /// text and blocks are joined per the top-level spacing. Blocks that render to nothing are
     /// dropped.
     fn block_seq(&mut self, blocks: &[Block], html: bool) -> String {
+        let previous = std::mem::replace(&mut self.html, html);
         let rendered = self.render_blocks(blocks, html);
+        self.html = previous;
         join_blocks(&rendered, html)
     }
 
@@ -166,7 +169,11 @@ impl State {
         let body = join_blocks(&rendered, html);
         let trailing = match rendered.last() {
             Some((block, _))
-                if matches!(block, Block::Para(_) | Block::Div(..))
+                if (!html
+                    && matches!(
+                        block,
+                        Block::Para(_) | Block::Div(..) | Block::Figure(..) | Block::Table(_)
+                    ))
                     || needs_trailing_blank(block) =>
             {
                 "\n\n"
@@ -174,7 +181,16 @@ impl State {
             Some(_) => "\n",
             None => "",
         };
-        format!("<div{}>\n{body}{trailing}</div>", render_html_attr(attr))
+        let leading =
+            if matches!(blocks.first(), Some(Block::HorizontalRule)) && !body.starts_with('\n') {
+                "\n"
+            } else {
+                ""
+            };
+        format!(
+            "<div{}>\n{leading}{body}{trailing}</div>",
+            render_html_attr(attr)
+        )
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
@@ -439,7 +455,7 @@ impl State {
             };
             attrs.push(format!("{name}=\"{}\"", escape_attr(value)));
         }
-        let body = self.blocks(&cell.content);
+        let body = self.block_seq(&cell.content, self.html);
         let content = body.trim_end_matches('\n');
         match (attrs.is_empty(), content.is_empty()) {
             (true, true) => marker.trim_end().to_owned(),
@@ -494,7 +510,7 @@ impl State {
             out.push_str(&rendered);
             wrote = true;
         }
-        if keep_edges && pending_space && wrote {
+        if keep_edges && pending_space {
             out.push(' ');
         }
         out
@@ -675,6 +691,7 @@ fn needs_trailing_blank(block: &Block) -> bool {
             | Block::BulletList(_)
             | Block::OrderedList(..)
             | Block::DefinitionList(_)
+            | Block::Figure(..)
     )
 }
 

@@ -6,9 +6,8 @@ expression: output
 <dt>Term</dt>
 <dd>{| class="wikitable"
 |-
-! first
-
-second line
+! <p>first</p>
+<p>second line</p>
 |-
-! next
+! <p>next</p>
 |}</dd></dl>

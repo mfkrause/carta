@@ -8,7 +8,6 @@ expression: output
 <dt>tagged</dt>
 <dd><div class="term-body" data-wrapper="1">
 <p>Y</p>
-
 </div></dd></dl>
 
 <ul>
@@ -19,5 +18,4 @@ expression: output
 <li><p>Tagged bullet</p>
 <div class="bullet-body" data-wrapper="1">
 <p>W</p>
-
 </div></li></ul>
