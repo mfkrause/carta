@@ -9,6 +9,9 @@ corpus/text/jira/carriage-return.jira  -text
 corpus/text/asciidoc/**      whitespace=-blank-at-eol
 corpus/text-ext/asciidoc*/** whitespace=-blank-at-eol
 
+# Snapshots compare exact output bytes.
+*.snap whitespace=-blank-at-eol
+
 # Generated artifacts; collapse them in review diffs.
 docs/STATUS.md                              linguist-generated=true
 docs/BENCHMARKS.md                          linguist-generated=true

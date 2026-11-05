@@ -20,5 +20,8 @@ indent_size = 2
 [*.md]
 trim_trailing_whitespace = false
 
+[*.snap]
+trim_trailing_whitespace = false
+
 [corpus/**.adoc]
 trim_trailing_whitespace = false
