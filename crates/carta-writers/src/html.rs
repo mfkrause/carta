@@ -694,7 +694,18 @@ fn restore(text: String) -> String {
 
 /// Escape running text and inline code directly into `out`, leaving both quote characters literal.
 fn escape_text_into(out: &mut String, text: &str) {
-    escape_into(out, text, false, false);
+    const ARROWS: [char; 2] = ['\u{2194}', '\u{21a9}'];
+    let mut rest = text;
+    // Force text presentation of these arrows, which platforms otherwise draw as emoji.
+    while let Some(index) = rest.find(ARROWS) {
+        let Some((head, tail)) = rest.split_at_checked(index + '\u{2194}'.len_utf8()) else {
+            break;
+        };
+        escape_into(out, head, false, false);
+        out.push('\u{fe0e}');
+        rest = tail.strip_prefix('\u{fe0e}').unwrap_or(tail);
+    }
+    escape_into(out, rest, false, false);
 }
 
 /// Escape an attribute value, where both quote characters must be entity-encoded. The same policy
