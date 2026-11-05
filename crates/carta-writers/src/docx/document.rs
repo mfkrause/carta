@@ -381,13 +381,14 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
             render_definition_list(items, body, ctx);
             ctx.prev_paragraph = false;
         }
+        // Body text continues after a table or a figure.
         Block::Table(table) => {
             render_table(table, body, ctx, None);
-            ctx.prev_paragraph = false;
+            ctx.prev_paragraph = true;
         }
         Block::Figure(attr, caption, blocks) => {
             render_figure(attr.id.as_str(), caption, blocks, body, ctx);
-            ctx.prev_paragraph = false;
+            ctx.prev_paragraph = true;
         }
         Block::HorizontalRule => {
             body.push(horizontal_rule(ctx.run_properties.right_to_left));
