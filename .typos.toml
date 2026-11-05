@@ -28,6 +28,8 @@ extend-ignore-identifiers-re = ['^[0-9a-f]{7,40}$']
 "1f3ba" = "1f3ba"
 
 [default.extend-words]
+# The -f value parsed from a short option group ending in "false".
+alse = "alse"
 # Document-format vocabulary that is not a typo
 fb2 = "fb2"
 ODF = "ODF"
