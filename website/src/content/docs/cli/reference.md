@@ -17,7 +17,7 @@ carta - Document converter
 
 ## Synopsis
 
-**carta** \[**-f**\|**--from**\] \[**--file-scope**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--variable-json**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-d**\|**--defaults**\] \[**-h**\|**--help**\] \[*INPUT*\]
+**carta** \[**-f**\|**--from**\] \[**--file-scope**\] \[**-t**\|**--to**\] \[**--pdf-engine**\] \[**--pdf-engine-opt**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--variable-json**\] \[**--wrap**\] \[**--columns**\] \[**--ascii**\] \[**--tab-stop**\] \[**-p**\|**--preserve-tabs**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**--mathml**\] \[**--webtex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-d**\|**--defaults**\] \[**-h**\|**--help**\] \[*INPUT*\]
 
 ## Description
 
@@ -123,6 +123,16 @@ Accept the ASCII flag for ODT output, which preserves Unicode text\
 
 **--tab-stop** *\<N\>*  
 Column grid a tab in the input advances to (default 4)
+
+**-p**, **--preserve-tabs**\[=*\<PRESERVE_TABS\>*\] \[default: false\]  
+Leave tabs as written in the input\
+
+\
+*Possible values:*
+
+- true
+
+- false
 
 **--top-level-division** *\<default\|section\|chapter\|part\>* \[default: default\]  
 Open the document's top heading level with this division, in a format whose sectioning hierarchy is named
