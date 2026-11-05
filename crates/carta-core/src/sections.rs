@@ -139,7 +139,7 @@ fn number_in_nested(blocks: &mut [Block], counters: &mut Counters) {
                         value.clone()
                     } else {
                         attr.attributes
-                            .push((Text::from("number"), computed.clone()));
+                            .insert(0, (Text::from("number"), computed.clone()));
                         computed
                     };
                     let span = Inline::Span(
