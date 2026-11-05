@@ -6,9 +6,13 @@ CONF_LIB_SOURCED=1
 CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$CONF_DIR/../shared.sh"
 OX="${CARTA_BIN:-$ROOT/target/debug/carta}"
+# Surfaces may change directory, so a relative binary path must resolve now.
+case "$OX" in
+  /*) ;;
+  */*) OX="$PWD/$OX" ;;
+esac
 export CARTA_SYNTAX_DIR="${CARTA_SYNTAX_DIR-$ROOT/crates/carta-highlight/data/syntax-copyleft}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
-EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
 # Children share CONF_WORK; keep scratch logs for failure inspection.
 WORK="${CONF_WORK:-$(mktemp -d "${TMPDIR:-/tmp}/carta-conformance.XXXXXX")}"
@@ -60,16 +64,6 @@ highlight_args() {
   case "$1" in
     html | html5 | html4 | revealjs | latex | beamer | typst | man) echo --syntax-highlighting=none ;;
   esac
-}
-
-# 0 when listed in exclusions.tsv: `target<TAB>feature` or `target<TAB>feature/case`.
-is_excluded() {
-  local target="$1" feature="$2" case="${3:-}"
-  [ -f "$EXCLUSIONS" ] || return 1
-  local active
-  active="$(grep -v '^[[:space:]]*#' "$EXCLUSIONS")"
-  printf '%s\n' "$active" | grep -q "^${target}	${feature}\$" && return 0
-  [ -n "$case" ] && printf '%s\n' "$active" | grep -q "^${target}	${feature}/${case}\$"
 }
 
 compare_json() {
@@ -168,13 +162,14 @@ run_diff() {
   local ofile="$WORK/.run.oracle" xfile="$WORK/.run.ox" efile="$WORK/.run.err"
   local repro="repro: $ORACLE $oargs <$input
        $OX $xargs <$input"
+  # Both tools may write extracted media, so they run in the scratch directory.
   # shellcheck disable=SC2086
-  if ! "$ORACLE" $oargs <"$input" >"$ofile" 2>/dev/null; then
+  if ! (cd "$WORK" && exec "$ORACLE" $oargs) <"$input" >"$ofile" 2>/dev/null; then
     SKIP=$((SKIP + 1))
     return
   fi
   # shellcheck disable=SC2086
-  if ! "$OX" $xargs <"$input" >"$xfile" 2>"$efile"; then
+  if ! (cd "$WORK" && exec "$OX" $xargs) <"$input" >"$xfile" 2>"$efile"; then
     note_err "$label" "$repro
 $(head -n 3 "$efile")"
     return

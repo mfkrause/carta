@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+logo
+\pandocbounded{\includegraphics[keepaspectratio,alt={alt}]{media/3dce9c2d4b39489ad1752e692cb4950c68417479.png}}

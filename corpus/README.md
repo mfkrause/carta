@@ -6,7 +6,6 @@ Hand-authored test inputs that drive both golden tests (`crates/carta/tests/`) a
 
 ```
 corpus/
-  exclusions.tsv          target<TAB>feature pairs a writer does not yet implement
   ast/<feature>/*.json    drives WRITER tests: one full Document per file
   text/<format>/*.<ext>   drives READER tests: one construct family per file (UTF-8 text)
   binary/<format>/*.<ext> drives READER tests for byte-container formats, read as raw bytes

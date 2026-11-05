@@ -205,20 +205,12 @@ run_docx() {
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
-    if is_excluded docx "$feature" "$stem"; then
-      SKIP=$((SKIP + 1))
-      continue
-    fi
     docx_case "docx/$feature/$stem" docx "$input" ""
   done
   for input in "$CORPUS"/ast-ext/docx*/*.json; do
     [ -e "$input" ] || continue
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
-    if is_excluded docx "$feature" "$stem"; then
-      SKIP=$((SKIP + 1))
-      continue
-    fi
     docx_case "docx/$feature/$stem" "$feature" "$input" ""
   done
   CONTROLS=$(grep -c '^CONTROL ' "$SURFACE_LOG" || true)

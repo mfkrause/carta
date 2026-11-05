@@ -1,4 +1,4 @@
-//! Golden-test corpus discovery and exclusion parsing relative to the crate manifest.
+//! Golden-test corpus discovery relative to the crate manifest.
 
 // A shared test toolbox: each integration-test binary that includes this module uses a subset of it.
 #![allow(dead_code)]
@@ -115,51 +115,6 @@ pub(crate) fn corpus_binary_cases(kind: &str) -> Vec<BinaryCase> {
             }
         })
         .collect()
-}
-
-/// A writer exclusion: a target plus either a whole feature directory or one case within it.
-pub(crate) struct Exclusion {
-    pub target: String,
-    pub feature: String,
-    /// `Some(stem)` excludes a single case; `None` excludes the whole feature directory.
-    pub case: Option<String>,
-}
-
-/// The writer cases that cannot yet be rendered, from `corpus/exclusions.tsv`. Each entry is
-/// `target<TAB>feature` (the whole feature directory) or `target<TAB>feature/case` (one case stem).
-pub(crate) fn exclusions() -> Vec<Exclusion> {
-    let path = corpus_dir().join("exclusions.tsv");
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    text.lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .filter_map(|line| line.split_once('\t'))
-        .map(|(target, selector)| {
-            let (feature, case) = match selector.split_once('/') {
-                Some((feature, case)) => (feature.to_owned(), Some(case.to_owned())),
-                None => (selector.to_owned(), None),
-            };
-            Exclusion {
-                target: target.to_owned(),
-                feature,
-                case,
-            }
-        })
-        .collect()
-}
-
-pub(crate) fn is_excluded(
-    exclusions: &[Exclusion],
-    target: &str,
-    feature: &str,
-    case: &str,
-) -> bool {
-    exclusions.iter().any(|exclusion| {
-        exclusion.target == target
-            && exclusion.feature == feature
-            && exclusion.case.as_deref().is_none_or(|stem| stem == case)
-    })
 }
 
 fn read_dir_sorted(dir: &Path) -> Vec<PathBuf> {

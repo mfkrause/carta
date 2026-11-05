@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compare AST rendering, applying exclusions. Usage: surfaces/writer.sh [target] [case]
+# Compare AST rendering. Usage: surfaces/writer.sh [target] [case]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -17,10 +17,6 @@ for target in $TARGETS; do
     [ -f "$input" ] || continue
     [ -n "$CASE" ] && [ "$(basename "$input" .json)" != "$CASE" ] && continue
     feature="$(basename "$(dirname "$input")")"
-    if is_excluded "$target" "$feature" "$(basename "$input" .json)"; then
-      SKIP=$((SKIP + 1))
-      continue
-    fi
     run_diff "$mode" "writer/$target/$feature/$(basename "$input")" "$input" \
       "-f json -t $target $highlight" "-f json -t $target $highlight"
   done

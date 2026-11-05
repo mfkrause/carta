@@ -173,20 +173,12 @@ run_odt() {
   for input in "$CORPUS"/ast/*/*.json; do
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
-    if is_excluded odt "$feature" "$stem"; then
-      SKIP=$((SKIP + 1))
-      continue
-    fi
     odt_case "odt/$feature/$stem" odt "$input" ""
   done
   for input in "$CORPUS"/ast-ext/odt*/*.json; do
     [ -e "$input" ] || continue
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
-    if is_excluded odt "$feature" "$stem"; then
-      SKIP=$((SKIP + 1))
-      continue
-    fi
     odt_case "odt/$feature/$stem" "$feature" "$input" ""
   done
   report odt odt

@@ -16,24 +16,29 @@ use carta::{
 use carta_core::container::zip;
 use carta_core::media::{base64_encode, sha1_hex};
 
+/// Chapter bodies for the EPUB controls in `tools/conformance-suite/correctness.py`.
 #[cfg(feature = "read-json")]
 #[test]
-fn epub2_compatible_body_snapshots() {
+fn epub_control_body_snapshots() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/ast");
-    for (group, case) in [
-        ("common", "ordered-start"),
-        ("common", "span-semantic"),
-        ("common", "underline-smallcaps"),
-        ("table", "table-caption-blocks"),
-        ("table", "table-caption-div"),
-        ("table", "table-empty"),
-        ("table", "table-foot"),
-        ("task-list", "checkboxes"),
+    for (dialect, group, case) in [
+        ("epub2", "common", "image-external"),
+        ("epub2", "common", "literal-control-chars"),
+        ("epub2", "common", "ordered-start"),
+        ("epub2", "common", "span-semantic"),
+        ("epub2", "common", "underline-smallcaps"),
+        ("epub2", "table", "table-caption-blocks"),
+        ("epub2", "table", "table-caption-div"),
+        ("epub2", "table", "table-empty"),
+        ("epub2", "table", "table-foot"),
+        ("epub2", "task-list", "checkboxes"),
+        ("epub3", "common", "image-external"),
+        ("epub3", "common", "literal-control-chars"),
     ] {
         let input = fs::read(corpus.join(group).join(format!("{case}.json"))).unwrap();
         let (document, media) = read_document("json", &input, &ReaderOptions::default()).unwrap();
         let Output::Bytes(bytes) =
-            render_document("epub2", document, media, &WriterOptions::default()).unwrap()
+            render_document(dialect, document, media, &WriterOptions::default()).unwrap()
         else {
             panic!("EPUB output must contain archive bytes");
         };
@@ -44,13 +49,14 @@ fn epub2_compatible_body_snapshots() {
             .unwrap();
         let text = std::str::from_utf8(&chapter.data).unwrap();
         let body = text
-            .split_once("<body>\n")
+            .split_once("<body")
+            .and_then(|(_, rest)| rest.split_once(">\n"))
             .unwrap()
             .1
             .split_once("</body>")
             .unwrap()
             .0;
-        insta::assert_snapshot!(format!("epub2_body__{group}__{case}"), body);
+        insta::assert_snapshot!(format!("{dialect}_body__{group}__{case}"), body);
     }
 }
 

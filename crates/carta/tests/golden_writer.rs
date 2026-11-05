@@ -1,4 +1,4 @@
-//! Snapshot AST corpus rendering across targets, applying `corpus/exclusions.tsv`.
+//! Snapshot AST corpus rendering across targets.
 //!
 //! Review changes with `cargo insta review`; do not edit snapshot files directly.
 
@@ -9,7 +9,7 @@
 mod common;
 
 use carta::{ReaderOptions, WriterOptions};
-use common::{corpus_cases, corpus_groups, exclusions, is_excluded};
+use common::{corpus_cases, corpus_groups};
 
 #[cfg(feature = "write-html")]
 #[test]
@@ -33,31 +33,42 @@ fn writer_mathml_output_snapshots_html() {
 }
 
 /// Render every `corpus/ast/*` case to one target, skipping the target when its writer is not
-/// compiled in and skipping the `(target, feature/case)` pairs listed in `corpus/exclusions.tsv`.
+/// compiled in.
 fn writer_snapshots_for(target: &str) {
-    let excluded = exclusions();
     let writers = carta::supported_output_formats();
     if !writers.contains(&target) {
         return;
     }
     for case in corpus_cases("ast") {
-        if is_excluded(&excluded, target, &case.group, &case.label) {
-            continue;
-        }
-        let output = carta::convert_text(
-            "json",
-            target,
-            &case.input,
-            &ReaderOptions::default(),
-            &WriterOptions::default(),
-        )
-        .unwrap_or_else(|error| {
+        let output = render(target, &case.input).unwrap_or_else(|error| {
             panic!(
                 "convert json -> {target} {}/{}: {error}",
                 case.group, case.label
             )
         });
         insta::assert_snapshot!(format!("{target}__{}__{}", case.group, case.label), output);
+    }
+}
+
+/// Render a JSON document to `target`. LaTeX and Beamer refuse embedded images, so their `data:`
+/// images are first moved to `media/`, as the CLI does.
+fn render(target: &str, input: &str) -> carta::Result<String> {
+    let reader = ReaderOptions::default();
+    let writer = WriterOptions::default();
+    if !matches!(target, "latex" | "beamer") || !input.contains("\"data:") {
+        return carta::convert_text("json", target, input, &reader, &writer);
+    }
+    let (mut document, _) = carta::read_document("json", input.as_bytes(), &reader)?;
+    let mut media = carta::MediaBag::new();
+    carta::walk::for_each_image_target(&mut document.blocks, &mut |target| {
+        if let Some((bytes, mime)) = carta::media::decode_data_uri(&target.url) {
+            media.insert(target.url.to_string(), Some(mime), bytes);
+        }
+    });
+    carta::media::rewrite_extracted_references(&mut document.blocks, &media, "media");
+    match carta::render_document(target, document, carta::MediaBag::new(), &writer)? {
+        carta::Output::Text(text) => Ok(text),
+        carta::Output::Bytes(_) => panic!("{target} output is text"),
     }
 }
 

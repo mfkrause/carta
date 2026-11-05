@@ -55,7 +55,7 @@ Case narrowing is currently wired for the `reader` and `writer` surfaces only.
 | surface | what it diffs | inputs |
 |---|---|---|
 | `reader` | `-f FMT -t json`, compared with `jq -S` | `corpus/text/<fmt>/*`, the extension-toggle cases in `corpus/text-ext/<spec>/*`, + the 652 CommonMark spec examples (commonmark) |
-| `writer` | `-f json -t TARGET`, JSON structurally / others as text | `corpus/ast/<feature>/*` minus `corpus/exclusions.tsv` |
+| `writer` | `-f json -t TARGET`, JSON structurally / others as text | `corpus/ast/<feature>/*` |
 | `e2e` | `-f FMT -t TARGET` full pipeline | `corpus/text/<fmt>/*` to every target; spec examples to HTML |
 | `roundtrip` | JSON codec identity: `pandoc -f native -t json` then `carta -f json -t json` | fetched `.native` corpus |
 | `commands` | declarative command tests, vs a live normalized oracle | `.oracle/tests/test/command/*.md` |
@@ -66,9 +66,20 @@ Case narrowing is currently wired for the `reader` and `writer` surfaces only.
 | `epub` | carta's EPUB writer two ways: structurally against the oracle (unpack + diff text entries) and against the EPUB spec with EPUBCheck | `corpus/ast/<feature>/*` (epub3 and epub2) |
 | `docx` | carta's DOCX writer structurally: unpack both Office Open XML packages and diff each content-bearing part after canonicalizing the XML | `corpus/ast/<feature>/*` |
 
-### Writer exclusions
+### Controls
 
-`corpus/exclusions.tsv` lists `target<TAB>feature` pairs a writer cannot yet render (a `todo!()` site). The `writer` surface skips those pairs and counts them; when a `todo!()` is implemented, delete its line and the corpus cases activate automatically. The feature tag is the `corpus/ast/` subdirectory name.
+A control is a case where pandoc's output is wrong and carta's output is correct, for example
+when pandoc writes invalid markup or loses content. [`correctness.py`](correctness.py) lists each
+control with a one-line reason that says what pandoc does wrong. When carta's output for a listed
+case differs from pandoc's, the suite compares it with the reviewed snapshot in
+`crates/carta/tests/snapshots/` instead and counts it under `controls=`.
+
+Controls are only for pandoc's errors. Never add a control for a parity gap in carta: fix the gap,
+or let the case fail until it is fixed.
+
+To add a control, first confirm that pandoc's output is wrong (a renderer or validator rejects it,
+or content is lost). Then make sure the offline snapshot tests cover the case, and add its entry
+with the reason.
 
 ### Command tests
 
@@ -87,6 +98,6 @@ Add inputs to the shared corpus, not here:
   string (e.g. `commonmark+mark`, `markdown-blank_before_header`). The `extensions` surface
   requires one such directory for every extension the reader honors.
 - a writer node shape → `corpus/ast/<feature>/<label>.json` (a complete Document JSON)
-- a newly implemented writer feature → delete its `corpus/exclusions.tsv` line
+- a case where pandoc's output is wrong → a control (see [Controls](#controls))
 
 See `corpus/README.md`. The same corpus drives the offline golden snapshots, so a new case is covered by both layers at once.

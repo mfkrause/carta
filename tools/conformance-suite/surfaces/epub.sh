@@ -65,10 +65,6 @@ run_dialect() {
     feature=$(basename "$(dirname "$input")")
     stem=$(basename "$input" .json)
     label="epub/$dialect/$feature/$stem"
-    if is_excluded "$dialect" "$feature" "$stem"; then
-      SKIP=$((SKIP + 1))
-      continue
-    fi
     work="$WORK/epub/$dialect/$feature-$stem"
     rm -rf "$work"
     mkdir -p "$work/o" "$work/x"
