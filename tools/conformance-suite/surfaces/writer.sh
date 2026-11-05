@@ -12,6 +12,7 @@ CASE="${2:-}"
 for target in $TARGETS; do
   conf_reset "writer-$target"
   mode="$(compare_mode "$target")"
+  highlight="$(highlight_args "$target")"
   for input in "$CORPUS"/ast/*/*.json; do
     [ -f "$input" ] || continue
     [ -n "$CASE" ] && [ "$(basename "$input" .json)" != "$CASE" ] && continue
@@ -21,7 +22,7 @@ for target in $TARGETS; do
       continue
     fi
     run_diff "$mode" "writer/$target/$feature/$(basename "$input")" "$input" \
-      "-f json -t $target --syntax-highlighting=none" "-f json -t $target --syntax-highlighting=none"
+      "-f json -t $target $highlight" "-f json -t $target $highlight"
   done
   report writer "$target"
   tally_group
@@ -36,10 +37,11 @@ if [ "$EXT_RUN" = 1 ] && [ -d "$CORPUS/ast-ext" ]; then
     base="${spec%%[+-]*}"
     case "$base" in docx | epub | epub2 | epub3 | odt) continue ;; esac
     mode="$(compare_mode "$base")"
+    highlight="$(highlight_args "$base")"
     for input in "$spec_dir"/*.json; do
       [ -f "$input" ] || continue
       run_diff "$mode" "writer-ext/$spec/$(basename "$input")" "$input" \
-        "-f json -t $spec --syntax-highlighting=none" "-f json -t $spec --syntax-highlighting=none"
+        "-f json -t $spec $highlight" "-f json -t $spec $highlight"
     done
   done
   report writer ext

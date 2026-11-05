@@ -56,6 +56,12 @@ compare_mode() {
   esac
 }
 
+highlight_args() {
+  case "$1" in
+    html | html5 | html4 | revealjs | latex | beamer | typst | man) echo --syntax-highlighting=none ;;
+  esac
+}
+
 # 0 when listed in exclusions.tsv: `target<TAB>feature` or `target<TAB>feature/case`.
 is_excluded() {
   local target="$1" feature="$2" case="${3:-}"
