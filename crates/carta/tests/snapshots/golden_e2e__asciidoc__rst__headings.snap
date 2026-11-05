@@ -2,22 +2,22 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-.. __first:
+.. _`_first`:
 
 First
 =====
 
-.. __skipped:
+.. _`_skipped`:
 
 Skipped
 -------
 
-.. __next:
+.. _`_next`:
 
 Next
 ----
 
-.. __first_2:
+.. _`_first_2`:
 
 First
 =====

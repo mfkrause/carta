@@ -22,6 +22,18 @@ READER_CASES = {
 }
 
 RST_CASES = {
+    ("asciidoc", "anchor-labels"),
+    ("asciidoc", "cross-references"),
+    ("asciidoc", "definition-terms"),
+    ("asciidoc", "discrete-cross-references"),
+    ("asciidoc", "formatted-shorthand"),
+    ("asciidoc", "heading-macro-text"),
+    ("asciidoc", "inline-macros"),
+    ("asciidoc", "inline-roles"),
+    ("asciidoc", "macro-attributes"),
+    ("asciidoc", "malformed-inline-delimiters"),
+    ("asciidoc", "table-block-anchors"),
+    ("asciidoc", "user-attribute-names"),
     ("docbook", "cross-reference-labels"),
     ("docbook", "inline"),
     ("docbook", "media"),
@@ -46,7 +58,9 @@ def expectation(label):
         reason = READER_CASES.get((source, stem))
         if surface == "e2e":
             if target == "rst" and (source, stem) in RST_CASES:
-                reason = "Keep RST targets, captions, and directive options valid."
+                reason = "Keep RST targets, inline styles, captions, and directive options valid."
+            if (source, target, stem) == ("asciidoc", "rst", "zero-table-span"):
+                reason = "Omit tables with no columns."
             if (source, target, stem) == ("latex", "latex", "nested-tables"):
                 reason = "Use a valid inner table environment."
             if (source, target, stem) == ("typst", "html", "math-shorthands"):

@@ -26,6 +26,7 @@ impl State {
             let lines = split_at(inlines, |inline| matches!(inline, Inline::LineBreak));
             let rendered: Vec<String> = lines
                 .iter()
+                .filter(|line| !line.is_empty())
                 .map(|line| self.render_line(line, width))
                 .collect();
             return rendered.join("\n");
@@ -138,7 +139,7 @@ impl State {
     /// Render one line-block line: its inlines filled to the body width, then prefixed with `| ` and
     /// continuation lines indented to match.
     pub(super) fn render_line(&mut self, line: &[Inline], width: usize) -> String {
-        let body = self.lay(line, width.saturating_sub(2), false);
+        let body = self.lay(line, width.saturating_sub(2), true);
         indent_block(&body, "| ", "  ")
     }
 
@@ -166,7 +167,12 @@ impl State {
         if attr.id.is_empty() || attr.id == auto_identifier(inlines) {
             header
         } else {
-            format!(".. _{}:\n\n{header}", attr.id)
+            let id = if attr.id.starts_with('_') {
+                format!("`{}`", attr.id)
+            } else {
+                attr.id.to_string()
+            };
+            format!(".. _{id}:\n\n{header}")
         }
     }
 
@@ -180,11 +186,15 @@ impl State {
     }
 
     pub(super) fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
+        let loose = items.iter().any(|item| !is_simple_item(item));
         let mut units = Vec::new();
         for item in items {
             let simple = is_simple_item(item);
             let body = self.item_body(item, width.saturating_sub(2));
-            units.push((simple, indent_block(&body, "- ", "  ")));
+            units.push((
+                simple && (!item.is_empty() || !loose),
+                indent_block(&body, "- ", "  "),
+            ));
         }
         join_loose_items(units)
     }
@@ -245,7 +255,7 @@ impl State {
             }
             let group_simple = definitions
                 .iter()
-                .all(|definition| matches!(definition.as_slice(), [Block::Plain(_)]));
+                .all(|definition| matches!(definition.as_slice(), [] | [Block::Plain(_)]));
             let bodies = join_loose_items(def_units);
             let group = if term_line.is_empty() {
                 bodies
@@ -435,7 +445,8 @@ fn tight_after_plain(block: &Block) -> bool {
         | Block::BlockQuote(_)
         | Block::Header(..)
         | Block::LineBlock(_)
-        | Block::Figure(..) => true,
+        | Block::Figure(..)
+        | Block::DefinitionList(_) => true,
         Block::CodeBlock(attr, _) => code_language(attr).is_none(),
         _ => false,
     }

@@ -6,5 +6,5 @@ expression: output
 
 ``code`` **``bold``** ``words`` and a span.
 
-marked :sub:`sub` H\ :sup:`2` and “quoted”, “double quoted” and “escaped
-\` tick”.
+:mark:`marked` :sub:`sub` H\ :sup:`2` and “quoted”, “double quoted” and
+“escaped \` tick”.

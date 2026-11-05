@@ -11,3 +11,4 @@ expression: output
 visible
 
 .. |image1| image:: ./images/icons/heart.png
+   :class: red icon

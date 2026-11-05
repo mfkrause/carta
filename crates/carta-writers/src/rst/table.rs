@@ -142,12 +142,21 @@ impl State {
         let foot_layout = grid::place_columns(&foot, columns);
 
         let permits_simple = Self::permits_simple_table(table, columns);
+        if permits_simple
+            && head
+                .iter()
+                .chain(body.iter())
+                .chain(foot.iter())
+                .all(|row| row.cells.iter().all(|cell| cell.content.is_empty()))
+        {
+            return String::new();
+        }
         // Deferred note numbers affect the measured cell widths.
         let key = (std::ptr::from_ref(table) as usize, self.snapshot());
         let [natural, minword, simple] = if let Some(measured) = self.table_measurements.get(&key) {
             measured.clone()
         } else {
-            let mut natural = vec![0usize; columns];
+            let mut natural = vec![1usize; columns];
             let mut minword = vec![0usize; columns];
             let mut simple = vec![0usize; columns];
             let snapshot = self.snapshot();
@@ -346,7 +355,9 @@ fn measure_unbreakable(lines: &[String]) -> (usize, usize) {
     let mut natural = 0usize;
     let mut minword = 0usize;
     for line in lines {
-        natural = natural.max(display_width(line));
+        // Reserve the empty class field in container directives.
+        natural =
+            natural.max(display_width(line) + usize::from(line.trim_end() == ".. container::"));
         // Target directives cannot split across lines.
         if line.trim_start().starts_with(".. _") {
             minword = minword.max(display_width(line));

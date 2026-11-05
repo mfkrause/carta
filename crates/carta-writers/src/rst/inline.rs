@@ -176,12 +176,7 @@ impl State {
                 );
             }
             Inline::Cite(_, inlines) => out.extend(self.tokens_nested(inlines, in_emphasis)),
-            Inline::Span(attr, inlines) => {
-                if !attr.id.is_empty() {
-                    self.targets.push(attr.id.to_string());
-                }
-                out.extend(self.tokens_nested(inlines, in_emphasis));
-            }
+            Inline::Span(attr, inlines) => self.span(attr, inlines, in_emphasis, out),
             Inline::Code(_, text) => {
                 let trimmed = text.trim_matches(' ');
                 let rendered = if trimmed.is_empty() {
@@ -216,6 +211,17 @@ impl State {
                 }
             }
             Inline::Note(blocks) => self.note(blocks, out),
+        }
+    }
+
+    fn span(&mut self, attr: &Attr, inlines: &[Inline], in_emphasis: bool, out: &mut Vec<Token>) {
+        if !attr.id.is_empty() {
+            self.targets.push(attr.id.to_string());
+        }
+        if attr.id.is_empty() && attr.classes.iter().any(|class| class == "mark") {
+            self.wrapped(inlines, ":mark:`", "`", in_emphasis, true, out);
+        } else {
+            out.extend(self.tokens_nested(inlines, in_emphasis));
         }
     }
 
@@ -428,7 +434,8 @@ impl State {
             .map(|(index, _)| index)
             .collect();
         if breakouts.is_empty() {
-            let name = self.substitution_name(to_plain_text(alt));
+            let candidate = self.flat(alt);
+            let name = self.substitution_name(candidate);
             self.register_image(attr, &name, target, link, out);
             return;
         }
@@ -500,6 +507,10 @@ impl State {
         for option in dimension_options(attr) {
             definition.push_str("\n   ");
             definition.push_str(&option);
+        }
+        if !attr.classes.is_empty() {
+            definition.push_str("\n   :class: ");
+            definition.push_str(&attr.classes.join(" "));
         }
         if let Some(url) = link {
             definition.push_str("\n   :target: ");
@@ -817,7 +828,10 @@ fn is_standalone_uri(url: &str) -> bool {
     let Some((scheme, _)) = url.split_once(':') else {
         return false;
     };
-    is_uri_scheme(scheme) && is_known_scheme(scheme) && url.chars().all(is_uri_char)
+    scheme != "mailto"
+        && is_uri_scheme(scheme)
+        && is_known_scheme(scheme)
+        && url.chars().all(is_uri_char)
 }
 
 /// Whether a character may appear in a standalone URI reference.

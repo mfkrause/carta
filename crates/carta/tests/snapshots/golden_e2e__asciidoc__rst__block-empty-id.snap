@@ -30,4 +30,4 @@ Heading
 |    cell with an empty ID                                              |
 +=======================================================================+
 
-Inline mark stays a span.
+Inline :mark:`mark` stays a span.

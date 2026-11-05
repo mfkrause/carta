@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-http:x https:/x irc:x ftp:x mailto:x
+http:x https:/x irc:x ftp:x `mailto:x <mailto:x>`__
 
 http:x(y) http:x? http:x,,y http:x.y http:x++y++ http:++x y++
 

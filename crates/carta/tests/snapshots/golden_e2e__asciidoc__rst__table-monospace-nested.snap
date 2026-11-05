@@ -3,7 +3,7 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 +---------------+
-| |p|           |
+| |``p``|       |
 +===============+
 | ```l`` <x>`__ |
 +---------------+
@@ -15,4 +15,4 @@ expression: output
 .. [1]
    ``note``
 
-.. |p| image:: x
+.. |``p``| image:: x

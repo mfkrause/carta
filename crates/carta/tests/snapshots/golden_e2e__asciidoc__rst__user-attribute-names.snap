@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-.. __heading:
+.. _`_heading`:
 
 Heading
 =======
@@ -30,3 +30,4 @@ Heading
       :name: _prefix
 
 .. |image1| image:: ./images/icons/heart.png
+   :class: icon

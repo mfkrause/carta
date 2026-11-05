@@ -3,6 +3,5 @@ source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
 1
-
 term 1
    body 1

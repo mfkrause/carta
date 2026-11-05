@@ -2,44 +2,44 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-.. __alpha:
+.. _`_alpha`:
 
 Alpha 1
 =======
 
-.. __alpha_2:
+.. _`_alpha_2`:
 
 Alpha term
 ==========
 
-.. __alpha_3:
+.. _`_alpha_3`:
 
 Alpha foo
 =========
 
-.. __alpha_4:
+.. _`_alpha_4`:
 
 Alpha word
 ==========
 
-.. __alpha_5:
+.. _`_alpha_5`:
 
 Alpha **Tools › Build › Run**
 =============================
 
-.. __alpha_6:
+.. _`_alpha_6`:
 
 Alpha **[Save]**
 ================
 
-.. __alpha_7:
+.. _`_alpha_7`:
 
 Alpha **Ctrl**\ +\ **X**
 ========================
 
 .. _key:
 
-.. __alpha_label:
+.. _`_alpha_label`:
 
 Alpha
 =====

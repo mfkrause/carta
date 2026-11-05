@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-.. __monospace_attribute_runs:
+.. _`_monospace_attribute_runs`:
 
 Monospace attribute runs
 ========================

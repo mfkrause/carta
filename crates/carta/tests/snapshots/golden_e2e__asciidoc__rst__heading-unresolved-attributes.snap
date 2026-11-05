@@ -2,12 +2,12 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-.. __and:
+.. _`_and`:
 
 Example and {missing}
 =====================
 
-.. __code:
+.. _`_code`:
 
 |Photo| :math:`x` ``code``
 ==========================

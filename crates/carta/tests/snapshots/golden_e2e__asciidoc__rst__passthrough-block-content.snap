@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_e2e.rs
 expression: output
 ---
-.. __inline_passthrough_block_content:
+.. _`_inline_passthrough_block_content`:
 
 Inline passthrough block content
 ================================
@@ -15,10 +15,9 @@ Heading
 Term: DefinitionNext: Other
 
 | Before
-| after.
+|  after.
 
 Before after.
 
 | Before
-| 
 | After
