@@ -275,6 +275,7 @@ reader_golden! {
     reader_ext_ast_snapshots_markdown_tex_math_double_backslash => "markdown+tex_math_double_backslash",
     reader_ext_ast_snapshots_markdown_tex_math_single_backslash => "markdown+tex_math_single_backslash",
     reader_ext_ast_snapshots_markdown_all_symbols_escapable => "markdown-all_symbols_escapable",
+    reader_ext_ast_snapshots_markdown_shortcut_reference_links => "markdown-shortcut_reference_links",
     reader_ext_ast_snapshots_markdown_space_in_atx_header => "markdown-space_in_atx_header",
     reader_ext_ast_snapshots_markdown_github => "markdown_github",
     reader_ext_ast_snapshots_markdown_mmd => "markdown_mmd",
