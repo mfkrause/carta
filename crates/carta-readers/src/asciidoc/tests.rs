@@ -222,13 +222,14 @@ fn stripped_space_marker_leaves_the_list_body() {
 #[test]
 fn includes_resolve_nested_paths_and_keep_options() {
     let directory = Directory::new();
-    std::fs::create_dir(directory.0.join("sub")).unwrap();
+    let subdirectory = directory.0.join("sub");
+    std::fs::create_dir(&subdirectory).unwrap();
     std::fs::write(
-        directory.0.join("sub/one.adoc"),
+        subdirectory.join("one.adoc"),
         "= Included title\n\ninclude::two.adoc[]\n",
     )
     .unwrap();
-    std::fs::write(directory.0.join("sub/two.adoc"), "\tinside\n").unwrap();
+    std::fs::write(subdirectory.join("two.adoc"), "\tinside\n").unwrap();
     let mut options = ReaderOptions::default();
     options.source_dir = Some(directory.0.clone());
     let document = AsciidocReader
@@ -238,7 +239,7 @@ fn includes_resolve_nested_paths_and_keep_options() {
         let mut pairs = attributes;
         pairs.push((
             "path".into(),
-            directory.0.join(name).to_string_lossy().as_ref().into(),
+            subdirectory.join(name).to_string_lossy().as_ref().into(),
         ));
         Block::Div(
             Box::new(Attr {
@@ -253,10 +254,10 @@ fn includes_resolve_nested_paths_and_keep_options() {
     assert_eq!(
         document.blocks,
         vec![included(
-            "sub/one.adoc",
+            "one.adoc",
             vec![("indent".into(), "2".into())],
             vec![included(
-                "sub/two.adoc",
+                "two.adoc",
                 vec![],
                 vec![Block::Para(vec![Inline::Str("inside".into())])]
             )]
