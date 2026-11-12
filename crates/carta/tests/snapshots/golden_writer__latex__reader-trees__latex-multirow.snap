@@ -20,7 +20,7 @@ expression: output
 \bottomrule\noalign{}
 \endlastfoot
 \multicolumn{2}{@{}c}{%
-\multirow{2}{*}{\centering\arraybackslash Wide}} & First \\
+\multirow{2}{*}{Wide}} & First \\
 & & Second \\
 \end{longtable}
 }

@@ -428,7 +428,7 @@ fn render_field(
 
     let row_span = cell.row_span.max(1);
     if row_span > 1 {
-        let prefix = multirow_prefix(&resolved_align(cell, start, context.plan));
+        let prefix = context.plan.aligns.get(start).map_or("", multirow_prefix);
         // `=` sizes the stacked cell to an explicit column width; `*` takes the content's own width.
         let sizing = if context.plan.explicit { "=" } else { "*" };
         glue_prefix(
@@ -615,7 +615,7 @@ fn column_command(align: &Alignment) -> &'static str {
     }
 }
 
-/// The shaping prefix for a `\multirow` cell; left and default rows take none.
+/// The shaping prefix for a `\multirow` cell, set by its column; left and default columns take none.
 fn multirow_prefix(align: &Alignment) -> &'static str {
     match align {
         Alignment::AlignCenter => "\\centering\\arraybackslash ",
