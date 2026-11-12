@@ -10,8 +10,8 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_groups, fill_hang,
-    indent_block, label_matches_url, offset_as_i64, per_character_width,
-    quote_marks, simple_table_rows,
+    indent_block, label_matches_url, offset_as_i64, per_character_width, quote_marks,
+    simple_table_rows,
 };
 
 /// Number of dashes emitted for a horizontal rule.
@@ -294,11 +294,7 @@ impl State {
             && !body.is_empty()
             && !matches!(block, Block::Plain(_) | Block::Para(_))
         {
-            let breaks = if leading_blank(block) {
-                "\n\n"
-            } else {
-                "\n"
-            };
+            let breaks = if leading_blank(block) { "\n\n" } else { "\n" };
             indent_block(&body, &format!("{first}{breaks}{rest}"), rest)
         } else {
             indent_block(&body, first, rest)
@@ -924,9 +920,7 @@ fn leading_blank(block: &Block) -> bool {
 /// The blocks of a notebook code cell: a div classed `cell code` that opens with its source block.
 fn cell_blocks(block: &Block) -> Option<(&Block, &[Block])> {
     match block {
-        Block::Div(attr, blocks)
-            if attr.classes.iter().map(Text::as_str).eq(["cell", "code"]) =>
-        {
+        Block::Div(attr, blocks) if attr.classes.iter().map(Text::as_str).eq(["cell", "code"]) => {
             match blocks.split_first() {
                 Some((source @ Block::CodeBlock(..), rest)) => Some((source, rest)),
                 _ => None,
@@ -954,7 +948,11 @@ fn push_sequence<'a>(blocks: &'a [Block], out: &mut Vec<(&'a Block, bool)>) {
 fn cell_result<'a>(attr: &Attr, blocks: &'a [Block]) -> Option<&'a str> {
     match blocks {
         [Block::CodeBlock(_, text)]
-            if attr.classes.iter().map(Text::as_str).eq(["output", "execute_result"]) =>
+            if attr
+                .classes
+                .iter()
+                .map(Text::as_str)
+                .eq(["output", "execute_result"]) =>
         {
             Some(text)
         }
