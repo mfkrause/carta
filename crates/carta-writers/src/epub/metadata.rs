@@ -84,6 +84,10 @@ pub(crate) struct BookMeta {
     pub publisher: Option<String>,
     pub rights_inlines: Option<Vec<Inline>>,
     pub rights_text: Option<String>,
+    /// The abstract shown on the title page.
+    pub summary: Option<MetaValue>,
+    /// The heading above the abstract, when the document names one.
+    pub summary_title: Option<MetaValue>,
     /// The publication identifiers, in document order. Always holds at least one: a stable generated
     /// identifier stands in when the document names none. The first is the package's unique
     /// identifier.
@@ -137,6 +141,8 @@ impl BookMeta {
                 .filter(|v| !v.is_empty()),
             rights_inlines,
             rights_text,
+            summary: meta.get("abstract").cloned(),
+            summary_title: meta.get("abstract-title").cloned(),
             identifiers,
             extra: Vec::new(),
         }

@@ -2,9 +2,10 @@
 //! placed in, the generated title and cover pages, and the container's own bookkeeping files.
 
 use super::Version;
-use super::metadata::BookMeta;
-use crate::html::render_epub_inlines;
-use carta_ast::Inline;
+use super::metadata::{BookMeta, meta_inlines};
+use crate::html::{render_epub_chapter, render_epub_inlines};
+use carta_ast::{Inline, MetaValue};
+use carta_core::WriterOptions;
 use carta_core::container::xml::{DECLARATION, Element, escape_attribute, escape_text};
 use std::fmt::Write as _;
 
@@ -115,14 +116,15 @@ pub(crate) fn xhtml_page(
     out
 }
 
-/// The generated title page: the work's title, subtitle, authors, publisher, date and rights, each
-/// rendered as its own labelled element. In the EPUB 3 dialect these sit inside a `titlepage`
-/// section; in EPUB 2 they stand directly in the body.
+/// The generated title page: the work's title, subtitle, authors, publisher, date, rights and
+/// abstract, each rendered as its own labelled element. In the EPUB 3 dialect these sit inside a
+/// `titlepage` section; in EPUB 2 they stand directly in the body.
 pub(crate) fn title_page(
     version: Version,
     meta: &BookMeta,
     display_title: &str,
     stylesheets: &[String],
+    options: &WriterOptions,
 ) -> String {
     let epub3 = version.is_epub3();
     let mut fields: Vec<String> = Vec::new();
@@ -156,6 +158,20 @@ pub(crate) fn title_page(
     if let Some(rights) = &meta.rights_inlines {
         fields.push(field("div", "rights", &render_epub_inlines(rights, epub3)));
     }
+    let summary = meta
+        .summary
+        .as_ref()
+        .map(|value| meta_markup(value, epub3, options))
+        .filter(|markup| !markup.is_empty());
+    if let Some(summary) = summary {
+        let title = meta.summary_title.as_ref().map_or_else(
+            || String::from("Abstract"),
+            |value| meta_markup(value, epub3, options),
+        );
+        fields.push(format!(
+            "<div class=\"abstract\">\n<div class=\"abstract-title\">{title}</div>\n{summary}\n</div>"
+        ));
+    }
 
     let body = if epub3 {
         let mut inner = String::new();
@@ -180,6 +196,14 @@ pub(crate) fn title_page(
         "",
         &body,
     )
+}
+
+/// A metadata value as page markup: its blocks when it holds blocks, otherwise its inline content.
+fn meta_markup(value: &MetaValue, epub3: bool, options: &WriterOptions) -> String {
+    match value {
+        MetaValue::MetaBlocks(blocks) => render_epub_chapter(blocks, epub3, options),
+        other => render_epub_inlines(&meta_inlines(other), epub3),
+    }
 }
 
 /// One `  <tag class="class">value</tag>` title-page field, indented two spaces.

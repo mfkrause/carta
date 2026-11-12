@@ -142,7 +142,13 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         })
         .collect();
 
-    let title_page_doc = title_page(version, &doc_meta, meta.display_title(), &stylesheet_names);
+    let title_page_doc = title_page(
+        version,
+        &doc_meta,
+        meta.display_title(),
+        &stylesheet_names,
+        options,
+    );
     let cover_page_doc =
         render_cover_page(version, &meta, cover.as_ref(), &media, &stylesheet_names);
 
