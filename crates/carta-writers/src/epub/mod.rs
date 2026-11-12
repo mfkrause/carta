@@ -502,6 +502,9 @@ fn collect_images(document: &mut Document, options: &WriterOptions, media: &mut 
         {
             target.url = format!("../{}", asset.href).into();
         } else {
+            // A span admits no dimensions.
+            attr.attributes
+                .retain(|(key, _)| !matches!(key.as_str(), "width" | "height"));
             *inline = Inline::Span(std::mem::take(attr), std::mem::take(alt));
         }
     });
