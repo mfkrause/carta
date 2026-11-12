@@ -59,10 +59,7 @@ pub(crate) fn escape_attr(text: &str) -> String {
 /// Escape an HTML attribute value where both quote characters are entity-encoded: `&`, `<`, `>`,
 /// and `"` to their named entities and `'` to `&#39;`. Link and image attribute values take this
 /// form; `<div>` and `<span>` wrapper attributes keep the single quote literal via [`escape_attr`].
-#[cfg_attr(
-    not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),
-    allow(dead_code)
-)]
+#[cfg_attr(not(feature = "commonmark"), allow(dead_code))]
 pub(crate) fn escape_html_attr(text: &str) -> String {
     let is_trigger = |byte: u8| matches!(byte, b'&' | b'<' | b'>' | b'"' | b'\'');
     let mut out = String::with_capacity(text.len());
@@ -106,10 +103,7 @@ pub(crate) fn render_html_attr(attr: &Attr) -> String {
 
 /// As [`render_html_attr`], but entity-encoding both quote characters in each value: the escaping
 /// a link or image tag's attributes take in HTML fragments embedded in text output.
-#[cfg_attr(
-    not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),
-    allow(dead_code)
-)]
+#[cfg_attr(not(feature = "commonmark"), allow(dead_code))]
 pub(crate) fn render_html_fragment_attr(attr: &Attr) -> String {
     render_attr_tokens(attr, escape_html_attr)
 }

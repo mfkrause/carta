@@ -69,6 +69,7 @@ pub(crate) fn needs_separator(previous: &Block, current: &Block) -> bool {
 /// A list item whose first block is a horizontal rule cannot place the rule on the marker line,
 /// where it would read as part of the marker; the rule is pushed onto its own line below an empty
 /// marker line by prefixing the rendered body with a blank line.
+#[cfg_attr(not(feature = "commonmark"), allow(dead_code))]
 pub(crate) fn offset_horizontal_rule(item: &[Block], body: String) -> String {
     if matches!(item.first(), Some(Block::HorizontalRule)) {
         format!("\n\n{body}")
