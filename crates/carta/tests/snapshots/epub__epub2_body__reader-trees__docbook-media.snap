@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="figures-and-media" class="section level1 unnumbered">
+<h1 class="unnumbered">Figures and media</h1>
+<div class="float" id="plot">
+<span>A plotted curve</span>
+<div class="figcaption">A captioned figure</div>
+</div>
+<p>A standalone block image:</p>
+<p><span></span></p>
+<p>An inline <span></span> image.</p>
+</div>

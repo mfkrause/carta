@@ -168,8 +168,16 @@ WRITER = {
 XHTML11 = "which XHTML 1.1 does not allow"
 FAILED_FETCH = "Pandoc writes the broken path '../https://…' when the fetch fails."
 CONTROL_CHARS = "Pandoc keeps characters that XML forbids, so the page is not well-formed."
+MISSING_FILE = (
+    "Pandoc keeps the path of a file that it could not read, so the page refers to a file that"
+    " is not in the package."
+)
+MARK_ELEMENT = f"Pandoc uses the mark element, {XHTML11}."
+U_ELEMENT = f"Pandoc uses the u element, {XHTML11}."
+SPAN_NAME = f"Pandoc puts a name attribute on a span, {XHTML11}."
+FOOT_AFTER_BODY = f"Pandoc puts tfoot after tbody, {XHTML11}."
 
-# (dialect, feature, case) -> reason.
+# (dialect, feature, case) -> reason. A later entry for the same key replaces an earlier one.
 EPUB = {
     **{
         (dialect, "common", case): reason
@@ -179,13 +187,57 @@ EPUB = {
             ("literal-control-chars", CONTROL_CHARS),
         )
     },
+    **{
+        (dialect, "reader-trees", case): MISSING_FILE
+        for dialect in ("epub2", "epub3")
+        for case in (
+            "asciidoc-definition-macro-bodies",
+            "asciidoc-images",
+            "asciidoc-inline-macros",
+            "asciidoc-table-monospace-nested",
+            "asciidoc-user-attribute-names",
+            "docbook-media",
+            "latex-figures",
+            "latex-raised-boxes",
+            "typst-content-spacing",
+            "typst-labels-references",
+        )
+    },
     ("epub2", "common", "ordered-start"): f"Pandoc uses the start attribute, {XHTML11}.",
-    ("epub2", "common", "span-semantic"): f"Pandoc uses the mark element, {XHTML11}.",
-    ("epub2", "common", "underline-smallcaps"): f"Pandoc uses the u element, {XHTML11}.",
+    ("epub2", "common", "span-semantic"): MARK_ELEMENT,
+    ("epub2", "common", "underline-smallcaps"): U_ELEMENT,
+    ("epub2", "reader-trees", "asciidoc-definition-terms"): SPAN_NAME,
+    ("epub2", "reader-trees", "asciidoc-formatted-shorthand"): MARK_ELEMENT,
+    ("epub2", "reader-trees", "asciidoc-images"): (
+        f"{MISSING_FILE} It also puts an alt attribute on a division, {XHTML11}."
+    ),
+    ("epub2", "reader-trees", "asciidoc-table-block-anchors"): (
+        f"Pandoc puts tfoot after tbody and a name attribute on a span, {XHTML11}."
+    ),
+    ("epub2", "reader-trees", "asciidoc-table-in-definition-continuation"): FOOT_AFTER_BODY,
+    ("epub2", "reader-trees", "asciidoc-table-monospace-nested"): (
+        f"{MISSING_FILE} It also puts tfoot after tbody, {XHTML11}."
+    ),
+    ("epub2", "reader-trees", "asciidoc-table-title-counters"): SPAN_NAME,
+    ("epub2", "reader-trees", "docbook-inline"): U_ELEMENT,
+    ("epub2", "reader-trees", "jira-color-inline-multiline"): (
+        f"Pandoc puts a color attribute on a span, {XHTML11}."
+    ),
+    ("epub2", "reader-trees", "latex-emphasis"): U_ELEMENT,
+    ("epub2", "reader-trees", "org-internal-links"): (
+        f"Pandoc puts a target attribute on a span, {XHTML11}."
+    ),
+    ("epub2", "reader-trees", "rst-math-directive-label"): (
+        f"Pandoc puts a label attribute on a span, {XHTML11}."
+    ),
+    ("epub2", "reader-trees", "rtf-hyperlink-formatted"): U_ELEMENT,
+    ("epub2", "reader-trees", "typst-content-spacing"): (
+        f"{MISSING_FILE} It also uses the u element, {XHTML11}."
+    ),
     ("epub2", "table", "table-caption-blocks"): f"Pandoc puts paragraphs in a caption, {XHTML11}.",
     ("epub2", "table", "table-caption-div"): f"Pandoc puts a division in a caption, {XHTML11}.",
     ("epub2", "table", "table-empty"): f"Pandoc writes a table without rows, {XHTML11}.",
-    ("epub2", "table", "table-foot"): f"Pandoc puts tfoot after tbody, {XHTML11}.",
+    ("epub2", "table", "table-foot"): FOOT_AFTER_BODY,
     ("epub2", "task-list", "checkboxes"): "Pandoc uses form controls, which EPUB 2 forbids.",
 }
 

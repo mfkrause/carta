@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p><span id="id" class="role">text</span> <span class="r"><strong>bold</strong></span></p>
+<p><span id="x" style="background-color: yellow;">text</span> <span class="style.role">text</span> <span class="a">text</span></p>
+<p>prefix <span><strong>strong</strong></span> <span><em>italic</em></span> <span>span</span> <span>span</span></p>
+<p>prefix <span><strong>strong</strong></span> <span style="background-color: yellow;">mark</span></p>
+</div>

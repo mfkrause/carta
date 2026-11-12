@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<dl>
+<dt>{value}</dt>
+<dd>
+<p>Definition Cedar Ridge</p>
+</dd>
+<dt><strong>{value}</strong></dt>
+<dd>
+<p>Strong definition Cedar Ridge</p>
+</dd>
+<dt><a href="ch002.xhtml#target" class="cross-reference">target</a></dt>
+<dd>
+<p>Link definition Cedar Ridge</p>
+</dd>
+<dt><span id="term-id"></span></dt>
+<dd>
+<p>Anchor definition Cedar Ridge</p>
+</dd>
+<dt><span class="icon">[heart]</span></dt>
+<dd>
+<p>Icon definition Cedar Ridge</p>
+</dd>
+<dt><a href="#fn1" class="footnote-ref" id="fnref1">1</a></dt>
+<dd>
+<p>Footnote definition Cedar Ridge</p>
+</dd>
+<dt><span class="counter">1</span></dt>
+<dd>
+<p>Count <span class="counter">2</span></p>
+</dd>
+<dt><span class="role">User wrapper</span></dt>
+<dd>
+<p>Wrapper definition Cedar Ridge</p>
+</dd>
+</dl>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<div id="fn1">
+<p><a href="#fnref1" class="footnote-back">1</a>. Note {value}</p>
+</div>
+</div>

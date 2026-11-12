@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<section id="section" class="level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<figure id="fig:sample">
+<span></span>
+<figcaption>A sample diagram.</figcaption>
+</figure>
+</section>

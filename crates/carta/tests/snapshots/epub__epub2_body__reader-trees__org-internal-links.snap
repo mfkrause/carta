@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="links-to-later" class="section level1 unnumbered">
+<h1 class="unnumbered">Links to <a href="ch001.xhtml#later">later</a></h1>
+<p><a href="ch001.xhtml#later"><strong>Forward link</strong></a> and <a href="later">file:later</a>.</p>
+<p><span id="later"></span>A named target.</p>
+<p><a href="ch001.xhtml#later">later</a> and <span class="spurious-link"><em>Missing target</em></span>.</p>
+<p><span id="a-b"></span>and <span id="a-b-1"></span>.</p>
+<p><a href="ch001.xhtml#a-b">a/b</a> and <a href="ch001.xhtml#a-b-1">a+b</a>.</p>
+<table>
+<tbody>
+<tr>
+<td>Link</td>
+<td><a href="ch001.xhtml#later">later</a></td>
+</tr>
+</tbody>
+</table>
+<p>Text with a note.<a href="#fn1" class="footnote-ref" id="fnref1">1</a></p>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<div id="fn1">
+<p><a href="#fnref1" class="footnote-back">1</a>. See <a href="ch001.xhtml#later">later</a>.</p>
+</div>
+</div>

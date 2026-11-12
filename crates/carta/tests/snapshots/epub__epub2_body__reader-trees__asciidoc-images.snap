@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p>An <span>Photo</span>.</p>
+<div class="float">
+<span>Photo</span>
+<div class="figcaption">A caption</div>
+</div>
+<div class="float" height="200" width="100">
+<span></span>
+</div>
+</div>

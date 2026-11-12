@@ -1,0 +1,107 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<table>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">1</span></p>
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter">1</span></p>
+</div>
+<p><span class="counter">2</span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">3</span></p>
+<table>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">1</span></p>
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter">1</span></p>
+</div>
+<p><em><span class="counter">2</span></em></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">3</span></p>
+<table>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">1</span></p>
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter">1</span></p>
+</div>
+<p><span class="counter">2</span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">3</span></p>
+<table>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">1</span></p>
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter">1</span></p>
+</div>
+<p><span class="counter"><code>2</code></span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">3</span></p>
+<table>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">1</span></p>
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter">1</span></p>
+</div>
+<p><strong><span class="counter">2</span></strong></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p><span class="counter">3</span></p>
+</div>

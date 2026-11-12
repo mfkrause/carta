@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<section id="id__heading" class="level1" data-asciidoc-heading="heading" data-asciidoc-icon="icon" data-asciidoc-identifier-source="source" data-asciidoc-section="section" data-wrapper="1">
+<h1 data-asciidoc-heading="heading" data-asciidoc-icon="icon" data-asciidoc-identifier-source="source" data-asciidoc-section="section" data-wrapper="1">Heading</h1>
+<div id="id__nested" data-asciidoc-heading="titled" data-asciidoc-section="titled">
+<div class="title">
+<p>Titled</p>
+</div>
+<section id="nested" class="level2">
+<h2>Nested</h2>
+<section id="discrete" class="level3" data-asciidoc-heading="discrete" data-asciidoc-section="discrete">
+<h3 data-asciidoc-heading="discrete" data-asciidoc-section="discrete">Discrete</h3>
+<p><span class="icon" data-asciidoc-icon="user" data-wrapper="1"></span></p>
+<p><span id="spot" data-asciidoc-identifier-source="user"></span> <a href="ch001.xhtml#spot" class="cross-reference"></a></p>
+</section>
+</section>
+<section id="html" class="level2" data-c="1" data-a="3" data-b="4" data-asciidoc-heading="html-heading" data-asciidoc-section="html-section" data-wrapper="html">
+<h2 data-c="1" data-a="3" data-b="4" data-asciidoc-heading="html-heading" data-asciidoc-section="html-section" data-wrapper="html">HTML</h2>
+</section>
+<section id="data" class="level2" data-z="1" data-a="3" data-x="4">
+<h2 data-z="1" data-a="3" data-x="4">Data</h2>
+</section>
+<section id="prefix" class="level2" data-asciidoc-carta-user-attribute-asciidoc-heading="html-prefix">
+<h2 data-asciidoc-carta-user-attribute-asciidoc-heading="html-prefix">Prefix</h2>
+<section id="id__prefix" class="level3" data-asciidoc-carta-user-attribute-asciidoc-heading="prefix">
+<h3 data-asciidoc-carta-user-attribute-asciidoc-heading="prefix">Prefix</h3>
+</section>
+</section>
+</div>
+</section>

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p><span><span class="math display"><em>e</em><sup><em>i</em><em>π</em></sup> + 1 = 0</span></span></p>
+</div>

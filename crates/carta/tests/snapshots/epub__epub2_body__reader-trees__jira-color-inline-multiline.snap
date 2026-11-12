@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p><span>a<br />
+b</span> keeps the span inline when the close is not alone.</p>
+<p>A <span>bare hex</span> span stays inline too.</p>
+</div>

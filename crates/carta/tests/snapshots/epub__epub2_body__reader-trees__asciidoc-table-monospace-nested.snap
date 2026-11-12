@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<table>
+<thead>
+<tr>
+<th><p><span><code>p</code></span></p></th>
+</tr>
+</thead>
+<tfoot>
+<tr>
+<td><p><span class="r"><code>span</code></span></p></td>
+</tr>
+</tfoot>
+<tbody>
+<tr>
+<td><p><a href="x"><code>l</code></a></p></td>
+</tr>
+<tr>
+<td><p><a href="#fn1" class="footnote-ref" id="fnref1">1</a></p></td>
+</tr>
+</tbody>
+
+</table>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<div id="fn1">
+<p><a href="#fnref1" class="footnote-back">1</a>. <code>note</code></p>
+</div>
+</div>

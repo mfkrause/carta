@@ -1,0 +1,58 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<section id="section" class="level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<ul>
+<li><span>movie.mp4</span></li>
+</ul>
+<ul>
+<li><p>Outer</p>
+<ul>
+<li><figure>
+<span></span>
+</figure></li>
+</ul></li>
+</ul>
+<dl>
+<dt></dt>
+<dd>
+<figure>
+<span></span>
+</figure>
+</dd>
+<dt>Named</dt>
+<dd>
+<div id="toc">
+
+</div>
+</dd>
+<dt></dt>
+<dd>
+<figure>
+<span></span>
+</figure>
+</dd>
+<dt>Indented</dt>
+<dd>
+<span>sound.mp3</span>
+</dd>
+<dt>A</dt>
+<dd>
+
+</dd>
+<dt>B and C</dt>
+<dd>
+<p>D</p>
+</dd>
+<dt>Bad</dt>
+<dd>
+
+</dd>
+<dt>include</dt>
+<dd>
+<p>missing[</p>
+</dd>
+</dl>
+</section>

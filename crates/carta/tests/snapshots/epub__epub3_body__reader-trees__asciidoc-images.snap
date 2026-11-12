@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<section id="section" class="level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p>An <span>Photo</span>.</p>
+<figure>
+<span>Photo</span>
+<figcaption>A caption</figcaption>
+</figure>
+<figure alt="Photo" height="200" width="100">
+<span></span>
+</figure>
+</section>

@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="id__heading" class="section level1">
+<h1>Heading</h1>
+<div id="id__nested">
+<div class="title">
+<p>Titled</p>
+</div>
+<div id="nested" class="section level2">
+<h2>Nested</h2>
+<div id="discrete" class="section level3">
+<h3>Discrete</h3>
+<p><span class="icon"></span></p>
+<p><span id="spot"></span> <a href="ch001.xhtml#spot" class="cross-reference"></a></p>
+</div>
+</div>
+<div id="html" class="section level2">
+<h2>HTML</h2>
+</div>
+<div id="data" class="section level2">
+<h2>Data</h2>
+</div>
+<div id="prefix" class="section level2">
+<h2>Prefix</h2>
+<div id="id__prefix" class="section level3">
+<h3>Prefix</h3>
+</div>
+</div>
+</div>
+</div>

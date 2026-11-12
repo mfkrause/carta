@@ -1,0 +1,58 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<table>
+<colgroup>
+<col width="100%" />
+</colgroup>
+<tfoot>
+<tr>
+<td><p><span id="trailing"></span> Trailing spaces</p></td>
+</tr>
+</tfoot>
+<tbody>
+<tr>
+<td><p id="next">Next line</p></td>
+</tr>
+<tr>
+<td><p id="labeled,label">Label text</p></td>
+</tr>
+<tr>
+<td><p><span id="inline"></span> remainder</p></td>
+</tr>
+<tr>
+<td><p>before <span id="middle"></span> after</p>
+<p id="after-blank">After blank</p></td>
+</tr>
+<tr>
+<td><p><span id="space inside"></span> Whitespace id</p></td>
+</tr>
+<tr>
+<td><p><span id="bad]bracket"></span> Malformed id</p></td>
+</tr>
+</tbody>
+
+</table>
+<table>
+<colgroup>
+<col width="100%" />
+</colgroup>
+<tfoot>
+<tr>
+<td><div>
+<div class="title">
+<p><span class="counter">1</span> title</p>
+</div>
+<p><span class="counter">2</span> body</p>
+</div></td>
+</tr>
+</tfoot>
+<tbody>
+</tbody>
+
+</table>
+<p><span class="counter">1</span> <span class="counter">3</span></p>
+</div>

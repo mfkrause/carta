@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/epub.rs
+expression: body
+---
+<div id="section" class="section level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p>Before kept text after.</p>
+<p><em>Formatted text</em></p>
+<p><span>image</span></p>
+</div>
