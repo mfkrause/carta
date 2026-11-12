@@ -40,10 +40,25 @@ READER = {
 
 DATA_IMAGE = "Pandoc drops images given as data URIs; carta extracts them to media/."
 DROPPED_TARGET = "Pandoc's RST output drops the inline target, so links to it break."
+BROKEN_KEY_SPAN = (
+    "Pandoc writes the key span after '{plus}' with single marks, which AsciiDoc reads as text."
+)
+DROPPED_ANCHOR = "Pandoc drops the anchor of a figure without content, so the link to it breaks."
+DROPPED_CAPTION = "Pandoc drops the caption of a figure whose image is in a paragraph."
 
 # (target, feature, case) -> reason. A `reader-trees` case is the tree that carta reads from the
 # `corpus/text` case of that name, so its entry also covers that e2e conversion.
 WRITER = {
+    ("asciidoc", "reader-trees", "asciidoc-heading-macro-text"): BROKEN_KEY_SPAN,
+    ("asciidoc", "reader-trees", "asciidoc-inline-macros"): BROKEN_KEY_SPAN,
+    ("asciidoc", "reader-trees", "latex-references"): DROPPED_ANCHOR,
+    ("asciidoc", "reader-trees", "typst-content-spacing"): DROPPED_CAPTION,
+    ("asciidoc", "reader-trees", "typst-labels-references"): DROPPED_CAPTION,
+    ("asciidoc_legacy", "reader-trees", "asciidoc-heading-macro-text"): BROKEN_KEY_SPAN,
+    ("asciidoc_legacy", "reader-trees", "asciidoc-inline-macros"): BROKEN_KEY_SPAN,
+    ("asciidoc_legacy", "reader-trees", "latex-references"): DROPPED_ANCHOR,
+    ("asciidoc_legacy", "reader-trees", "typst-content-spacing"): DROPPED_CAPTION,
+    ("asciidoc_legacy", "reader-trees", "typst-labels-references"): DROPPED_CAPTION,
     ("beamer", "image-dimensions", "image-embedded-jpeg"): DATA_IMAGE,
     ("beamer", "image-dimensions", "image-embedded-png"): DATA_IMAGE,
     ("commonmark", "reader-trees", "ipynb-version-three"): (
