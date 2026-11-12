@@ -88,16 +88,19 @@ pub(super) fn span_role(attr: &Attr) -> Option<String> {
     Some(format!("[{}]", parts.join(" ")))
 }
 
-/// The admonition label for a div whose classes name one, uppercased.
-pub(super) fn admonition(attr: &Attr) -> Option<&'static str> {
-    attr.classes.iter().find_map(|class| match class.as_str() {
-        "note" => Some("NOTE"),
-        "tip" => Some("TIP"),
-        "important" => Some("IMPORTANT"),
-        "caution" => Some("CAUTION"),
-        "warning" => Some("WARNING"),
-        _ => None,
-    })
+/// The style label and delimiter line of the block a div's first class names: an admonition or a
+/// sidebar.
+pub(super) fn labeled_block(attr: &Attr) -> Option<(&'static str, &'static str)> {
+    let label = match attr.classes.first()?.as_str() {
+        "note" => "NOTE",
+        "tip" => "TIP",
+        "important" => "IMPORTANT",
+        "caution" => "CAUTION",
+        "warning" => "WARNING",
+        "sidebar" => return Some(("SIDEBAR", "****")),
+        _ => return None,
+    };
+    Some((label, "===="))
 }
 
 /// Whether a formatted inline between these neighbors needs the unconstrained (doubled) marker: a

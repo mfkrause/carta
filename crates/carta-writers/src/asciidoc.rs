@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 
 use carta_ast::{
     Attr, Block, Caption, Cell, Document, Inline, ListAttributes, MathType, Row, Table, TableBody,
-    Target, slug, to_plain_text,
+    Target, Text, single_block_inlines, slug, to_plain_text,
 };
 use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
@@ -16,8 +16,8 @@ use crate::common::{
 mod helpers;
 
 use self::helpers::{
-    admonition, alignment_operator, cell_span, code_block, display_math_block, escape_text,
-    image_args, indent, is_autolink_scheme, is_simple_cell, joins_word, ordered_style_line,
+    alignment_operator, cell_span, code_block, display_math_block, escape_text, image_args, indent,
+    is_autolink_scheme, is_simple_cell, joins_word, labeled_block, ordered_style_line,
     quote_glyphs, span_role, table_options_line, task_checkbox, trim_surrounding_space, url_scheme,
 };
 
@@ -197,12 +197,33 @@ impl State {
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
-        let body = self.blocks(blocks, width);
-        let core = match admonition(attr) {
-            Some(label) => format!("[{label}]\n====\n{}\n====", body.trim_end_matches('\n')),
-            None => body,
+        let Some((label, fence)) = labeled_block(attr) else {
+            return anchored(&attr.id, self.blocks(blocks, width));
         };
-        anchored(&attr.id, core)
+        let (title, content) = match blocks {
+            [Block::Div(title_attr, title), rest @ ..]
+                if title_attr.classes.first().map(Text::as_str) == Some("title") =>
+            {
+                (title.as_slice(), rest)
+            }
+            _ => (&[][..], blocks),
+        };
+        let mut out = format!("[{label}]\n");
+        // A title that only repeats the label adds nothing.
+        let repeats_label = to_plain_text(single_block_inlines(title))
+            .trim()
+            .eq_ignore_ascii_case(label);
+        let title = self.blocks(title, width);
+        if !title.is_empty() && !repeats_label {
+            let _ = writeln!(out, ".{title}");
+        }
+        let _ = writeln!(out, "{fence}");
+        let body = self.blocks(content, width);
+        if !body.is_empty() {
+            let _ = writeln!(out, "{}", body.trim_end_matches('\n'));
+        }
+        out.push_str(fence);
+        anchored(&attr.id, out)
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {

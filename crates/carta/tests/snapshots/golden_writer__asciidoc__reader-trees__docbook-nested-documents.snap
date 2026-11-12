@@ -16,9 +16,11 @@ e = 2
 ++++
 stands in the sentence around it.
 
-Aside
-
+[SIDEBAR]
+.Aside
+****
 Set beside the text.
+****
 
 [latexmath]
 ++++
