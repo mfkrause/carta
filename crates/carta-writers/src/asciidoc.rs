@@ -16,9 +16,10 @@ use crate::common::{
 mod helpers;
 
 use self::helpers::{
-    alignment_operator, cell_span, code_block, display_math_block, escape_text, image_args, indent,
-    is_autolink_scheme, is_simple_cell, joins_word, labeled_block, ordered_style_line,
-    quote_glyphs, span_role, table_options_line, task_checkbox, trim_surrounding_space, url_scheme,
+    alignment_operator, cell_span, code_block, display_math_block, escape_text, flush_left,
+    image_args, indent, is_autolink_scheme, is_simple_cell, joins_word, labeled_block,
+    ordered_style_line, quote_glyphs, span_role, table_options_line, task_checkbox,
+    trim_surrounding_space, url_scheme, without_flush_marks,
 };
 
 /// Renders a document to `AsciiDoc` markup.
@@ -103,7 +104,15 @@ impl State {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => self.paragraph(inlines, width, 0),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
-            Block::CodeBlock(attr, text) => code_block(attr, text),
+            Block::CodeBlock(attr, text) => {
+                let block = code_block(attr, text);
+                // Verbatim lines keep column zero under a definition's indent.
+                if self.definition_depth == 0 {
+                    block
+                } else {
+                    flush_left(&block)
+                }
+            }
             Block::RawBlock(format, text) => {
                 common::raw_passthrough(format, text, "asciidoc", RawTrim::DropOne)
             }
@@ -388,7 +397,12 @@ impl State {
             entries.push(entry);
         }
         self.definition_depth = self.definition_depth.saturating_sub(1);
-        entries.join("\n")
+        let list = entries.join("\n");
+        if self.definition_depth == 0 {
+            without_flush_marks(&list)
+        } else {
+            list
+        }
     }
 
     /// Render a definition's blocks indented two columns, joining successive blocks with a `+`

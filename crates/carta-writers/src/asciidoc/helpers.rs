@@ -389,17 +389,38 @@ fn is_formatting_char(ch: char) -> bool {
     )
 }
 
-/// Indent every non-empty line of a body by a fixed prefix; blank separator lines stay empty.
+/// Opens a line that stays at column zero when the body around it is indented.
+const FLUSH: char = '\0';
+
+/// Mark every line of a body to stay at column zero through [`indent`].
+pub(super) fn flush_left(body: &str) -> String {
+    let lines: Vec<String> = body
+        .split('\n')
+        .map(|line| format!("{FLUSH}{line}"))
+        .collect();
+    lines.join("\n")
+}
+
+/// Remove the marks [`flush_left`] put on the lines of a body.
+pub(super) fn without_flush_marks(body: &str) -> String {
+    let lines: Vec<&str> = body
+        .split('\n')
+        .map(|line| line.strip_prefix(FLUSH).unwrap_or(line))
+        .collect();
+    lines.join("\n")
+}
+
+/// Indent every line of a body by a fixed prefix; blank lines and lines marked by [`flush_left`]
+/// stay as they are.
 pub(super) fn indent(body: &str, prefix: &str) -> String {
     let mut out = String::new();
     for (index, line) in body.split('\n').enumerate() {
         if index > 0 {
             out.push('\n');
         }
-        if line.is_empty() {
-            continue;
+        if !line.is_empty() && !line.starts_with(FLUSH) {
+            out.push_str(prefix);
         }
-        out.push_str(prefix);
         out.push_str(line);
     }
     out

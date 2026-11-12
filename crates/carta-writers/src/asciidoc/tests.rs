@@ -62,6 +62,30 @@ fn list_items_separate_rules_and_trim_raw_trailing_breaks() {
 }
 
 #[test]
+fn code_in_a_nested_definition_stays_at_column_zero() {
+    let inner = Block::DefinitionList(vec![(
+        vec![s("inner")],
+        vec![vec![
+            Block::Para(vec![s("text")]),
+            Block::CodeBlock(Box::default(), "x\n\ny".into()),
+        ]],
+    )]);
+    let document = Document {
+        blocks: vec![Block::DefinitionList(vec![(
+            vec![s("outer")],
+            vec![vec![inner]],
+        )])],
+        ..Document::default()
+    };
+    assert_eq!(
+        AsciidocWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap(),
+        "outer::\n  inner;;\n    text\n    +\n....\nx\n\ny\n...."
+    );
+}
+
+#[test]
 fn an_absurd_heading_level_exhausts_the_output_budget() {
     let document = Document {
         blocks: vec![Block::Header(i64::MAX, Box::default(), vec![s("deep")])],
