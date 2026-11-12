@@ -46,7 +46,7 @@ pub(super) fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Fl
     {
         let url = escape_attr(&target.url);
         let mut out = format!(
-            "<{tag}{BREAK}src=\"{url}\"{} controls=\"\"",
+            "<{tag}{BREAK}{source}=\"{url}\"{} controls=\"\"",
             title_attr(&target.title)
         );
         render_attr_into(&mut out, attr, AttrOrder::Standard, flavor);

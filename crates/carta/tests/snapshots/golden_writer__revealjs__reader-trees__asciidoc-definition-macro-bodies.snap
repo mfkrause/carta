@@ -5,7 +5,7 @@ expression: output
 <section class="slide level6">
 
 <ul>
-<li><video src="movie.mp4" controls=""><a
+<li><video data-src="movie.mp4" controls=""><a
 href="movie.mp4">movie.mp4</a></video></li>
 </ul>
 <ul>
@@ -37,7 +37,7 @@ href="movie.mp4">movie.mp4</a></video></li>
 </dd>
 <dt>Indented</dt>
 <dd>
-<audio src="sound.mp3" controls=""><a
+<audio data-src="sound.mp3" controls=""><a
 href="sound.mp3">sound.mp3</a></audio>
 </dd>
 <dt>A</dt>
