@@ -17,9 +17,10 @@ use crate::common::{RowSpanGrid, checkbox_state, offset_as_i64, ordered_marker, 
 use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 
 use super::helpers::{
-    alignment_style, append_trailing_newline, cell_attr, cell_attr_html4, colgroup, has_table_head,
-    header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type, ordered_list_type,
-    raw_passthrough, render_attr_into, table_width_style, title_attr,
+    alignment_style, anchor_prefix, append_trailing_newline, cell_attr, cell_attr_html4, colgroup,
+    has_table_head, header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type,
+    ordered_list_type, raw_passthrough, render_attr_into, render_part_attr_into, table_width_style,
+    title_attr,
 };
 #[cfg(feature = "highlight")]
 use super::helpers::{render_id_into, render_keyvals_into};
@@ -557,7 +558,7 @@ impl State<'_> {
 
     fn figure_html5(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
         out.push_str("<figure");
-        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        render_part_attr_into(out, attr, self.flavor);
         out.push_str(">\n");
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
@@ -575,7 +576,7 @@ impl State<'_> {
 
     fn figure_html4(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
         out.push_str("<div class=\"float\"");
-        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        render_part_attr_into(out, attr, self.flavor);
         out.push_str(">\n");
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
@@ -615,7 +616,7 @@ impl State<'_> {
         out.push_str(&colgroup(&table.col_specs, self.flavor));
         if has_table_head(table) {
             out.push_str("\n<thead");
-            render_attr_into(out, &table.head.attr, AttrOrder::Standard, self.flavor);
+            render_part_attr_into(out, &table.head.attr, self.flavor);
             out.push('>');
             out.push('\n');
             self.rows(out, &table.head.rows, &aligns, true);
@@ -633,7 +634,7 @@ impl State<'_> {
                 out.push('\n');
             }
             out.push_str("<tfoot");
-            render_attr_into(out, &table.foot.attr, AttrOrder::Standard, self.flavor);
+            render_part_attr_into(out, &table.foot.attr, self.flavor);
             out.push('>');
             out.push('\n');
             self.rows(out, &table.foot.rows, &aligns, false);
@@ -650,7 +651,7 @@ impl State<'_> {
 
     fn table_body(&mut self, out: &mut String, body: &TableBody, aligns: &[Alignment]) {
         out.push_str("\n<tbody");
-        render_attr_into(out, &body.attr, AttrOrder::Standard, self.flavor);
+        render_part_attr_into(out, &body.attr, self.flavor);
         out.push('>');
         let mut head_grid = RowSpanGrid::new(aligns.len());
         for row in &body.head {
@@ -695,7 +696,7 @@ impl State<'_> {
         grid: &mut RowSpanGrid,
     ) {
         out.push_str("<tr");
-        render_attr_into(out, &row.attr, AttrOrder::Standard, self.flavor);
+        render_part_attr_into(out, &row.attr, self.flavor);
         out.push('>');
         out.push('\n');
         let head_columns = usize::try_from(head_columns).unwrap_or(0);
@@ -948,6 +949,7 @@ impl State<'_> {
         out.push_str("href=\"");
         if let Some(fragment) = target.url.strip_prefix('#') {
             out.push_str(fragment_prefix(self.flavor));
+            out.push_str(anchor_prefix(fragment, self.flavor));
             escape_attr_into(out, fragment);
         } else {
             escape_attr_into(out, &target.url);

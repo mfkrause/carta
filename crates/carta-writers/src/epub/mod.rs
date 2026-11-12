@@ -369,7 +369,10 @@ fn rewrite_internal_links(chapters: &mut [Chapter], id_files: &BTreeMap<String, 
                 .url
                 .as_str()
                 .strip_prefix('#')
-                .and_then(|id| id_files.get(id).map(|file| format!("{file}#{id}")));
+                .and_then(|id| {
+                    let file = id_files.get(id)?;
+                    Some(format!("{file}#{}{id}", crate::html::letter_prefix(id)))
+                });
             if let Some(url) = rewritten {
                 target.url = url.into();
             }

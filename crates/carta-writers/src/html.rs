@@ -12,6 +12,8 @@ use crate::common::{FILL_COLUMN, clean_prefix_len, display_width};
 mod helpers;
 mod render;
 
+#[cfg(feature = "epub")]
+pub(crate) use self::helpers::letter_prefix;
 use self::helpers::{
     header_tag, render_attr_into, render_class_into, render_id_into, render_keyvals_into,
 };

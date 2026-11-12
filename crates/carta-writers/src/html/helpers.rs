@@ -37,6 +37,10 @@ pub(super) fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Fl
         "mp3" | "ogg" | "wav" | "m4a" | "flac" | "aac" | "opus" => Some("audio"),
         _ => None,
     };
+    let source = match flavor {
+        Flavor::Slides => "data-src",
+        Flavor::Html5 | Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => "src",
+    };
     if let Some(tag) = media
         && flavor.is_html5_family()
     {
@@ -56,10 +60,6 @@ pub(super) fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Fl
         String::new()
     } else {
         format!("{BREAK}alt=\"{}\"", escape_attr(&alt))
-    };
-    let source = match flavor {
-        Flavor::Slides => "data-src",
-        Flavor::Html5 | Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => "src",
     };
     let mut out = String::from("<img");
     out.push(BREAK);
@@ -232,16 +232,24 @@ pub(super) fn raw_passthrough(format: &str, text: &str) -> String {
 pub(super) fn render_attr_into(out: &mut String, attr: &Attr, order: AttrOrder, flavor: Flavor) {
     match order {
         AttrOrder::Standard => {
-            render_id_into(out, &attr.id);
+            render_anchor_id_into(out, &attr.id, flavor);
             render_class_into(out, &attr.classes);
             render_keyvals_into(out, &attr.attributes, flavor);
         }
         AttrOrder::Header => {
             render_class_into(out, &attr.classes);
             render_keyvals_into(out, &attr.attributes, flavor);
-            render_id_into(out, &attr.id);
+            render_anchor_id_into(out, &attr.id, flavor);
         }
     }
+}
+
+/// Render the attributes of a figure or of a table part (head, body, foot, row), whose identifier
+/// stays as written in every dialect.
+pub(super) fn render_part_attr_into(out: &mut String, attr: &Attr, flavor: Flavor) {
+    render_id_into(out, &attr.id);
+    render_class_into(out, &attr.classes);
+    render_keyvals_into(out, &attr.attributes, flavor);
 }
 
 /// The HTML4-valid universal attributes for a heading element. HTML4 admits only the core, i18n,
@@ -336,13 +344,37 @@ fn combine_style(align_style: &str, style: &str) -> String {
 }
 
 pub(super) fn render_id_into(out: &mut String, id: &Text) {
+    render_anchor_id_into(out, id, Flavor::Html5);
+}
+
+/// Render the identifier of an element that a link can target, behind its [`anchor_prefix`].
+fn render_anchor_id_into(out: &mut String, id: &Text, flavor: Flavor) {
     if id.is_empty() {
         return;
     }
     out.push(BREAK);
     out.push_str("id=\"");
+    out.push_str(anchor_prefix(id, flavor));
     escape_attr_into(out, id);
     out.push('"');
+}
+
+/// The prefix an identifier takes as a link anchor. The HTML 4 and EPUB dialects need an anchor to
+/// start with a letter, so any other identifier gains the [`letter_prefix`].
+pub(super) fn anchor_prefix(id: &str, flavor: Flavor) -> &'static str {
+    match flavor {
+        Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => letter_prefix(id),
+        Flavor::Html5 | Flavor::Slides => "",
+    }
+}
+
+/// The prefix that makes `id` start with a letter: empty when it already does.
+pub(crate) fn letter_prefix(id: &str) -> &'static str {
+    if id.chars().next().is_some_and(|first| !first.is_alphabetic()) {
+        "id_"
+    } else {
+        ""
+    }
 }
 
 pub(super) fn render_class_into(out: &mut String, classes: &[Text]) {

@@ -2,8 +2,9 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-<h1 id="_heading">Heading</h1>
-<div id="_nested" asciidoc-heading="titled" asciidoc-section="titled">
+<h1 id="id__heading">Heading</h1>
+<div id="id__nested" asciidoc-heading="titled"
+asciidoc-section="titled">
 <div class="title">
 <p>Titled</p>
 </div>
@@ -16,5 +17,5 @@ href="#spot" class="cross-reference"></a></p>
 <h2>HTML</h2>
 <h2>Data</h2>
 <h2>Prefix</h2>
-<h3 id="_prefix">Prefix</h3>
+<h3 id="id__prefix">Prefix</h3>
 </div>

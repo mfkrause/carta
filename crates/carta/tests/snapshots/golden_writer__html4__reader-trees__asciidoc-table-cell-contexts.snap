@@ -1,0 +1,71 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><p>Cell body.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th><p><em>First paragraph.</em></p>
+<h1 id="id__cell_section">Cell section</h1>
+<p>Section body.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th><p><code>First</code> <code>paragraph.</code></p>
+<h1 id="id__cell_section_2">Cell section</h1>
+<p>Section body.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<div class="example">
+<table>
+<thead>
+<tr>
+<th><p>== Paragraph text</p>
+<p>Next paragraph.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+</div>
+<h1 id="id__outer">Outer</h1>
+<table>
+<thead>
+<tr>
+<th><h2 id="id__inner">Inner</h2>
+<p>Inner body.</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th><p><em>Before   After</em></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>

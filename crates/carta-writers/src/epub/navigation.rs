@@ -5,7 +5,7 @@
 use super::Version;
 use super::metadata::{BookMeta, UNTITLED};
 use super::pages::{BodyKind, inline_plain, xhtml_page};
-use crate::html::render_epub_inlines;
+use crate::html::{letter_prefix, render_epub_inlines};
 use carta_ast::{Attr, Block, Inline, Text};
 use carta_core::container::xml::{Element, escape_attribute, escape_text};
 use std::collections::BTreeMap;
@@ -16,10 +16,10 @@ const TITLE_PAGE_HREF: &str = "text/title_page.xhtml";
 /// The path to the generated cover page, relative to the container root.
 const COVER_HREF: &str = "text/cover.xhtml";
 
-/// One entry in the table of contents: a section's identifier and heading, the file it lives in, and
+/// One entry in the table of contents: a section's anchor and heading, the file it lives in, and
 /// any subsections nested beneath it.
 pub(crate) struct TocEntry {
-    id: String,
+    anchor: String,
     title: Vec<Inline>,
     file: String,
     children: Vec<TocEntry>,
@@ -63,12 +63,11 @@ fn collect(
         if level > toc_depth {
             continue;
         }
-        let id = attr.id.to_string();
-        let file = file_of.get(&id).cloned().unwrap_or_default();
+        let file = file_of.get(attr.id.as_str()).cloned().unwrap_or_default();
         out.push(TocEntry {
             title: header_inlines(children),
             file,
-            id,
+            anchor: format!("{}{}", letter_prefix(&attr.id), attr.id),
             children: collect(children, file_of, toc_depth),
         });
     }
@@ -159,7 +158,7 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
         *counter += 1;
         let index = *counter;
         let mut href = String::new();
-        escape_attribute(&format!("{}#{}", entry.file, entry.id), &mut href);
+        escape_attribute(&format!("{}#{}", entry.file, entry.anchor), &mut href);
         let text = render_epub_inlines(&nav_label_inlines(&entry.title), epub3);
         // An anchor must carry text; an untitled section falls back to a placeholder.
         let label = if text.is_empty() { UNTITLED } else { &text };
@@ -304,7 +303,7 @@ fn ncx_meta(name: &str, content: &str) -> Element {
 
 /// A navigation point for one table-of-contents entry, recursing into its subsections.
 fn entry_nav_point(entry: &TocEntry, counter: &mut usize) -> Element {
-    let src = format!("text/{}#{}", entry.file, entry.id);
+    let src = format!("text/{}#{}", entry.file, entry.anchor);
     nav_point(counter, &src, &inline_plain(&entry.title), &entry.children)
 }
 
