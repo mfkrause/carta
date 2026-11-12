@@ -14,10 +14,11 @@ Aside
 
 Set beside the text.
 
+{panel:role=numbered}
 
 _y_ = {_}x{_}
 
-
+{panel}
 h2. {anchor:}Deeper still
 The count restarts where the article stands.
 

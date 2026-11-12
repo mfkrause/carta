@@ -2,6 +2,8 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
+{panel}
 *Notice*
 
 Body text inside the panel.
+{panel}

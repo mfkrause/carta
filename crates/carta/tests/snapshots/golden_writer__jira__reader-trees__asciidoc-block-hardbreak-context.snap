@@ -2,25 +2,29 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
+{panel:options=hardbreaks}
 one
 two
-
+{panel}
 after block
 
+{panel:options=hardbreaks}
 one
 two
-
+{panel}
 after block
 
+{panel:options=hardbreaks}
 one
 two
-
+{panel}
 after block
 
+{panel:wrapper=1|options=hardbreaks}
 {quote}
 one
 two
-{quote}
+{quote}{panel}
 after block
 
 || one

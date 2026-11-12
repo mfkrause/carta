@@ -2,11 +2,14 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-| {anchor:next}Next line |
-| {anchor:labeled,label}Label text |
+| {panel:wrapper=1}
+{anchor:next}Next line{panel} |
+| {panel:wrapper=1}
+{anchor:labeled,label}Label text{panel} |
 | {anchor:inline} remainder |
 | before {anchor:middle} after
-{anchor:after-blank}After blank |
+{panel:wrapper=1}
+{anchor:after-blank}After blank{panel} |
 | {anchor:space inside} Whitespace id |
 | {anchor:bad]bracket} Malformed id |
 | {anchor:trailing} Trailing spaces |

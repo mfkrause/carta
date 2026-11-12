@@ -5,14 +5,17 @@ expression: output
 ----
 ----
 ----
-----
-----
+{panel:wrapper=1}
+----{panel}
+{panel:options=always|wrapper=1}
+----{panel}
 A hard
 break.
 
+{panel:wrapper=1|options=hardbreaks}
 a
 b
-
+{panel}
 third
 fourth
 

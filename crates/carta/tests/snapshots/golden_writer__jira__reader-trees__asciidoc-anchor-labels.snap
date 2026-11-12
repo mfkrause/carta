@@ -7,8 +7,9 @@ expression: output
 h1. {anchor:other,Label}Heading
 See [other|#other].
 
+{panel:wrapper=1}
 {anchor:multi,One,Two}See [multi|#multi].
-
+{panel}
 {anchor:macro} See [AlphaBeta|#macro].
 
 {anchor:bib}

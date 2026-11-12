@@ -6,4 +6,6 @@ An !photo.png|alt=Photo, width=100px, height=200px!.
 
 !photo.png|alt=Photo, width=100px, height=200px!
 
+{panel:wrapper=1|alt=Photo|height=200|width=100}
 !photo.png!
+{panel}

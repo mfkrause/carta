@@ -10,4 +10,5 @@ expression: output
 
 * Parent
 \*\*\*\*
-{anchor:id}\*\*\*\*
+{panel:wrapper=1}
+{anchor:id}\*\*\*\*{panel}

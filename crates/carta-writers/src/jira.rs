@@ -44,6 +44,8 @@ struct State {
     markers: String,
     /// Inside a list item or table cell, where paragraphs and lists carry no closing newline.
     compact: bool,
+    /// Inside a panel, which holds no further panel.
+    in_panel: bool,
 }
 
 /// A rendered block, with the role that decides what may share its lines.
@@ -92,7 +94,7 @@ impl State {
     }
 
     /// Join rendered blocks one per line. A paragraph outside a list or cell ends its own line, so
-    /// a blank line follows it; headings, code, quotes and rules run on to the next line.
+    /// a blank line follows it; headings, code, quotes, rules and panels run on to the next line.
     fn join(&self, parts: Vec<Part>) -> String {
         let end = self.paragraph_end();
         parts
@@ -109,9 +111,9 @@ impl State {
         if self.compact { "" } else { "\n" }
     }
 
-    /// Render blocks into `parts`. A division or figure is transparent: its blocks join the
-    /// sequence around it, after an anchor when it carries an identifier. A raw block of another
-    /// format leaves nothing behind.
+    /// Render blocks into `parts`. A division or figure that opens no panel is transparent: its
+    /// blocks join the sequence around it, after an anchor when it carries an identifier. A raw
+    /// block of another format leaves nothing behind.
     fn parts(&mut self, blocks: &[Block], parts: &mut Vec<Part>) {
         carta_core::with_stack(|| {
             for block in blocks {
@@ -126,13 +128,18 @@ impl State {
                         }
                         Part::paragraph(text.to_string())
                     }
-                    Block::Div(attr, inner) | Block::Figure(attr, _, inner) => {
+                    Block::Div(attr, inner) | Block::Figure(attr, _, inner)
+                        if !self.opens_panel(attr) =>
+                    {
                         let start = parts.len();
                         self.parts(inner, parts);
                         if !attr.id.is_empty() {
                             anchor(&attr.id, start, parts);
                         }
                         continue;
+                    }
+                    Block::Div(attr, inner) | Block::Figure(attr, _, inner) => {
+                        Part::other(self.panel(attr, inner))
                     }
                     Block::Header(level, attr, inlines) => {
                         Part::other(self.header(*level, attr, inlines))
@@ -175,6 +182,35 @@ impl State {
             return format!("bq. {text}");
         }
         format!("{{quote}}\n{}{{quote}}", self.join(parts))
+    }
+
+    /// Whether a division or figure with these attributes renders as a panel: one that carries
+    /// key-value attributes or the `panel` class, unless a panel already encloses it.
+    fn opens_panel(&self, attr: &Attr) -> bool {
+        !self.in_panel
+            && (!attr.attributes.is_empty() || attr.classes.iter().any(|class| class == "panel"))
+    }
+
+    /// A panel: the attributes as its parameters, then the content up to the closing macro.
+    fn panel(&mut self, attr: &Attr, blocks: &[Block]) -> String {
+        let parameters: Vec<String> = attr
+            .attributes
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect();
+        let open = if parameters.is_empty() {
+            "{panel}".to_owned()
+        } else {
+            format!("{{panel:{}}}", parameters.join("|"))
+        };
+        self.in_panel = true;
+        let mut parts = Vec::new();
+        self.parts(blocks, &mut parts);
+        self.in_panel = false;
+        if !attr.id.is_empty() {
+            anchor(&attr.id, 0, &mut parts);
+        }
+        format!("{open}\n{}{{panel}}", self.join(parts))
     }
 
     /// Render a list in the prefix notation: every item line opens with the marker run of the
@@ -419,13 +455,15 @@ impl State {
     }
 
     /// Collect a footnote and return its reference. The body is laid out as a document of its
-    /// own, outside any list or cell around the reference.
+    /// own, outside any list, cell or panel around the reference.
     fn note(&mut self, blocks: &[Block]) -> String {
         let markers = std::mem::take(&mut self.markers);
         let compact = std::mem::take(&mut self.compact);
+        let in_panel = std::mem::take(&mut self.in_panel);
         let body = self.blocks(blocks);
         self.markers = markers;
         self.compact = compact;
+        self.in_panel = in_panel;
         self.notes.push(body);
         format!("[{}]", self.notes.len())
     }

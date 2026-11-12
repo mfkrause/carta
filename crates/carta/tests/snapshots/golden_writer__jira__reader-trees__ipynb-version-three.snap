@@ -4,6 +4,7 @@ expression: output
 ---
 h1. {anchor:first}First
 h9. {anchor:deeper-heading}Deeper _heading_
+{panel:execution_count=1|collapsed=false|language=python}
 {code:python}
 print(1)
 {code}
@@ -15,5 +16,7 @@ print(1)
 {noformat}
 line 1
 ExampleError: text
-{noformat}
+{noformat}{panel}
+{panel:format=text/latex}
+{panel}
 Final text
