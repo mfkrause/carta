@@ -8,7 +8,7 @@ expression: output
 :END:
 Body text under the first heading.
 
-** Second level heading work urgent
+** Second level heading                                    :work:urgent:
 :PROPERTIES:
 :CUSTOM_ID: second-level-heading
 :END:

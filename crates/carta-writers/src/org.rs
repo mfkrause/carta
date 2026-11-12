@@ -176,8 +176,16 @@ impl State {
             return String::new();
         }
         let stars = "*".repeat(level);
-        let text = self.flat(inlines);
-        let heading = format!("{stars} {text}");
+        let (title, tags) = heading_tags(inlines);
+        let text = self.flat(title);
+        let mut heading = format!("{stars} {text}");
+        if !tags.is_empty() {
+            let tags = format!(":{}:", tags.join(":"));
+            heading.truncate(heading.trim_end().len());
+            let used = display_width(&heading) + display_width(&tags);
+            heading.push_str(&" ".repeat(self.width.saturating_sub(used).max(1)));
+            heading.push_str(&tags);
+        }
         let props = properties(attr);
         if props.is_empty() {
             heading
@@ -858,6 +866,23 @@ fn protect_leading(text: String) -> String {
         Some('*' | '#' | '|') => format!("{ZERO_WIDTH_SPACE}{text}"),
         _ => text,
     }
+}
+
+/// Split a heading at its first tag span: the title before it, and the name of every tag from there
+/// on. Tags close a headline, so the title ends where they begin.
+fn heading_tags(inlines: &[Inline]) -> (&[Inline], Vec<&str>) {
+    fn tag_name(inline: &Inline) -> Option<&str> {
+        match inline {
+            Inline::Span(attr, _) => attribute_value(attr, "tag-name"),
+            _ => None,
+        }
+    }
+    let start = inlines
+        .iter()
+        .position(|inline| tag_name(inline).is_some())
+        .unwrap_or(inlines.len());
+    let (title, rest) = inlines.split_at(start);
+    (title, rest.iter().filter_map(tag_name).collect())
 }
 
 /// The property drawer for a heading's attributes, or an empty string when it carries none.
