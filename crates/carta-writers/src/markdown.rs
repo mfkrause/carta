@@ -14,8 +14,7 @@ use crate::common::{
     offset_quoted_table, ordered_marker, quote_block, render_html_attr,
 };
 use crate::markdown_common::{
-    attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator,
-    offset_horizontal_rule, push_open_tag,
+    attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator, push_open_tag,
 };
 
 use self::helpers::{
@@ -404,7 +403,7 @@ impl State {
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
-            Block::HorizontalRule => "-".repeat(width.min(self.width)),
+            Block::HorizontalRule => "-".repeat(self.width),
             Block::Div(attr, blocks) => self.div(attr, blocks, width),
             Block::LineBlock(lines) => self.line_block(lines, width),
             Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks, width),
@@ -419,6 +418,7 @@ impl State {
             2
         };
         let body = self.blocks_to_string(blocks, width.saturating_sub(margin), initial);
+        let body = self.offset_opening(blocks, body);
         let body = quote_block(&offset_quoted_table(blocks, body));
         if self.config.has(Extension::LiterateHaskell) {
             indent_block(&body, " ", " ")
@@ -542,6 +542,8 @@ impl State {
         let opener = div_opener(attr, self.config.cmark);
         if body.is_empty() {
             format!("{fence}{opener}\n{fence}")
+        } else if self.opens_apart(blocks) {
+            format!("{fence}{opener}\n\n{body}\n{fence}")
         } else {
             format!("{fence}{opener}\n{body}\n{fence}")
         }
@@ -599,8 +601,27 @@ impl State {
             return out;
         }
         let body = self.item_to_string(item, body_width, initial);
-        let body = offset_horizontal_rule(item, body);
+        let body = self.offset_opening(item, body);
         indent_block(&body, first, rest)
+    }
+
+    /// Whether a container's content opens with a block that stays a blank line below the
+    /// container's own marker: a horizontal rule, or a definition list written in its own syntax.
+    fn opens_apart(&self, blocks: &[Block]) -> bool {
+        match blocks.first() {
+            Some(Block::HorizontalRule) => true,
+            Some(Block::DefinitionList(_)) => self.config.has(Extension::DefinitionLists),
+            _ => false,
+        }
+    }
+
+    /// Push a rendered body onto its own lines below the marker when [`Self::opens_apart`] holds.
+    fn offset_opening(&self, blocks: &[Block], body: String) -> String {
+        if self.opens_apart(blocks) {
+            format!("\n\n{body}")
+        } else {
+            body
+        }
     }
 
     /// A bullet list every item of which begins with a checkbox glyph renders as a task list. Each
@@ -726,6 +747,7 @@ impl State {
                     (": ", "  ")
                 };
                 let body = self.item_to_string(definition, width.saturating_sub(rest.len()), 0);
+                let body = self.offset_opening(definition, body);
                 indent_block(&body, first, rest)
             })
             .collect();
@@ -756,6 +778,11 @@ impl State {
                 let body = bodies.join("\n\n");
                 if body.is_empty() {
                     format!("{term_line}  ")
+                } else if definitions
+                    .first()
+                    .is_some_and(|first| self.opens_apart(first))
+                {
+                    format!("{term_line}  \n\n{body}")
                 } else {
                     format!("{term_line}  \n{body}")
                 }
@@ -869,7 +896,12 @@ impl NotesHost for State {
         } else if body.is_empty() {
             label
         } else {
-            format!("{label}\n{}", indent_block(&body, "    ", "    "))
+            let gap = if self.opens_apart(blocks) {
+                "\n\n"
+            } else {
+                "\n"
+            };
+            format!("{label}{gap}{}", indent_block(&body, "    ", "    "))
         };
         if let Some(slot) = self.notes().get_mut(index) {
             *slot = rendered;

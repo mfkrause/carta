@@ -148,12 +148,12 @@ impl State {
             }
             Block::BlockQuote(blocks) => {
                 let body = self.blocks_to_string(blocks, width.saturating_sub(2), true);
-                quote_block(&body)
+                quote_block(&offset_horizontal_rule(blocks, body))
             }
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
-            Block::HorizontalRule => "-".repeat(width),
+            Block::HorizontalRule => "-".repeat(self.width),
             Block::Div(attr, blocks) => {
                 let open = fill(
                     &html_tag_pieces(&format!("<div{}>", render_html_attr(attr))),
@@ -236,8 +236,13 @@ impl State {
                     .map(|definition| self.blocks_to_string(definition, width, false))
                     .collect();
                 let body = bodies.join("\n\n");
+                let leads_with_rule = definitions
+                    .first()
+                    .is_some_and(|first| matches!(first.first(), Some(Block::HorizontalRule)));
                 if body.is_empty() {
                     format!("{term_line}  ")
+                } else if leads_with_rule {
+                    format!("{term_line}  \n\n{body}")
                 } else {
                     format!("{term_line}  \n{body}")
                 }
