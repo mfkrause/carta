@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-a
-b keeps the span inline when the close is not alone.
+{color:red}a
+b{color} keeps the span inline when the close is not alone.
 
-A bare hex span stays inline too.
+A {color:#123456}bare hex{color} span stays inline too.

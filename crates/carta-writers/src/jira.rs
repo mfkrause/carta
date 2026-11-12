@@ -7,7 +7,7 @@ use carta_ast::{
 };
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
-use crate::common::{self, GridSlot, RawTrim, RowSpanGrid, simple_table_rows};
+use crate::common::{self, GridSlot, RawTrim, RowSpanGrid, attribute_value, simple_table_rows};
 
 /// Renders a document to Jira wiki markup (no trailing newline).
 #[derive(Debug, Default, Clone, Copy)]
@@ -363,15 +363,32 @@ impl State {
             Inline::RawInline(format, text) => raw_passthrough(format, text),
             Inline::Link(_, inlines, target) => self.link(inlines, target),
             Inline::Image(attr, inlines, target) => self.image(attr, inlines, target),
-            Inline::Span(attr, inlines) => {
-                let body = self.inlines_bounded(inlines, prev, next);
-                if attr.id.is_empty() {
-                    body
-                } else {
-                    format!("{{anchor:{}}}{body}", attr.id)
-                }
-            }
+            Inline::Span(attr, inlines) => self.span(attr, inlines, prev, next),
             Inline::Note(blocks) => self.note(blocks),
+        }
+    }
+
+    /// Render a span: an anchor for its identifier, and a `{color}` macro around both the anchor
+    /// and the content when it carries a `color` attribute. The braces of either macro are the
+    /// markup boundary its neighbors see.
+    fn span(
+        &mut self,
+        attr: &Attr,
+        inlines: &[Inline],
+        prev: Option<char>,
+        next: Option<char>,
+    ) -> String {
+        let anchor = if attr.id.is_empty() {
+            String::new()
+        } else {
+            format!("{{anchor:{}}}", attr.id)
+        };
+        if let Some(color) = attribute_value(attr, "color") {
+            let body = self.inlines_bounded(inlines, Some('}'), Some('{'));
+            format!("{{color:{color}}}{anchor}{body}{{color}}")
+        } else {
+            let prev = if anchor.is_empty() { prev } else { Some('}') };
+            format!("{anchor}{}", self.inlines_bounded(inlines, prev, next))
         }
     }
 
@@ -538,6 +555,11 @@ fn leading_char(inline: &Inline) -> Option<char> {
             QuoteType::SingleQuote => Some('\''),
             QuoteType::DoubleQuote => Some('"'),
         },
+        Inline::Span(attr, _)
+            if !attr.id.is_empty() || attribute_value(attr, "color").is_some() =>
+        {
+            Some('{')
+        }
         Inline::Cite(_, inlines) | Inline::Span(_, inlines) => {
             inlines.iter().find_map(leading_char)
         }

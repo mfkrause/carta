@@ -428,3 +428,35 @@ fn empty_definitions_do_not_add_paragraph_breaks() {
         );
     }
 }
+
+#[test]
+fn span_macros_bound_the_emphasis_beside_them() {
+    let emphasis = |text: &str| Inline::Emph(vec![str_inline(text)]);
+    let anchored = Inline::Span(
+        Box::new(Attr {
+            id: "mark".into(),
+            ..Attr::default()
+        }),
+        vec![str_inline("b")],
+    );
+    assert_eq!(
+        render(vec![para(vec![
+            str_inline("a"),
+            Inline::Space,
+            emphasis("c"),
+            anchored,
+        ])]),
+        "a _c_{anchor:mark}b"
+    );
+    let colored = Inline::Span(
+        Box::new(Attr {
+            attributes: vec![("color".into(), "red".into())],
+            ..Attr::default()
+        }),
+        vec![emphasis("a")],
+    );
+    assert_eq!(
+        render(vec![para(vec![colored, str_inline("b")])]),
+        "{color:red}_a_{color}b"
+    );
+}
