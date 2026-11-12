@@ -3,10 +3,14 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 * Introduction
+<<intro>>
+
 See [[#intro][[intro]]] for context.
 
 #+caption: A labelled figure.
 [[file:plot.png]]
+
+<<fig-plot>>
 
 Reference to [[#fig-plot][[fig-plot]]] as well.
 

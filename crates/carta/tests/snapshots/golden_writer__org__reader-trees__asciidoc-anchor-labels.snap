@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-See [[#point][Reference Text]] and [[#missing][]].
+<<point>> See [[#point][Reference Text]] and [[#missing][]].
 
 * Heading
 :PROPERTIES:
@@ -13,4 +13,6 @@ See [[#other][other]].
 <<multi,One,Two>>
 See [[#multi][multi]].
 
-See [[#macro][AlphaBeta]].
+<<macro>> See [[#macro][AlphaBeta]].
+
+<<bib>>

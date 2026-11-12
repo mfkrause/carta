@@ -14,4 +14,6 @@ expression: output
 :END:
 [[#y][B]] [[#y][B]]
 
+<<z>>
+
 [[#z][Inline label]]

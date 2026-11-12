@@ -2,4 +2,4 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-marks a spot.
+<<abc>> marks a spot.

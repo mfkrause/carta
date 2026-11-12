@@ -4,11 +4,11 @@ expression: output
 ---
 [[#later][*Forward link*]] and [[file:later][file:later]].
 
-A named target.
+<<later>>A named target.
 
 [[#later][later]] and /Missing target/.
 
-and .
+<<a-b>>and <<a-b-1>>.
 
 [[#a-b][a/b]] and [[#a-b-1][a+b]].
 

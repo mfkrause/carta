@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-* Section Title
+* Section Title<<first target>>
 :PROPERTIES:
 :CUSTOM_ID: second target
 :END:

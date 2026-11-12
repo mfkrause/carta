@@ -2,6 +2,6 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-An anchor marks a spot.
+An <<target>> anchor marks a spot.
 
 Text continues after the anchor span.

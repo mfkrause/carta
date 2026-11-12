@@ -604,6 +604,11 @@ impl State {
             Inline::Strikeout(content) => self.wrap_inlines(content, "+", "+", out),
             Inline::Superscript(content) => self.wrap_inlines(content, "^{", "}", out),
             Inline::Subscript(content) => self.wrap_inlines(content, "_{", "}", out),
+            Inline::Span(attr, content)
+                if content.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty() =>
+            {
+                out.push(Piece::text(format!("<<{}>>", attr.id)));
+            }
             Inline::SmallCaps(content) | Inline::Span(_, content) => {
                 for inner in content {
                     self.piece(inner, out);

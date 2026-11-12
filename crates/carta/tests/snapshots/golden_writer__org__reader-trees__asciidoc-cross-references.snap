@@ -8,6 +8,6 @@ See [[#section][A section]] and [[#missing][missing]].
 :PROPERTIES:
 :CUSTOM_ID: section
 :END:
-An anchor.
+An <<anchor>>anchor.
 
 See [[#anchor][Label]] and [[#section][A section]].
