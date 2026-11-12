@@ -35,6 +35,15 @@ impl Builder<'_> {
         });
     }
 
+    /// Renders a block sequence whose loose paragraphs take `style` while its tight ones stay in the
+    /// flowing body styles: the content of a note, a custom-style div or an uncaptioned figure.
+    pub(super) fn render_loose_styled(&mut self, blocks: &[Block], style: &str) {
+        for block in blocks {
+            let fixed = (!matches!(block, Block::Plain(_))).then_some(style);
+            self.render_blocks(std::slice::from_ref(block), fixed);
+        }
+    }
+
     fn render_block(&mut self, block: &Block, fixed: Option<&str>) {
         let quote_depth = self.quote_depth;
         if matches!(
@@ -169,7 +178,7 @@ impl Builder<'_> {
             self.body.push_str("\">");
         }
         match custom_style(attr) {
-            Some(name) => self.render_blocks(inner, Some(name)),
+            Some(name) => self.render_loose_styled(inner, name),
             None => self.render_blocks(inner, None),
         }
         if section {
@@ -390,14 +399,11 @@ impl Builder<'_> {
         let mut runs = Vec::new();
         collect_caption_runs(&caption.long, &mut runs);
         let has_caption = runs.len() > 1 || runs.first().is_some_and(|run| !run.is_empty());
-        let style = if has_caption {
-            "FigureWithCaption"
-        } else {
-            "Figure"
-        };
-        self.render_blocks(content, Some(style));
         if has_caption {
+            self.render_blocks(content, Some("FigureWithCaption"));
             self.caption(CaptionKind::Figure, attr.id.as_str(), &runs);
+        } else {
+            self.render_loose_styled(content, "Figure");
         }
     }
 

@@ -22,7 +22,7 @@ expression: output
 <text:span text:style-name="Emphasis">Photo</text:span>
 </text:p>
 <text:p text:style-name="FigureCaption">A caption</text:p>
-<text:p text:style-name="Figure">
+<text:p text:style-name="Text_20_body">
 </text:p>
 </office:text>
 </office:body>

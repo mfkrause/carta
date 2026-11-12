@@ -352,7 +352,7 @@ impl Builder<'_> {
         let checkpoint = self.body.len();
         let languages = std::mem::take(&mut self.languages);
         let quote_depth = std::mem::replace(&mut self.quote_depth, 0);
-        self.render_blocks(blocks, Some("Footnote"));
+        self.render_loose_styled(blocks, "Footnote");
         self.languages = languages;
         self.quote_depth = quote_depth;
         // Reserve the outer note's number before rendering nested notes.
