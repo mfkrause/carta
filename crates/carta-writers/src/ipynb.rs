@@ -432,8 +432,8 @@ fn meta_blocks_text(blocks: &[Block]) -> String {
         .join("\n\n")
 }
 
-/// Renders a cell's blocks through the markdown engine, dropping any trailing newline so the final
-/// source line does not carry one.
+/// Renders a cell's blocks through the markdown engine, dropping trailing whitespace so the final
+/// source line ends with its text.
 fn render_cell_markdown(blocks: &[Block], options: &WriterOptions) -> Result<String> {
     let mut cell_options = options.clone();
     cell_options.extensions = if options.extensions.is_empty() {
@@ -446,7 +446,7 @@ fn render_cell_markdown(blocks: &[Block], options: &WriterOptions) -> Result<Str
         ..Document::default()
     };
     let rendered = MarkdownWriter.write(&document, &cell_options)?;
-    Ok(rendered.trim_end_matches('\n').to_owned())
+    Ok(rendered.trim_end().to_owned())
 }
 
 /// Splits text into the `source`-style line array: each line keeps its trailing newline, and a
