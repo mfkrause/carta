@@ -3,4 +3,4 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 Visit [.underline]#http://example.com[our site]# and
-**http://other.com[bold]** http://other.com[plain].
+**http://other.com[bold]**http://other.com[ plain].

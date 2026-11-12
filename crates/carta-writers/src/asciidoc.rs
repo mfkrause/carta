@@ -16,10 +16,9 @@ use crate::common::{
 mod helpers;
 
 use self::helpers::{
-    admonition, alignment_operator, cell_span, closes_left_boundary, closes_right_boundary,
-    code_block, display_math_block, escape_text, image_args, indent, is_autolink_scheme,
-    is_simple_cell, ordered_style_line, quote_glyphs, span_role, table_options_line, task_checkbox,
-    trim_surrounding_space, url_scheme,
+    admonition, alignment_operator, cell_span, code_block, display_math_block, escape_text,
+    image_args, indent, is_autolink_scheme, is_simple_cell, joins_word, ordered_style_line,
+    quote_glyphs, span_role, table_options_line, task_checkbox, trim_surrounding_space, url_scheme,
 };
 
 /// Renders a document to `AsciiDoc` markup.
@@ -491,23 +490,25 @@ impl State {
         let text = match inline {
             Inline::Str(text) => escape_text(text),
             Inline::Emph(inlines) => {
-                self.bracketed(inlines, '_', before, after, out);
+                let marker = if joins_word(before, after) { "__" } else { "_" };
+                self.wrapped(trim_surrounding_space(inlines), marker, marker, out);
                 return;
             }
             Inline::Strong(inlines) => {
-                self.bracketed(inlines, '*', before, after, out);
+                let marker = if joins_word(before, after) { "**" } else { "*" };
+                self.wrapped(trim_surrounding_space(inlines), marker, marker, out);
                 return;
             }
             Inline::Strikeout(inlines) => {
-                self.wrapped(inlines, "[line-through]#", "#", out);
+                self.wrapped(trim_surrounding_space(inlines), "[line-through]#", "#", out);
                 return;
             }
             Inline::Underline(inlines) => {
-                self.wrapped(inlines, "[.underline]#", "#", out);
+                self.wrapped(trim_surrounding_space(inlines), "[.underline]#", "#", out);
                 return;
             }
             Inline::SmallCaps(inlines) => {
-                self.wrapped(inlines, "[smallcaps]#", "#", out);
+                self.wrapped(trim_surrounding_space(inlines), "[smallcaps]#", "#", out);
                 return;
             }
             Inline::Superscript(inlines) => format!("^{}^", self.inline_string(inlines)),
@@ -569,7 +570,13 @@ impl State {
                 format!("image:{}[{}]", target.url, image_args(attr, target, &alt))
             }
             Inline::Span(attr, inlines) => {
-                self.span(attr, inlines, out);
+                match span_role(attr) {
+                    Some(role) => {
+                        let marker = if joins_word(before, after) { "##" } else { "#" };
+                        self.wrapped(inlines, &format!("{role}{marker}"), marker, out);
+                    }
+                    None => out.append(&mut self.pieces(inlines)),
+                }
                 return;
             }
             Inline::Note(blocks) => {
@@ -580,54 +587,17 @@ impl State {
         out.push(Piece::text(text));
     }
 
-    /// Render an inline sequence wrapped in `open`/`close` delimiters while keeping its internal
-    /// spaces as wrap points: the opening fuses to the first word and the closing to the last, so a
-    /// long run can break across lines with the markers staying attached to their boundary words.
+    /// Render an inline sequence between `open` and `close` delimiters. The delimiters fuse to the
+    /// adjacent words, and spaces inside the sequence stay wrap points.
     fn wrapped(&mut self, inlines: &[Inline], open: &str, close: &str, out: &mut Vec<Piece>) {
-        let mut body = self.pieces(inlines);
-        match body
-            .iter()
-            .position(|piece| matches!(piece, Piece::Text(_)))
-        {
-            Some(first) => {
-                if let Some(Piece::Text(text)) = body.get_mut(first) {
-                    *text = format!("{open}{text}").into();
-                }
-                if let Some(Piece::Text(text)) = body
-                    .iter_mut()
-                    .rev()
-                    .find(|piece| matches!(piece, Piece::Text(_)))
-                {
-                    *text = format!("{text}{close}").into();
-                }
-                out.append(&mut body);
-            }
-            None => out.push(Piece::text(format!("{open}{close}"))),
-        }
+        out.push(Piece::text(open));
+        out.append(&mut self.pieces(inlines));
+        out.push(Piece::text(close));
     }
 
     /// Render an inline sequence to a single string with no line filling: spaces stay literal.
     fn inline_string(&mut self, inlines: &[Inline]) -> String {
         fill(&self.pieces(inlines), usize::MAX, WrapMode::Auto)
-    }
-
-    /// Render emphasis or strong with its single-character marker, choosing the unconstrained
-    /// (doubled marker) form when the construct abuts a word character on either side.
-    fn bracketed(
-        &mut self,
-        inlines: &[Inline],
-        marker: char,
-        before: Option<&Inline>,
-        after: Option<&Inline>,
-        out: &mut Vec<Piece>,
-    ) {
-        let unconstrained = closes_left_boundary(before) || closes_right_boundary(after);
-        let delim = if unconstrained {
-            format!("{marker}{marker}")
-        } else {
-            marker.to_string()
-        };
-        self.wrapped(inlines, &delim, &delim, out);
     }
 
     /// Emit a link, keeping the label's internal spaces as wrap points so a long label can break
@@ -648,34 +618,7 @@ impl State {
         } else {
             "link:"
         };
-        let opening = format!("{prefix}{url}[");
-        let mut label = self.pieces(inlines);
-        let first_text = label
-            .iter()
-            .position(|piece| matches!(piece, Piece::Text(_)));
-        match first_text {
-            Some(index) => {
-                if let Some(Piece::Text(text)) = label.get_mut(index) {
-                    *text = format!("{opening}{text}").into();
-                }
-                if let Some(Piece::Text(text)) = label
-                    .iter_mut()
-                    .rev()
-                    .find(|piece| matches!(piece, Piece::Text(_)))
-                {
-                    *text = format!("{text}]").into();
-                }
-                out.append(&mut label);
-            }
-            None => out.push(Piece::text(format!("{opening}]"))),
-        }
-    }
-
-    fn span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
-        match span_role(attr) {
-            Some(role) => self.wrapped(inlines, &format!("[{role}]#"), "#", out),
-            None => out.append(&mut self.pieces(inlines)),
-        }
+        self.wrapped(inlines, &format!("{prefix}{url}["), "]", out);
     }
 
     fn note(&mut self, blocks: &[Block], out: &mut Vec<Piece>) {

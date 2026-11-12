@@ -78,9 +78,17 @@ fn format_decimal(value: f64) -> String {
     }
 }
 
-/// The bracketed role for a span: its id (`#id`) and classes (`.class`), space-joined. `None` when
-/// the span carries neither.
+/// The attribute list that opens a span: its id (`#id`) and classes (`.class`) in brackets, or
+/// nothing for a lone `mark` class, which the bare delimiters already express. `None` when the span
+/// carries neither an id nor a class.
 pub(super) fn span_role(attr: &Attr) -> Option<String> {
+    if attr.id.is_empty() {
+        match attr.classes.as_slice() {
+            [] => return None,
+            [class] if class.as_str() == "mark" => return Some(String::new()),
+            _ => {}
+        }
+    }
     let mut parts = Vec::new();
     if !attr.id.is_empty() {
         parts.push(format!("#{}", attr.id));
@@ -88,11 +96,7 @@ pub(super) fn span_role(attr: &Attr) -> Option<String> {
     for class in &attr.classes {
         parts.push(format!(".{class}"));
     }
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join(" "))
-    }
+    Some(format!("[{}]", parts.join(" ")))
 }
 
 /// The admonition label for a div whose classes name one, uppercased.
@@ -107,22 +111,36 @@ pub(super) fn admonition(attr: &Attr) -> Option<&'static str> {
     })
 }
 
-/// The opening character for an emphasis/strong construct must be the unconstrained (doubled) form
-/// when the preceding inline closes the left word boundary: a string ending in an alphanumeric, or
-/// any non-space formatted inline.
-pub(super) fn closes_left_boundary(before: Option<&Inline>) -> bool {
-    match before {
-        None | Some(Inline::Space | Inline::SoftBreak | Inline::LineBreak) => false,
-        Some(Inline::Str(text)) => text.chars().last().is_some_and(char::is_alphanumeric),
+/// Whether a formatted inline between these neighbors needs the unconstrained (doubled) marker: a
+/// constrained marker is only recognized at a word boundary.
+pub(super) fn joins_word(before: Option<&Inline>, after: Option<&Inline>) -> bool {
+    let ends_word = match before {
+        None
+        | Some(
+            Inline::Space
+            | Inline::SoftBreak
+            | Inline::LineBreak
+            | Inline::Link(..)
+            | Inline::Image(..),
+        ) => false,
+        Some(Inline::Str(text)) => text.chars().next_back().is_none_or(is_word_character),
         Some(_) => true,
-    }
+    };
+    ends_word
+        || match after {
+            None | Some(Inline::Space | Inline::SoftBreak | Inline::LineBreak) => false,
+            Some(Inline::Str(text)) => text.chars().next().is_none_or(is_word_character),
+            Some(_) => true,
+        }
 }
 
-pub(super) fn closes_right_boundary(after: Option<&Inline>) -> bool {
-    match after {
-        None | Some(Inline::Space | Inline::SoftBreak | Inline::LineBreak) => false,
-        Some(Inline::Str(text)) => text.chars().next().is_some_and(char::is_alphanumeric),
-        Some(_) => true,
+/// Whether a character continues a word: anything but whitespace and punctuation. ASCII symbols
+/// such as `+` and `$` count as word characters.
+fn is_word_character(ch: char) -> bool {
+    if ch.is_ascii() {
+        !ch.is_ascii_whitespace() && !"!\"#%&'()*,-./:;?@[\\]_{}".contains(ch)
+    } else {
+        ch.is_alphanumeric()
     }
 }
 

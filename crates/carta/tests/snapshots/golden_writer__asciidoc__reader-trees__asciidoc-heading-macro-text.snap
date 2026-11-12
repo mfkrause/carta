@@ -21,7 +21,7 @@ expression: output
 == Alpha [.button]#*++[++Save++]++*#
 
 [[_alpha_7]]
-== Alpha [.kbd]#*Ctrl*#{plus}[.kbd]#*X*#
+== Alpha [.kbd]##*Ctrl*##{plus}[.kbd]##*X*##
 
 [[_alpha_label]]
 == Alpha [#key]##

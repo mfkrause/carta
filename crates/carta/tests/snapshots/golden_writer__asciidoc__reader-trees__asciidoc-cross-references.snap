@@ -7,6 +7,6 @@ See link:#section[A section] and link:#missing[missing].
 [[section]]
 == A section
 
-An [#anchor]##anchor.
+An [#anchor]####anchor.
 
 See link:#anchor[Label] and link:#section[A section].

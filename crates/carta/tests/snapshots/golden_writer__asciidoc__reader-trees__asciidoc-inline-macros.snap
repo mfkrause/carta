@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-[.kbd]#*Ctrl*#{plus}[.kbd]#*Shift*#{plus}[.kbd]#*F*#
+[.kbd]##*Ctrl*##{plus}[.kbd]##*Shift*##{plus}[.kbd]##*F*##
 [.button]#*++[++Cancel++]++*# [.menu]#*File › Open › Recent*#
 
 image:./images/icons/heart.png[heart] [#point]##

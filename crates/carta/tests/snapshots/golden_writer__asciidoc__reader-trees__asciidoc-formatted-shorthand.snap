@@ -8,4 +8,4 @@ expression: output
 
 prefix [.]#*strong*# [.]#_italic_# [.]#span# [.]#span#
 
-prefix *strong* [.mark]#mark#
+prefix *strong* #mark#

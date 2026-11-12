@@ -2,9 +2,9 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-A https://example.com[linked body] keeps the padding of its content.
+A https://example.com[ linked body ] keeps the padding of its content.
 
-A box holds [.box]#its own spacing# within the line.
+A box holds [.box]# its own spacing # within the line.
 
 An underlined [.underline]#padded body# sits beside plain words.
 
