@@ -4,22 +4,19 @@ expression: output
 ---
   * {{movie.mp4|movie.mp4}}
 
-  * Outer
+  * <WRAP>
+Outer
     * <WRAP>
 {{nested.png}}
-
+</WRAP>
 </WRAP>
 
   * **** <WRAP>
 {{same.png}}
-
 </WRAP>
-  * **Named** <WRAP>
-
-</WRAP>
+  * **Named** 
   * **** <WRAP>
 {{next.png}}
-
 </WRAP>
   * **Indented** {{sound.mp3|sound.mp3}}
   * **A** 

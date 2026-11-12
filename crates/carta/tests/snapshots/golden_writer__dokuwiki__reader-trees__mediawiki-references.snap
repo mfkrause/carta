@@ -2,5 +2,4 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-A claim((The source.
-)) here.
+A claim((The source.)) here.

@@ -4,10 +4,16 @@ expression: output
 ---
 ====== Introduction ======
 
+
+
 See [[#intro|[intro]]] for context.
 
 {{plot.png}}
+
 A labelled figure.
+
+
+
 
 
 Reference to [[#fig-plot|[fig-plot]]] as well.

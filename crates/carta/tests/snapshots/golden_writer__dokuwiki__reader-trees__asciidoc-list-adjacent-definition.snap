@@ -2,10 +2,8 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-  * <WRAP>
-Term
+  * Term
     * *** Another** Definition
-</WRAP>
   * Separate
 
   * <WRAP>

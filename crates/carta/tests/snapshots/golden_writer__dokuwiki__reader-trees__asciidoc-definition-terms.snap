@@ -7,8 +7,7 @@ expression: output
   * **[[#target|target]]** Link definition Cedar Ridge
   * **** Anchor definition Cedar Ridge
   * **[heart]** Icon definition Cedar Ridge
-  * **((Note {value}
-))** Footnote definition Cedar Ridge
+  * **((Note {value}))** Footnote definition Cedar Ridge
   * **1** Count 2
   * **User wrapper** Wrapper definition Cedar Ridge
 

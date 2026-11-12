@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-^{{x|''%%p%%''}}    ^
-|[[x|''%%l%%'']]    |
-|((''%%note%%''\\ ))|
-|''%%span%%''       |
+^{{x|''%%p%%''}} ^
+|[[x|''%%l%%'']] |
+|((''%%note%%''))|
+|''%%span%%''    |

@@ -15,5 +15,5 @@ expression: output
 
 > A first quoted paragraph.
 
-  * a quoted item
-  * another item
+>   * > a quoted item
+>   * > another item

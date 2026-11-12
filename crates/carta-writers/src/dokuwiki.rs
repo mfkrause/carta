@@ -18,7 +18,7 @@ use crate::common::{
 /// Columns each level of list nesting adds, and the base indent of a top-level list line.
 const LIST_INDENT: usize = 2;
 
-// Content breaks must not receive block-quote prefixes.
+// Content breaks stay distinct from block separators until a cell or the document resolves them.
 const CONTENT_BREAK: &str = "\u{e000}s";
 const FORCED_BREAK: &str = "\u{e000}h";
 
@@ -32,7 +32,8 @@ pub struct DokuwikiWriter;
 
 impl Writer for DokuwikiWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        let body = render_blocks(&document.blocks, "\n\n", options.wrap);
+        let body = sequence(&document.blocks, Context::document(options.wrap));
+        let body = body.strip_suffix('\n').unwrap_or(&body);
         // Any content break that survived to the top level stands on its own physical line.
         Ok(body
             .replace(CONTENT_BREAK, "\n")
@@ -42,33 +43,141 @@ impl Writer for DokuwikiWriter {
     }
 }
 
-/// Render a block sequence, dropping blocks that produce nothing and joining the rest with
-/// `separator`.
-fn render_blocks(blocks: &[Block], separator: &str, wrap: WrapMode) -> String {
-    blocks
-        .iter()
-        .map(|b| block(b, wrap))
-        .filter(|rendered| !rendered.is_empty())
-        .collect::<Vec<_>>()
-        .join(separator)
+/// The enclosing constructs that decide a block's prefix and trailing spacing.
+#[derive(Clone, Copy)]
+struct Context {
+    wrap: WrapMode,
+    /// Enclosing block quotes: paragraphs, code and list markers carry one `>` per level.
+    quote_depth: usize,
+    /// Enclosing lists: text blocks inside a list item end without a newline of their own.
+    list_depth: usize,
+    /// Inside a table cell, where sibling blocks are set apart by a blank line.
+    in_cell: bool,
 }
 
-fn block(block: &Block, wrap: WrapMode) -> String {
-    match block {
-        Block::Plain(inlines) | Block::Para(inlines) => inlines_to_markup(inlines, wrap),
-        Block::LineBlock(lines) => line_block(lines, wrap),
-        Block::CodeBlock(attr, text) => code_block(attr, text),
-        Block::RawBlock(format, text) => raw_passthrough(format, text),
-        Block::BlockQuote(blocks) => block_quote(blocks, wrap),
-        Block::BulletList(items) => bullet_list(items, LIST_INDENT, wrap, false),
-        Block::OrderedList(_, items) => ordered_list(items, LIST_INDENT, wrap, false),
-        Block::DefinitionList(items) => definition_list(items, LIST_INDENT, wrap, false),
-        Block::Header(level, _, inlines) => header(*level, inlines),
-        Block::HorizontalRule => "\n----".to_owned(),
-        Block::Table(table) => render_table(table, wrap),
-        Block::Figure(_, caption, blocks) => figure(caption, blocks, wrap),
-        Block::Div(_, blocks) => div(blocks, wrap),
+impl Context {
+    fn document(wrap: WrapMode) -> Self {
+        Self {
+            wrap,
+            quote_depth: 0,
+            list_depth: 0,
+            in_cell: false,
+        }
     }
+
+    /// The context of a cell of a table that stands here: the cell leaves any enclosing quote.
+    fn cell(self) -> Self {
+        Self {
+            in_cell: true,
+            quote_depth: 0,
+            ..self
+        }
+    }
+
+    fn quoted(self) -> Self {
+        Self {
+            quote_depth: self.quote_depth.saturating_add(1),
+            ..self
+        }
+    }
+
+    fn unquoted(self) -> Self {
+        Self {
+            quote_depth: 0,
+            ..self
+        }
+    }
+
+    fn list_item(self) -> Self {
+        Self {
+            list_depth: self.list_depth.saturating_add(1),
+            ..self
+        }
+    }
+
+    /// The quote marker run that opens a quoted paragraph, code block or list item.
+    fn quote_prefix(self) -> String {
+        if self.quote_depth == 0 {
+            return String::new();
+        }
+        budget::charge(self.quote_depth.saturating_add(1));
+        format!("{} ", ">".repeat(self.quote_depth))
+    }
+
+    /// The newline that closes a text block outside a list.
+    fn block_end(self) -> &'static str {
+        if self.list_depth == 0 { "\n" } else { "" }
+    }
+
+    /// The marker indent of a list item at this depth; a table cell takes one level off.
+    fn indent(self) -> String {
+        let levels = self.list_depth.saturating_sub(usize::from(self.in_cell));
+        " ".repeat(levels.saturating_mul(LIST_INDENT))
+    }
+}
+
+/// Render sibling blocks one per line. A block that ends its own line (a paragraph outside a list,
+/// a heading, a code block) therefore leaves a blank line before its successor.
+fn flow(blocks: &[Block], context: Context) -> String {
+    rendered(blocks, context).collect::<Vec<_>>().join("\n")
+}
+
+/// Render sibling blocks as their context spaces them: one per line, or, in a table cell, each
+/// without its closing newline and set apart by a blank line.
+fn sequence(blocks: &[Block], context: Context) -> String {
+    join_blocks(rendered(blocks, context), context)
+}
+
+fn rendered(blocks: &[Block], context: Context) -> impl Iterator<Item = String> {
+    blocks
+        .iter()
+        .take_while(|_| !budget::exhausted())
+        .map(move |item| block(item, context))
+}
+
+fn join_blocks(parts: impl Iterator<Item = String>, context: Context) -> String {
+    if context.in_cell {
+        parts
+            .map(|part| match part.strip_suffix('\n') {
+                Some(stripped) => stripped.to_owned(),
+                None => part,
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    } else {
+        parts.collect::<Vec<_>>().join("\n")
+    }
+}
+
+fn block(block: &Block, context: Context) -> String {
+    carta_core::with_stack(|| match block {
+        Block::Plain(inlines) => inlines_to_markup(inlines, context),
+        Block::Para(inlines) => format!(
+            "{}{}{}",
+            context.quote_prefix(),
+            inlines_to_markup(inlines, context),
+            context.block_end()
+        ),
+        Block::LineBlock(lines) => format!(
+            "{}{}{}",
+            context.quote_prefix(),
+            line_block(lines, context),
+            context.block_end()
+        ),
+        Block::CodeBlock(attr, text) => {
+            format!("{}{}\n", context.quote_prefix(), code_block(attr, text))
+        }
+        Block::RawBlock(format, text) => raw_passthrough(format, text),
+        Block::BlockQuote(blocks) => sequence(blocks, context.quoted()),
+        Block::BulletList(items) => bullet_list(items, context),
+        Block::OrderedList(_, items) => ordered_list(items, context),
+        Block::DefinitionList(items) => definition_list(items, context),
+        Block::Header(level, _, inlines) => header(*level, inlines),
+        Block::HorizontalRule => "\n----\n".to_owned(),
+        Block::Table(table) => render_table(table, context),
+        Block::Figure(_, caption, blocks) => figure(caption, blocks, context),
+        Block::Div(_, blocks) => container(rendered(blocks, context), context),
+    })
 }
 
 /// A heading: a run of `=` whose length decreases as the level deepens (level 1 is the widest, and
@@ -78,15 +187,15 @@ fn header(level: i64, inlines: &[Inline]) -> String {
     let depth = level.clamp(1, 7);
     let equals = "=".repeat(usize::try_from((7 - depth).unsigned_abs()).unwrap_or(usize::MAX));
     let text = bare_inlines(inlines);
-    format!("{equals} {text} {equals}")
+    format!("{equals} {text} {equals}\n")
 }
 
 /// A line block: its lines on consecutive output lines, each but the last ending in the forced-break
 /// marker `\\`.
-fn line_block(lines: &[Vec<Inline>], wrap: WrapMode) -> String {
+fn line_block(lines: &[Vec<Inline>], context: Context) -> String {
     lines
         .iter()
-        .map(|line| inlines_to_markup(line, wrap))
+        .map(|line| inlines_to_markup(line, context))
         .collect::<Vec<_>>()
         .join(FORCED_BREAK)
 }
@@ -101,335 +210,131 @@ fn code_block(attr: &Attr, text: &str) -> String {
     }
 }
 
-/// Render quoted text and code while keeping tables and lists as structural blocks.
-fn block_quote(blocks: &[Block], wrap: WrapMode) -> String {
-    let mut parts = Vec::new();
-    quote_parts(blocks, wrap, 1, &mut parts);
-    if budget::exhausted() {
-        String::new()
+/// A transparent container of already-rendered blocks. Outside lists and table cells it closes with
+/// a newline of its own, so even an empty container holds a line.
+fn container(parts: impl Iterator<Item = String>, context: Context) -> String {
+    let end = if context.in_cell {
+        ""
     } else {
-        parts.join("\n\n")
-    }
-}
-
-fn quote_parts(blocks: &[Block], wrap: WrapMode, depth: usize, parts: &mut Vec<String>) {
-    carta_core::with_stack(|| {
-        for block in blocks {
-            if budget::exhausted() {
-                break;
-            }
-            let start = parts.len();
-            let suffix = match block {
-                Block::BlockQuote(inner) => {
-                    quote_parts(inner, wrap, depth.saturating_add(1), parts);
-                    ""
-                }
-                Block::Div(_, inner) => {
-                    quote_parts(inner, wrap, depth, parts);
-                    "\n"
-                }
-                Block::Figure(_, caption, inner) => {
-                    quote_parts(inner, wrap, depth, parts);
-                    let caption_start = parts.len();
-                    quote_parts(&caption.long, wrap, depth, parts);
-                    if parts.len() > caption_start {
-                        if caption_start > start && !inner.last().is_some_and(closes_with_blank) {
-                            let first_caption = parts.remove(caption_start);
-                            if let Some(last) = parts.get_mut(caption_start.saturating_sub(1)) {
-                                last.push('\n');
-                                last.push_str(&first_caption);
-                                budget::charge(1);
-                            }
-                        }
-                        if caption.long.last().is_some_and(closes_with_blank) {
-                            "\n\n"
-                        } else {
-                            "\n"
-                        }
-                    } else if inner.last().is_some_and(closes_with_blank) {
-                        "\n"
-                    } else {
-                        ""
-                    }
-                }
-                _ => {
-                    let body = self::block(block, wrap);
-                    let rendered = match block {
-                        Block::Plain(_) | Block::Para(_) | Block::LineBlock(_) => body
-                            .lines()
-                            .take_while(|_| !budget::exhausted())
-                            .map(|line| quote_fragment(line, depth))
-                            .collect::<Vec<_>>()
-                            .join("\n"),
-                        Block::CodeBlock(..) => quote_fragment(&body, depth),
-                        _ => body,
-                    };
-                    if !rendered.is_empty() {
-                        parts.push(rendered);
-                    }
-                    ""
-                }
-            };
-            if !suffix.is_empty() && parts.len() > start {
-                budget::charge(suffix.len());
-                if !budget::exhausted()
-                    && let Some(last) = parts.last_mut()
-                {
-                    last.push_str(suffix);
-                }
-            }
-        }
-    });
-}
-
-fn quote_fragment(text: &str, depth: usize) -> String {
-    if text.is_empty() {
-        return String::new();
-    }
-    budget::charge(depth.saturating_add(text.len()).saturating_add(2));
-    if budget::exhausted() {
-        String::new()
-    } else {
-        format!("{} {text}", ">".repeat(depth))
-    }
-}
-
-/// A division renders its inner blocks transparently. It is set off from what follows by a blank
-/// line only when its content ends in a block that itself stands on its own paragraph; an inline
-/// block (`Plain`) or a heading carries no such trailing blank. An empty division renders to
-/// nothing.
-fn div(blocks: &[Block], wrap: WrapMode) -> String {
-    let body = render_blocks(blocks, "\n\n", wrap);
-    if body.is_empty() {
-        String::new()
-    } else if blocks.last().is_some_and(closes_with_blank) {
-        format!("{body}\n")
-    } else {
-        body
-    }
-}
-
-/// Whether a block, ending a division, leaves a trailing blank line after it. Inline-level content
-/// (`Plain`) and headings do not; other block constructs do. Transparent wrappers defer to their
-/// own last child.
-fn closes_with_blank(block: &Block) -> bool {
-    match block {
-        Block::Plain(_) | Block::Header(..) => false,
-        Block::Div(_, inner) | Block::BlockQuote(inner) => {
-            inner.last().is_some_and(closes_with_blank)
-        }
-        _ => true,
-    }
-}
-
-/// A figure: its body blocks followed by its caption blocks, then a blank line that sets the figure
-/// off from what follows.
-fn figure(caption: &Caption, blocks: &[Block], wrap: WrapMode) -> String {
-    let body = render_blocks(blocks, "\n\n", wrap);
-    let cap = render_blocks(&caption.long, "\n\n", wrap);
-    let content = match (body.is_empty(), cap.is_empty()) {
-        (false, false) => format!("{body}\n{cap}"),
-        (false, true) => body,
-        (true, false) => cap,
-        (true, true) => String::new(),
+        context.block_end()
     };
-    if content.is_empty() {
-        String::new()
-    } else {
-        format!("{content}\n")
-    }
+    format!("{}{end}", join_blocks(parts, context))
 }
 
-fn bullet_list(items: &[Vec<Block>], indent: usize, wrap: WrapMode, in_cell: bool) -> String {
-    let prefix = format!("{}* ", " ".repeat(indent));
-    items
+/// A figure: a container of its body blocks followed, when a caption is present, by a container of
+/// the caption blocks.
+fn figure(caption: &Caption, blocks: &[Block], context: Context) -> String {
+    let caption =
+        (!caption.long.is_empty()).then(|| container(rendered(&caption.long, context), context));
+    container(rendered(blocks, context).chain(caption), context)
+}
+
+fn bullet_list(items: &[Vec<Block>], context: Context) -> String {
+    let inner = context.list_item();
+    let prefix = format!("{}{}* ", context.quote_prefix(), inner.indent());
+    let body = items
         .iter()
-        .map(|item| list_item(item, indent, &prefix, wrap, in_cell))
+        .map(|item| list_item(item, &prefix, inner))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    format!("{body}{}", context.block_end())
 }
 
-fn ordered_list(items: &[Vec<Block>], indent: usize, wrap: WrapMode, in_cell: bool) -> String {
-    let prefix = format!("{}-", " ".repeat(indent));
-    items
+fn ordered_list(items: &[Vec<Block>], context: Context) -> String {
+    let inner = context.list_item();
+    let prefix = format!("{}{}-", context.quote_prefix(), inner.indent());
+    let body = items
         .iter()
-        .map(|item| {
-            block_entry(
-                &prefix,
-                std::slice::from_ref(item),
-                indent + LIST_INDENT,
-                wrap,
-                in_cell,
-            )
-        })
+        .map(|item| entry(&prefix, std::slice::from_ref(item), inner))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    format!("{body}{}", context.block_end())
 }
 
-/// Render one list item, wrapping complex content in a `<WRAP>` block.
-fn list_item(item: &[Block], indent: usize, prefix: &str, wrap: WrapMode, in_cell: bool) -> String {
-    if let Some(simple) = simple_item(item, indent, prefix, wrap, in_cell) {
-        return simple;
-    }
-    let body = wrap_body(item.iter(), indent + LIST_INDENT, wrap, in_cell);
-    format!("{prefix}<WRAP>\n{body}\n</WRAP>")
-}
-
-fn simple_item(
-    item: &[Block],
-    indent: usize,
-    prefix: &str,
-    wrap: WrapMode,
-    in_cell: bool,
-) -> Option<String> {
-    let sub_indent = indent + LIST_INDENT;
-    match item {
-        [] => Some(prefix.to_owned()),
-        [Block::Plain(inlines) | Block::Para(inlines)] => {
-            Some(format!("{prefix}{}", inlines_to_markup(inlines, wrap)))
-        }
-        [
-            Block::Plain(inlines) | Block::Para(inlines),
-            Block::CodeBlock(attr, text),
-        ] => Some(format!(
-            "{prefix}{}{}\n",
-            inlines_to_markup(inlines, wrap),
-            code_block(attr, text)
-        )),
-        [Block::Plain(inlines) | Block::Para(inlines), rest @ ..]
-            if rest.iter().all(is_simple_sublist) =>
-        {
-            let mut out = format!("{prefix}{}", inlines_to_markup(inlines, wrap));
-            for sublist in rest {
-                let _ = write!(
-                    out,
-                    "\n{}",
-                    sublist_markup(sublist, sub_indent, wrap, in_cell)
-                );
-            }
-            Some(out)
-        }
-        _ => None,
-    }
-}
-
-fn is_simple_sublist(block: &Block) -> bool {
-    matches!(block, Block::BulletList(_))
-        || matches!(block, Block::OrderedList(attributes, _) if attributes.start == 1)
-}
-
-/// Render a sublist nested inside a list item at the given indent.
-fn sublist_markup(block: &Block, indent: usize, wrap: WrapMode, in_cell: bool) -> String {
-    match block {
-        Block::BulletList(items) => bullet_list(items, indent, wrap, in_cell),
-        Block::OrderedList(_, items) => ordered_list(items, indent, wrap, in_cell),
-        Block::DefinitionList(items) => definition_list(items, indent, wrap, in_cell),
-        other => self::block(other, wrap),
-    }
-}
-
-/// The content of a `<WRAP>` block: each inner block rendered and joined by a single newline.
-/// A nested list inside the wrap sits at `sub_indent`.
-fn wrap_body<'a>(
-    blocks: impl Iterator<Item = &'a Block>,
-    sub_indent: usize,
-    wrap: WrapMode,
-    in_cell: bool,
-) -> String {
-    blocks
-        .map(|block| match block {
-            Block::BulletList(items) => bullet_list(items, sub_indent, wrap, in_cell),
-            Block::OrderedList(_, items) => ordered_list(items, sub_indent, wrap, in_cell),
-            Block::DefinitionList(items) => definition_list(items, sub_indent, wrap, in_cell),
-            // A fenced code block stands off from neighbouring content by a trailing blank line.
-            Block::CodeBlock(attr, text) => format!("{}\n", code_block(attr, text)),
-            other => self::block(other, wrap),
-        })
-        .filter(|rendered| !rendered.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Render bold terms in list items, wrapping multiline definitions when needed.
-fn definition_list(
-    items: &[(Vec<Inline>, Vec<Vec<Block>>)],
-    indent: usize,
-    wrap: WrapMode,
-    in_cell: bool,
-) -> String {
-    items
+/// Render bold terms in list items, each followed by its definitions.
+fn definition_list(items: &[(Vec<Inline>, Vec<Vec<Block>>)], context: Context) -> String {
+    let inner = context.list_item();
+    let body = items
         .iter()
         .map(|(term, definitions)| {
             let prefix = format!(
-                "{}* **{}**",
-                " ".repeat(indent),
-                inlines_to_markup(term, wrap)
+                "{}{}* **{}**",
+                context.quote_prefix(),
+                inner.indent(),
+                inlines_to_markup(term, inner)
             );
-            block_entry(&prefix, definitions, indent + LIST_INDENT, wrap, in_cell)
+            entry(&prefix, definitions, inner)
         })
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    format!("{body}{}", context.block_end())
 }
 
-fn block_entry(
-    prefix: &str,
-    definitions: &[Vec<Block>],
-    sub_indent: usize,
-    wrap: WrapMode,
-    in_cell: bool,
-) -> String {
-    if definitions.is_empty() {
-        return format!("{prefix} ");
-    }
-    let inline_each: Option<Vec<String>> = definitions
-        .iter()
-        .map(|definition| match definition.as_slice() {
-            [] => Some(String::new()),
-            [Block::Plain(inlines) | Block::Para(inlines)] => {
-                Some(inlines_to_markup(inlines, wrap))
-            }
-            _ => None,
-        })
-        .collect();
-    if let Some(parts) = inline_each {
-        format!("{prefix} {}", parts.join("; "))
-    } else {
-        let body = if in_cell {
-            definitions
-                .iter()
-                .map(|definition| {
-                    definition
-                        .iter()
-                        .map(|block| match block {
-                            Block::BulletList(_)
-                            | Block::OrderedList(..)
-                            | Block::DefinitionList(_) => {
-                                sublist_markup(block, sub_indent, wrap, in_cell)
-                            }
-                            other => cell_block(other, wrap),
-                        })
-                        .filter(|text| !text.is_empty())
-                        .collect::<Vec<_>>()
-                        .join("\n\n")
-                })
-                .filter(|text| !text.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n")
-        } else {
-            wrap_body(definitions.iter().flatten(), sub_indent, wrap, in_cell)
-        };
-        let compact = matches!(definitions, [definition] if match definition.as_slice() {
-            [Block::Plain(_) | Block::Para(_), Block::CodeBlock(..)] => true,
-            [Block::Plain(_) | Block::Para(_), rest @ ..] => {
-                rest.iter().all(is_simple_sublist)
-            }
-            _ => false,
-        });
-        if compact {
-            format!("{prefix} {body}")
-        } else {
-            format!("{prefix} <WRAP>\n{body}\n</WRAP>")
+/// Render one bullet item, wrapping complex content in a `<WRAP>` block. A code block that closes a
+/// two-block item opens on the line of the block before it.
+fn list_item(item: &[Block], prefix: &str, context: Context) -> String {
+    let body = match item {
+        [first, code @ Block::CodeBlock(..)] => {
+            format!("{}{}", block(first, context), block(code, context))
         }
+        _ => flow(item, context),
+    };
+    if is_simple_item(item) {
+        format!("{prefix}{body}")
+    } else {
+        format!("{prefix}<WRAP>\n{body}\n</WRAP>")
+    }
+}
+
+/// Render the body of a numbered item or of a term's definitions. Simple bodies follow the marker
+/// on its line, joined by `; `; otherwise all of them share one `<WRAP>` block. The body leaves any
+/// enclosing quote, whose marker the item line already carries.
+fn entry(prefix: &str, definitions: &[Vec<Block>], context: Context) -> String {
+    let context = context.unquoted();
+    let bodies: Vec<String> = definitions
+        .iter()
+        .map(|definition| sequence(definition, context))
+        .collect();
+    if definitions
+        .iter()
+        .all(|definition| is_simple_item(definition))
+    {
+        format!("{prefix} {}", bodies.join("; "))
+    } else {
+        format!("{prefix} <WRAP>\n{}\n</WRAP>", bodies.join("\n"))
+    }
+}
+
+/// Whether a list item fits on its marker line: one text block, optionally followed by a single
+/// code block or by any number of simple sublists.
+fn is_simple_item(item: &[Block]) -> bool {
+    match item {
+        [] | [Block::Plain(_) | Block::Para(_), Block::CodeBlock(..)] => true,
+        [first, rest @ ..] => is_text_block(first) && rest.iter().all(is_simple_sublist),
+    }
+}
+
+fn is_text_block(block: &Block) -> bool {
+    match block {
+        Block::Plain(_) | Block::Para(_) => true,
+        Block::Div(_, blocks) => is_simple_item(blocks),
+        _ => false,
+    }
+}
+
+/// Whether a list nested in an item needs no `<WRAP>` around that item: every item of its own is
+/// simple, and a numbered list starts at one.
+fn is_simple_sublist(block: &Block) -> bool {
+    match block {
+        Block::BulletList(items) => items.iter().all(|item| is_simple_item(item)),
+        Block::OrderedList(attributes, items) => {
+            attributes.start == 1 && items.iter().all(|item| is_simple_item(item))
+        }
+        Block::DefinitionList(items) => items
+            .iter()
+            .flat_map(|(_, definitions)| definitions)
+            .all(|definition| is_simple_item(definition)),
+        _ => false,
     }
 }
 
@@ -440,30 +345,32 @@ fn raw_passthrough(format: &Format, text: &str) -> String {
 }
 
 /// Render an inline sequence to markup, collapsing each space or soft break to a single space.
-fn inlines_to_markup(inlines: &[Inline], wrap: WrapMode) -> String {
-    inlines.iter().map(|i| inline(i, wrap)).collect()
+fn inlines_to_markup(inlines: &[Inline], context: Context) -> String {
+    inlines.iter().map(|i| inline(i, context)).collect()
 }
 
-fn inline(inline: &Inline, wrap: WrapMode) -> String {
+fn inline(inline: &Inline, context: Context) -> String {
     match inline {
         Inline::Str(text) => escape(text),
-        Inline::Emph(inlines) => format!("//{}//", inlines_to_markup(inlines, wrap)),
-        Inline::Strong(inlines) => format!("**{}**", inlines_to_markup(inlines, wrap)),
-        Inline::Underline(inlines) => format!("__{}__", inlines_to_markup(inlines, wrap)),
-        Inline::Strikeout(inlines) => format!("<del>{}</del>", inlines_to_markup(inlines, wrap)),
-        Inline::Superscript(inlines) => format!("<sup>{}</sup>", inlines_to_markup(inlines, wrap)),
-        Inline::Subscript(inlines) => format!("<sub>{}</sub>", inlines_to_markup(inlines, wrap)),
+        Inline::Emph(inlines) => format!("//{}//", inlines_to_markup(inlines, context)),
+        Inline::Strong(inlines) => format!("**{}**", inlines_to_markup(inlines, context)),
+        Inline::Underline(inlines) => format!("__{}__", inlines_to_markup(inlines, context)),
+        Inline::Strikeout(inlines) => format!("<del>{}</del>", inlines_to_markup(inlines, context)),
+        Inline::Superscript(inlines) => {
+            format!("<sup>{}</sup>", inlines_to_markup(inlines, context))
+        }
+        Inline::Subscript(inlines) => format!("<sub>{}</sub>", inlines_to_markup(inlines, context)),
         Inline::SmallCaps(inlines) | Inline::Cite(_, inlines) | Inline::Span(_, inlines) => {
-            inlines_to_markup(inlines, wrap)
+            inlines_to_markup(inlines, context)
         }
         Inline::Quoted(kind, inlines) => {
             let (open, close) = quote_marks(kind);
-            format!("{open}{}{close}", inlines_to_markup(inlines, wrap))
+            format!("{open}{}{close}", inlines_to_markup(inlines, context))
         }
         Inline::Code(_, text) => format!("''%%{}%%''", text.replace('\n', CONTENT_BREAK)),
         Inline::Space => " ".to_owned(),
         Inline::SoftBreak => {
-            if wrap == WrapMode::Preserve {
+            if context.wrap == WrapMode::Preserve {
                 CONTENT_BREAK.to_owned()
             } else {
                 " ".to_owned()
@@ -475,10 +382,15 @@ fn inline(inline: &Inline, wrap: WrapMode) -> String {
             MathType::DisplayMath => format!("$${text}$$"),
         },
         Inline::RawInline(format, text) => raw_passthrough(format, text),
-        Inline::Link(_, inlines, target) => link(inlines, target, wrap),
-        Inline::Image(attr, inlines, target) => image(attr, inlines, target, wrap),
-        Inline::Note(blocks) => format!("(({}\n))", render_blocks(blocks, "\n\n", wrap)),
+        Inline::Link(_, inlines, target) => link(inlines, target, context),
+        Inline::Image(attr, inlines, target) => image(attr, inlines, target, context),
+        Inline::Note(blocks) => note(blocks, context),
     }
+}
+
+/// A footnote, set inline between double parentheses. Its blocks leave any enclosing quote.
+fn note(blocks: &[Block], context: Context) -> String {
+    format!("(({}))", sequence(blocks, context.unquoted()))
 }
 
 /// Render an inline sequence as plain text with markup stripped, as headings present it: container
@@ -514,7 +426,7 @@ fn bare_inline(inline: &Inline) -> String {
 /// text) and the destination carries no space, the URL stands alone; a `mailto:` link with an
 /// all-text label renders in angle brackets; otherwise the `[[destination|label]]` form is used,
 /// with one leading `/` trimmed from the destination.
-fn link(inlines: &[Inline], target: &Target, wrap: WrapMode) -> String {
+fn link(inlines: &[Inline], target: &Target, context: Context) -> String {
     let plain = to_plain_text(inlines);
     if label_matches_url(&plain, &target.url) && !target.url.contains(' ') {
         return target.url.to_string();
@@ -523,7 +435,7 @@ fn link(inlines: &[Inline], target: &Target, wrap: WrapMode) -> String {
         return format!("<{plain}>");
     }
     let destination = target.url.strip_prefix('/').unwrap_or(&target.url);
-    format!("[[{destination}|{}]]", inlines_to_markup(inlines, wrap))
+    format!("[[{destination}|{}]]", inlines_to_markup(inlines, context))
 }
 
 /// Whether an inline sequence is composed only of text and spacing, so its plain-text form carries
@@ -536,14 +448,14 @@ fn is_all_text(inlines: &[Inline]) -> bool {
 
 /// An image: `{{url[?size]|caption}}`, where the caption is the title if set, else the alt text, and
 /// the optional size is derived from the `width`/`height` attributes.
-fn image(attr: &Attr, inlines: &[Inline], target: &Target, wrap: WrapMode) -> String {
+fn image(attr: &Attr, inlines: &[Inline], target: &Target, context: Context) -> String {
     let mut head = target.url.clone();
     if let Some(size) = image_size(attr) {
         head.push('?');
         head.push_str(&size);
     }
     let caption = if target.title.is_empty() {
-        inlines_to_markup(inlines, wrap)
+        inlines_to_markup(inlines, context)
     } else {
         target.title.to_string()
     };
@@ -624,9 +536,9 @@ fn escape(text: &str) -> String {
 /// Render a table: an optional caption paragraph, then header rows marked with `^` and body rows
 /// marked with `|`, every cell padded to its column width per the column's alignment. A cell occupies
 /// one row of the source table, so a break within its content cannot stand as a newline; preserved
-/// source breaks fold into the forced-break marker `\\ ` instead.
-///
-fn render_table(table: &Table, wrap: WrapMode) -> String {
+/// source breaks fold into the forced-break marker `\\ ` instead. Every line ends in a newline, so a
+/// table without caption and rows renders nothing.
+fn render_table(table: &Table, context: Context) -> String {
     if budget::exhausted() {
         return String::new();
     }
@@ -637,11 +549,10 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
         .collect();
     let columns = aligns.len();
 
-    let cell_wrap = wrap;
     let mut grid = RowSpanGrid::new(columns);
     let mut rows: Vec<RenderedRow> = Vec::new();
     for (row, header) in simple_table_rows(table) {
-        rows.push(place_row(&mut grid, row, columns, header, cell_wrap));
+        rows.push(place_row(&mut grid, row, columns, header, context));
     }
 
     if budget::exhausted() {
@@ -649,18 +560,17 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
     }
 
     let widths = column_widths(&rows, columns);
-    let mut out = String::new();
-    let caption = caption_lines(&table.caption.long, cell_wrap).join(FORCED_BREAK);
+    let mut lines = Vec::new();
+    let caption = caption_lines(&table.caption.long, context).join(FORCED_BREAK);
     if !caption.is_empty() {
-        out.push_str(&caption);
-        out.push_str(TABLE_ROW_END);
+        lines.push(caption);
     }
-    for (index, row) in rows.iter().enumerate() {
-        if index > 0 {
-            out.push_str(TABLE_ROW_END);
-        }
-        out.push_str(&render_row(row, &widths, &aligns));
+    lines.extend(rows.iter().map(|row| render_row(row, &widths, &aligns)));
+    if lines.is_empty() {
+        return String::new();
     }
+    let mut out = lines.join(TABLE_ROW_END);
+    out.push('\n');
     budget::charge(out.len());
     out
 }
@@ -668,16 +578,16 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
 /// Flatten caption blocks into inline-markup lines: block structure is discarded (list markers,
 /// quote prefixes, and code fences fall away) and each leaf block contributes one line, joined by the
 /// caller with the forced-break marker.
-fn caption_lines(blocks: &[Block], wrap: WrapMode) -> Vec<String> {
+fn caption_lines(blocks: &[Block], context: Context) -> Vec<String> {
     let mut lines = Vec::new();
     for block in blocks {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
-                lines.push(inlines_to_markup(inlines, wrap));
+                lines.push(inlines_to_markup(inlines, context));
             }
             Block::LineBlock(rows) => {
                 for row in rows {
-                    lines.push(inlines_to_markup(row, wrap));
+                    lines.push(inlines_to_markup(row, context));
                 }
             }
             Block::CodeBlock(_, text) => lines.push(format!("''%%{text}%%''")),
@@ -688,22 +598,22 @@ fn caption_lines(blocks: &[Block], wrap: WrapMode) -> Vec<String> {
                 }
             }
             Block::BlockQuote(inner) | Block::Div(_, inner) | Block::Figure(_, _, inner) => {
-                lines.extend(caption_lines(inner, wrap));
+                lines.extend(caption_lines(inner, context));
             }
             Block::BulletList(items) | Block::OrderedList(_, items) => {
                 for item in items {
-                    lines.extend(caption_lines(item, wrap));
+                    lines.extend(caption_lines(item, context));
                 }
             }
             Block::DefinitionList(items) => {
                 for (term, definitions) in items {
-                    lines.push(inlines_to_markup(term, wrap));
+                    lines.push(inlines_to_markup(term, context));
                     for definition in definitions {
-                        lines.extend(caption_lines(definition, wrap));
+                        lines.extend(caption_lines(definition, context));
                     }
                 }
             }
-            Block::Table(table) => lines.extend(caption_lines(&table.caption.long, wrap)),
+            Block::Table(table) => lines.extend(caption_lines(&table.caption.long, context)),
             Block::HorizontalRule => {}
         }
     }
@@ -732,13 +642,13 @@ fn place_row(
     row: &Row,
     columns: usize,
     header: bool,
-    wrap: WrapMode,
+    context: Context,
 ) -> RenderedRow {
     let mut slots: Vec<Slot> = grid
         .place_slots(&row.cells)
         .into_iter()
         .map(|slot| match slot {
-            GridSlot::Cell(_, cell) => cell_slot(cell, wrap),
+            GridSlot::Cell(_, cell) => cell_slot(cell, context),
             GridSlot::Covered => Slot::Filler,
         })
         .collect();
@@ -748,20 +658,14 @@ fn place_row(
     RenderedRow { header, slots }
 }
 
-/// A cell's content rendered to a single physical line: its blocks rendered as normal markup but
-/// with top-level lists flush to the left margin, then every line break folded into the forced-break
-/// marker `\\ ` since a cell occupies one row of the source table.
+/// A cell's content rendered to a single physical line: its blocks set apart by blank lines, then
+/// every line break folded into the forced-break marker `\\ ` since a cell occupies one row of the
+/// source table. `context` is that of the table.
 ///
 /// The cell claims its whole text as column width. A cell holding tables nested two deep claims
 /// only its longest nested row, so padding cannot compound with the nesting depth.
-fn cell_slot(cell: &Cell, wrap: WrapMode) -> Slot {
-    let body = cell
-        .content
-        .iter()
-        .map(|b| cell_block(b, wrap))
-        .filter(|rendered| !rendered.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n");
+fn cell_slot(cell: &Cell, context: Context) -> Slot {
+    let body = sequence(&cell.content, context.cell());
     let nested_twice = body
         .split(TABLE_ROW_END)
         .any(|row| row.contains(TABLE_BREAK));
@@ -784,23 +688,6 @@ fn cell_slot(cell: &Cell, wrap: WrapMode) -> Slot {
 /// The columns a cell's text takes once every nested row break is written out as `\\ `.
 fn text_width(text: &str) -> usize {
     text.chars().count() + 2 * text.matches(TABLE_BREAK).count()
-}
-
-/// Render one block of a table cell. Top-level lists start at the left margin (depth zero) rather
-/// than the document list indent; everything else renders as it would outside a cell.
-fn cell_block(block: &Block, wrap: WrapMode) -> String {
-    match block {
-        Block::BulletList(items) => bullet_list(items, 0, wrap, true),
-        Block::OrderedList(_, items) => ordered_list(items, 0, wrap, true),
-        Block::DefinitionList(items) => definition_list(items, 0, wrap, true),
-        Block::Div(_, blocks) => blocks
-            .iter()
-            .map(|b| cell_block(b, wrap))
-            .filter(|rendered| !rendered.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n\n"),
-        other => self::block(other, wrap),
-    }
 }
 
 fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
@@ -894,7 +781,7 @@ mod tests {
     }
 
     fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
-        match cell_slot(cell, wrap) {
+        match cell_slot(cell, Context::document(wrap)) {
             Slot::Cell { text, .. } => text,
             Slot::Filler => String::new(),
         }
@@ -957,7 +844,7 @@ mod tests {
             (
                 Block::Plain(vec![s("body")]),
                 vec![Block::Para(vec![s("caption")])],
-                "> body\n> caption\n\n",
+                "body\n> caption\n\n",
             ),
         ] {
             let document = Document {
@@ -1032,7 +919,7 @@ mod tests {
         options.wrap = WrapMode::Preserve;
         assert_eq!(
             DokuwikiWriter.write(&document, &options).unwrap(),
-            "left\nright\n"
+            "left\nright"
         );
     }
 
@@ -1073,7 +960,7 @@ mod tests {
         }
         for (content, expected) in [
             (Block::Para(paragraph.clone()), "> left\\\\\nright"),
-            (Block::Plain(paragraph), "> left\\\\\nright"),
+            (Block::Plain(paragraph), "left\\\\\nright"),
             (
                 Block::Para(vec![Inline::Code(Box::default(), "left\\\\\nright".into())]),
                 "> ''%%left\\\\\nright%%''",
@@ -1133,8 +1020,8 @@ mod tests {
             "* **term** first\\\\ \\\\ <code>\\\\ code\\\\ </code>"
         );
         assert_eq!(
-            block(&cell.content[0], WrapMode::Auto),
-            "  * **term** first\n<code>\ncode\n</code>\n"
+            block(&cell.content[0], Context::document(WrapMode::Auto)),
+            "  * **term** first\n<code>\ncode\n</code>\n\n"
         );
     }
 
@@ -1145,16 +1032,16 @@ mod tests {
             Block::Para(vec![s("second")]),
         ]];
         assert_eq!(
-            ordered_list(&items, 0, WrapMode::Auto, true),
-            "- <WRAP>\nfirst\n\nsecond\n</WRAP>"
+            ordered_list(&items, Context::document(WrapMode::Auto).cell()),
+            "- <WRAP>\nfirst\n\nsecond\n</WRAP>\n"
         );
     }
 
     #[test]
     fn numbered_sublists_wrap_when_the_start_changes() {
         for (start, expected) in [
-            (1, "  * outer\n    - inner"),
-            (3, "  * <WRAP>\nouter\n    - inner\n</WRAP>"),
+            (1, "  * outer\n    - inner\n"),
+            (3, "  * <WRAP>\nouter\n    - inner\n</WRAP>\n"),
         ] {
             let item = vec![
                 Block::Plain(vec![s("outer")]),
@@ -1168,7 +1055,7 @@ mod tests {
                 ),
             ];
             assert_eq!(
-                bullet_list(&[item], LIST_INDENT, WrapMode::Auto, false),
+                bullet_list(&[item], Context::document(WrapMode::Auto)),
                 expected
             );
         }

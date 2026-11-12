@@ -16,7 +16,9 @@ A footnote body is trimmed ((Trimmed on both ends.
 )) here.
 
 {{diagram.png}}
+
 Figure caption.
+
 
 
 Loop rounds join with their padding: 1 2 3 .

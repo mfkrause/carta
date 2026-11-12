@@ -16,6 +16,5 @@ literal body
 
 after
 
-> pass body
-
+pass body
 after
