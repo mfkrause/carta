@@ -14,12 +14,13 @@ use std::borrow::Cow;
 /// A code block: one paragraph in the source-code style. When a highlighter classifies the block's
 /// language, each token becomes a run carrying its token style; otherwise each line becomes a run in
 /// the plain code character style. Lines are separated by breaks. `numbering` binds the paragraph to
-/// a list number when the block sits inside a list item.
+/// a list number when the block sits inside a list item, and `jc` aligns it with its table cell.
 #[cfg_attr(not(feature = "highlight"), allow(unused_variables))]
 pub(super) fn code_paragraph(
     attr: &Attr,
     code: &str,
     numbering: Option<(u32, u32)>,
+    jc: Option<&str>,
     hl: &DocxHl,
     properties: &RunProps,
 ) -> Element {
@@ -27,7 +28,7 @@ pub(super) fn code_paragraph(
     para.push(paragraph_props(
         Some("SourceCode"),
         numbering,
-        None,
+        jc,
         properties.right_to_left,
     ));
     #[cfg(feature = "highlight")]
@@ -105,12 +106,7 @@ fn highlighted_inline_runs(
     let mut runs = Vec::new();
     for (index, line) in lines.iter().enumerate() {
         if index > 0 {
-            runs.push(break_run(&RunProps {
-                deletion: properties.deletion,
-                language: properties.language.clone(),
-                right_to_left: properties.right_to_left,
-                ..RunProps::default()
-            }));
+            runs.push(break_run(properties));
         }
         for token in line {
             let props = RunProps {
@@ -126,16 +122,15 @@ fn highlighted_inline_runs(
     Some(runs)
 }
 
-/// A line block: one paragraph whose lines are separated by breaks, each line's inlines lowered to
-/// runs in the surrounding paragraph style.
-pub(super) fn line_block_paragraph(style: &str, lines: &[Vec<Inline>], ctx: &mut Ctx) -> Element {
+/// A line block: one paragraph carrying the given paragraph properties whose lines are separated by
+/// breaks, each line's inlines lowered to runs.
+pub(super) fn line_block_paragraph(
+    paragraph_properties: Element,
+    lines: &[Vec<Inline>],
+    ctx: &mut Ctx,
+) -> Element {
     let mut para = Element::new("w:p");
-    para.push(paragraph_props(
-        Some(style),
-        None,
-        None,
-        ctx.run_properties.right_to_left,
-    ));
+    para.push(paragraph_properties);
     let properties = ctx.run_properties.clone();
     let mut first = true;
     for line in lines {
@@ -164,20 +159,22 @@ pub(super) fn horizontal_rule(right_to_left: Option<bool>) -> Element {
 }
 
 /// The run properties accumulated down a chain of nested inline formatting. Rendered in the fixed
-/// schema order so output stays stable regardless of nesting order.
-#[allow(clippy::struct_excessive_bools)]
+/// schema order so output stays stable regardless of nesting order. A toggle counts its nesting
+/// depth and is written once per level, so formatting nested in its own kind repeats the property.
 #[derive(Clone, Default)]
 pub(super) struct RunProps {
     style: Option<Cow<'static, str>>,
     pub(super) language: Option<Text>,
     pub(super) right_to_left: Option<bool>,
-    bold: bool,
-    italic: bool,
-    smallcaps: bool,
-    strike: bool,
-    underline: bool,
+    bold: u32,
+    italic: u32,
+    smallcaps: u32,
+    strike: u32,
+    highlight: u32,
+    underline: u32,
     east_asian: bool,
-    vert_align: Option<&'static str>,
+    /// Innermost first.
+    vert_align: Vec<&'static str>,
     /// Whether these runs sit inside a deletion, so their text is emitted as deleted text rather
     /// than visible text. This is a run-context flag, not a `w:rPr` toggle, so it stays out of the
     /// property element.
@@ -189,55 +186,71 @@ impl RunProps {
         self.style.is_none()
             && self.language.is_none()
             && self.right_to_left.is_none()
-            && !self.bold
-            && !self.italic
-            && !self.smallcaps
-            && !self.strike
-            && !self.underline
+            && self.bold == 0
+            && self.italic == 0
+            && self.smallcaps == 0
+            && self.strike == 0
+            && self.highlight == 0
+            && self.underline == 0
             && !self.east_asian
-            && self.vert_align.is_none()
+            && self.vert_align.is_empty()
+    }
+
+    /// Only the scoped language and direction: what a run without formatted glyphs keeps.
+    pub(super) fn scope(&self) -> Self {
+        Self {
+            language: self.language.clone(),
+            right_to_left: self.right_to_left,
+            ..Self::default()
+        }
     }
 
     fn with_bold(&self) -> Self {
         Self {
-            bold: true,
+            bold: self.bold.saturating_add(1),
             ..self.clone()
         }
     }
 
     fn with_italic(&self) -> Self {
         Self {
-            italic: true,
+            italic: self.italic.saturating_add(1),
             ..self.clone()
         }
     }
 
     fn with_smallcaps(&self) -> Self {
         Self {
-            smallcaps: true,
+            smallcaps: self.smallcaps.saturating_add(1),
             ..self.clone()
         }
     }
 
     fn with_strike(&self) -> Self {
         Self {
-            strike: true,
+            strike: self.strike.saturating_add(1),
+            ..self.clone()
+        }
+    }
+
+    fn with_highlight(&self) -> Self {
+        Self {
+            highlight: self.highlight.saturating_add(1),
             ..self.clone()
         }
     }
 
     fn with_underline(&self) -> Self {
         Self {
-            underline: true,
+            underline: self.underline.saturating_add(1),
             ..self.clone()
         }
     }
 
     fn with_vert_align(&self, value: &'static str) -> Self {
-        Self {
-            vert_align: Some(value),
-            ..self.clone()
-        }
+        let mut properties = self.clone();
+        properties.vert_align.insert(0, value);
+        properties
     }
 
     pub(super) fn with_style(&self, value: impl Into<Cow<'static, str>>) -> Self {
@@ -289,24 +302,25 @@ impl RunProps {
         if self.east_asian {
             rpr.push(Element::new("w:rFonts").attr("w:hint", "eastAsia"));
         }
-        if self.bold {
-            rpr.push(Element::new("w:b"));
-            rpr.push(Element::new("w:bCs"));
+        for (count, name) in [
+            (self.bold, "w:b"),
+            (self.bold, "w:bCs"),
+            (self.italic, "w:i"),
+            (self.italic, "w:iCs"),
+            (self.smallcaps, "w:smallCaps"),
+            (self.strike, "w:strike"),
+        ] {
+            for _ in 0..count {
+                rpr.push(Element::new(name));
+            }
         }
-        if self.italic {
-            rpr.push(Element::new("w:i"));
-            rpr.push(Element::new("w:iCs"));
+        for _ in 0..self.highlight {
+            rpr.push(Element::new("w:highlight").attr("w:val", "yellow"));
         }
-        if self.smallcaps {
-            rpr.push(Element::new("w:smallCaps"));
-        }
-        if self.strike {
-            rpr.push(Element::new("w:strike"));
-        }
-        if self.underline {
+        for _ in 0..self.underline {
             rpr.push(Element::new("w:u").attr("w:val", "single"));
         }
-        if let Some(value) = self.vert_align {
+        for value in &self.vert_align {
             rpr.push(Element::new("w:vertAlign").attr("w:val", value));
         }
         if let Some(right_to_left) = self.right_to_left {
@@ -340,8 +354,9 @@ pub(super) fn text_run(props: &RunProps, text: &str) -> Element {
     run
 }
 
+/// A line break. A break has no glyphs to format, so it keeps only the scoped properties.
 fn break_run(props: &RunProps) -> Element {
-    let mut run = run_with_props(props);
+    let mut run = run_with_props(&props.scope());
     run.push(Element::new("w:br"));
     run
 }
@@ -529,6 +544,8 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                     let mut deletion = tracked_change("w:del", id, attr);
                     render_runs(children, &props.with_deletion(), ctx, &mut deletion);
                     out.push(deletion);
+                } else if is_bare_mark(attr) {
+                    render_runs(children, &props.with_highlight(), ctx, out);
                 } else {
                     let mark = open_bookmark(attr.id.as_str(), out, ctx);
                     match custom_style(attr) {
@@ -537,7 +554,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                         }
                         None => render_runs(children, props, ctx, out),
                     }
-                    close_bookmark(mark, out);
+                    close_bookmark(mark, out, ctx);
                 }
             }
             // Render inner links first; fragments use bookmarks, other targets use relationships.
@@ -560,6 +577,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
             }
             Inline::Image(attr, alt, target) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
+                let mark = open_bookmark(attr.id.as_str(), out, ctx);
                 match image_drawing_for(attr, target, alt, ctx) {
                     Some(drawing) => {
                         let mut run = Element::new("w:r");
@@ -568,6 +586,7 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                     }
                     None => render_runs(alt, props, ctx, out),
                 }
+                close_bookmark(mark, out, ctx);
             }
             Inline::Math(kind, source) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
@@ -590,21 +609,20 @@ pub(super) fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, o
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let id = ctx.next_id;
                 ctx.next_id = ctx.next_id.saturating_add(1);
-                ctx.notes.push((
-                    id,
-                    blocks.clone(),
-                    RunProps {
-                        language: props.language.clone(),
-                        right_to_left: props.right_to_left,
-                        ..RunProps::default()
-                    },
-                ));
+                ctx.notes.push((id, blocks.clone(), props.scope()));
                 out.push(footnote_reference_run(id, props));
             }
         }
         index += 1;
     }
     flush_text(&mut buffer, &mut buffer_hint, props, out);
+}
+
+/// Whether a span is a highlight: one whose only attribute is the class `mark`.
+fn is_bare_mark(attr: &Attr) -> bool {
+    attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && matches!(attr.classes.as_slice(), [class] if class.as_str() == "mark")
 }
 
 /// The opening and closing glyphs for a quotation kind.
@@ -625,6 +643,7 @@ mod tests {
             &Attr::default(),
             "",
             None,
+            None,
             &DocxHl::default(),
             &RunProps::default(),
         )
@@ -641,6 +660,7 @@ mod tests {
             let para = code_paragraph(
                 &Attr::default(),
                 code,
+                None,
                 None,
                 &DocxHl::default(),
                 &RunProps::default(),

@@ -28,7 +28,7 @@ mod tables;
 /// The first free numeric identifier the body may hand out. The values `0` and `-1` are reserved for
 /// the footnote separators, and `1` through `8` for the document part's fixed relationships, so every
 /// footnote id, hyperlink relationship, image relationship and drawing id the body allocates begins
-/// here and counts up.
+/// here and counts up. A bookmark takes one value of the sequence as well, when it closes.
 const FIRST_FREE_ID: u32 = 9;
 
 /// The nominal text width, in twips, a table's column fractions are measured against.
@@ -95,8 +95,16 @@ pub(super) type DocxHl = ();
 struct Ctx {
     prev_paragraph: bool,
     bookmarks: Vec<Bookmark>,
+    /// How many open heading bookmarks belong to enclosing containers and stay open inside this one.
+    section_floor: usize,
     next_bookmark_id: u32,
     plan: ListPlan,
+    /// The list item whose number the paragraphs being rendered bind to.
+    item: Option<Item>,
+    /// Whether the walk is inside a list item, however deep.
+    in_list: bool,
+    /// Whether the walk is inside a table's rows and no nested table or figure frame has closed since.
+    in_table: bool,
     next_id: u32,
     notes: Vec<(u32, Vec<Block>, RunProps)>,
     run_properties: RunProps,
@@ -126,6 +134,29 @@ impl Ctx {
         self.hyperlinks.insert(url.to_owned(), id);
         id
     }
+
+    /// The list binding the next paragraph of the current list item takes: the item's own number on
+    /// its first paragraph, the continuation number on every later one. `None` outside a list item.
+    fn take_number(&mut self) -> Option<(u32, u32)> {
+        let continuation = self.plan.continuation_num();
+        let item = self.item.as_mut()?;
+        let number = if item.lead_used {
+            continuation
+        } else {
+            item.num_id
+        };
+        item.lead_used = true;
+        Some((number, item.depth))
+    }
+}
+
+/// A list item being rendered: the number its first paragraph binds to, its nesting depth, and
+/// whether that first paragraph has been emitted.
+#[derive(Clone, Copy)]
+struct Item {
+    num_id: u32,
+    depth: u32,
+    lead_used: bool,
 }
 
 /// An open heading bookmark: the level of the heading that opened it and its numeric id.
@@ -134,25 +165,40 @@ struct Bookmark {
     id: u32,
 }
 
-/// The paragraph styles a nested container renders its `Para` and `Plain` blocks under. The styles
-/// are usually fixed names, but a custom-style div supplies borrowed ones, hence the lifetime.
-/// `list_ambient` is the style a nested list's loose item paragraphs inherit from the container (a
-/// block quote and a definition pass their own style down to the lists they hold, whereas a table
-/// cell imposes none), mirroring the `ambient` a custom-style div threads through the top level.
+/// What a block inherits from the containers around it.
 #[derive(Clone, Copy)]
-struct FlowStyle<'a> {
-    para: &'a str,
-    plain: &'a str,
-    list_ambient: Option<&'a str>,
+struct Inherited<'a> {
+    /// The paragraph style of the nearest styling container: a block quote, a definition, a caption
+    /// or a custom-style div.
+    style: Option<&'a str>,
+    /// The alignment of the enclosing table cell or figure frame.
+    jc: Option<&'a str>,
+    /// Whether a heading opens a bookmark spanning its section, as it does in body flow only.
+    sections: bool,
 }
 
-impl FlowStyle<'_> {
-    /// The style a block quote's content takes.
-    fn blockquote() -> FlowStyle<'static> {
-        FlowStyle {
-            para: "BlockText",
-            plain: "BlockText",
-            list_ambient: Some("BlockText"),
+impl<'a> Inherited<'a> {
+    /// Body flow: no inherited style or alignment, headings open sections.
+    const BODY: Inherited<'static> = Inherited {
+        style: None,
+        jc: None,
+        sections: true,
+    };
+
+    /// The environment inside a container that imposes `style` on its paragraphs.
+    fn styled(self, style: &'a str) -> Self {
+        Inherited {
+            style: Some(style),
+            sections: false,
+            ..self
+        }
+    }
+
+    /// The environment inside a container that keeps the inherited style.
+    fn nested(self) -> Self {
+        Inherited {
+            sections: false,
+            ..self
         }
     }
 }
@@ -170,9 +216,13 @@ pub(super) fn document_xml(
     let mut ctx = Ctx {
         prev_paragraph: false,
         bookmarks: Vec::new(),
+        section_floor: 0,
         // Counts from 1, clear of the free-id range footnotes and images draw from.
         next_bookmark_id: 1,
         plan: ListPlan::default(),
+        item: None,
+        in_list: false,
+        in_table: false,
         next_id: FIRST_FREE_ID,
         notes: Vec::new(),
         run_properties: RunProps::default(),
@@ -189,13 +239,8 @@ pub(super) fn document_xml(
         table_number: 0,
     };
     title_block(meta, &mut body, &mut ctx);
-    let mut previous = None;
-    for block in blocks {
-        separate_adjacent_tables(previous, block, &mut body);
-        render_top_block(block, &mut body, &mut ctx, None);
-        previous = Some(block);
-    }
-    close_bookmarks(&mut body, &mut ctx.bookmarks, i64::MIN);
+    render_blocks(blocks, &mut body, &mut ctx, Inherited::BODY);
+    close_bookmarks(&mut body, &mut ctx, i64::MIN);
     body.push(section_properties());
 
     // Rendered before footnotes so a footnote inside a comment joins the queue below.
@@ -304,94 +349,105 @@ fn section_properties() -> Element {
     )
 }
 
-/// Renders one top-level block, applying the first/body paragraph alternation and heading anchors.
-/// `ambient` carries the paragraph style a surrounding custom-style div imposes on its direct
-/// paragraphs; it is `None` in ordinary body flow.
-fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: Option<&str>) {
+/// Renders a sequence of sibling blocks, keeping adjacent tables apart.
+fn render_blocks(blocks: &[Block], out: &mut Element, ctx: &mut Ctx, inherited: Inherited) {
+    let mut previous = None;
+    for block in blocks {
+        separate_adjacent_tables(previous, block, out);
+        render_block(block, out, ctx, inherited);
+        previous = Some(block);
+    }
+}
+
+/// Renders one block under the style, alignment and list binding it inherits, and advances the
+/// first/body paragraph alternation: body text continues after a paragraph and starts afresh after
+/// every other construct. A table or figure starts it afresh for its own content.
+fn render_block(block: &Block, out: &mut Element, ctx: &mut Ctx, inherited: Inherited) {
     match block {
-        Block::Para(inlines) | Block::Plain(inlines) => {
-            if ambient.is_none() && inlines.iter().any(is_display_equation) {
-                render_split_paragraph(inlines, body, ctx);
-                return;
-            }
-            if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
-                return;
-            }
-            let style = ambient.unwrap_or_else(|| body_style(ctx.prev_paragraph));
-            body.push(paragraph(style, inlines, ctx));
-            ctx.prev_paragraph = true;
-        }
+        Block::Para(inlines) => render_paragraph(inlines, false, out, ctx, inherited),
+        Block::Plain(inlines) => render_paragraph(inlines, true, out, ctx, inherited),
         Block::LineBlock(lines) => {
-            let style = ambient.unwrap_or_else(|| body_style(ctx.prev_paragraph));
-            body.push(line_block_paragraph(style, lines, ctx));
-            ctx.prev_paragraph = true;
+            let style = flow_style(inherited, false, ctx.item.is_some(), ctx);
+            let numbering = ctx.take_number();
+            let properties = paragraph_props(
+                style,
+                numbering,
+                inherited.jc,
+                ctx.run_properties.right_to_left,
+            );
+            out.push(line_block_paragraph(properties, lines, ctx));
+            ctx.prev_paragraph = !lines.iter().flatten().any(is_display_equation);
         }
-        // Custom-style divs style direct paragraphs; nested divs override them.
+        // A section opened inside a div ends with it; sections of enclosing containers stay open.
         Block::Div(attr, blocks) => {
             let previous_properties = ctx.run_properties.clone();
             ctx.run_properties = ctx.run_properties.with_attributes(attr);
-            let mark = open_bookmark(attr.id.as_str(), body, ctx);
-            let child_ambient = custom_style(attr)
+            let mark = open_bookmark(attr.id.as_str(), out, ctx);
+            let floor = std::mem::replace(&mut ctx.section_floor, ctx.bookmarks.len());
+            let style = custom_style(attr)
                 .or_else(|| bibliography_style(attr))
-                .or(ambient);
-            let mut previous = None;
-            for inner in blocks {
-                separate_adjacent_tables(previous, inner, body);
-                render_top_block(inner, body, ctx, child_ambient);
-                previous = Some(inner);
+                .or(inherited.style);
+            render_blocks(blocks, out, ctx, Inherited { style, ..inherited });
+            if inherited.sections {
+                close_bookmarks(out, ctx, i64::MIN);
             }
-            close_bookmark(mark, body);
+            ctx.section_floor = floor;
+            close_bookmark(mark, out, ctx);
             ctx.run_properties = previous_properties;
         }
         Block::Header(level, attr, inlines) => {
-            close_bookmarks(body, &mut ctx.bookmarks, *level);
-            open_heading(*level, attr.id.as_str(), inlines, body, ctx);
+            if inherited.sections {
+                close_bookmarks(out, ctx, *level);
+                open_heading(*level, attr.id.as_str(), inlines, out, ctx);
+            } else {
+                let numbering = ctx.take_number();
+                let style = Some(heading_style(*level));
+                let para = styled_paragraph(style, numbering, inherited.jc, inlines, ctx);
+                push_anchored(out, ctx, attr.id.as_str(), para);
+            }
             ctx.prev_paragraph = false;
         }
         Block::CodeBlock(attr, code) => {
-            let id = attr.id.clone();
-            let para = code_paragraph(attr, code, None, &ctx.highlighter, &ctx.run_properties);
-            push_anchored(body, ctx, id.as_str(), para);
+            let numbering = ctx.take_number();
+            let para = code_paragraph(
+                attr,
+                code,
+                numbering,
+                inherited.jc,
+                &ctx.highlighter,
+                &ctx.run_properties,
+            );
+            push_anchored(out, ctx, attr.id.as_str(), para);
             ctx.prev_paragraph = false;
         }
         // Raw markup neither opens nor closes the first/body alternation; only openxml passes through.
         Block::RawBlock(format, payload) => {
             if format.0.as_str() == "openxml" {
-                body.push_raw(payload);
+                out.push_raw(payload);
             }
         }
         Block::BlockQuote(blocks) => {
-            let mut previous = None;
-            for inner in blocks {
-                separate_adjacent_tables(previous, inner, body);
-                render_flow(inner, body, ctx, FlowStyle::blockquote());
-                previous = Some(inner);
-            }
+            render_blocks(blocks, out, ctx, inherited.styled("BlockText"));
             ctx.prev_paragraph = false;
         }
         Block::BulletList(items) => {
-            render_bullet_list(items, body, ctx, 0, ambient);
+            render_bullet_list(items, out, ctx, inherited.nested());
             ctx.prev_paragraph = false;
         }
         Block::OrderedList(attrs, items) => {
-            render_ordered_list(attrs, items, body, ctx, 0, ambient);
+            render_ordered_list(attrs, items, out, ctx, inherited.nested());
             ctx.prev_paragraph = false;
         }
         Block::DefinitionList(items) => {
-            render_definition_list(items, body, ctx);
+            render_definition_list(items, out, ctx, inherited);
             ctx.prev_paragraph = false;
         }
-        // Body text continues after a table or a figure.
-        Block::Table(table) => {
-            render_table(table, body, ctx, None);
-            ctx.prev_paragraph = true;
-        }
+        Block::Table(table) => render_table(table, out, ctx, inherited),
         Block::Figure(attr, caption, blocks) => {
-            render_figure(attr.id.as_str(), caption, blocks, body, ctx);
-            ctx.prev_paragraph = true;
+            render_figure(attr.id.as_str(), caption, blocks, out, ctx, inherited);
         }
         Block::HorizontalRule => {
-            body.push(horizontal_rule(ctx.run_properties.right_to_left));
+            out.push(horizontal_rule(ctx.run_properties.right_to_left));
             ctx.prev_paragraph = false;
         }
     }
@@ -429,108 +485,104 @@ fn trim_blank_inlines(inlines: &[Inline]) -> &[Inline] {
     inlines.get(start..end).unwrap_or(&[])
 }
 
-/// Renders a body paragraph that carries a display equation, splitting it around each one: a display
-/// equation becomes its own centred, block-level paragraph and the text on either side becomes its own
-/// paragraph, so the equation never sits inline among text. A display equation resets the first/body
-/// alternation the way any other block-level construct does, so the text after it opens fresh.
-fn render_split_paragraph(inlines: &[Inline], body: &mut Element, ctx: &mut Ctx) {
-    let mut segment: Vec<Inline> = Vec::new();
-    for inline in inlines {
-        match inline {
-            Inline::Math(MathType::DisplayMath, source) => {
-                match crate::math::to_omml(source, true) {
-                    Some(fragment) => {
-                        flush_text_segment(&mut segment, body, ctx);
-                        let style = body_style(ctx.prev_paragraph);
-                        let mut para = Element::new("w:p");
-                        para.push(paragraph_props(
-                            Some(style),
-                            None,
-                            None,
-                            ctx.run_properties.right_to_left,
-                        ));
-                        para.push_raw(&fragment);
-                        body.push(para);
-                        ctx.prev_paragraph = false;
-                    }
-                    None => segment.push(inline.clone()),
-                }
-            }
-            other => segment.push(other.clone()),
-        }
+/// The style of a flow paragraph. A tight paragraph inside a list item or a table is compact.
+/// Otherwise the enclosing container's style applies; failing that, a paragraph bound to a list
+/// number or aligned by its cell carries no style, and body flow alternates between the first and
+/// the continuing body style.
+fn flow_style<'a>(
+    inherited: Inherited<'a>,
+    tight: bool,
+    numbered: bool,
+    ctx: &Ctx,
+) -> Option<&'a str> {
+    if tight && (ctx.in_list || ctx.in_table) {
+        Some("Compact")
+    } else if inherited.style.is_some() {
+        inherited.style
+    } else if numbered || inherited.jc.is_some() {
+        None
+    } else {
+        Some(body_style(ctx.prev_paragraph))
     }
-    flush_text_segment(&mut segment, body, ctx);
 }
 
-/// Emits the text collected between display equations as one body paragraph, unless it carries no
-/// visible text. The whitespace that had separated the text from an adjacent equation is dropped, so
-/// the text paragraph carries no leading or trailing space. Clears the buffer either way.
-fn flush_text_segment(segment: &mut Vec<Inline>, body: &mut Element, ctx: &mut Ctx) {
+/// Renders a `Para` (loose) or `Plain` (tight) block. A display equation is lifted onto a paragraph
+/// of its own, outside any list numbering, and the text on either side becomes its own paragraph;
+/// body text starts afresh after an equation.
+fn render_paragraph(
+    inlines: &[Inline],
+    tight: bool,
+    out: &mut Element,
+    ctx: &mut Ctx,
+    inherited: Inherited,
+) {
+    if !inlines.iter().any(is_display_equation) {
+        if !inlines.is_empty() || ctx.features.keep_empty_paragraphs {
+            push_text_paragraph(inlines, tight, out, ctx, inherited);
+        }
+        return;
+    }
+    let mut segment: Vec<Inline> = Vec::new();
+    for inline in inlines {
+        let fragment = match inline {
+            Inline::Math(MathType::DisplayMath, source) => crate::math::to_omml(source, true),
+            _ => None,
+        };
+        let Some(fragment) = fragment else {
+            segment.push(inline.clone());
+            continue;
+        };
+        flush_text_segment(&mut segment, tight, out, ctx, inherited);
+        let style = flow_style(inherited, tight, false, ctx);
+        let mut para = Element::new("w:p");
+        para.push(paragraph_props(
+            style,
+            None,
+            inherited.jc,
+            ctx.run_properties.right_to_left,
+        ));
+        para.push_raw(&fragment);
+        out.push(para);
+        ctx.prev_paragraph = false;
+    }
+    flush_text_segment(&mut segment, tight, out, ctx, inherited);
+}
+
+/// Emits the text collected between display equations as one paragraph, unless it carries no
+/// visible text. The whitespace that had separated the text from an adjacent equation is dropped.
+/// Clears the buffer either way.
+fn flush_text_segment(
+    segment: &mut Vec<Inline>,
+    tight: bool,
+    out: &mut Element,
+    ctx: &mut Ctx,
+    inherited: Inherited,
+) {
     let trimmed = trim_blank_inlines(segment);
     if !trimmed.is_empty() {
-        let style = body_style(ctx.prev_paragraph);
-        body.push(paragraph(style, trimmed, ctx));
-        ctx.prev_paragraph = true;
+        push_text_paragraph(trimmed, tight, out, ctx, inherited);
     }
     segment.clear();
 }
 
-/// Emits a nested container's paragraph under one style, lifting each display equation onto its own
-/// centred paragraph in that style so a display equation never sits inline among text; the text on
-/// either side of an equation becomes its own paragraph. Returns whether any paragraph was emitted.
-fn styled_flow_with_display(
-    style: &str,
-    jc: Option<&str>,
+/// Emits one text paragraph under its flow style, binding it to the current list item.
+fn push_text_paragraph(
     inlines: &[Inline],
-    ctx: &mut Ctx,
+    tight: bool,
     out: &mut Element,
-) -> bool {
-    let mut emitted = false;
-    let mut segment: Vec<Inline> = Vec::new();
-    for inline in inlines {
-        match inline {
-            Inline::Math(MathType::DisplayMath, source) => match crate::math::to_omml(source, true)
-            {
-                Some(fragment) => {
-                    flush_styled_segment(style, jc, &mut segment, ctx, out);
-                    let mut para = Element::new("w:p");
-                    para.push(paragraph_props(
-                        Some(style),
-                        None,
-                        jc,
-                        ctx.run_properties.right_to_left,
-                    ));
-                    para.push_raw(&fragment);
-                    out.push(para);
-                    emitted = true;
-                }
-                None => segment.push(inline.clone()),
-            },
-            other => segment.push(other.clone()),
-        }
-    }
-    emitted | flush_styled_segment(style, jc, &mut segment, ctx, out)
-}
-
-/// Emits the text collected between display equations as one styled paragraph, unless it carries no
-/// visible text; the whitespace that had abutted an equation is trimmed away. Clears the buffer and
-/// returns whether a paragraph was emitted.
-fn flush_styled_segment(
-    style: &str,
-    jc: Option<&str>,
-    segment: &mut Vec<Inline>,
     ctx: &mut Ctx,
-    out: &mut Element,
-) -> bool {
-    let trimmed = trim_blank_inlines(segment);
-    let emitted = if trimmed.is_empty() {
-        false
-    } else {
-        out.push(styled_paragraph(Some(style), None, jc, trimmed, ctx));
-        true
-    };
-    segment.clear();
-    emitted
+    inherited: Inherited,
+) {
+    let style = flow_style(inherited, tight, ctx.item.is_some(), ctx);
+    let numbering = ctx.take_number();
+    out.push(styled_paragraph(
+        style,
+        numbering,
+        inherited.jc,
+        inlines,
+        ctx,
+    ));
+    ctx.prev_paragraph = true;
 }
 
 /// The paragraph style for body flow: `FirstParagraph` opens the body and each fresh section,
@@ -573,7 +625,7 @@ fn open_heading(level: i64, id: &str, inlines: &[Inline], body: &mut Element, ct
 fn push_anchored(body: &mut Element, ctx: &mut Ctx, id: &str, element: Element) {
     let mark = open_bookmark(id, body, ctx);
     body.push(element);
-    close_bookmark(mark, body);
+    close_bookmark(mark, body, ctx);
 }
 
 /// A bookmark name Word accepts. An identifier that begins with a letter and is at most forty
@@ -605,22 +657,27 @@ fn open_bookmark(id: &str, out: &mut Element, ctx: &mut Ctx) -> Option<u32> {
     Some(mark)
 }
 
-fn close_bookmark(mark: Option<u32>, out: &mut Element) {
+/// Closes a bookmark, which takes its value of the shared identifier sequence at this point.
+fn close_bookmark(mark: Option<u32>, out: &mut Element, ctx: &mut Ctx) {
     if let Some(mark) = mark {
         out.push(Element::new("w:bookmarkEnd").attr("w:id", &mark.to_string()));
+        ctx.next_id = ctx.next_id.saturating_add(1);
     }
 }
 
-/// Emits the `bookmarkEnd` for every open heading bookmark at or deeper than `level`, most-recent
-/// first, so nested sections close from the inside out. `i64::MIN` closes every open bookmark.
-fn close_bookmarks(body: &mut Element, bookmarks: &mut Vec<Bookmark>, level: i64) {
-    while let Some(bookmark) = bookmarks.last() {
+/// Closes every heading bookmark of the current container at or deeper than `level`, most-recent
+/// first, so nested sections close from the inside out. `i64::MIN` closes all of them.
+fn close_bookmarks(body: &mut Element, ctx: &mut Ctx, level: i64) {
+    while ctx.bookmarks.len() > ctx.section_floor {
+        let Some(bookmark) = ctx.bookmarks.last() else {
+            break;
+        };
         if bookmark.level < level {
             break;
         }
         let id = bookmark.id;
-        bookmarks.pop();
-        body.push(Element::new("w:bookmarkEnd").attr("w:id", &id.to_string()));
+        ctx.bookmarks.pop();
+        close_bookmark(Some(id), body, ctx);
     }
 }
 
@@ -636,82 +693,6 @@ fn heading_style(level: i64) -> &'static str {
         7 => "Heading7",
         8 => "Heading8",
         _ => "Heading9",
-    }
-}
-
-/// Renders a block nested inside a container, its `Para`/`Plain` blocks taking the caller's styles
-/// and every other block taking its own natural shape.
-fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle) {
-    match block {
-        // Display equations lift onto their own centred line, as at the top level.
-        Block::Para(inlines) if inlines.iter().any(is_display_equation) => {
-            styled_flow_with_display(style.para, None, inlines, ctx, out);
-        }
-        Block::Para(inlines) => {
-            if !inlines.is_empty() || ctx.features.keep_empty_paragraphs {
-                out.push(paragraph(style.para, inlines, ctx));
-            }
-        }
-        Block::Plain(inlines) => {
-            if !inlines.is_empty() || ctx.features.keep_empty_paragraphs {
-                out.push(paragraph(style.plain, inlines, ctx));
-            }
-        }
-        Block::Header(level, _, inlines) => {
-            out.push(paragraph(heading_style(*level), inlines, ctx));
-        }
-        Block::BlockQuote(blocks) => {
-            let mut previous = None;
-            for inner in blocks {
-                separate_adjacent_tables(previous, inner, out);
-                render_flow(inner, out, ctx, FlowStyle::blockquote());
-                previous = Some(inner);
-            }
-        }
-        Block::BulletList(items) => render_bullet_list(items, out, ctx, 0, style.list_ambient),
-        Block::OrderedList(attrs, items) => {
-            render_ordered_list(attrs, items, out, ctx, 0, style.list_ambient);
-        }
-        Block::DefinitionList(items) => render_definition_list(items, out, ctx),
-        Block::CodeBlock(attr, code) => {
-            out.push(code_paragraph(
-                attr,
-                code,
-                None,
-                &ctx.highlighter,
-                &ctx.run_properties,
-            ));
-        }
-        Block::LineBlock(lines) => out.push(line_block_paragraph(style.para, lines, ctx)),
-        Block::HorizontalRule => out.push(horizontal_rule(ctx.run_properties.right_to_left)),
-        Block::Figure(attr, caption, blocks) => {
-            render_figure(attr.id.as_str(), caption, blocks, out, ctx);
-        }
-        Block::Table(table) => render_table(table, out, ctx, None),
-        Block::Div(attr, blocks) => {
-            let previous_properties = ctx.run_properties.clone();
-            ctx.run_properties = ctx.run_properties.with_attributes(attr);
-            let inner = match custom_style(attr).or_else(|| bibliography_style(attr)) {
-                Some(name) => FlowStyle {
-                    para: name,
-                    plain: name,
-                    list_ambient: Some(name),
-                },
-                None => style,
-            };
-            let mut previous = None;
-            for block in blocks {
-                separate_adjacent_tables(previous, block, out);
-                render_flow(block, out, ctx, inner);
-                previous = Some(block);
-            }
-            ctx.run_properties = previous_properties;
-        }
-        Block::RawBlock(format, payload) => {
-            if format.0.as_str() == "openxml" {
-                out.push_raw(payload);
-            }
-        }
     }
 }
 
@@ -830,4 +811,125 @@ fn blocks_plain_text(blocks: &[Block]) -> String {
         }
     }
     text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
+
+    fn body(blocks: &[Block]) -> String {
+        let media = Arc::new(MediaBag::new());
+        let features = Features::default();
+        document_xml(blocks, &BTreeMap::new(), media, features, DocxHl::default()).document_xml
+    }
+
+    /// The style and list number of every paragraph that has content, in document order.
+    fn outline(blocks: &[Block]) -> Vec<String> {
+        let xml = body(blocks);
+        let value = |paragraph: &str, tag: &str| {
+            let (_, rest) = paragraph.split_once(&format!("<{tag} w:val=\""))?;
+            Some(rest.split_once('"')?.0.to_owned())
+        };
+        xml.split("<w:p>")
+            .skip(1)
+            .map(|paragraph| {
+                let style = value(paragraph, "w:pStyle").unwrap_or_else(|| "-".to_owned());
+                let number = value(paragraph, "w:numId").unwrap_or_else(|| "-".to_owned());
+                format!("{style} {number}")
+            })
+            .collect()
+    }
+
+    fn text(content: &str) -> Vec<Inline> {
+        vec![Inline::Str(content.into())]
+    }
+
+    fn para(content: &str) -> Block {
+        Block::Para(text(content))
+    }
+
+    fn plain(content: &str) -> Block {
+        Block::Plain(text(content))
+    }
+
+    /// A one-column table holding one cell.
+    fn table(content: Vec<Block>) -> Block {
+        let cell = Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content,
+        };
+        Block::Table(Box::new(Table {
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignDefault,
+                width: ColWidth::ColWidthDefault,
+            }],
+            bodies: vec![TableBody {
+                body: vec![Row {
+                    cells: vec![cell],
+                    ..Row::default()
+                }],
+                ..TableBody::default()
+            }],
+            ..Table::default()
+        }))
+    }
+
+    #[test]
+    fn every_paragraph_of_a_list_item_binds_to_the_list() {
+        let definitions =
+            Block::DefinitionList(vec![(text("term"), vec![vec![para("definition")]])]);
+        let list = Block::BulletList(vec![vec![para("lead"), definitions]]);
+        assert_eq!(
+            outline(&[list]),
+            ["- 1001", "DefinitionTerm 1000", "Definition 1000"]
+        );
+    }
+
+    #[test]
+    fn cell_paragraphs_take_the_container_style_or_the_body_alternation() {
+        let heading = Block::Header(2, Box::default(), text("heading"));
+        let cell = vec![para("first"), heading, para("fresh"), para("next")];
+        assert_eq!(
+            outline(&[table(cell)]),
+            [
+                "FirstParagraph -",
+                "Heading2 -",
+                "FirstParagraph -",
+                "BodyText -"
+            ]
+        );
+        let quoted = Block::BlockQuote(vec![table(vec![para("cell")])]);
+        assert_eq!(outline(&[quoted]), ["BlockText -"]);
+    }
+
+    #[test]
+    fn tight_cell_paragraphs_are_compact_until_a_nested_table_closes() {
+        let nested = table(vec![plain("inner")]);
+        let outer = table(vec![plain("before"), nested, plain("after")]);
+        assert_eq!(outline(&[outer]), ["Compact -", "Compact -", "BodyText -"]);
+    }
+
+    #[test]
+    fn a_closed_bookmark_takes_the_next_shared_identifier() {
+        let attr = Attr {
+            id: "here".into(),
+            ..Attr::default()
+        };
+        let anchor = Inline::Span(Box::new(attr), Vec::new());
+        let note = Inline::Note(vec![para("note")]);
+        let xml = body(&[Block::Para(vec![anchor, note])]);
+        assert!(xml.contains("<w:footnoteReference w:id=\"10\" />"));
+    }
+
+    #[test]
+    fn nested_toggles_repeat_and_breaks_carry_no_formatting() {
+        let inner = Inline::Emph(vec![Inline::Str("text".into()), Inline::LineBreak]);
+        let xml = body(&[Block::Para(vec![Inline::Emph(vec![inner])])]);
+        assert!(xml.contains("<w:rPr><w:i /><w:i /><w:iCs /><w:iCs /></w:rPr>"));
+        assert!(xml.contains("<w:r><w:br /></w:r>"));
+    }
 }

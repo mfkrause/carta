@@ -1,36 +1,30 @@
 //! Bullet, ordered and definition list rendering.
 
-use super::runs::code_paragraph;
-use super::tables::render_table;
-use super::{
-    Ctx, FlowStyle, custom_style, heading_style, paragraph, render_flow, styled_paragraph,
-};
+use super::{Ctx, Inherited, Item, render_blocks, styled_paragraph};
 use crate::common::{checkbox_state, strip_checkbox};
 use carta_ast::{Block, Inline, ListAttributes};
 use carta_core::container::xml::Element;
 
-/// Renders a bulleted list, binding every item to one concrete list number at the given depth.
-/// `ambient` is the paragraph style a surrounding custom-style div imposes on the items' loose
-/// paragraphs; it is `None` in ordinary flow.
+/// Renders a bulleted list, binding every item to one concrete list number one level below the
+/// enclosing list item.
 pub(super) fn render_bullet_list(
     items: &[Vec<Block>],
     out: &mut Element,
     ctx: &mut Ctx,
-    depth: u32,
-    ambient: Option<&str>,
+    inherited: Inherited,
 ) {
     // All items must start with checkboxes; each gets state-specific numbering.
     if let Some(states) = task_list_states(items) {
         for (item, checked) in items.iter().zip(states) {
             let num_id = ctx.plan.checkbox(checked);
             let stripped = strip_checkbox(item);
-            render_list_item(&stripped, num_id, depth, out, ctx, ambient);
+            render_list_item(&stripped, num_id, out, ctx, inherited);
         }
         return;
     }
     let num_id = ctx.plan.bullet();
     for item in items {
-        render_list_item(item, num_id, depth, out, ctx, ambient);
+        render_list_item(item, num_id, out, ctx, inherited);
     }
 }
 
@@ -50,177 +44,51 @@ pub(super) fn render_ordered_list(
     items: &[Vec<Block>],
     out: &mut Element,
     ctx: &mut Ctx,
-    depth: u32,
-    ambient: Option<&str>,
+    inherited: Inherited,
 ) {
     let num_id = ctx.plan.ordered(attrs);
     for item in items {
-        render_list_item(item, num_id, depth, out, ctx, ambient);
+        render_list_item(item, num_id, out, ctx, inherited);
     }
 }
 
-/// Renders one list item: its lead paragraph binds to the list's number, every later block that
-/// yields a paragraph binds to the scaffold number so it reads as a continuation line, a nested table
-/// is indented to the item's level, and a nested list deepens the level.
+/// Renders one list item. The first paragraph its blocks yield binds to the list's number and every
+/// later one to the continuation number, so the whole item reads indented under one marker. A
+/// nested list that opens the item is preceded by an empty paragraph that carries the marker.
 fn render_list_item(
     item: &[Block],
     num_id: u32,
-    depth: u32,
     out: &mut Element,
     ctx: &mut Ctx,
-    ambient: Option<&str>,
+    inherited: Inherited,
 ) {
-    let mut lead_used = false;
-    for block in item {
-        render_item_block(block, num_id, depth, &mut lead_used, out, ctx, ambient);
-    }
-}
-
-/// Renders one block of a list item. Each paragraph the block yields binds to the item's own number
-/// on the first paragraph and to the continuation number thereafter, keeping the whole item indented
-/// under one marker; a nested table takes the item's indent instead; and a nested list that leads
-/// the item, with no paragraph ahead of it to carry the marker, is preceded by an empty numbered
-/// paragraph that holds the item's marker.
-fn render_item_block(
-    block: &Block,
-    num_id: u32,
-    depth: u32,
-    lead_used: &mut bool,
-    out: &mut Element,
-    ctx: &mut Ctx,
-    ambient: Option<&str>,
-) {
-    match block {
-        Block::Plain(inlines) => {
-            if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
-                return;
-            }
-            let number = list_number(lead_used, num_id, ctx);
-            out.push(styled_paragraph(
-                Some("Compact"),
-                Some((number, depth)),
-                None,
-                inlines,
-                ctx,
-            ));
-        }
-        Block::Para(inlines) => {
-            if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
-                return;
-            }
-            let number = list_number(lead_used, num_id, ctx);
-            out.push(styled_paragraph(
-                ambient,
-                Some((number, depth)),
-                None,
-                inlines,
-                ctx,
-            ));
-        }
-        Block::Header(level, _, inlines) => {
-            let style = heading_style(*level);
-            let number = list_number(lead_used, num_id, ctx);
-            out.push(styled_paragraph(
-                Some(style),
-                Some((number, depth)),
-                None,
-                inlines,
-                ctx,
-            ));
-        }
-        Block::CodeBlock(attr, code) => {
-            let number = list_number(lead_used, num_id, ctx);
-            out.push(code_paragraph(
-                attr,
-                code,
-                Some((number, depth)),
-                &ctx.highlighter,
-                &ctx.run_properties,
-            ));
-        }
-        // Quote paragraphs retain item numbering; other blocks use normal item rendering.
-        Block::BlockQuote(blocks) => {
-            for inner in blocks {
-                match inner {
-                    Block::Para(inlines) | Block::Plain(inlines) => {
-                        if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
-                            continue;
-                        }
-                        let number = list_number(lead_used, num_id, ctx);
-                        out.push(styled_paragraph(
-                            Some("BlockText"),
-                            Some((number, depth)),
-                            None,
-                            inlines,
-                            ctx,
-                        ));
-                    }
-                    other => render_item_block(other, num_id, depth, lead_used, out, ctx, ambient),
-                }
-            }
-        }
-        Block::Table(table) => render_table(table, out, ctx, Some(depth)),
-        Block::BulletList(items) => {
-            lead_empty_paragraph(num_id, depth, lead_used, out, ctx);
-            render_bullet_list(items, out, ctx, depth + 1, ambient);
-        }
-        Block::OrderedList(attrs, items) => {
-            lead_empty_paragraph(num_id, depth, lead_used, out, ctx);
-            render_ordered_list(attrs, items, out, ctx, depth + 1, ambient);
-        }
-        Block::Div(attr, blocks) if custom_style(attr).is_none() => {
-            let previous_properties = ctx.run_properties.clone();
-            ctx.run_properties = ctx.run_properties.with_attributes(attr);
-            for inner in blocks {
-                render_item_block(inner, num_id, depth, lead_used, out, ctx, ambient);
-            }
-            ctx.run_properties = previous_properties;
-        }
-        other => render_flow(
-            other,
-            out,
+    let depth = ctx.item.map_or(0, |outer| outer.depth + 1);
+    let outer = ctx.item.replace(Item {
+        num_id,
+        depth,
+        lead_used: false,
+    });
+    let outer_in_list = std::mem::replace(&mut ctx.in_list, true);
+    if matches!(
+        item.first(),
+        Some(Block::BulletList(_) | Block::OrderedList(..))
+    ) {
+        let numbering = ctx.take_number();
+        out.push(styled_paragraph(
+            Some("Compact"),
+            numbering,
+            inherited.jc,
+            &[],
             ctx,
-            FlowStyle {
-                para: "BodyText",
-                plain: "Compact",
-                list_ambient: None,
-            },
-        ),
+        ));
     }
-}
-
-/// Emits the empty paragraph that carries a list item's marker when a nested list leads the item, so
-/// the outer item still shows its own number or bullet. Does nothing once the item's lead is spent.
-fn lead_empty_paragraph(
-    num_id: u32,
-    depth: u32,
-    lead_used: &mut bool,
-    out: &mut Element,
-    ctx: &mut Ctx,
-) {
-    if *lead_used {
-        return;
-    }
-    *lead_used = true;
-    out.push(styled_paragraph(
-        Some("Compact"),
-        Some((num_id, depth)),
-        None,
-        &[],
-        ctx,
-    ));
-}
-
-/// The number a list item's next paragraph binds to: the item's own on its first paragraph, the
-/// scaffold continuation number thereafter.
-fn list_number(lead_used: &mut bool, num_id: u32, ctx: &Ctx) -> u32 {
-    let number = if *lead_used {
-        ctx.plan.continuation_num()
-    } else {
-        num_id
-    };
-    *lead_used = true;
-    number
+    render_blocks(item, out, ctx, inherited);
+    // A nested list uses up the marker of the item that holds it.
+    ctx.item = outer.map(|item| Item {
+        lead_used: true,
+        ..item
+    });
+    ctx.in_list = outer_in_list;
 }
 
 /// Renders a definition list: each term as a `DefinitionTerm` paragraph and each definition's blocks
@@ -229,36 +97,21 @@ pub(super) fn render_definition_list(
     items: &[(Vec<Inline>, Vec<Vec<Block>>)],
     out: &mut Element,
     ctx: &mut Ctx,
+    inherited: Inherited,
 ) {
     for (term, definitions) in items {
         if !term.is_empty() {
-            out.push(paragraph("DefinitionTerm", term, ctx));
+            let numbering = ctx.take_number();
+            out.push(styled_paragraph(
+                Some("DefinitionTerm"),
+                numbering,
+                inherited.jc,
+                term,
+                ctx,
+            ));
         }
         for definition in definitions {
-            for block in definition {
-                render_definition_block(block, out, ctx);
-            }
+            render_blocks(definition, out, ctx, inherited.styled("Definition"));
         }
-    }
-}
-
-/// Renders one block of a definition's body under the `Definition` style.
-fn render_definition_block(block: &Block, out: &mut Element, ctx: &mut Ctx) {
-    match block {
-        Block::Para(inlines) | Block::Plain(inlines) => {
-            if !inlines.is_empty() || ctx.features.keep_empty_paragraphs {
-                out.push(paragraph("Definition", inlines, ctx));
-            }
-        }
-        other => render_flow(
-            other,
-            out,
-            ctx,
-            FlowStyle {
-                para: "Definition",
-                plain: "Definition",
-                list_ambient: Some("Definition"),
-            },
-        ),
     }
 }

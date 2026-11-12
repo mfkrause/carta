@@ -1,35 +1,33 @@
 //! Table rendering: grid, rows, cells and merged-cell layout.
 
 use super::figures::{Numbered, render_caption};
-use super::runs::code_paragraph;
 use super::{
-    Ctx, FlowStyle, LIST_INDENT_STEP, TABLE_TEXT_WIDTH, blocks_plain_text, body_style,
-    close_bookmark, is_display_equation, open_bookmark, paragraph_props, render_flow,
-    separate_adjacent_tables, styled_flow_with_display, styled_paragraph,
+    Ctx, Inherited, Item, LIST_INDENT_STEP, TABLE_TEXT_WIDTH, blocks_plain_text, close_bookmark,
+    open_bookmark, paragraph_props, render_blocks,
 };
-use carta_ast::{Alignment, Block, Cell, ColSpec, ColWidth, Row, Table};
+use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table};
 use carta_core::container::xml::Element;
 
 /// Renders a table: its caption paragraphs, then the grid itself with header rows marked and merged
-/// cells laid out. `indent`, when set, is the list-nesting depth a table inside a list item is shifted
-/// by, so it aligns under its item's text.
-pub(super) fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, indent: Option<u32>) {
+/// cells laid out. A table inside a list item is shifted to align under its item's text and uses up
+/// the item's marker; its caption and cells bind to no list number.
+pub(super) fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, inherited: Inherited) {
     let columns = table.col_specs.len();
     let has_head = !table.head.rows.is_empty();
     let has_foot = !table.foot.rows.is_empty();
 
     let mark = open_bookmark(table.attr.id.as_str(), out, ctx);
+    let item = ctx.item.take();
+    let indent = item.map(|item| item.depth);
     ctx.prev_paragraph = false;
     render_caption(
         &table.caption.long,
         out,
         ctx,
-        "TableCaption",
+        inherited.styled("TableCaption"),
         Numbered::Table,
     );
-    if !blocks_plain_text(&table.caption.long).is_empty() {
-        ctx.prev_paragraph = true;
-    }
+    ctx.in_table = true;
 
     let mut tbl = Element::new("w:tbl");
     tbl.push(table_properties(table, has_head, has_foot, indent));
@@ -38,43 +36,31 @@ pub(super) fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, inde
     let mut carried = vec![0u32; columns];
     let mut carried_span = vec![1u32; columns];
 
-    for row in &table.head.rows {
+    let head = table.head.rows.iter().map(|row| (row, true));
+    let bodies = table
+        .bodies
+        .iter()
+        .flat_map(|section| section.head.iter().chain(section.body.iter()));
+    let rest = bodies.chain(&table.foot.rows).map(|row| (row, false));
+    // A table without columns has no cell to hold content, so it has no rows either.
+    for (row, is_header) in head.chain(rest).filter(|_| columns > 0) {
         tbl.push(render_row(
             row,
             &table.col_specs,
             &mut carried,
             &mut carried_span,
-            columns,
-            true,
+            is_header,
             ctx,
+            inherited,
         ));
     }
-    for section in &table.bodies {
-        for row in section.head.iter().chain(section.body.iter()) {
-            tbl.push(render_row(
-                row,
-                &table.col_specs,
-                &mut carried,
-                &mut carried_span,
-                columns,
-                false,
-                ctx,
-            ));
-        }
-    }
-    for row in &table.foot.rows {
-        tbl.push(render_row(
-            row,
-            &table.col_specs,
-            &mut carried,
-            &mut carried_span,
-            columns,
-            false,
-            ctx,
-        ));
-    }
+    ctx.in_table = false;
+    ctx.item = item.map(|item| Item {
+        lead_used: true,
+        ..item
+    });
     out.push(tbl);
-    close_bookmark(mark, out);
+    close_bookmark(mark, out, ctx);
 }
 
 /// The table's properties: its style, width, list indent, header/footer look and caption text.
@@ -157,17 +143,18 @@ fn table_grid(col_specs: &[ColSpec]) -> Element {
 }
 
 /// Renders one table row, filling merge-continuation cells for any row-spans carried down from above
-/// before laying out the row's own cells.
+/// before laying out the row's own cells. A row with too few cells is completed with empty ones.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Column spans are small counts.
 fn render_row(
     row: &Row,
     col_specs: &[ColSpec],
     carried: &mut [u32],
     carried_span: &mut [u32],
-    columns: usize,
     is_header: bool,
     ctx: &mut Ctx,
+    inherited: Inherited,
 ) -> Element {
+    let columns = col_specs.len();
     let mut tr = Element::new("w:tr");
     if is_header {
         tr.push(Element::new("w:trPr").child(Element::new("w:tblHeader").attr("w:val", "on")));
@@ -184,12 +171,20 @@ fn render_row(
             continue;
         }
         let Some(cell) = cells.next() else {
-            break;
+            let mut tc = Element::new("w:tc").child(Element::new("w:tcPr"));
+            tc.push(empty_cell_paragraph(ctx));
+            tr.push(tc);
+            column += 1;
+            continue;
         };
         let span = cell.col_span.max(1) as usize;
         let rows = cell.row_span.max(1);
-        let jc = effective_jc(cell, col_specs, column);
-        tr.push(render_normal_cell(cell, span as u32, rows, jc, ctx));
+        let jc = effective_jc(cell, col_specs, column).or(inherited.jc);
+        let in_cell = Inherited {
+            jc,
+            ..inherited.nested()
+        };
+        tr.push(render_normal_cell(cell, span as u32, rows, ctx, in_cell));
         if rows > 1 {
             let remaining = (rows - 1).max(0) as u32;
             let end = column.saturating_add(span).min(columns);
@@ -229,13 +224,13 @@ fn continuation_cell(span: u32) -> Element {
 }
 
 /// Renders a cell that begins its own content: its grid span and merge start when it spans, then its
-/// block content laid out under the cell's effective alignment.
+/// block content laid out under the cell's alignment.
 fn render_normal_cell(
     cell: &Cell,
     span: u32,
     rows: i64,
-    jc: Option<&str>,
     ctx: &mut Ctx,
+    inherited: Inherited,
 ) -> Element {
     let mut tc = Element::new("w:tc");
     let mut properties = Element::new("w:tcPr");
@@ -247,22 +242,12 @@ fn render_normal_cell(
     }
     tc.push(properties);
 
-    let mut wrote = false;
-    let mut previous = None;
-    for block in &cell.content {
-        separate_adjacent_tables(previous, block, &mut tc);
-        wrote |= render_cell_block(block, &mut tc, jc, ctx);
-        previous = Some(block);
-    }
+    let before = tc.child_count();
+    render_blocks(&cell.content, &mut tc, ctx, inherited);
     // Cells require a paragraph and must not end on a table; add filler as needed.
-    if !wrote {
+    if tc.child_count() == before {
         if cell.content.is_empty() {
-            tc.push(Element::new("w:p").child(paragraph_props(
-                Some("Compact"),
-                None,
-                None,
-                ctx.run_properties.right_to_left,
-            )));
+            tc.push(empty_cell_paragraph(ctx));
         } else {
             tc.push(Element::new("w:p"));
         }
@@ -272,58 +257,14 @@ fn render_normal_cell(
     tc
 }
 
-/// Renders one block of a cell's content, applying the cell's alignment to its direct paragraphs.
-/// Returns whether it emitted anything.
-fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mut Ctx) -> bool {
-    match block {
-        // Cell paragraphs and display equations share the table's first/body style sequence.
-        Block::Para(inlines) => {
-            if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
-                return false;
-            }
-            let style = body_style(ctx.prev_paragraph);
-            let emitted = if inlines.iter().any(is_display_equation) {
-                styled_flow_with_display(style, jc, inlines, ctx, tc)
-            } else {
-                tc.push(styled_paragraph(Some(style), None, jc, inlines, ctx));
-                true
-            };
-            ctx.prev_paragraph = true;
-            emitted
-        }
-        Block::Plain(inlines) => {
-            if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
-                return false;
-            }
-            tc.push(styled_paragraph(Some("Compact"), None, jc, inlines, ctx));
-            ctx.prev_paragraph = true;
-            true
-        }
-        Block::CodeBlock(attr, code) => {
-            tc.push(code_paragraph(
-                attr,
-                code,
-                None,
-                &ctx.highlighter,
-                &ctx.run_properties,
-            ));
-            true
-        }
-        other => {
-            let before = tc.child_count();
-            render_flow(
-                other,
-                tc,
-                ctx,
-                FlowStyle {
-                    para: "BodyText",
-                    plain: "Compact",
-                    list_ambient: None,
-                },
-            );
-            tc.child_count() > before
-        }
-    }
+/// The compact, empty paragraph a cell without content holds.
+fn empty_cell_paragraph(ctx: &Ctx) -> Element {
+    Element::new("w:p").child(paragraph_props(
+        Some("Compact"),
+        None,
+        None,
+        ctx.run_properties.right_to_left,
+    ))
 }
 
 /// The cell's effective horizontal alignment: its own if set, otherwise its column's.
