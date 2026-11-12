@@ -38,6 +38,22 @@ fn document_part(bytes: &[u8]) -> String {
     xml.replace("><", ">\n<")
 }
 
+/// The `corpus/ast` cases whose document part a conformance control checks, as `group/label`.
+const CONTROL_CASES: &[(&str, &str)] = &[("reader-trees", "latex-nested-tables")];
+
+#[test]
+fn docx_control_document_snapshots() {
+    let cases = corpus_cases("ast");
+    for &(group, label) in CONTROL_CASES {
+        let case = cases
+            .iter()
+            .find(|case| case.group == group && case.label == label)
+            .unwrap_or_else(|| panic!("missing corpus case {group}/{label}"));
+        let output = document_part(&docx_bytes("docx", &case.input));
+        insta::assert_snapshot!(format!("corpus__{group}__{label}"), output);
+    }
+}
+
 #[test]
 fn docx_extension_toggle_snapshots() {
     for case in corpus_cases("ast-ext") {

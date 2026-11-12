@@ -352,6 +352,15 @@ def reviewed_snapshots(directory, name):
     return [directory / f"golden_writer__{dialect}__{case}.snap" for dialect in earlier]
 
 
+# (feature, case) -> reason, for the document part of a `corpus/ast` case. Each case is also in
+# CONTROL_CASES of crates/carta/tests/docx.rs, which makes its snapshot.
+DOCX_BODY = {
+    ("reader-trees", "latex-nested-tables"): (
+        "Pandoc writes two alignment elements in one paragraph, which the schema does not allow."
+    ),
+}
+
+
 def epub_content(package):
     """The text that an EPUB control covers: the body of every page and the NCX table of contents."""
     content = b""
@@ -393,6 +402,10 @@ def expectation(label):
         if reason:
             name = f"docx__docx__{case}" if part == "document" else f"docx__{case}__{part}"
             return name, reason
+    if len(parts) == 4 and parts[0] == "docx" and parts[3] == "document":
+        _, feature, case, _ = parts
+        reason = DOCX_BODY.get((feature, case))
+        return (f"docx__corpus__{feature}__{case}", reason) if reason else None
     return None
 
 
