@@ -362,7 +362,7 @@ impl State {
             Inline::Math(kind, text) => self.math(kind, text, prev, next),
             Inline::RawInline(format, text) => raw_passthrough(format, text),
             Inline::Link(_, inlines, target) => self.link(inlines, target),
-            Inline::Image(attr, inlines, target) => self.image(attr, inlines, target),
+            Inline::Image(attr, inlines, target) => image(attr, inlines, target),
             Inline::Span(attr, inlines) => self.span(attr, inlines, prev, next),
             Inline::Note(blocks) => self.note(blocks),
         }
@@ -452,25 +452,6 @@ impl State {
         }
     }
 
-    fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target) -> String {
-        let mut params: Vec<String> = Vec::new();
-        if !target.title.is_empty() {
-            params.push(format!("title={}", target.title));
-        }
-        let alt = self.inlines(inlines);
-        if !alt.is_empty() {
-            params.push(format!("alt={alt}"));
-        }
-        for (key, value) in &attr.attributes {
-            params.push(format!("{key}={value}"));
-        }
-        if params.is_empty() {
-            format!("!{}!", target.url)
-        } else {
-            format!("!{}|{}!", target.url, params.join(", "))
-        }
-    }
-
     /// Collect a footnote and return its reference. The body is laid out as a document of its
     /// own, outside any list, cell or panel around the reference.
     fn note(&mut self, blocks: &[Block]) -> String {
@@ -493,6 +474,27 @@ fn anchor(id: &str, start: usize, parts: &mut Vec<Part>) {
     match parts.get_mut(start) {
         Some(first) if first.kind == Kind::Paragraph => first.text.insert_str(0, &anchor),
         _ => parts.insert(start, Part::paragraph(anchor)),
+    }
+}
+
+/// An image: its target, then the title, the alternative text (plain, since the parameter holds no
+/// markup) and the attributes as parameters.
+fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
+    let mut params: Vec<String> = Vec::new();
+    if !target.title.is_empty() {
+        params.push(format!("title={}", target.title));
+    }
+    let alt = to_plain_text(inlines);
+    if !alt.is_empty() {
+        params.push(format!("alt={alt}"));
+    }
+    for (key, value) in &attr.attributes {
+        params.push(format!("{key}={value}"));
+    }
+    if params.is_empty() {
+        format!("!{}!", target.url)
+    } else {
+        format!("!{}|{}!", target.url, params.join(", "))
     }
 }
 
