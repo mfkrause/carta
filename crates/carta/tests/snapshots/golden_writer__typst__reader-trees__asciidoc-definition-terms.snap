@@ -5,24 +5,31 @@ expression: output
 / {value}: #block[
 Definition Cedar Ridge
 ]
+
 / #strong[{value}]: #block[
 Strong definition Cedar Ridge
 ]
+
 / #link(<target>)[target]: #block[
 Link definition Cedar Ridge
 ]
+
 / ​<term-id>: #block[
 Anchor definition Cedar Ridge
 ]
+
 / \[heart\]: #block[
 Icon definition Cedar Ridge
 ]
+
 / #footnote[Note {value}]: #block[
 Footnote definition Cedar Ridge
 ]
+
 / 1: #block[
 Count 2
 ]
+
 / User wrapper: #block[
 Wrapper definition Cedar Ridge
 ]

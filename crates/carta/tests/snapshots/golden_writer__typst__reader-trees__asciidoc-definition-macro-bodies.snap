@@ -8,40 +8,42 @@ expression: output
 
   - #figure(image("nested.png"),
       caption: [
-        
       ]
     )
 
 / : #block[
 #figure(image("same.png"),
   caption: [
-    
   ]
 )
 ]
+
 / Named: #block[
 #block[
 ] <toc>
 ]
+
 / : #block[
 #figure(image("next.png"),
   caption: [
-    
   ]
 )
 ]
+
 / Indented: #block[
 #box(image("sound.mp3", alt: "sound.mp3"))
 ]
-/ A: #block[
 
+/ A: #block[
 ]
+
 / B and C: #block[
 D
 ]
-/ Bad: #block[
 
+/ Bad: #block[
 ]
+
 / include: #block[
 missing\[
 ]

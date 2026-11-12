@@ -5,12 +5,15 @@ expression: output
 / `-a`: #block[
 Output all.
 ]
+
 / `-b, --brief`: #block[
 Be brief about it.
 ]
+
 / `--verbose`: #block[
 Talk a great deal.
 ]
+
 / `-f FILE`: #block[
 Read input from FILE.
 ]

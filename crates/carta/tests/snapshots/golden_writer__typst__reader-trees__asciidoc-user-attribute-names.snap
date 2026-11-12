@@ -9,7 +9,6 @@ expression: output
 Titled
 
 ]
-
 == Nested
 === Discrete
 #box(image("./images/icons/heart.png"))
@@ -21,5 +20,4 @@ Titled
 == Prefix
 === Prefix
 <_prefix>
-
 ] <_nested>

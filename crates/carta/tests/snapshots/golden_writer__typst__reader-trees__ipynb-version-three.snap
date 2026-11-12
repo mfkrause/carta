@@ -5,15 +5,11 @@ expression: output
 #block[
 = First
 <first>
-
 ]
-
 #block[
 ========= Deeper #emph[heading]
 <deeper-heading>
-
 ]
-
 #block[
 ```python
 print(1)
@@ -25,14 +21,12 @@ print(1)
 ```
 
 ]
-
 #block[
 ```
 1
 ```
 
 ]
-
 #block[
 ```
 line 1
@@ -41,10 +35,8 @@ ExampleError: text
 
 ]
 ]
-
 #block[
 ]
-
 #block[
 Final text
 

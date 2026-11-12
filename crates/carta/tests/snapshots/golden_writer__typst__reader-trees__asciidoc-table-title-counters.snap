@@ -23,12 +23,9 @@ expression: output
       1
 
       ]
-
       2
 
-      ]
-
-      ],),
+      ]],),
     table.hline(),
   )]
   , kind: table
@@ -57,12 +54,9 @@ expression: output
       1
 
       ]
-
       #emph[2]
 
-      ]
-
-      ],),
+      ]],),
     table.hline(),
   )]
   , kind: table
@@ -91,12 +85,9 @@ expression: output
       1
 
       ]
-
       2
 
-      ]
-
-      ],),
+      ]],),
     table.hline(),
   )]
   , kind: table
@@ -125,12 +116,9 @@ expression: output
       1
 
       ]
-
       `2`
 
-      ]
-
-      ],),
+      ]],),
     table.hline(),
   )]
   , kind: table
@@ -159,12 +147,9 @@ expression: output
       1
 
       ]
-
       #strong[2]
 
-      ]
-
-      ],),
+      ]],),
     table.hline(),
   )]
   , kind: table

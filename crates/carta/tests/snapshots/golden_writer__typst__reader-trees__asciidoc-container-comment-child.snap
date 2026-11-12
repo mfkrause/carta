@@ -8,7 +8,6 @@ listing body
 ```
 
 ]
-
 after
 
 #block[
@@ -17,7 +16,6 @@ literal body
 ```
 
 ]
-
 after
 
 #quote(block: true)[

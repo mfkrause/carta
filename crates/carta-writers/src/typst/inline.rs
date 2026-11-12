@@ -10,7 +10,7 @@ use crate::common::{display_width, word_line_metrics};
 use super::escape::{
     escape_string, escape_text, image_call, inline_code, math, quote_marks, raw_inline_passthrough,
 };
-use super::{Fragment, blocks, label, label_target};
+use super::{BlockEnd, Fragment, block_end, blocks, label, label_target};
 
 /// Render inline content laid out per the document's wrap mode (paragraph context).
 pub(super) fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
@@ -172,10 +172,10 @@ fn block_fragments(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -
             continue;
         }
         if let Some(previous) = previous {
-            let separator = if matches!(previous, Block::Header(..) | Block::Plain(_)) {
-                "\n"
-            } else {
+            let separator = if block_end(previous) == BlockEnd::Blank {
                 "\n\n"
+            } else {
+                "\n"
             };
             out.push(Fragment::Atom(separator.to_owned()));
         }

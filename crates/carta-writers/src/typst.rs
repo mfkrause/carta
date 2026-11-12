@@ -38,7 +38,7 @@ impl Writer for TypstWriter {
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let smart = options.extensions.contains(Extension::Smart);
         let body = blocks(&document.blocks, width, options.wrap, smart);
-        Ok(body.trim_end_matches('\n').to_owned())
+        Ok(body.trim_matches('\n').to_owned())
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -76,24 +76,99 @@ enum Fragment {
     LineBreak,
 }
 
-/// Render a top-level (or nested) block sequence. Every block is separated from the next by a blank
-/// line, except that a plain block or header is followed by a single newline.
+/// How a rendered block leaves its last line: still open, ended, or followed by a blank line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BlockEnd {
+    Open,
+    Line,
+    Blank,
+}
+
+pub(super) fn block_end(block: &Block) -> BlockEnd {
+    match block {
+        Block::Plain(_) | Block::RawBlock(..) | Block::Div(..) => BlockEnd::Open,
+        Block::Header(..) => BlockEnd::Line,
+        _ => BlockEnd::Blank,
+    }
+}
+
+/// Render a block sequence without the spacing its last block asks for.
 fn blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
+    let mut out = spaced_blocks(items, width, wrap, smart);
+    out.truncate(out.trim_end_matches('\n').len());
+    out
+}
+
+/// Render a block sequence with its boundary spacing: a leading newline when a blank line must
+/// precede the first block, and a trailing newline or blank line as the last block ends.
+pub(super) fn spaced_blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
     let mut out = String::new();
-    let mut needs_blank_line = false;
+    let mut end = BlockEnd::Open;
+    let mut has_text = false;
     for item in items {
         let piece = block(item, width, wrap, smart);
         if piece.is_empty() {
+            if matches!(item, Block::Para(_)) {
+                end = BlockEnd::Blank;
+            }
             continue;
         }
-        if !out.is_empty() {
+        if matches!(item, Block::HorizontalRule) {
+            end = BlockEnd::Blank;
+        }
+        if has_text {
             out.push('\n');
-            if needs_blank_line {
-                out.push('\n');
-            }
+        }
+        if end == BlockEnd::Blank {
+            out.push('\n');
         }
         out.push_str(&piece);
-        needs_blank_line = !matches!(item, Block::Header(..) | Block::Plain(_));
+        has_text = true;
+        end = block_end(item);
+    }
+    match end {
+        BlockEnd::Blank if has_text => out.push_str("\n\n"),
+        BlockEnd::Blank | BlockEnd::Line => out.push('\n'),
+        BlockEnd::Open => {}
+    }
+    out
+}
+
+/// Block content set on the lines below an opening delimiter, each indented; nothing when empty.
+fn nested_lines(body: &str, indent: &str) -> String {
+    if body.is_empty() {
+        String::new()
+    } else {
+        indent_continuation(&format!("\n{body}"), indent)
+    }
+}
+
+/// Spaced block content in brackets opened mid-line, with later lines indented. A leading blank
+/// line first ends the bracket's line, and a closing bracket on a line of its own is indented too.
+pub(super) fn bracketed(body: &str, indent: &str) -> String {
+    let mut out = String::from("[");
+    if body.starts_with('\n') {
+        out.push('\n');
+    }
+    out.push_str(&indent_continuation(body, indent));
+    if body.ends_with('\n') {
+        out.push_str(indent);
+    }
+    out.push(']');
+    out
+}
+
+/// Prefix every line after the first with `indent`, leaving blank lines bare.
+pub(super) fn indent_continuation(body: &str, indent: &str) -> String {
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+            if !line.is_empty() {
+                out.push_str(indent);
+            }
+        }
+        out.push_str(line);
     }
     out
 }
@@ -106,8 +181,8 @@ fn block(value: &Block, width: usize, wrap: WrapMode, smart: bool) -> String {
         Block::RawBlock(format, text) => raw_passthrough(format, text),
         Block::BlockQuote(items) => {
             format!(
-                "#quote(block: true)[\n{}\n]",
-                blocks(items, width, wrap, smart)
+                "#quote(block: true)[{}\n]",
+                nested_lines(&blocks(items, width, wrap, smart), "")
             )
         }
         Block::BulletList(items) => bullet_list(items, width, wrap, smart),
@@ -268,9 +343,13 @@ fn enum_numbering(attrs: &ListAttributes) -> String {
 /// Render one list item: the marker on its first line, with every continuation line indented to
 /// align under the marker's text column.
 fn list_item(marker: &str, item: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
-    let body = blocks(item, width.saturating_sub(marker.len()), wrap, smart);
+    let mut body = blocks(item, width.saturating_sub(marker.len()), wrap, smart);
     if body.is_empty() {
         return marker.trim_end().to_owned();
+    }
+    // A leading blank line first ends the marker's line.
+    if body.starts_with('\n') {
+        body.insert(0, '\n');
     }
     let indent = " ".repeat(marker.len());
     let mut out = String::new();
@@ -301,11 +380,12 @@ fn definition_list(
             .collect::<Vec<_>>()
             .join("\n\n");
         lines.push(format!(
-            "/ {}: #block[\n{body}\n]",
-            escape_term_colons(&inline_run(term, width, wrap, smart))
+            "/ {}: #block[{}\n]",
+            escape_term_colons(&inline_run(term, width, wrap, smart)),
+            nested_lines(&body, "")
         ));
     }
-    lines.join("\n")
+    lines.join("\n\n")
 }
 
 /// In a definition term, a colon would close the term, so escape every colon in the rendered
@@ -336,16 +416,11 @@ fn line_block(lines: &[Vec<Inline>], width: usize, wrap: WrapMode, smart: bool) 
 }
 
 fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
-    let body = blocks(items, width, wrap, smart);
-    let trailing = match items.last() {
-        Some(Block::Plain(_) | Block::Div(..)) => "",
-        _ => "\n",
-    };
-    let block = if body.is_empty() {
-        "#block[\n]".to_owned()
-    } else {
-        format!("#block[\n{body}{trailing}\n]")
-    };
+    let mut block = format!("#block[\n{}", spaced_blocks(items, width, wrap, smart));
+    if !block.ends_with('\n') {
+        block.push('\n');
+    }
+    block.push(']');
     match label(&attr.id) {
         Some(rendered) => format!("{block} {rendered}"),
         None => block,
@@ -362,11 +437,17 @@ fn figure(
 ) -> String {
     let inner = match figure_image(items) {
         Some(image) => image,
-        None => format!("[{}]", blocks(items, width, wrap, smart)),
+        None => bracketed(
+            &spaced_blocks(items, width.saturating_sub(2), wrap, smart),
+            "  ",
+        ),
     };
     let figure = format!(
-        "#figure({inner},\n  caption: [\n    {}\n  ]\n)",
-        blocks(&caption.long, width, wrap, smart).trim_end_matches('\n')
+        "#figure({inner},\n  caption: [{}\n  ]\n)",
+        nested_lines(
+            &blocks(&caption.long, width.saturating_sub(4), wrap, smart),
+            "    "
+        )
     );
     match label(&attr.id) {
         Some(label) => format!("{figure}\n{label}"),

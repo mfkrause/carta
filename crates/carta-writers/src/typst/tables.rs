@@ -9,7 +9,7 @@ use crate::common::display_width;
 
 use super::escape::trim_percent;
 use super::inline::{fill_cell, fragments, inline_run};
-use super::{Fragment, blocks, label};
+use super::{Fragment, bracketed, indent_continuation, label, spaced_blocks};
 
 pub(super) fn render_table(table: &Table, width: usize, wrap: WrapMode, smart: bool) -> String {
     let columns = table_columns(table);
@@ -66,19 +66,10 @@ pub(super) fn render_table(table: &Table, width: usize, wrap: WrapMode, smart: b
 
 /// Wraps a table caption in a content block, nesting continuation lines by two columns.
 fn table_caption(content: &[Block], width: usize, smart: bool) -> String {
-    if let [Block::Plain(inlines) | Block::Para(inlines)] = content {
+    if let [Block::Plain(inlines)] = content {
         format!("[{}]", inline_run(inlines, width, WrapMode::Auto, smart))
-    } else if matches!(content, [Block::Div(..)]) {
-        format!(
-            "[{}]",
-            indent_continuation(&blocks(content, width, WrapMode::Auto, smart), "  ")
-        )
     } else {
-        let mut body = blocks(content, width, WrapMode::Auto, smart);
-        if !matches!(content.last(), Some(Block::Plain(_))) {
-            body.push('\n');
-        }
-        format!("[{}\n  ]", indent_continuation(&body, "  "))
+        bracketed(&spaced_blocks(content, width, WrapMode::Auto, smart), "  ")
     }
 }
 
@@ -101,10 +92,7 @@ enum CellBody {
         trailing_space: bool,
         paragraph: bool,
     },
-    Blocks {
-        body: String,
-        trailing_newline: bool,
-    },
+    Blocks(String),
 }
 
 fn cell_body(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> CellBody {
@@ -116,15 +104,11 @@ fn cell_body(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> CellBody
             paragraph: matches!(block, Block::Para(_)),
         },
         other => {
-            let body = blocks(other, width, wrap, smart);
-            if body.is_empty() && !other.iter().any(|block| matches!(block, Block::Para(_))) {
+            let body = spaced_blocks(other, width, wrap, smart);
+            if body.is_empty() {
                 CellBody::Empty
             } else {
-                CellBody::Blocks {
-                    trailing_newline: body.is_empty()
-                        || !matches!(other.last(), Some(Block::Plain(_))),
-                    body,
-                }
+                CellBody::Blocks(body)
             }
         }
     }
@@ -206,7 +190,7 @@ fn leading_run(body: &CellBody) -> (usize, bool) {
             }
             (run, *paragraph)
         }
-        CellBody::Blocks { body, .. } => {
+        CellBody::Blocks(body) => {
             let first_line = body.split('\n').next().unwrap_or("");
             (display_width(first_line), body.contains('\n'))
         }
@@ -303,32 +287,8 @@ fn render_cell_body(
             let closing = if *trailing_space { " ]" } else { "]" };
             format!("[{filled}{closing}")
         }
-        CellBody::Blocks {
-            body,
-            trailing_newline,
-        } => {
-            let mut rendered = indent_continuation(body, &pad);
-            if *trailing_newline {
-                rendered.push('\n');
-            }
-            format!("[{rendered}\n{pad}]")
-        }
+        CellBody::Blocks(body) => bracketed(body, &pad),
     }
-}
-
-/// Prefix every line after the first with `indent`, leaving blank lines bare.
-fn indent_continuation(body: &str, indent: &str) -> String {
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-            if !line.is_empty() {
-                out.push_str(indent);
-            }
-        }
-        out.push_str(line);
-    }
-    out
 }
 
 #[cfg(test)]

@@ -11,15 +11,11 @@ expression: output
     [#block[
     Next line
 
-    ] <next>
-
-    ],
+    ] <next>],
     [#block[
     Label text
 
-    ] #label("labeled,label")
-
-    ],
+    ] #label("labeled,label")],
     [​<inline> remainder
 
     ],
@@ -28,9 +24,7 @@ expression: output
     #block[
     After blank
 
-    ] <after-blank>
-
-    ],
+    ] <after-blank>],
     [​#label("space inside") Whitespace id
 
     ],
@@ -57,12 +51,9 @@ expression: output
       1 title
 
       ]
-
       2 body
 
-      ]
-
-      ],),
+      ]],),
   )]
   , kind: table
   )

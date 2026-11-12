@@ -6,21 +6,18 @@ expression: output
 one \ two
 
 ]
-
 after block
 
 #block[
 one \ two
 
 ]
-
 after block
 
 #block[
 one \ two
 
 ]
-
 after block
 
 #block[
@@ -29,7 +26,6 @@ one \ two
 ]
 
 ]
-
 after block
 
 #figure(
