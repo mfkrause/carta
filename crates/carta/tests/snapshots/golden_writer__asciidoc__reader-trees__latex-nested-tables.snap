@@ -6,10 +6,10 @@ expression: output
 |===
 a|
 [cols="<,>",options="header",]
-|===
-|Inner |Right
-|Next |Last
-|===
+!===
+!Inner !Right
+!Next !Last
+!===
 
 |Outer
 |Final |Tail
@@ -19,10 +19,10 @@ a|
 |===
 a|
 [cols="^",]
-|===
-|Grouped
-|Content
-|===
+!===
+!Grouped
+!Content
+!===
 
 |A&B
 |===

@@ -84,6 +84,7 @@ struct State {
     bullet_depth: usize,
     ordered_depth: usize,
     definition_depth: usize,
+    table_depth: usize,
     wrap: WrapMode,
     legacy: bool,
 }
@@ -440,8 +441,9 @@ impl State {
             !header_rows.is_empty(),
             !table.foot.rows.is_empty(),
         ));
-        out.push('\n');
-        out.push_str("|===");
+        self.table_depth = self.table_depth.saturating_add(1);
+        let separator = self.cell_separator();
+        let _ = write!(out, "\n{separator}===");
         let mut grid = RowSpanGrid::new(columns);
         for row in &header_rows {
             let _ = write!(out, "\n{}", self.table_row(row, &mut grid, width));
@@ -452,8 +454,15 @@ impl State {
         for row in &table.foot.rows {
             let _ = write!(out, "\n{}", self.table_row(row, &mut grid, width));
         }
-        out.push_str("\n|===");
+        let _ = write!(out, "\n{separator}===");
+        self.table_depth = self.table_depth.saturating_sub(1);
         out
+    }
+
+    /// The cell separator of the table being written: a table inside a cell takes `!` so that its
+    /// cells do not end the cell that holds it.
+    fn cell_separator(&self) -> char {
+        if self.table_depth > 1 { '!' } else { '|' }
     }
 
     fn body_rows(&mut self, body: &TableBody, grid: &mut RowSpanGrid, width: usize) -> String {
@@ -497,8 +506,9 @@ impl State {
         if let Some(operator) = alignment_operator(&cell.align) {
             marker.push(operator);
         }
+        let separator = self.cell_separator();
         if is_simple_cell(&cell.content) {
-            let prefix = format!("{marker}|");
+            let prefix = format!("{marker}{separator}");
             let initial = column.saturating_add(display_width(&prefix));
             let body = self.cell_inlines(&cell.content, width, initial);
             format!("{prefix}{body}")
@@ -506,9 +516,9 @@ impl State {
             let body = self.blocks(&cell.content, width);
             let body = body.trim_end_matches('\n');
             if body.is_empty() {
-                format!("{marker}a|")
+                format!("{marker}a{separator}")
             } else {
-                format!("{marker}a|\n{body}\n")
+                format!("{marker}a{separator}\n{body}\n")
             }
         }
     }
