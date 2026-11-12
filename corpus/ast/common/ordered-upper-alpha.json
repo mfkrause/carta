@@ -8,33 +8,41 @@
   "meta": {},
   "blocks": [
     {
-      "t": "Para",
+      "t": "OrderedList",
       "c": [
-        {
-          "t": "Str",
-          "c": "A."
-        },
-        {
-          "t": "Space"
-        },
-        {
-          "t": "Str",
-          "c": "one"
-        },
-        {
-          "t": "SoftBreak"
-        },
-        {
-          "t": "Str",
-          "c": "B."
-        },
-        {
-          "t": "Space"
-        },
-        {
-          "t": "Str",
-          "c": "two"
-        }
+        [
+          1,
+          {
+            "t": "UpperAlpha"
+          },
+          {
+            "t": "Period"
+          }
+        ],
+        [
+          [
+            {
+              "t": "Plain",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "one"
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "t": "Plain",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "two"
+                }
+              ]
+            }
+          ]
+        ]
       ]
     }
   ]

@@ -2,5 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-.PP
-A. one B. two
+.IP "A." 3
+one
+.IP "B." 3
+two

@@ -2,4 +2,8 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-A. one B. two
+#block[
+#set enum(numbering: "A.", start: 1)
++ one
++ two
+]

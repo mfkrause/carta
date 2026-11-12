@@ -2,13 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-[ Para
-    [ Str "I."
-    , Space
-    , Str "one"
-    , SoftBreak
-    , Str "II."
-    , Space
-    , Str "two"
-    ]
+[ OrderedList
+    ( 1 , UpperRoman , Period )
+    [ [ Plain [ Str "one" ] ] , [ Plain [ Str "two" ] ] ]
 ]

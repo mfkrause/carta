@@ -8,6 +8,38 @@ expression: output
 <style:font-face style:name="Courier New" style:font-family-generic="modern" style:font-pitch="fixed" svg:font-family="'Courier New'" />
 </office:font-face-decls>
 <office:automatic-styles>
+<text:list-style style:name="Numbering_5f_1">
+<text:list-level-style-number text:level="1" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="0.0000in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="2" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="0.1972in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="3" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="0.3944in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="4" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="0.5916in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="5" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="0.7888in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="6" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="0.9860in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="7" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="1.1832in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="8" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="1.3804in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="9" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="1.5776in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+<text:list-level-style-number text:level="10" text:style-name="Numbering_20_Symbols" style:num-format="A" style:num-suffix=".">
+<style:list-level-properties text:space-before="1.7748in" text:min-label-width="0.1965in" text:min-label-distance="0.1in" />
+</text:list-level-style-number>
+</text:list-style>
 <style:style style:name="fr2" style:family="graphic" style:parent-style-name="Formula">
 <style:graphic-properties style:vertical-pos="middle" style:vertical-rel="text" style:horizontal-pos="center" style:horizontal-rel="paragraph-content" style:wrap="none" />
 </style:style>
@@ -17,7 +49,14 @@ expression: output
 </office:automatic-styles>
 <office:body>
 <office:text>
-<text:p text:style-name="Text_20_body">A. one B. two</text:p>
+<text:list text:style-name="Numbering_5f_1">
+  <text:list-item>
+    <text:p text:style-name="List_20_Number_20_Tight">one</text:p>
+  </text:list-item>
+  <text:list-item>
+    <text:p text:style-name="List_20_Number_20_Tight">two</text:p>
+  </text:list-item>
+</text:list>
 </office:text>
 </office:body>
 </office:document-content>

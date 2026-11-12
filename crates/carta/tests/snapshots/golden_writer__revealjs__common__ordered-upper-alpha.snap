@@ -4,5 +4,8 @@ expression: output
 ---
 <section class="slide level6">
 
-<p>A. one B. two</p>
+<ol type="A">
+<li>one</li>
+<li>two</li>
+</ol>
 </section>

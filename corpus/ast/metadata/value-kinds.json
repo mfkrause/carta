@@ -1,0 +1,182 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {
+    "title": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Emph",
+          "c": [
+            {
+              "t": "Str",
+              "c": "short"
+            }
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "title"
+        }
+      ]
+    },
+    "author": {
+      "t": "MetaList",
+      "c": [
+        {
+          "t": "MetaInlines",
+          "c": [
+            {
+              "t": "Str",
+              "c": "Ada"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "Lovelace"
+            }
+          ]
+        },
+        {
+          "t": "MetaInlines",
+          "c": [
+            {
+              "t": "Str",
+              "c": "Alan"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "Turing"
+            }
+          ]
+        }
+      ]
+    },
+    "abstract": {
+      "t": "MetaBlocks",
+      "c": [
+        {
+          "t": "Para",
+          "c": [
+            {
+              "t": "Str",
+              "c": "A"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "summary"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "in"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "one"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "paragraph."
+            }
+          ]
+        }
+      ]
+    },
+    "draft": {
+      "t": "MetaBool",
+      "c": true
+    },
+    "lang": {
+      "t": "MetaString",
+      "c": "en"
+    },
+    "publisher": {
+      "t": "MetaMap",
+      "c": {
+        "name": {
+          "t": "MetaString",
+          "c": "Example Press"
+        },
+        "city": {
+          "t": "MetaInlines",
+          "c": [
+            {
+              "t": "Str",
+              "c": "Springfield"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Body"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "text"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "after"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "metadata."
+        }
+      ]
+    }
+  ]
+}

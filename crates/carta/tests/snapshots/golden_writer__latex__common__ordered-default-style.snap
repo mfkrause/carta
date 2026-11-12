@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{enumerate}
+\tightlist
+\item
+  one
+\item
+  two
+\end{enumerate}

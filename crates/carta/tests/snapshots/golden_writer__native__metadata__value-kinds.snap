@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "Body"
+    , Space
+    , Str "text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "metadata."
+    ]
+]

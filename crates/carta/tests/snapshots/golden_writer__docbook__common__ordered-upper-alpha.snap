@@ -2,6 +2,15 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-<para>
-  A. one B. two
-</para>
+<orderedlist numeration="upperalpha" spacing="compact">
+  <listitem>
+    <para>
+      one
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      two
+    </para>
+  </listitem>
+</orderedlist>

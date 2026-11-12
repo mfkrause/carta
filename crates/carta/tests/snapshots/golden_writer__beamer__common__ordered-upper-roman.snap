@@ -3,5 +3,12 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 \begin{frame}
-I. one II. two
+\begin{enumerate}
+[I.]
+\tightlist
+\item
+  one
+\item
+  two
+\end{enumerate}
 \end{frame}
