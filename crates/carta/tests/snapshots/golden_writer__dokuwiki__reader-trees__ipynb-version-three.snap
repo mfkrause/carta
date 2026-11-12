@@ -4,7 +4,7 @@ expression: output
 ---
 ====== First ======
 
-= Deeper heading =
+ Deeper heading 
 
 <code python>
 print(1)
