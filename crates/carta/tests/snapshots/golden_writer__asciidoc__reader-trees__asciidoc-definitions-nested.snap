@@ -3,12 +3,12 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 Operating systems::
-  Linux::
+  Linux;;
     . Fedora
     . Debian
-  BSD::
+  BSD;;
     . FreeBSD
     +
     Cloud::
-      PaaS::
+      PaaS;;
     . Service

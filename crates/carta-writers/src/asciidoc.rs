@@ -82,6 +82,7 @@ fn render_document(document: &Document, options: &WriterOptions, legacy: bool) -
 struct State {
     bullet_depth: usize,
     ordered_depth: usize,
+    definition_depth: usize,
     wrap: WrapMode,
     legacy: bool,
 }
@@ -364,10 +365,17 @@ impl State {
         items: &[(Vec<Inline>, Vec<Vec<Block>>)],
         width: usize,
     ) -> String {
+        self.definition_depth = self.definition_depth.saturating_add(1);
+        // Alternating markers keep a nested list apart from the one that holds it.
+        let marker = if self.definition_depth % 2 == 1 {
+            "::"
+        } else {
+            ";;"
+        };
         let mut entries = Vec::new();
         for (term, definitions) in items {
             let term_text = fill(&self.pieces(term), width, self.wrap);
-            let mut entry = format!("{term_text}::");
+            let mut entry = format!("{term_text}{marker}");
             let bodies: Vec<String> = definitions
                 .iter()
                 .map(|definition| self.definition_body(definition, width))
@@ -379,6 +387,7 @@ impl State {
             }
             entries.push(entry);
         }
+        self.definition_depth = self.definition_depth.saturating_sub(1);
         entries.join("\n")
     }
 
