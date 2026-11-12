@@ -2,14 +2,14 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-Forward: #link(<second>)[1.1].
+Forward: @second.
 
 === First
 <first>
 ==== Second
 <second>
-#link(<first>)[1], #link(<second>)[1.1], #link(<second>)[1.1],
-#link(<second>)[\[second\]], #link(<missing>)[\[missing\]].
+@first, #link(<second>)[1.1], #link(<second>)[1.1],
+#link(<second>)[\[second\]], @missing.
 
 #figure([],
   caption: [
@@ -24,8 +24,8 @@ Forward: #link(<second>)[1.1].
 )
 <figure>
 
-See Figure #link(<figure>)[2].
+See Figure @figure.
 
 = Part
 <part>
-See Part #link(<part>)[I].
+See Part @part.

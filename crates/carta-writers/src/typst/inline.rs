@@ -3,7 +3,7 @@
 use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target, to_plain_text};
 use carta_core::WrapMode;
 
-use crate::common::{display_width, word_line_metrics};
+use crate::common::{attribute_value, display_width, word_line_metrics};
 
 use super::escape::{
     escape_string, escape_text, image_call, inline_code, math, quote_marks, raw_inline_passthrough,
@@ -435,7 +435,7 @@ fn inline(value: &Inline, width: usize, wrap: WrapMode, smart: bool) -> String {
         Inline::LineBreak => " \\ ".to_owned(),
         Inline::Math(kind, text) => math(kind, text, smart),
         Inline::RawInline(format, text) => raw_inline_passthrough(format, text),
-        Inline::Link(_, items, target) => link(items, target, width, wrap, smart),
+        Inline::Link(attr, items, target) => link(attr, items, target, width, wrap, smart),
         Inline::Image(attr, alt, target) => format!("#box({})", image_call(attr, alt, target)),
         Inline::Note(blocks) => format!("#footnote[{}]", self_blocks(blocks, width, wrap, smart)),
         Inline::Span(attr, items) => span(attr, items, false, width, wrap, smart),
@@ -448,7 +448,25 @@ fn self_blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> St
         .to_owned()
 }
 
-fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: bool) -> String {
+fn link(
+    attr: &Attr,
+    items: &[Inline],
+    target: &Target,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
+    // A numbered cross-reference names its label alone: Typst supplies the number.
+    if let Some(id) = target.url.strip_prefix('#')
+        && attribute_value(attr, "reference-type") == Some("ref")
+    {
+        let key = label_target(id);
+        return if key.starts_with('<') {
+            format!("@{id}")
+        } else {
+            format!("#ref({key})")
+        };
+    }
     let plain = to_plain_text(items);
     let destination = match target.url.strip_prefix('#') {
         Some(id) => label_target(id),

@@ -15,7 +15,7 @@ expression: output
   )
 <table>
 
-See Table #link(<table>)[1].
+See Table @table.
 
 #figure(
   align(center)[#table(
