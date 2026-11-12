@@ -61,10 +61,8 @@ fn corpus_files(kind: &str) -> Vec<(String, String, PathBuf)> {
     files
 }
 
-/// The subdirectory names under `corpus/<kind>/`, sorted: the group set the golden tests partition
-/// into one test each. Returns empty when the `kind` tree is absent. The per-format guard tests
-/// compare this against their macro's covered-group list so a new corpus directory without a matching
-/// test fails.
+/// The subdirectory names under `corpus/<kind>/`, sorted. Returns empty when the `kind` tree is
+/// absent.
 pub(crate) fn corpus_groups(kind: &str) -> Vec<String> {
     let root = corpus_dir().join(kind);
     if !root.is_dir() {
