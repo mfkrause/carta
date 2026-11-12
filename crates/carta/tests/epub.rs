@@ -33,7 +33,11 @@ fn epub_control_body_snapshots() {
         ("epub2", "reader-trees", "asciidoc-images"),
         ("epub2", "reader-trees", "asciidoc-inline-macros"),
         ("epub2", "reader-trees", "asciidoc-table-block-anchors"),
-        ("epub2", "reader-trees", "asciidoc-table-in-definition-continuation"),
+        (
+            "epub2",
+            "reader-trees",
+            "asciidoc-table-in-definition-continuation",
+        ),
         ("epub2", "reader-trees", "asciidoc-table-monospace-nested"),
         ("epub2", "reader-trees", "asciidoc-table-title-counters"),
         ("epub2", "reader-trees", "asciidoc-user-attribute-names"),
