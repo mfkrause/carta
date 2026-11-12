@@ -654,3 +654,32 @@ fn deeply_nested_tables_render_without_compounding_layout() {
     }
     assert_eq!(render(blocks).matches("#table(").count(), 24);
 }
+
+#[test]
+fn citations_outside_the_bare_form_call_cite() {
+    for (id, mode, expected) in [
+        (
+            "key",
+            carta_ast::CitationMode::AuthorInText,
+            "#cite(<key>, form: \"prose\", supplement: [p5])",
+        ),
+        (
+            "a key",
+            carta_ast::CitationMode::NormalCitation,
+            "#cite(label(\"a key\"), supplement: [p5])",
+        ),
+    ] {
+        let citation = carta_ast::Citation {
+            id: id.into(),
+            prefix: Vec::new(),
+            suffix: vec![str_inline(","), Inline::Space, str_inline("p5")],
+            mode,
+            note_num: 0,
+            hash: 0,
+        };
+        assert_eq!(
+            render(vec![para(vec![Inline::Cite(vec![citation], Vec::new())])]),
+            expected
+        );
+    }
+}
