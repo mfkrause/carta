@@ -216,14 +216,89 @@ fn width_percent(fraction: f64) -> u32 {
     (fraction * 100.0).floor() as u32
 }
 
-/// Emit a raw-passthrough payload verbatim when its format targets HTML, else drop it (other
-/// target formats produce no output in an HTML document).
-pub(super) fn raw_passthrough(format: &str, text: &str) -> String {
-    if matches!(format, "html" | "html5" | "html4") {
-        protect(text)
-    } else {
-        String::new()
+/// Emit a raw-passthrough payload when its format targets HTML, else drop it (other target formats
+/// produce no output in an HTML document). The payload is verbatim, except that an EPUB page is
+/// XML, so there the text around the payload's tags is escaped.
+pub(super) fn raw_passthrough(format: &str, text: &str, flavor: Flavor) -> String {
+    if !matches!(format, "html" | "html5" | "html4") {
+        return String::new();
     }
+    match flavor {
+        Flavor::Epub3 | Flavor::Epub2 => protect(&escape_markup_text(text)),
+        Flavor::Html5 | Flavor::Html4 | Flavor::Slides => protect(text),
+    }
+}
+
+/// Escape the text of a markup fragment and keep its tags, comments and character references.
+fn escape_markup_text(markup: &str) -> String {
+    let mut out = String::with_capacity(markup.len());
+    let mut rest = markup;
+    while let Some(index) = rest.find(['<', '>', '&']) {
+        let (text, tail) = rest.split_at(index);
+        out.push_str(text);
+        let kept = if tail.starts_with('<') {
+            tag_length(tail)
+        } else {
+            reference_length(tail)
+        };
+        match kept.and_then(|length| tail.split_at_checked(length)) {
+            Some((markup, after)) => {
+                out.push_str(markup);
+                rest = after;
+            }
+            None => {
+                out.push_str(match tail.as_bytes().first() {
+                    Some(b'<') => "&lt;",
+                    Some(b'>') => "&gt;",
+                    _ => "&amp;",
+                });
+                rest = tail.get(1..).unwrap_or_default();
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The length of the tag, comment, declaration or processing instruction that opens `markup`.
+fn tag_length(markup: &str) -> Option<usize> {
+    if markup.starts_with("<!--") {
+        return markup.find("-->").map(|end| end + "-->".len());
+    }
+    let opens_tag = match markup.as_bytes() {
+        [b'<', b'/', first, ..] => first.is_ascii_alphabetic(),
+        [b'<', first, ..] => first.is_ascii_alphabetic() || matches!(first, b'!' | b'?'),
+        _ => false,
+    };
+    if !opens_tag {
+        return None;
+    }
+    let mut quote = None;
+    for (index, byte) in markup.bytes().enumerate() {
+        match quote {
+            None if byte == b'>' => return Some(index + 1),
+            None if matches!(byte, b'"' | b'\'') => quote = Some(byte),
+            Some(open) if open == byte => quote = None,
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The length of the character reference that opens `markup`.
+fn reference_length(markup: &str) -> Option<usize> {
+    let (name, _) = markup.strip_prefix('&')?.split_once(';')?;
+    let valid = match name.strip_prefix('#') {
+        Some(code) => match code.strip_prefix(['x', 'X']) {
+            Some(hex) => !hex.is_empty() && hex.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            None => !code.is_empty() && code.bytes().all(|byte| byte.is_ascii_digit()),
+        },
+        None => {
+            name.starts_with(|first: char| first.is_ascii_alphabetic())
+                && name.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        }
+    };
+    valid.then_some(name.len() + 2)
 }
 
 /// Renders an [`Attr`] to its HTML attribute string (with a leading space when non-empty). The

@@ -145,6 +145,22 @@ mod image_tests {
     }
 }
 
+#[cfg(test)]
+mod raw_markup_tests {
+    use super::super::Flavor;
+    use super::super::helpers::raw_passthrough;
+
+    #[test]
+    fn an_epub_page_escapes_raw_text_and_keeps_tags_and_references() {
+        let raw = "a < b && <b class=\"x > y\">c</b> &amp; &#38; &x <!-- < --> <>";
+        assert_eq!(
+            raw_passthrough("html", raw, Flavor::Epub3),
+            "a &lt; b &amp;&amp; <b class=\"x > y\">c</b> &amp; &#38; &amp;x <!-- < --> &lt;&gt;"
+        );
+        assert_eq!(raw_passthrough("html", raw, Flavor::Html5), raw);
+    }
+}
+
 #[cfg(all(test, feature = "epub"))]
 mod xml_sanitize_tests {
     use super::super::{is_xml_char, strip_xml_invalid};

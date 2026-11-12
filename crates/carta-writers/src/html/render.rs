@@ -65,7 +65,9 @@ impl State<'_> {
             }
             Block::Header(level, attr, inlines) => self.heading(out, *level, attr, inlines),
             Block::CodeBlock(attr, text) => self.code_block(out, attr, text),
-            Block::RawBlock(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
+            Block::RawBlock(format, text) => {
+                out.push_str(&raw_passthrough(&format.0, text, self.flavor));
+            }
             Block::BlockQuote(blocks) => {
                 out.push_str("<blockquote>\n");
                 self.blocks(out, blocks);
@@ -817,7 +819,9 @@ impl State<'_> {
                     fill_math(text)
                 );
             }
-            Inline::RawInline(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
+            Inline::RawInline(format, text) => {
+                out.push_str(&raw_passthrough(&format.0, text, self.flavor));
+            }
             Inline::Link(attr, inlines, target) => self.link(out, attr, inlines, target),
             Inline::Image(attr, inlines, target) => {
                 out.push_str(&image(attr, inlines, target, self.flavor));
