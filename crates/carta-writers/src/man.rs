@@ -528,7 +528,8 @@ impl State<'_> {
 
     fn image(&mut self, out: &mut Vec<Fragment>, font: Font, alt: &[Inline], target: &Target) {
         push_text(out, "[IMAGE: ");
-        let caption: Vec<Inline> = if alt.is_empty() {
+        let names_target = matches!(alt, [Inline::Str(text)] if *text == target.url);
+        let caption: Vec<Inline> = if alt.is_empty() || names_target {
             vec![Inline::Str("image".into())]
         } else {
             alt.to_vec()
