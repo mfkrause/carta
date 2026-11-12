@@ -5,16 +5,19 @@ use std::fmt::Write as _;
 use carta_ast::{Attr, Format, Inline, MathType, QuoteType, Target, to_plain_text};
 use carta_core::media::decode_data_uri;
 
-use crate::common::{attribute_value, clean_prefix_len};
+use crate::common::{
+    Dimension, attribute_value, clean_prefix_len, dimension_inches, format_length_dimension,
+    format_percent_dimension, parse_dimension,
+};
 
 /// Render an `image(..)` call with its source, dimensions, and alt text.
 pub(super) fn image_call(attr: &Attr, alt: &[Inline], target: &Target) -> String {
     let mut args = vec![image_source(&target.url)];
-    if let Some(height) = attribute_value(attr, "height") {
-        args.push(format!("height: {}", dimension(height)));
+    if let Some(height) = attribute_value(attr, "height").and_then(dimension) {
+        args.push(format!("height: {height}"));
     }
-    if let Some(width) = attribute_value(attr, "width") {
-        args.push(format!("width: {}", dimension(width)));
+    if let Some(width) = attribute_value(attr, "width").and_then(dimension) {
+        args.push(format!("width: {width}"));
     }
     let alt_text = to_plain_text(alt);
     if !alt_text.is_empty() {
@@ -46,40 +49,22 @@ fn image_source(url: &str) -> String {
     source
 }
 
-/// A Typst length argument from an attribute value: a percentage carries a `.0` for a whole number; a
-/// bare number or pixel count converts to inches at 96 pixels per inch; any other unit passes
-/// through.
-fn dimension(value: &str) -> String {
-    if let Some(percent) = value.strip_suffix('%') {
-        if percent.contains('.') {
-            return format!("{percent}%");
-        }
-        return format!("{percent}.0%");
-    }
-    let pixels = value.strip_suffix("px").unwrap_or(value);
-    if let Ok(number) = pixels.parse::<f64>() {
-        format!("{}in", trim_number(number / 96.0))
-    } else {
-        value.to_owned()
-    }
-}
-
-/// Format a number to at most five decimal places, dropping trailing zeros and a bare decimal point.
-fn trim_number(value: f64) -> String {
-    trim_decimals(&format!("{value:.5}"))
+/// A Typst length argument from an attribute value, or `None` when the value is not a dimension. A
+/// percentage carries a `.0` for a whole number, a bare number or pixel count converts to inches,
+/// and a length keeps its unit with the number in its shortest form.
+fn dimension(value: &str) -> Option<String> {
+    let parsed = parse_dimension(value)?;
+    Some(match parsed {
+        Dimension::Percent(percent) => format_percent_dimension(percent),
+        Dimension::Length(magnitude, unit) => format_length_dimension(magnitude, unit),
+        Dimension::Pixels(_) => format_length_dimension(dimension_inches(&parsed)?, "in"),
+    })
 }
 
 /// Format a column-width percentage to at most two decimal places.
 pub(super) fn trim_percent(value: f64) -> String {
-    trim_decimals(&format!("{value:.2}"))
-}
-
-fn trim_decimals(text: &str) -> String {
-    if text.contains('.') {
-        text.trim_end_matches('0').trim_end_matches('.').to_owned()
-    } else {
-        text.to_owned()
-    }
+    let text = format!("{value:.2}");
+    text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
 /// Render a math expression as Typst. The source is translated to Typst's native math markup when

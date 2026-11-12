@@ -27,6 +27,6 @@ Loop rounds join with their padding: 1 2 3 .
 
 A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.
 
-#box(image("diagram.png", width: 1000.0pt))
+#box(image("diagram.png", width: 1000pt))
 
 The binding kept survives its statement.
