@@ -1,5 +1,6 @@
 //! Table rendering to `longtable` and nested `tabular` environments.
 
+use std::cell::RefCell;
 use std::fmt::Write as _;
 
 use carta_ast::{Alignment, Block, Cell, ColWidth, Row, Table};
@@ -35,7 +36,13 @@ pub(super) fn render_table(
         return String::new();
     }
     let nested = hl.in_table;
-    let hl = hl.table_content();
+    let caption_hl = hl.table_content();
+    let notes = RefCell::new(Vec::new());
+    let mut hl: Hl<'_> = caption_hl;
+    // Slide footnotes cannot sit in a cell: the outermost table sets their texts after itself.
+    if dialect.is_slide() && hl.table_notes.is_none() {
+        hl.table_notes = Some(&notes);
+    }
     let plan = ColumnPlan::new(table);
     let head_rows: Vec<&Row> = table.head.rows.iter().collect();
     let body_rows: Vec<&Row> = table
@@ -48,7 +55,7 @@ pub(super) fn render_table(
     let head_lines = render_section(&head_rows, &plan, true, width, dialect, wrap, smart, hl);
     let body_lines = render_section(&body_rows, &plan, false, width, dialect, wrap, smart, hl);
     let foot_lines = render_section(&foot_rows, &plan, false, width, dialect, wrap, smart, hl);
-    let caption = table_caption(table, width, dialect, wrap, smart, hl, nested);
+    let caption = table_caption(table, width, dialect, wrap, smart, caption_hl, nested);
     if budget::exhausted() {
         return String::new();
     }
@@ -108,6 +115,7 @@ pub(super) fn render_table(
         }
     }
     parts.push(format!("\\end{{{environment}}}"));
+    parts.extend(footnote_texts(&notes.into_inner()));
     let body = parts.join("\n");
 
     let rendered = if nested {
@@ -123,6 +131,18 @@ pub(super) fn render_table(
     };
     budget::charge(rendered.len());
     rendered
+}
+
+/// The lines that set a slide table's footnote texts. Each mark stepped the footnote counter, so
+/// the texts count up again from the first mark.
+fn footnote_texts(notes: &[String]) -> Option<String> {
+    let rewind = notes.len().checked_sub(1)?;
+    let texts = notes.join("\n\\addtocounter{footnote}{1}\n");
+    Some(if rewind == 0 {
+        texts
+    } else {
+        format!("\\addtocounter{{footnote}}{{-{rewind}}}\n{texts}")
+    })
 }
 
 /// Render the table head, with a page header terminator for `longtable`.

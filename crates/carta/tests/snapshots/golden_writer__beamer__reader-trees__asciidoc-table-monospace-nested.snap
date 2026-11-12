@@ -10,10 +10,11 @@ expression: output
 \midrule\noalign{}
 \endhead
 \href{x}{\texttt{l}} \\
-\footnote<\value{beamerpauses}->[frame]{\texttt{note}} \\
+\footnotemark{} \\
 \midrule\noalign{}
 {\texttt{span}} \\
 \bottomrule\noalign{}
 \end{longtable}
+\footnotetext{\texttt{note}}
 }
 \end{frame}

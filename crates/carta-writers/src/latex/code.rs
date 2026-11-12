@@ -1,5 +1,6 @@
 //! Code-block and inline-code rendering, with optional syntax highlighting.
 
+use std::cell::RefCell;
 #[cfg(feature = "highlight")]
 use std::fmt::Write as _;
 
@@ -30,6 +31,8 @@ pub(crate) struct Hl<'a> {
     pub(super) in_table: bool,
     pub(super) stacked_lines: bool,
     literate_code: bool,
+    /// The footnote texts of the enclosing slide table, which follow the table.
+    pub(super) table_notes: Option<&'a RefCell<Vec<String>>>,
 }
 
 impl Hl<'_> {
@@ -48,6 +51,7 @@ pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
         in_table: false,
         stacked_lines: false,
         literate_code: options.extensions.contains(Extension::LiterateHaskell),
+        table_notes: None,
     }
 }
 #[cfg(not(feature = "highlight"))]
@@ -57,6 +61,7 @@ pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
         in_table: false,
         stacked_lines: false,
         literate_code: options.extensions.contains(Extension::LiterateHaskell),
+        table_notes: None,
     }
 }
 

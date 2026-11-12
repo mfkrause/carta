@@ -492,7 +492,7 @@ enum NoteContent<'a> {
     Code(String),
 }
 
-/// Render a footnote with scoped continuation indentation and literal code at the margin.
+/// Render a footnote. In a slide table the cell keeps only the mark and the text follows the table.
 fn note(
     blocks: &[Block],
     out: &mut InlineLayout,
@@ -502,10 +502,42 @@ fn note(
     smart: bool,
     hl: Hl<'_>,
 ) {
+    if let Some(notes) = hl.table_notes {
+        let mut text = InlineLayout::default();
+        note_text(
+            "\\footnotetext{",
+            blocks,
+            &mut text,
+            base_width,
+            dialect,
+            wrap,
+            smart,
+            hl,
+        );
+        notes.borrow_mut().push(text.render(base_width, wrap));
+        out.push(Piece::text("\\footnotemark{}"));
+        return;
+    }
     let opening = match dialect {
         Dialect::Article => "\\footnote{",
         Dialect::Slide { .. } => "\\footnote<\\value{beamerpauses}->[frame]{",
     };
+    note_text(opening, blocks, out, base_width, dialect, wrap, smart, hl);
+}
+
+/// Render a footnote's text after `opening`, with scoped continuation indentation and literal code
+/// at the margin.
+#[allow(clippy::too_many_arguments)]
+fn note_text(
+    opening: &str,
+    blocks: &[Block],
+    out: &mut InlineLayout,
+    base_width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+    smart: bool,
+    hl: Hl<'_>,
+) {
     out.push(Piece::text(opening));
     let width = base_width.saturating_sub(2);
     let mut ends_with_code = false;
