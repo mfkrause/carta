@@ -421,6 +421,7 @@ pub mod presets {
     /// The legacy GitHub Markdown dialect (`markdown_github`): the variants that exist and affect
     /// writer output. No smart typography, math, spans, or fenced divs.
     pub const MARKDOWN_GITHUB: Extensions = Extensions::from_list(&[
+        Extension::AllSymbolsEscapable,
         Extension::Strikeout,
         Extension::PipeTables,
         Extension::Footnotes,
@@ -458,6 +459,7 @@ pub mod presets {
     /// surface would not change this dialect's writer output, so it is left out of the preset and math
     /// is emitted as `$…$`.
     pub const MARKDOWN_MMD: Extensions = Extensions::from_list(&[
+        Extension::AllSymbolsEscapable,
         Extension::AutoIdentifiers,
         Extension::BacktickCodeBlocks,
         Extension::DefinitionLists,

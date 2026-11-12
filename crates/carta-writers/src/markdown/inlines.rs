@@ -461,7 +461,7 @@ impl State {
 
     /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,
     /// `*`, `[`, `]`, `<`, `>`), the math delimiter `$`, and entity-introducing `&` are always
-    /// escaped; `|` only when pipe tables make it a cell separator; `~` and `^` only when subscript
+    /// escaped (`<` and `>` as entities where a backslash cannot escape them); `|` only when pipe tables make it a cell separator; `~` and `^` only when subscript
     /// and superscript have native syntax; and a word-initial `@` only when citations do. A `#`
     /// that opens the text is escaped, since it could open a heading; where a heading needs a space
     /// after its marker (`space_in_atx_header`), only text made of `#` alone is at risk. An `_` is
@@ -534,6 +534,8 @@ impl State {
                 '…' | '—' | '–' | '“' | '”' | '‘' | '’' if smart => {
                     out.push_str(smart_ascii(ch, next, self.config.has(Extension::OldDashes)));
                 }
+                '<' if self.angle_entities() => out.push_str("&lt;"),
+                '>' if self.angle_entities() => out.push_str("&gt;"),
                 _ if self.takes_backslash(ch, next) => {
                     out.push('\\');
                     out.push(ch);
@@ -571,6 +573,12 @@ impl State {
             '-' => self.config.has(Extension::Smart) && next == Some('-'),
             _ => false,
         }
+    }
+
+    /// Whether `<` and `>` are written as entities: a `markdown` dialect in which a backslash
+    /// escapes only a fixed set of characters (no `all_symbols_escapable`) cannot escape them.
+    fn angle_entities(&self) -> bool {
+        !self.config.cmark && !self.config.has(Extension::AllSymbolsEscapable)
     }
 
     /// Whether text that opens with `#` could be read as a heading marker.

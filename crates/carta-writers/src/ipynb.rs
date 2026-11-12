@@ -16,6 +16,7 @@ use crate::markdown::MarkdownWriter;
 /// The markdown dialect a notebook's cells are written in when the caller selects no extensions:
 /// the constructs a notebook's markdown cells render natively.
 const CELL_MARKDOWN_EXTENSIONS: Extensions = Extensions::from_list(&[
+    Extension::AllSymbolsEscapable,
     Extension::Strikeout,
     Extension::PipeTables,
     Extension::BacktickCodeBlocks,
