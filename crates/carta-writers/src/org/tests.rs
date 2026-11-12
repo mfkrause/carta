@@ -216,6 +216,28 @@ fn citation_suffix_opens_with_a_locator_or_a_comma() {
 }
 
 #[test]
+fn source_block_attributes_become_header_arguments() {
+    let attr = Attr {
+        id: Text::default(),
+        classes: vec!["python".into(), "numberLines".into()],
+        attributes: vec![
+            ("startFrom".into(), "5".into()),
+            ("session".into(), "main".into()),
+        ],
+    };
+    let document = Document {
+        blocks: vec![Block::CodeBlock(Box::new(attr), "x".into())],
+        ..Document::default()
+    };
+    assert_eq!(
+        OrgWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap(),
+        "#+begin_src python -n 5 :session main\nx\n#+end_src"
+    );
+}
+
+#[test]
 fn tight_list_items_keep_their_own_trailing_space() {
     let document = Document {
         blocks: vec![Block::BulletList(vec![

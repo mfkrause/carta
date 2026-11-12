@@ -1116,8 +1116,8 @@ fn properties(attr: &Attr) -> String {
 }
 
 /// Render an Org code block: a plain `example` block when it carries no class, otherwise a `src` block
-/// tagged with its language (after `language_prefix`) and line-numbering switch. A leading identifier
-/// becomes a `#+name:` line.
+/// tagged with its language (after `language_prefix`), its line-numbering switch, and its key/value
+/// attributes as header arguments. A leading identifier becomes a `#+name:` line.
 fn code_block(attr: &Attr, text: &str, language_prefix: &str) -> String {
     let content = escape_code(text);
     let block = if let Some(class) = attr.classes.first() {
@@ -1136,6 +1136,14 @@ fn code_block(attr: &Attr, text: &str, language_prefix: &str) -> String {
                     begin.push_str(start);
                 }
                 None => begin.push_str(" -n"),
+            }
+        }
+        for (key, value) in &attr.attributes {
+            if key != "startFrom" {
+                begin.push_str(" :");
+                begin.push_str(key);
+                begin.push(' ');
+                begin.push_str(value);
             }
         }
         fence(&begin, &content, "#+end_src")
