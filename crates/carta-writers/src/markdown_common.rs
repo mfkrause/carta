@@ -216,7 +216,6 @@ pub(crate) fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
 
 /// Append an HTML opening tag that may fold between its attributes. The first attribute stays on
 /// the line of the tag name.
-#[cfg_attr(not(any(feature = "gfm", feature = "markdown")), allow(dead_code))]
 pub(crate) fn push_open_tag(out: &mut Vec<Piece>, tag: &str) {
     let start = out.len();
     push_html(out, tag, true);

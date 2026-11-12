@@ -16,7 +16,8 @@ use crate::common::{
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, autolink, begins_character_reference, begins_named_entity,
     code_span, destination, indent_code, is_autolink_class, is_html_format, is_word_boundary,
-    longest_backtick_run, needs_separator, offset_horizontal_rule, push_html, wiki_link,
+    longest_backtick_run, needs_separator, offset_horizontal_rule, push_html, push_open_tag,
+    wiki_link,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -155,11 +156,9 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(self.width),
             Block::Div(attr, blocks) => {
-                let open = fill(
-                    &html_tag_pieces(&format!("<div{}>", render_html_attr(attr))),
-                    width,
-                    self.wrap,
-                );
+                let mut tag = Vec::new();
+                push_open_tag(&mut tag, &format!("<div{}>", render_html_attr(attr)));
+                let open = fill(&tag, width, self.wrap);
                 let body = self.blocks_to_string(blocks, width, false);
                 if body.is_empty() {
                     format!("{open}\n\n</div>")
@@ -388,14 +387,7 @@ impl State {
                     if self.in_anchor {
                         push_html(out, &tag, true);
                     } else {
-                        let mut pieces = html_tag_pieces(&tag);
-                        if let Some(space) = pieces
-                            .iter_mut()
-                            .find(|piece| matches!(piece, Piece::Space))
-                        {
-                            *space = Piece::text(" ");
-                        }
-                        out.extend(pieces);
+                        push_open_tag(out, &tag);
                     }
                     self.extend_pieces(inlines, out, false);
                     out.push(Piece::text("</span>"));
@@ -590,34 +582,6 @@ impl NotesHost for State {
     fn base_width(&self) -> usize {
         self.width
     }
-}
-
-/// Split a synthesized HTML tag into fill pieces breakable only at the spaces that separate its
-/// attributes, never inside a quoted value. Used in place of a single text run so the line filler can
-/// wrap a long opening tag at the fill column the way running text wraps.
-fn html_tag_pieces(tag: &str) -> Vec<Piece> {
-    let mut pieces = Vec::new();
-    let mut word = String::new();
-    let mut in_value = false;
-    for ch in tag.chars() {
-        match ch {
-            '"' => {
-                in_value = !in_value;
-                word.push(ch);
-            }
-            ' ' if !in_value => {
-                if !word.is_empty() {
-                    pieces.push(Piece::text(std::mem::take(&mut word)));
-                }
-                pieces.push(Piece::Space);
-            }
-            _ => word.push(ch),
-        }
-    }
-    if !word.is_empty() {
-        pieces.push(Piece::text(word));
-    }
-    pieces
 }
 
 /// Whether the next inline is a bare `1.` or `1)`: an ordered-list marker whose start number is one,
