@@ -28,12 +28,11 @@ Left Right
 
 A table with a horizontal span follows.
 
-=========  =====
-Wide span  End
----------- -----
-one        three
----------- -----
-=========  =====
++---------------+-------+
+| Wide span     | End   |
++---------------+-------+
+| one           | three |
++---------------+-------+
 
 A table with a vertical span follows.
 

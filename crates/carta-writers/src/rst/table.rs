@@ -175,11 +175,6 @@ impl State {
             measured
         };
 
-        if permits_simple && simple.iter().sum::<usize>() + columns.saturating_sub(1) <= self.width
-        {
-            return self.simple_table(table, &simple);
-        }
-
         let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
             .into_iter()
             .flatten()
@@ -187,6 +182,15 @@ impl State {
             .copied()
             .filter(|&(_, span)| span > 1)
             .collect();
+        // A simple table cannot align a span over a column that has no field of its own.
+        let aligns_spans = colspans.is_empty() || !simple.contains(&0);
+        if permits_simple
+            && aligns_spans
+            && simple.iter().sum::<usize>() + columns.saturating_sub(1) <= self.width
+        {
+            return self.simple_table(table, &simple);
+        }
+
         let content = grid::grid_content_widths(
             &table.col_specs,
             &natural,
@@ -339,10 +343,11 @@ fn cell_ends_with_space(content: &[Block]) -> bool {
     )
 }
 
-/// A simple table's `=` rule: a run of `=` per column width, joined by single spaces.
+/// A simple table's `=` rule: a run of `=` per column with content, joined by single spaces.
 fn equals_rule(widths: &[usize]) -> String {
     widths
         .iter()
+        .filter(|width| **width > 0)
         .map(|width| "=".repeat(*width))
         .collect::<Vec<_>>()
         .join(" ")
