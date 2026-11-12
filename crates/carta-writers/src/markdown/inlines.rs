@@ -54,11 +54,14 @@ impl State {
                 };
                 out.push(Piece::text(text));
             }
-            Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
-            Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
+            Inline::Emph(inlines) => match inlines.as_slice() {
+                [Inline::Emph(inner)] => self.extend_pieces(inner, out),
+                _ => self.wrap_markup("*", "*", inlines, out),
+            },
+            Inline::Strong(inlines) => self.wrap_markup("**", "**", inlines, out),
             Inline::Strikeout(inlines) => {
                 if self.config.has(Extension::Strikeout) {
-                    self.wrap_markup("~~", inlines, out);
+                    self.wrap_markup("~~", "~~", inlines, out);
                 } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("s", inlines, out);
                 } else {
@@ -67,16 +70,16 @@ impl State {
             }
             Inline::Underline(inlines) => {
                 if self.config.span_syntax() {
-                    self.wrap_span(&underline_attr(), inlines, out);
+                    self.wrap_markup("[", "]{.underline}", inlines, out);
                 } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("u", inlines, out);
                 } else {
-                    self.wrap_markup("*", inlines, out);
+                    self.wrap_markup("*", "*", inlines, out);
                 }
             }
             Inline::Superscript(inlines) => {
                 if self.config.has(Extension::Superscript) {
-                    self.wrap_markup("^", inlines, out);
+                    self.wrap_native_script("^", inlines, out);
                 } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("sup", inlines, out);
                 } else {
@@ -85,7 +88,7 @@ impl State {
             }
             Inline::Subscript(inlines) => {
                 if self.config.has(Extension::Subscript) {
-                    self.wrap_markup("~", inlines, out);
+                    self.wrap_native_script("~", inlines, out);
                 } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("sub", inlines, out);
                 } else {
@@ -302,19 +305,52 @@ impl State {
         self.inlines_oneline(inlines)
     }
 
-    fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
-        out.push(Piece::text(marker.to_owned()));
-        self.extend_pieces(inlines, out);
-        out.push(Piece::text(marker.to_owned()));
+    /// Wrap inline content in a delimiter pair. Spaces at either edge of the content move outside
+    /// the pair, where they cannot stop a delimiter from flanking its text; content that holds
+    /// nothing else gets no delimiters.
+    fn wrap_markup(&mut self, open: &str, close: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        let body = self.pieces(inlines);
+        let is_space = |piece: &Piece| matches!(piece, Piece::Space | Piece::Soft);
+        let leading = body.iter().take_while(|piece| is_space(piece)).count();
+        let trailing = body
+            .iter()
+            .rev()
+            .take_while(|piece| is_space(piece))
+            .count();
+        let core = body.len().saturating_sub(leading + trailing);
+        let mut body = body.into_iter();
+        out.extend(body.by_ref().take(leading));
+        if core > 0 {
+            out.push(Piece::text(open.to_owned()));
+            out.extend(body.by_ref().take(core));
+            out.push(Piece::text(close.to_owned()));
+        }
+        out.extend(body);
+    }
+
+    fn wrap_native_script(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if self.config.cmark {
+            self.wrap_markup(marker, marker, inlines, out);
+        } else if !inlines.is_empty() {
+            out.push(Piece::text(marker.to_owned()));
+            self.extend_pieces(inlines, out);
+            out.push(Piece::text(marker.to_owned()));
+        }
     }
 
     fn wrap_tag(&mut self, tag: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if inlines.is_empty() {
+            return;
+        }
         out.push(Piece::text(format!("<{tag}>")));
         self.extend_pieces(inlines, out);
         out.push(Piece::text(format!("</{tag}>")));
     }
 
     fn wrap_script(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if inlines.is_empty() {
+            return;
+        }
         out.push(Piece::text(format!("{marker}(")));
         self.extend_pieces(inlines, out);
         out.push(Piece::text(")"));
@@ -578,13 +614,6 @@ fn downgrade_smart(text: &str, old_dashes: bool) -> String {
         }
     }
     out
-}
-
-fn underline_attr() -> Attr {
-    Attr {
-        classes: vec!["underline".into()],
-        ..Attr::default()
-    }
 }
 
 fn smallcaps_attr() -> Attr {
