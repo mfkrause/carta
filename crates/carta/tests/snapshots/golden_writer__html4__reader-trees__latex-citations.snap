@@ -2,5 +2,5 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-<p>As shown by <span class="citation"></span> and
-<span class="citation"></span>, this holds.</p>
+<p>As shown by <span class="citation"></span> and <span
+class="citation"></span>, this holds.</p>

@@ -830,11 +830,11 @@ impl State<'_> {
                         .collect();
                     let _ = write!(
                         out,
-                        "<span class=\"citation\"{BREAK}data-cites=\"{}\">",
+                        "<span{BREAK}class=\"citation\"{BREAK}data-cites=\"{}\">",
                         escape_attr(&ids.join(" "))
                     );
                 } else {
-                    out.push_str("<span class=\"citation\">");
+                    let _ = write!(out, "<span{BREAK}class=\"citation\">");
                 }
                 self.inlines(out, inlines);
                 out.push_str("</span>");
