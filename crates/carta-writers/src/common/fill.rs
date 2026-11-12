@@ -396,6 +396,7 @@ fn fill_pieces<S: Sink>(
                     pending_space,
                     &word,
                     word_width,
+                    0,
                     width,
                     word_indent,
                 );
@@ -418,6 +419,24 @@ fn fill_pieces<S: Sink>(
         }
         match pieces.get(index) {
             Some(Piece::Text(text)) => {
+                if !word.is_empty()
+                    && let Some(trailing) = scope_boundary(pieces, scopes, index)
+                {
+                    place_word(
+                        sink,
+                        &mut column,
+                        &mut at_line_start,
+                        pending_space,
+                        &word,
+                        word_width,
+                        trailing,
+                        width,
+                        word_indent,
+                    );
+                    word.clear();
+                    word_width = 0;
+                    pending_space = false;
+                }
                 if word.is_empty() {
                     word_indent = indents.get(index).copied().unwrap_or(0);
                 }
@@ -434,6 +453,7 @@ fn fill_pieces<S: Sink>(
                     pending_space,
                     &word,
                     word_width,
+                    0,
                     width,
                     word_indent,
                 );
@@ -454,6 +474,7 @@ fn fill_pieces<S: Sink>(
                     pending_space,
                     &word,
                     word_width,
+                    0,
                     width,
                     word_indent,
                 );
@@ -469,6 +490,7 @@ fn fill_pieces<S: Sink>(
                     pending_space,
                     &word,
                     word_width,
+                    0,
                     width,
                     word_indent,
                 );
@@ -492,6 +514,7 @@ fn fill_pieces<S: Sink>(
         pending_space,
         &word,
         word_width,
+        0,
         width,
         word_indent,
     );
@@ -676,6 +699,8 @@ fn line_end_column(rendered: &str, start_col: usize) -> usize {
 /// several paragraphs) does. Such a word's first line is what must fit after the preceding space,
 /// and its last line sets the column the following text continues from; only its first line shares
 /// the line it lands on, so the rest cannot push later words off the column.
+///
+/// `trailing` is the width of text that must fit on the line with the word but is placed later.
 #[allow(clippy::too_many_arguments)]
 fn place_word<S: Sink>(
     sink: &mut S,
@@ -684,6 +709,7 @@ fn place_word<S: Sink>(
     pending_space: bool,
     word: &[&str],
     word_width: usize,
+    trailing: usize,
     width: usize,
     indent: usize,
 ) {
@@ -697,7 +723,7 @@ fn place_word<S: Sink>(
             *column += indent;
         }
         *at_line_start = false;
-    } else if pending_space && *column > 0 && *column + 1 + first_line > width {
+    } else if pending_space && *column > 0 && *column + 1 + first_line + trailing > width {
         sink.newline();
         *column = indent;
         if indent > 0 {
@@ -716,6 +742,35 @@ fn place_word<S: Sink>(
     } else {
         *column + word_width
     };
+}
+
+/// Whether an indentation scope starts or ends at `index`, where the gathered word is placed apart
+/// from the scope's content. The value is the width of the text that directly follows a starting
+/// scope: that text stays on the line of the word before the scope.
+fn scope_boundary(pieces: &[Piece], scopes: &[IndentScope], index: usize) -> Option<usize> {
+    let Some(scope) = scopes.iter().find(|scope| scope.start == index) else {
+        return scopes.iter().any(|scope| scope.end == index).then_some(0);
+    };
+    let mut width = 0;
+    let mut after = scope.end;
+    loop {
+        if let Some(next) = scopes
+            .iter()
+            .find(|scope| scope.start == after && scope.end > after)
+        {
+            after = next.end;
+            continue;
+        }
+        let Some(Piece::Text(text)) = pieces.get(after) else {
+            return Some(width);
+        };
+        let line = text.split('\n').next().unwrap_or_default();
+        width += display_width(line);
+        if line.len() < text.len() {
+            return Some(width);
+        }
+        after += 1;
+    }
 }
 
 /// A gathered word's first-line width, whether it spans more than one line, and its last-line width.
@@ -798,7 +853,7 @@ mod tests {
 
     #[cfg(feature = "latex")]
     #[test]
-    fn inline_scope_indents_only_wrapped_body_lines() {
+    fn inline_scope_content_fills_apart_from_its_delimiters() {
         let pieces = vec![
             Piece::text("A"),
             Piece::Space,
@@ -807,7 +862,8 @@ mod tests {
             Piece::Space,
             Piece::text("beta"),
             Piece::Space,
-            Piece::text("gamma}"),
+            Piece::text("gamma"),
+            Piece::text("}"),
             Piece::Space,
             Piece::text("tail"),
         ];
@@ -816,9 +872,19 @@ mod tests {
             end: 8,
             indent: Indent::Add(2),
         }];
+        // The opening needs room for the closing brace only, not for the first word.
         assert_eq!(
-            fill_indented(&pieces, &scopes, 20, WrapMode::Auto),
-            "A\nnote\\footnote{alpha\n  beta gamma} tail"
+            fill_indented(&pieces, &scopes, 17, WrapMode::Auto),
+            "A note\\footnote{alpha\n  beta gamma}\ntail"
+        );
+        assert_eq!(
+            fill_indented(&pieces, &scopes, 16, WrapMode::Auto),
+            "A\nnote\\footnote{alpha\n  beta gamma}\ntail"
+        );
+        // The last word fits without the closing brace.
+        assert_eq!(
+            fill_indented(&pieces, &scopes, 12, WrapMode::Auto),
+            "A\nnote\\footnote{alpha\n  beta gamma}\ntail"
         );
     }
 

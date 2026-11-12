@@ -493,11 +493,11 @@ fn footnote_continuations_indent_without_indenting_following_text() {
     for (width, expected) in [
         (
             20,
-            "A\nnote\\footnote{alpha\n  beta gamma delta\n  epsilon zeta eta\n  theta} follows.",
+            "A note\\footnote{alpha\n  beta gamma delta\n  epsilon zeta eta\n  theta} follows.",
         ),
         (
             17,
-            "A\nnote\\footnote{alpha\n  beta gamma\n  delta epsilon\n  zeta eta theta}\nfollows.",
+            "A note\\footnote{alpha\n  beta gamma\n  delta epsilon\n  zeta eta theta}\nfollows.",
         ),
     ] {
         assert_eq!(render_columns(blocks.clone(), width), expected);

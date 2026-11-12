@@ -16,8 +16,8 @@ A spaced quotation.
 ---~ A. Author
 \end{quote}
 
-A footnote body is trimmed
-\footnote<\value{beamerpauses}->[frame]{Trimmed on both ends.} here.
+A footnote body is trimmed \footnote<\value{beamerpauses}->[frame]{Trimmed
+  on both ends.} here.
 
 \begin{figure}
 \centering
