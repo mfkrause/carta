@@ -17,75 +17,78 @@ use carta_core::container::zip;
 use carta_core::media::{base64_encode, sha1_hex};
 
 /// Chapter bodies for the EPUB controls in `tools/conformance-suite/correctness.py`.
+/// The `corpus/ast` cases whose pages a conformance control checks, as dialect, group and label.
+const CONTROL_CASES: &[(&str, &str, &str)] = &[
+    ("epub2", "common", "image-external"),
+    ("epub2", "common", "literal-control-chars"),
+    ("epub2", "common", "ordered-start"),
+    ("epub2", "common", "span-semantic"),
+    ("epub2", "common", "underline-smallcaps"),
+    ("epub2", "reader-trees", "asciidoc-cross-references"),
+    ("epub2", "reader-trees", "asciidoc-definition-macro-bodies"),
+    ("epub2", "reader-trees", "asciidoc-definition-terms"),
+    ("epub2", "reader-trees", "asciidoc-formatted-shorthand"),
+    ("epub2", "reader-trees", "asciidoc-heading-macro-text"),
+    (
+        "epub2",
+        "reader-trees",
+        "asciidoc-heading-unresolved-attributes",
+    ),
+    ("epub2", "reader-trees", "asciidoc-images"),
+    ("epub2", "reader-trees", "asciidoc-inline-macros"),
+    ("epub2", "reader-trees", "asciidoc-table-block-anchors"),
+    (
+        "epub2",
+        "reader-trees",
+        "asciidoc-table-in-definition-continuation",
+    ),
+    ("epub2", "reader-trees", "asciidoc-table-monospace-nested"),
+    ("epub2", "reader-trees", "asciidoc-table-title-counters"),
+    ("epub2", "reader-trees", "asciidoc-user-attribute-names"),
+    ("epub2", "reader-trees", "docbook-inline"),
+    ("epub2", "reader-trees", "docbook-media"),
+    ("epub2", "reader-trees", "docbook-nested-documents"),
+    ("epub2", "reader-trees", "ipynb-version-three"),
+    ("epub2", "reader-trees", "jira-color-inline-multiline"),
+    ("epub2", "reader-trees", "latex-emphasis"),
+    ("epub2", "reader-trees", "latex-figures"),
+    ("epub2", "reader-trees", "latex-raised-boxes"),
+    ("epub2", "reader-trees", "org-internal-links"),
+    ("epub2", "reader-trees", "rst-math-directive-label"),
+    ("epub2", "reader-trees", "rtf-hyperlink-formatted"),
+    ("epub2", "reader-trees", "typst-content-spacing"),
+    ("epub2", "reader-trees", "typst-labels-references"),
+    ("epub2", "table", "table-caption-blocks"),
+    ("epub2", "table", "table-caption-div"),
+    ("epub2", "table", "table-empty"),
+    ("epub2", "table", "table-foot"),
+    ("epub2", "task-list", "checkboxes"),
+    ("epub3", "common", "image-external"),
+    ("epub3", "common", "literal-control-chars"),
+    ("epub3", "reader-trees", "asciidoc-cross-references"),
+    ("epub3", "reader-trees", "asciidoc-definition-macro-bodies"),
+    (
+        "epub3",
+        "reader-trees",
+        "asciidoc-heading-unresolved-attributes",
+    ),
+    ("epub3", "reader-trees", "asciidoc-images"),
+    ("epub3", "reader-trees", "asciidoc-inline-macros"),
+    ("epub3", "reader-trees", "asciidoc-table-monospace-nested"),
+    ("epub3", "reader-trees", "asciidoc-user-attribute-names"),
+    ("epub3", "reader-trees", "docbook-media"),
+    ("epub3", "reader-trees", "docbook-nested-documents"),
+    ("epub3", "reader-trees", "latex-figures"),
+    ("epub3", "reader-trees", "latex-raised-boxes"),
+    ("epub3", "reader-trees", "typst-content-spacing"),
+    ("epub3", "reader-trees", "typst-labels-references"),
+];
+
 #[cfg(feature = "read-json")]
 #[test]
 fn epub_control_body_snapshots() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/ast");
-    for (dialect, group, case) in [
-        ("epub2", "common", "image-external"),
-        ("epub2", "common", "literal-control-chars"),
-        ("epub2", "common", "ordered-start"),
-        ("epub2", "common", "span-semantic"),
-        ("epub2", "common", "underline-smallcaps"),
-        ("epub2", "reader-trees", "asciidoc-cross-references"),
-        ("epub2", "reader-trees", "asciidoc-definition-macro-bodies"),
-        ("epub2", "reader-trees", "asciidoc-definition-terms"),
-        ("epub2", "reader-trees", "asciidoc-formatted-shorthand"),
-        ("epub2", "reader-trees", "asciidoc-heading-macro-text"),
-        (
-            "epub2",
-            "reader-trees",
-            "asciidoc-heading-unresolved-attributes",
-        ),
-        ("epub2", "reader-trees", "asciidoc-images"),
-        ("epub2", "reader-trees", "asciidoc-inline-macros"),
-        ("epub2", "reader-trees", "asciidoc-table-block-anchors"),
-        (
-            "epub2",
-            "reader-trees",
-            "asciidoc-table-in-definition-continuation",
-        ),
-        ("epub2", "reader-trees", "asciidoc-table-monospace-nested"),
-        ("epub2", "reader-trees", "asciidoc-table-title-counters"),
-        ("epub2", "reader-trees", "asciidoc-user-attribute-names"),
-        ("epub2", "reader-trees", "docbook-inline"),
-        ("epub2", "reader-trees", "docbook-media"),
-        ("epub2", "reader-trees", "docbook-nested-documents"),
-        ("epub2", "reader-trees", "ipynb-version-three"),
-        ("epub2", "reader-trees", "jira-color-inline-multiline"),
-        ("epub2", "reader-trees", "latex-emphasis"),
-        ("epub2", "reader-trees", "latex-figures"),
-        ("epub2", "reader-trees", "latex-raised-boxes"),
-        ("epub2", "reader-trees", "org-internal-links"),
-        ("epub2", "reader-trees", "rst-math-directive-label"),
-        ("epub2", "reader-trees", "rtf-hyperlink-formatted"),
-        ("epub2", "reader-trees", "typst-content-spacing"),
-        ("epub2", "reader-trees", "typst-labels-references"),
-        ("epub2", "table", "table-caption-blocks"),
-        ("epub2", "table", "table-caption-div"),
-        ("epub2", "table", "table-empty"),
-        ("epub2", "table", "table-foot"),
-        ("epub2", "task-list", "checkboxes"),
-        ("epub3", "common", "image-external"),
-        ("epub3", "common", "literal-control-chars"),
-        ("epub3", "reader-trees", "asciidoc-cross-references"),
-        ("epub3", "reader-trees", "asciidoc-definition-macro-bodies"),
-        (
-            "epub3",
-            "reader-trees",
-            "asciidoc-heading-unresolved-attributes",
-        ),
-        ("epub3", "reader-trees", "asciidoc-images"),
-        ("epub3", "reader-trees", "asciidoc-inline-macros"),
-        ("epub3", "reader-trees", "asciidoc-table-monospace-nested"),
-        ("epub3", "reader-trees", "asciidoc-user-attribute-names"),
-        ("epub3", "reader-trees", "docbook-media"),
-        ("epub3", "reader-trees", "docbook-nested-documents"),
-        ("epub3", "reader-trees", "latex-figures"),
-        ("epub3", "reader-trees", "latex-raised-boxes"),
-        ("epub3", "reader-trees", "typst-content-spacing"),
-        ("epub3", "reader-trees", "typst-labels-references"),
-    ] {
+    for &(dialect, group, case) in CONTROL_CASES {
         let input = fs::read(corpus.join(group).join(format!("{case}.json"))).unwrap();
         let (document, media) = read_document("json", &input, &ReaderOptions::default()).unwrap();
         let Output::Bytes(bytes) =
@@ -99,20 +102,26 @@ fn epub_control_body_snapshots() {
         for entry in &entries {
             let text = std::str::from_utf8(&entry.data).unwrap_or_default();
             // A page contributes its body; the NCX table of contents contributes all of its text.
-            let part = if entry.name.ends_with(".xhtml") {
-                text.split_once("<body")
-                    .and_then(|(_, rest)| rest.split_once(">\n"))
-                    .unwrap()
-                    .1
-                    .split_once("</body>")
-                    .unwrap()
-                    .0
-            } else if entry.name.ends_with(".ncx") {
-                text
-            } else {
-                continue;
+            let part = match Path::new(&entry.name)
+                .extension()
+                .and_then(|extension| extension.to_str())
+            {
+                Some("xhtml") => {
+                    text.split_once("<body")
+                        .and_then(|(_, rest)| rest.split_once(">\n"))
+                        .unwrap()
+                        .1
+                        .split_once("</body>")
+                        .unwrap()
+                        .0
+                }
+                Some("ncx") => text,
+                _ => continue,
             };
-            content.push_str(&format!("<!-- {} -->\n{part}", entry.name));
+            content.push_str("<!-- ");
+            content.push_str(&entry.name);
+            content.push_str(" -->\n");
+            content.push_str(part);
         }
         insta::assert_snapshot!(format!("{dialect}_body__{group}__{case}"), content);
     }
