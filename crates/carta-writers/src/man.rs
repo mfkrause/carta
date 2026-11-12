@@ -314,16 +314,15 @@ impl State<'_> {
         out
     }
 
+    /// A figure's content, then its caption as ordinary blocks.
     fn figure(&mut self, caption: &Caption, items: &[Block]) -> String {
-        let mut out = self.blocks(items);
-        let caption_text = self.fill_inlines(&caption_inlines(&caption.long));
-        if !caption_text.is_empty() {
-            if !out.is_empty() {
-                out.push('\n');
-            }
-            out.push_str(&caption_text);
+        let content = self.blocks(items);
+        let caption = self.blocks(&caption.long);
+        if content.is_empty() || caption.is_empty() {
+            content + &caption
+        } else {
+            format!("{content}\n{caption}")
         }
-        out
     }
 
     fn table(&mut self, table: &Table) -> String {
@@ -1031,15 +1030,6 @@ fn raw_passthrough(format: &Format, text: &str) -> String {
     } else {
         String::new()
     }
-}
-
-/// The block-level caption flattened to inline content for a one-line rendering.
-fn caption_inlines(blocks: &[Block]) -> Vec<Inline> {
-    crate::common::caption_runs(blocks)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect()
 }
 
 /// Escape literal text for roff: backslash and roff special characters become their `\(xx` forms or
