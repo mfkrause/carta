@@ -114,6 +114,9 @@ WRITER = {
     ("rst", "reader-trees", "rtf-bookmark"): DROPPED_TARGET,
     ("rst", "reader-trees", "rtf-bookmark-empty"): DROPPED_TARGET,
     ("rst", "reader-trees", "typst-labels-references"): DROPPED_TARGET,
+    ("typst", "reader-trees", "asciidoc-table-cell-contexts"): (
+        "Pandoc opens a cell with a bare '==', which Typst reads as a heading."
+    ),
 }
 
 XHTML11 = "which XHTML 1.1 does not allow"
