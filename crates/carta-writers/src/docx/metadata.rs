@@ -27,7 +27,8 @@ fn plain(value: &MetaValue) -> String {
         MetaValue::MetaBlocks(blocks) => {
             carta_ast::to_plain_text(carta_ast::single_block_inlines(blocks))
         }
-        MetaValue::MetaBool(flag) => flag.to_string(),
+        MetaValue::MetaBool(true) => "True".to_owned(),
+        MetaValue::MetaBool(false) => "False".to_owned(),
         MetaValue::MetaList(items) => items.iter().map(plain).collect::<Vec<_>>().join("; "),
         MetaValue::MetaMap(_) => String::new(),
     }
