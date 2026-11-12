@@ -46,6 +46,7 @@ BROKEN_KEY_SPAN = (
 DROPPED_ANCHOR = "Pandoc drops the anchor of a figure without content, so the link to it breaks."
 DROPPED_CAPTION = "Pandoc drops the caption of a figure whose image is in a paragraph."
 HTML4_FOOT = "Pandoc puts tfoot after tbody, which HTML 4 forbids."
+CELL_PARAGRAPH = "Pandoc's paragraph macro in the cell adds a large indent and widens the table."
 
 # (target, feature, case) -> reason. A `reader-trees` case is the tree that carta reads from the
 # `corpus/text` case of that name, so its entry also covers that e2e conversion.
@@ -62,6 +63,13 @@ WRITER = {
     ("asciidoc_legacy", "reader-trees", "typst-labels-references"): DROPPED_CAPTION,
     ("beamer", "image-dimensions", "image-embedded-jpeg"): DATA_IMAGE,
     ("beamer", "image-dimensions", "image-embedded-png"): DATA_IMAGE,
+    ("beamer", "reader-trees", "ipynb-version-three"): (
+        "Pandoc leaves the cells outside any frame, where its template's ignorenonframetext"
+        " option drops them."
+    ),
+    ("beamer", "reader-trees", "latex-nested-tables"): (
+        "Pandoc nests a longtable in a cell, which LaTeX rejects."
+    ),
     ("commonmark", "reader-trees", "ipynb-version-three"): (
         "Pandoc writes a level-9 heading, which CommonMark reads as text."
     ),
@@ -87,8 +95,33 @@ WRITER = {
         "Pandoc does not indent the list under its term."
     ),
     ("man", "common", "list-nested-first-block"): "Pandoc prints a literal '.RS 2' in the page.",
+    ("man", "reader-trees", "asciidoc-block-hardbreak-context"): CELL_PARAGRAPH,
+    ("man", "reader-trees", "asciidoc-definition-macro-bodies"): (
+        "Pandoc prints a literal '.RS 2' in the page."
+    ),
+    ("man", "reader-trees", "asciidoc-definitions-nested"): (
+        "Pandoc does not indent the lists under their terms."
+    ),
+    ("man", "reader-trees", "asciidoc-list-adjacent-definition"): (
+        "Pandoc prints a literal '.RS 2' in the page."
+    ),
+    ("man", "reader-trees", "asciidoc-list-block-indentation"): (
+        "Pandoc drops the empty list item and does not indent the code block under its term."
+    ),
+    ("man", "reader-trees", "asciidoc-table-block-anchors"): CELL_PARAGRAPH,
+    ("man", "reader-trees", "asciidoc-table-cell-contexts"): CELL_PARAGRAPH,
+    ("man", "reader-trees", "asciidoc-table-in-definition-continuation"): CELL_PARAGRAPH,
+    ("man", "reader-trees", "asciidoc-table-monospace-nested"): CELL_PARAGRAPH,
+    ("man", "reader-trees", "asciidoc-table-nested-heading"): (
+        "Pandoc's paragraph macro sets the code block after the list as part of the last item."
+    ),
+    ("man", "reader-trees", "asciidoc-table-title-counters"): CELL_PARAGRAPH,
+    ("man", "reader-trees", "jira-table-cell-blocks"): CELL_PARAGRAPH,
     ("man", "table", "table-cell-blocks"): (
         "Pandoc's paragraph macro in the cell adds a large indent and widens the table."
+    ),
+    ("man", "table", "table-cell-linebreak"): (
+        "Pandoc's paragraph macro for the line break indents the rest of the cell."
     ),
     ("man", "table", "table-empty-cell"): "Pandoc drops a list of empty items from the cell.",
     ("man", "table", "table-grid-spans"): (
