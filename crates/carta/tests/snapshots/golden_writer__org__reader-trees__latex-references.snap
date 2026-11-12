@@ -17,10 +17,8 @@ Forward: [[#second][1.1]].
 
 #+caption: Anonymous figure
 
-
 #+caption: Named figure
 <<figure>>
-
 
 See Figure [[#figure][2]].
 

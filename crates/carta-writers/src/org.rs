@@ -115,7 +115,7 @@ impl State {
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => raw_block(format, text),
             Block::BlockQuote(blocks) => {
-                let body = self.blocks(blocks, width, false, 0);
+                let body = set_off(blocks, self.blocks(blocks, width, false, 0));
                 fence("#+begin_quote", &body, "#+end_quote")
             }
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
@@ -466,16 +466,22 @@ impl State {
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {
-        let mut body = self.blocks(blocks, width, false, 0);
-        if !attr.id.is_empty() {
-            body = format!("<<{}>>\n{body}", attr.id);
-        }
+        let body = self.blocks(blocks, width, false, 0);
         let caption = self.caption_line(caption);
-        if caption.is_empty() {
-            body
-        } else {
-            format!("#+caption: {caption}\n{body}")
+        let mut lines = Vec::new();
+        if !caption.is_empty() {
+            lines.push(format!("#+caption: {caption}"));
         }
+        if !attr.id.is_empty() {
+            lines.push(format!("<<{}>>", attr.id));
+        }
+        if lines.is_empty() {
+            return body;
+        }
+        if !body.is_empty() {
+            lines.push(set_off(blocks, body));
+        }
+        lines.join("\n")
     }
 
     fn caption_line(&mut self, caption: &Caption) -> String {
@@ -519,7 +525,7 @@ impl State {
                 }
                 lines.push(format!("#+begin_{name}"));
                 if !body.is_empty() {
-                    lines.push(body);
+                    lines.push(set_off(blocks, body));
                 }
                 lines.push(format!("#+end_{name}"));
                 lines.join("\n")
@@ -530,7 +536,7 @@ impl State {
                 } else if body.is_empty() {
                     format!("<<{}>>", attr.id)
                 } else {
-                    format!("<<{}>>\n{body}", attr.id)
+                    format!("<<{}>>\n{}", attr.id, set_off(blocks, body))
                 }
             }
         }
@@ -545,7 +551,10 @@ impl State {
         let field = marker.chars().count() + 1;
         let body = self.blocks(blocks, self.width.saturating_sub(field), false, 0);
         let definition = if body.is_empty() {
-            marker.clone()
+            format!("{marker} ")
+        } else if blocks.first().is_some_and(leading_blank) {
+            let rest = " ".repeat(field);
+            indent_block(&body, &format!("{marker} \n\n{rest}"), &rest)
         } else {
             indent_block(&body, &format!("{marker} "), &" ".repeat(field))
         };
@@ -778,6 +787,15 @@ fn shares_term_line(block: &Block) -> bool {
                 && blocks.first().is_none_or(shares_term_line)
         }
         _ => false,
+    }
+}
+
+/// Open a container's body with a blank line when its first block stands apart from what precedes.
+fn set_off(blocks: &[Block], body: String) -> String {
+    if !body.is_empty() && blocks.first().is_some_and(leading_blank) {
+        format!("\n{body}")
+    } else {
+        body
     }
 }
 
