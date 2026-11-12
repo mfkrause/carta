@@ -202,11 +202,7 @@ impl State {
             Some(label) => format!("[{label}]\n====\n{}\n====", body.trim_end_matches('\n')),
             None => body,
         };
-        if attr.id.is_empty() {
-            core
-        } else {
-            format!("[[{}]]\n{core}", attr.id)
-        }
+        anchored(&attr.id, core)
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {
@@ -217,26 +213,24 @@ impl State {
             },
             _ => None,
         };
-        let core = if let Some((image_attr, alt, target)) = block_image {
-            let title_caption = render_caption(caption, self, width);
-            let alt_text = self.inline_string(alt);
-            let macro_line = format!(
-                "image::{}[{}]",
-                target.url,
-                image_args(image_attr, target, &alt_text)
-            );
-            match title_caption {
-                Some(text) => format!(".{text}\n{macro_line}"),
-                None => macro_line,
-            }
-        } else {
-            self.blocks(blocks, width)
+        let Some((image_attr, alt, target)) = block_image else {
+            return anchored(&attr.id, self.blocks(blocks, width));
         };
-        if attr.id.is_empty() {
-            core
-        } else {
-            format!("[[{}]]\n{core}", attr.id)
+        let mut out = String::new();
+        if let Some(text) = render_caption(caption, self, width) {
+            let _ = writeln!(out, ".{text}");
         }
+        if !attr.id.is_empty() {
+            let _ = writeln!(out, "[#{}]", attr.id);
+        }
+        let alt_text = self.inline_string(alt);
+        let _ = write!(
+            out,
+            "image::{}[{}]",
+            target.url,
+            image_args(image_attr, target, &alt_text)
+        );
+        out
     }
 
     fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
@@ -630,6 +624,17 @@ impl State {
             }
             _ => out.push(Piece::text("[multiblock footnote omitted]")),
         }
+    }
+}
+
+/// Put a block anchor line above `body`; an empty identifier leaves the body as it is.
+fn anchored(id: &str, body: String) -> String {
+    if id.is_empty() {
+        body
+    } else if body.is_empty() {
+        format!("[[{id}]]")
+    } else {
+        format!("[[{id}]]\n{body}")
     }
 }
 
