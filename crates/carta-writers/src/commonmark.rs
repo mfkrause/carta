@@ -170,9 +170,13 @@ impl State {
             Block::LineBlock(lines) => {
                 self.block(&Block::Para(lines.join(&Inline::LineBreak)), width, hang)
             }
-            Block::Figure(..) | Block::Table(_) => collapse_html_block(
-                &crate::html::render_fragment(std::slice::from_ref(block), self.wrap),
-            ),
+            Block::Figure(..) => {
+                crate::html::render_fragment(std::slice::from_ref(block), self.wrap)
+            }
+            Block::Table(_) => collapse_html_block(&crate::html::render_fragment(
+                std::slice::from_ref(block),
+                self.wrap,
+            )),
         }
     }
 

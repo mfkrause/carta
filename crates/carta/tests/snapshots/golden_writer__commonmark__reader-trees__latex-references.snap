@@ -20,11 +20,13 @@ data-reference="second">[second]</a>,
 data-reference="missing">[missing]</a>.
 
 <figure>
-&#10;<figcaption>Anonymous figure</figcaption>
+
+<figcaption>Anonymous figure</figcaption>
 </figure>
 
 <figure id="figure">
-&#10;<figcaption>Named figure</figcaption>
+
+<figcaption>Named figure</figcaption>
 </figure>
 
 See Figure <a href="#figure" data-reference-type="ref"
