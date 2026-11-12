@@ -19,87 +19,140 @@ impl Writer for JiraWriter {
             wrap: options.wrap,
             ..State::default()
         };
-        let body = state.blocks(&document.blocks);
-        Ok(state.finish(body))
+        let mut out = state.blocks(&document.blocks);
+        if !state.notes.is_empty() {
+            for (index, note) in state.notes.iter().enumerate() {
+                let _ = write!(out, "\n\n\\[{}] {note}", index + 1);
+            }
+            out.push('\n');
+        }
+        if out.ends_with('\n') {
+            out.pop();
+        }
+        Ok(out)
     }
 }
 
-/// Collects footnote bodies as they are encountered so they can be emitted as a numbered section at
-/// the end of the document.
+/// The footnotes collected for the closing section, and the enclosing constructs that decide how a
+/// block is laid out.
 #[derive(Debug, Default)]
 struct State {
-    notes: Vec<Note>,
+    /// Footnote bodies in encounter order, emitted as a numbered section after the document.
+    notes: Vec<String>,
     wrap: WrapMode,
+    /// Marker run of the enclosing lists, which a nested list extends.
+    markers: String,
+    /// Inside a list item or table cell, where paragraphs and lists carry no closing newline.
+    compact: bool,
 }
 
-/// A collected footnote: its rendered body and whether that body's final block ends with a single
-/// trailing newline (code block, header, blockquote, rule) rather than a paragraph break.
-#[derive(Debug)]
-struct Note {
-    body: String,
-    ends_single_newline: bool,
+/// A rendered block, with the role that decides what may share its lines.
+struct Part {
+    text: String,
+    kind: Kind,
+}
+
+#[derive(PartialEq, Eq)]
+enum Kind {
+    /// Paragraph text: it takes its closing newline from the context and an anchor joins its line.
+    Paragraph,
+    /// A list, whose own markers stand in for the marker of an item it opens.
+    List,
+    Other,
+}
+
+impl Part {
+    fn paragraph(text: String) -> Self {
+        Self {
+            text,
+            kind: Kind::Paragraph,
+        }
+    }
+
+    fn list(text: String) -> Self {
+        Self {
+            text,
+            kind: Kind::List,
+        }
+    }
+
+    fn other(text: String) -> Self {
+        Self {
+            text,
+            kind: Kind::Other,
+        }
+    }
 }
 
 impl State {
-    /// Append the collected footnote section to the rendered body. Notes are numbered in encounter
-    /// order, each introduced by `\[N]`, and separated from the body and from one another by a blank
-    /// line plus a leading blank line.
-    fn finish(&self, body: String) -> String {
-        if self.notes.is_empty() {
-            return body;
-        }
-        let mut out = body;
-        for (index, note) in self.notes.iter().enumerate() {
-            let _ = write!(out, "\n\n\n\\[{}] {}", index + 1, note.body);
-        }
-        if !self
-            .notes
-            .last()
-            .is_some_and(|note| note.ends_single_newline)
-        {
-            out.push('\n');
-        }
-        out
-    }
-
     fn blocks(&mut self, blocks: &[Block]) -> String {
-        let rendered: Vec<(&Block, String)> = blocks
-            .iter()
-            .map(|block| (block, self.block(block)))
-            .collect();
-        join_blocks(&rendered)
+        let mut parts = Vec::new();
+        self.parts(blocks, &mut parts);
+        self.join(parts)
     }
 
-    fn block(&mut self, block: &Block) -> String {
-        match block {
-            Block::Plain(inlines) | Block::Para(inlines) => self.inlines(inlines),
-            Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
-            Block::CodeBlock(attr, text) => {
-                let block = code_block(attr, text);
-                if attr.id.is_empty() {
-                    block
-                } else {
-                    format!("{{anchor:{}}}\n\n{block}", attr.id)
-                }
+    /// Join rendered blocks one per line. A paragraph outside a list or cell ends its own line, so
+    /// a blank line follows it; headings, code, quotes and rules run on to the next line.
+    fn join(&self, parts: Vec<Part>) -> String {
+        let end = self.paragraph_end();
+        parts
+            .into_iter()
+            .map(|part| match part.kind {
+                Kind::Paragraph => part.text + end,
+                Kind::List | Kind::Other => part.text,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn paragraph_end(&self) -> &'static str {
+        if self.compact { "" } else { "\n" }
+    }
+
+    /// Render blocks into `parts`. A division or figure is transparent: its blocks join the
+    /// sequence around it, after an anchor when it carries an identifier. A raw block of another
+    /// format leaves nothing behind.
+    fn parts(&mut self, blocks: &[Block], parts: &mut Vec<Part>) {
+        carta_core::with_stack(|| {
+            for block in blocks {
+                let part = match block {
+                    Block::Plain(inlines) | Block::Para(inlines) => {
+                        Part::paragraph(self.inlines(inlines))
+                    }
+                    Block::LineBlock(lines) => Part::paragraph(self.line_block(lines)),
+                    Block::RawBlock(format, text) => {
+                        if !format.0.eq_ignore_ascii_case("jira") {
+                            continue;
+                        }
+                        Part::paragraph(text.to_string())
+                    }
+                    Block::Div(attr, inner) | Block::Figure(attr, _, inner) => {
+                        let start = parts.len();
+                        self.parts(inner, parts);
+                        if !attr.id.is_empty() {
+                            anchor(&attr.id, start, parts);
+                        }
+                        continue;
+                    }
+                    Block::Header(level, attr, inlines) => {
+                        Part::other(self.header(*level, attr, inlines))
+                    }
+                    Block::CodeBlock(attr, text) => {
+                        if !attr.id.is_empty() {
+                            anchor(&attr.id, parts.len(), parts);
+                        }
+                        Part::other(code_block(attr, text))
+                    }
+                    Block::BlockQuote(inner) => Part::other(self.block_quote(inner)),
+                    Block::BulletList(items) => Part::list(self.list('*', items)),
+                    Block::OrderedList(_, items) => Part::list(self.list('#', items)),
+                    Block::DefinitionList(items) => Part::list(self.definition_list(items)),
+                    Block::HorizontalRule => Part::other("----".to_owned()),
+                    Block::Table(table) => Part::other(self.table(table)),
+                };
+                parts.push(part);
             }
-            Block::RawBlock(format, text) => raw_passthrough(format, text),
-            Block::BlockQuote(blocks) => self.block_quote(blocks),
-            Block::BulletList(items) => self.list('*', items),
-            Block::OrderedList(_, items) => self.list('#', items),
-            Block::DefinitionList(items) => self.definition_list(items, ""),
-            Block::HorizontalRule => "----".to_owned(),
-            Block::Table(table) => self.table(table),
-            Block::Figure(_, _, blocks) => self.blocks(blocks),
-            Block::Div(attr, blocks) => {
-                let body = self.blocks(blocks);
-                if attr.id.is_empty() {
-                    body
-                } else {
-                    format!("{{anchor:{}}}{body}", attr.id)
-                }
-            }
-            Block::LineBlock(lines) => self.line_block(lines),
-        }
+        });
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
@@ -108,120 +161,72 @@ impl State {
     }
 
     fn block_quote(&mut self, blocks: &[Block]) -> String {
-        if let [Block::Para(inlines) | Block::Plain(inlines)] = blocks {
-            let rendered = self.inlines(inlines);
-            // `bq.` holds one physical line; a rendered break forces the block `{quote}` form.
-            return if rendered.contains('\n') {
-                format!("{{quote}}\n{rendered}\n{{quote}}")
-            } else {
-                format!("bq. {rendered}")
-            };
+        let mut parts = Vec::new();
+        self.parts(blocks, &mut parts);
+        // `bq.` holds one physical line; anything else takes the block `{quote}` form.
+        if let [
+            Part {
+                text,
+                kind: Kind::Paragraph,
+            },
+        ] = parts.as_slice()
+            && !text.contains('\n')
+        {
+            return format!("bq. {text}");
         }
-        let body = self.blocks(blocks);
-        let trailing = match blocks.last() {
-            Some(block) if ends_single_newline(block) => "",
-            _ => "\n",
-        };
-        format!("{{quote}}\n{body}{trailing}{{quote}}")
+        format!("{{quote}}\n{}{{quote}}", self.join(parts))
     }
 
+    /// Render a list in the prefix notation: every item line opens with the marker run of the
+    /// enclosing lists followed by this list's own marker.
     fn list(&mut self, marker: char, items: &[Vec<Block>]) -> String {
-        self.list_levels(marker, items, "")
+        let outer = self.enter_list(marker);
+        let lines: Vec<String> = items.iter().map(|item| self.list_item(item)).collect();
+        self.leave_list(outer);
+        format!("{}{}", lines.join("\n"), self.paragraph_end())
     }
 
-    /// Render a list in the prefix notation. `parent` is the accumulated marker run of the enclosing
-    /// levels; this level appends its own marker to it on every line.
-    fn list_levels(&mut self, marker: char, items: &[Vec<Block>], parent: &str) -> String {
-        let prefix = format!("{parent}{marker}");
-        let mut lines = Vec::new();
-        for item in items {
-            self.list_item(item, &prefix, &mut false, &mut lines);
-        }
-        lines.join("\n")
+    fn enter_list(&mut self, marker: char) -> (usize, bool) {
+        let outer = (self.markers.len(), self.compact);
+        self.markers.push(marker);
+        self.compact = true;
+        outer
     }
 
-    fn list_item(
-        &mut self,
-        blocks: &[Block],
-        prefix: &str,
-        marked: &mut bool,
-        lines: &mut Vec<String>,
-    ) {
-        carta_core::with_stack(|| {
-            if blocks.is_empty() {
-                Self::list_part(String::new(), prefix, marked, lines);
-            }
-            for block in blocks {
-                match block {
-                    Block::BulletList(items) => {
-                        lines.push(self.list_levels('*', items, prefix));
-                        *marked = true;
-                    }
-                    Block::OrderedList(_, items) => {
-                        lines.push(self.list_levels('#', items, prefix));
-                        *marked = true;
-                    }
-                    Block::DefinitionList(items) => {
-                        lines.push(self.definition_list(items, prefix));
-                        *marked = true;
-                    }
-                    Block::Div(attr, inner) if !attr.id.is_empty() => {
-                        let start = lines.len();
-                        Self::list_part(format!("{{anchor:{}}}", attr.id), prefix, marked, lines);
-                        if !inner.is_empty() {
-                            self.list_item(inner, prefix, marked, lines);
-                            if starts_with_text(inner) && lines.get(start + 1).is_some() {
-                                let first = lines.remove(start + 1);
-                                if let Some(anchor) = lines.get_mut(start) {
-                                    anchor.push_str(&first);
-                                }
-                            }
-                        }
-                    }
-                    Block::Div(_, inner) | Block::Figure(_, _, inner) => {
-                        if !inner.is_empty() || !*marked {
-                            self.list_item(inner, prefix, marked, lines);
-                        }
-                    }
-                    Block::Plain(_) | Block::Para(_) => {
-                        Self::list_part(self.block(block), prefix, marked, lines);
-                    }
-                    _ => {
-                        let text = self.block(block);
-                        if !text.is_empty() || !*marked {
-                            Self::list_part(text, prefix, marked, lines);
-                        }
-                    }
-                }
-            }
-        });
+    fn leave_list(&mut self, (markers, compact): (usize, bool)) {
+        self.markers.truncate(markers);
+        self.compact = compact;
     }
 
-    fn list_part(text: String, prefix: &str, marked: &mut bool, lines: &mut Vec<String>) {
-        if *marked {
-            lines.push(text);
+    fn list_item(&mut self, blocks: &[Block]) -> String {
+        let mut parts = Vec::new();
+        self.parts(blocks, &mut parts);
+        let opens_with_list = parts.first().is_some_and(|part| part.kind == Kind::List);
+        let body = self.join(parts);
+        if opens_with_list {
+            body
         } else {
-            lines.push(format!("{prefix} {text}"));
-            *marked = true;
+            format!("{} {body}", self.markers)
         }
     }
 
-    fn definition_list(
-        &mut self,
-        items: &[(Vec<Inline>, Vec<Vec<Block>>)],
-        parent: &str,
-    ) -> String {
+    /// A definition list: each term a bold bullet item, its definitions the lines that follow.
+    fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
+        let outer = self.enter_list('*');
         let mut lines: Vec<String> = Vec::new();
         for (term, definitions) in items {
-            lines.push(format!("{parent}* *{}*", self.inlines(term)));
-            for definition in definitions
-                .iter()
-                .filter(|definition| !definition.is_empty())
-            {
-                self.list_item(definition, &format!("{parent}*"), &mut true, &mut lines);
+            let term = self.inlines(term);
+            lines.push(format!("{} *{term}*", self.markers));
+            for definition in definitions {
+                let mut parts = Vec::new();
+                self.parts(definition, &mut parts);
+                if !parts.is_empty() {
+                    lines.push(self.join(parts));
+                }
             }
         }
-        lines.join("\n")
+        self.leave_list(outer);
+        format!("{}{}", lines.join("\n"), self.paragraph_end())
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
@@ -229,13 +234,17 @@ impl State {
         rendered.join("\n")
     }
 
+    /// A table: every row on its own line, each line closed by a newline.
     fn table(&mut self, table: &Table) -> String {
-        let mut rows: Vec<String> = Vec::new();
+        let compact = std::mem::replace(&mut self.compact, true);
+        let mut out = String::new();
         let mut grid = RowSpanGrid::new(table.col_specs.len());
         for (row, header) in simple_table_rows(table) {
-            rows.push(self.table_row(row, header, &mut grid));
+            out.push_str(&self.table_row(row, header, &mut grid));
+            out.push('\n');
         }
-        rows.join("\n")
+        self.compact = compact;
+        out
     }
 
     /// Render one table row. A cell that spans multiple columns is followed by that many blank cells,
@@ -248,20 +257,13 @@ impl State {
         for slot in grid.place_slots(&row.cells) {
             match slot {
                 GridSlot::Cell(_, cell) => {
-                    let content = self.cell_blocks(&cell.content);
+                    let content = self.blocks(&cell.content);
                     let _ = write!(out, " {content} {delimiter}");
                 }
                 GridSlot::Covered => out.push_str(&blank),
             }
         }
         out
-    }
-
-    /// Render a cell's blocks: inline content with paragraph breaks flattened to a
-    /// single newline, since Jira cells carry no inter-block spacing.
-    fn cell_blocks(&mut self, blocks: &[Block]) -> String {
-        let rendered: Vec<String> = blocks.iter().map(|block| self.block(block)).collect();
-        rendered.join("\n")
     }
 
     fn inlines(&mut self, inlines: &[Inline]) -> String {
@@ -416,59 +418,27 @@ impl State {
         }
     }
 
+    /// Collect a footnote and return its reference. The body is laid out as a document of its
+    /// own, outside any list or cell around the reference.
     fn note(&mut self, blocks: &[Block]) -> String {
+        let markers = std::mem::take(&mut self.markers);
+        let compact = std::mem::take(&mut self.compact);
         let body = self.blocks(blocks);
-        let ends_single_newline = blocks.last().is_some_and(ends_single_newline);
-        self.notes.push(Note {
-            body,
-            ends_single_newline,
-        });
+        self.markers = markers;
+        self.compact = compact;
+        self.notes.push(body);
         format!("[{}]", self.notes.len())
     }
 }
 
-fn starts_with_text(mut blocks: &[Block]) -> bool {
-    loop {
-        match blocks.first() {
-            Some(Block::Div(attr, inner)) if attr.id.is_empty() => blocks = inner,
-            Some(Block::Figure(_, _, inner)) => blocks = inner,
-            Some(
-                Block::Plain(_)
-                | Block::Para(_)
-                | Block::LineBlock(_)
-                | Block::RawBlock(..)
-                | Block::Div(..),
-            )
-            | None => return true,
-            _ => return false,
-        }
+/// Set an anchor before the blocks rendered from `start` on: on the line of a paragraph that opens
+/// them, otherwise as a paragraph of its own.
+fn anchor(id: &str, start: usize, parts: &mut Vec<Part>) {
+    let anchor = format!("{{anchor:{id}}}");
+    match parts.get_mut(start) {
+        Some(first) if first.kind == Kind::Paragraph => first.text.insert_str(0, &anchor),
+        _ => parts.insert(start, Part::paragraph(anchor)),
     }
-}
-
-/// Join already-rendered blocks. The preceding block decides the gap: a header, code block,
-/// blockquote, or horizontal rule joins to the next block with a single newline; everything else is
-/// separated by a blank line.
-fn join_blocks(rendered: &[(&Block, String)]) -> String {
-    let mut out = String::new();
-    for (index, (_, text)) in rendered.iter().enumerate() {
-        if index > 0 {
-            match rendered.get(index - 1) {
-                Some((prev, _)) if ends_single_newline(prev) => out.push('\n'),
-                _ => out.push_str("\n\n"),
-            }
-        }
-        out.push_str(text);
-    }
-    out
-}
-
-/// Whether a block, when followed by another, is separated from it by a single newline rather than a
-/// blank line.
-fn ends_single_newline(block: &Block) -> bool {
-    matches!(
-        block,
-        Block::Header(..) | Block::CodeBlock(..) | Block::BlockQuote(_) | Block::HorizontalRule
-    )
 }
 
 /// The span markers whose bare form opens or closes Jira inline markup. An open parenthesis is also

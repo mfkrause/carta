@@ -8,9 +8,7 @@ h3. {anchor:first}First
 h4. {anchor:second}Second
 [1|#first], [1.1|#second], [1.1|#second], [\[second\]|#second], [\[missing\]|#missing].
 
-
-
-
+{anchor:figure}
 
 See Figure [2|#figure].
 

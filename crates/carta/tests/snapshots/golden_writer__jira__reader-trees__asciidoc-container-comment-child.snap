@@ -4,13 +4,11 @@ expression: output
 ---
 {noformat}
 listing body{noformat}
-
 after
 
 {noformat}
 literal body
 {noformat}
-
 after
 
 bq. pass body

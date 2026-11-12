@@ -3,24 +3,17 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 h1. {anchor:first}First
-
 h9. {anchor:deeper-heading}Deeper _heading_
-
 {code:python}
 print(1)
 {code}
 {noformat}
 1
 {noformat}
-
 {noformat}
 1{noformat}
-
 {noformat}
 line 1
 ExampleError: text
 {noformat}
-
-
-
 Final text

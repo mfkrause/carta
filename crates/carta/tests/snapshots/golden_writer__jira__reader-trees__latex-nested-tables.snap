@@ -3,8 +3,10 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 | || Inner || Right ||
-| Next | Last | | Outer |
+| Next | Last |
+ | Outer |
 | Final | Tail |
 
 | | Grouped |
-| Content | | A&B |
+| Content |
+ | A&B |

@@ -5,7 +5,6 @@ expression: output
 || Cell body. ||
 
 
-
 || _First paragraph._
 h1. {anchor:_cell_section}Cell section
 Section body. ||
