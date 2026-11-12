@@ -43,9 +43,7 @@ l.
 T{
 .sp
 one
-.PD 0
-.P
-.PD
+.br
 two
 T}
 _
@@ -59,9 +57,7 @@ l.
 T{
 .sp
 one
-.PD 0
-.P
-.PD
+.br
 two
 T}
 _
@@ -75,9 +71,7 @@ l.
 T{
 .sp
 \f[I]one
-.PD 0
-.P
-.PD
+.br
 two\f[R]
 T}
 _
@@ -91,9 +85,7 @@ l.
 T{
 .sp
 one
-.PD 0
-.P
-.PD
+.br
 two
 T}
 _
@@ -107,9 +99,7 @@ l.
 T{
 .sp
 \f[CR]one\f[R]
-.PD 0
-.P
-.PD
+.br
 \f[CR]two\f[R]
 T}
 _
@@ -123,9 +113,7 @@ l.
 T{
 .sp
 \f[B]one
-.PD 0
-.P
-.PD
+.br
 two\f[R]
 T}
 _

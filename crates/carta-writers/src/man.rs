@@ -435,7 +435,15 @@ impl State<'_> {
         match item {
             Inline::Str(text) => push_text(out, &escape_text(text)),
             Inline::Space | Inline::SoftBreak => out.push(Fragment::Space),
-            Inline::LineBreak => out.push(Fragment::Control(".PD 0\n.P\n.PD".to_owned())),
+            Inline::LineBreak => {
+                // A paragraph macro in a table cell resets the cell's indent.
+                let request = if self.table_cell {
+                    ".br"
+                } else {
+                    ".PD 0\n.P\n.PD"
+                };
+                out.push(Fragment::Control(request.to_owned()));
+            }
             // roff man has no underline font, so underlined text falls back to italic.
             Inline::Emph(items) | Inline::Underline(items) => {
                 self.styled(out, font, font_with(font, |f| f.italic = !f.italic), items);
