@@ -7,10 +7,10 @@ expression: output
 :::
 
 ::: {.cell .markdown}
-###### Deeper *heading*
+######### Deeper *heading*
 :::
 
-:::: {.cell .code execution_count="1" collapsed="false" language="python"}
+:::::: {.cell .code execution_count="1" collapsed="false" language="python"}
 ``` python
 print(1)
 ```
@@ -27,7 +27,7 @@ print(1)
     line 1
     ExampleError: text
 :::
-::::
+::::::
 
 ::: {.cell .raw format="text/latex"}
 \textbf{raw}

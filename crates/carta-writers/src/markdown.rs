@@ -6,7 +6,7 @@ use carta_ast::{
     Attr, Block, Caption, Document, Format, Inline, ListAttributes, ListNumberDelim,
     ListNumberStyle,
 };
-use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions, presets};
+use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions, budget, presets};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, fill, fill_hang, fill_into, fill_offset,
@@ -20,7 +20,7 @@ use crate::markdown_common::{
 use self::helpers::{
     caption_blocks_as_inlines, checkbox_state, collapse_trailing_newline, colon_fence_len,
     div_opener, escaped_leading_marker, extended_code_info, fence_run_len, github_code_info,
-    header_attr_implicit, is_tex_format, single_paragraph, strip_checkbox,
+    header_attr_implicit, is_tex_format, nested_div_count, single_paragraph, strip_checkbox,
 };
 use self::yaml::yaml_metadata_block;
 
@@ -427,7 +427,7 @@ impl State {
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
-        let hashes = atx_heading_marker(level);
+        let hashes = self.heading_marker(level);
         let hashes = if self.config.has(Extension::LiterateHaskell) {
             hashes.replace('#', "=")
         } else {
@@ -456,6 +456,20 @@ impl State {
         } else {
             format!("{hashes} {text}{suffix}")
         }
+    }
+
+    /// The `#` run that opens a heading. The `CommonMark` family has no heading below level six.
+    /// The `markdown` dialects read a longer run as a deeper heading, so they keep the level.
+    fn heading_marker(&self, level: i64) -> String {
+        if self.config.cmark {
+            return atx_heading_marker(level);
+        }
+        let level = usize::try_from(level.max(1)).unwrap_or(usize::MAX);
+        budget::charge(level);
+        if budget::exhausted() {
+            return String::new();
+        }
+        "#".repeat(level)
     }
 
     fn code_block(&mut self, attr: &Attr, text: &str) -> String {
@@ -537,7 +551,7 @@ impl State {
             }
             return body;
         }
-        let fence = ":".repeat(colon_fence_len(&body));
+        let fence = ":".repeat(colon_fence_len(&body).max(3 + nested_div_count(blocks)));
         let opener = div_opener(attr, self.config.cmark);
         if body.is_empty() {
             format!("{fence}{opener}\n{fence}")

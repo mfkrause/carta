@@ -156,6 +156,18 @@ pub(super) fn colon_fence_len(body: &str) -> usize {
     (longest + 1).max(3)
 }
 
+/// The number of divs a block sequence nests through divs alone: its own divs and, in turn, the
+/// divs those nest the same way. A fenced div's fence grows by one colon for each.
+pub(super) fn nested_div_count(blocks: &[Block]) -> usize {
+    blocks
+        .iter()
+        .map(|block| match block {
+            Block::Div(_, children) => 1 + nested_div_count(children),
+            _ => 0,
+        })
+        .sum()
+}
+
 /// The text following a fenced-div opener: a bare class when the div carries only a single class and
 /// the shorthand is allowed (`braced` is false), otherwise an attribute block.
 pub(super) fn div_opener(attr: &Attr, braced: bool) -> String {
