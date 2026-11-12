@@ -343,6 +343,11 @@ fn a_line_break_bounds_markup_like_the_text_edge() {
 }
 
 #[test]
+fn a_newline_inside_text_is_ordinary_content() {
+    assert_eq!(text("1\n\\end"), "1\n\\end");
+}
+
+#[test]
 fn marker_against_a_neutralized_emoticon_stays_bare() {
     assert_eq!(text("a_:)"), "a_\\:)");
     assert_eq!(text(":(*<>:"), "\\:(*<>:");

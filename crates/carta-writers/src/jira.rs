@@ -317,17 +317,32 @@ impl State {
     ) -> String {
         let mut out = String::new();
         for (index, inline) in inlines.iter().enumerate() {
-            let before = out
-                .chars()
-                .next_back()
-                .or(if index == 0 { prev } else { None });
+            let earlier = index.checked_sub(1).and_then(|at| inlines.get(at));
+            let before = if earlier.is_some_and(|inline| self.breaks_line(inline)) {
+                Some(LINE_BREAK)
+            } else {
+                out.chars()
+                    .next_back()
+                    .or(if index == 0 { prev } else { None })
+            };
             let next = match inlines.get(index + 1) {
+                Some(following) if self.breaks_line(following) => Some(LINE_BREAK),
                 Some(following) => leading_char(following),
                 None => after,
             };
             out.push_str(&self.inline(inline, before, next));
         }
         out
+    }
+
+    /// Whether an inline renders as a line break: a hard break, display math on its own line, or
+    /// a soft break kept as written.
+    fn breaks_line(&self, inline: &Inline) -> bool {
+        match inline {
+            Inline::LineBreak | Inline::Math(MathType::DisplayMath, _) => true,
+            Inline::SoftBreak => self.wrap == WrapMode::Preserve,
+            _ => false,
+        }
     }
 
     fn inline(&mut self, inline: &Inline, prev: Option<char>, next: Option<char>) -> String {
@@ -504,6 +519,10 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
     }
 }
 
+/// Stands in for a line break as the neighbor of text: a break bounds markup, while a newline
+/// character inside text is ordinary content.
+const LINE_BREAK: char = '\u{2028}';
+
 /// The span markers whose bare form opens or closes Jira inline markup. An open parenthesis is also
 /// markup-significant but is escaped by its own rule, so it is not listed here.
 const SPAN_MARKERS: &[char] = &['*', '_', '+', '-', '^', '~', '!', '|', '[', ']', '&'];
@@ -533,7 +552,7 @@ fn bracket_before(prev: Option<char>) -> bool {
 /// plain space and the newline that inter-element breaks render to. All other Unicode whitespace is
 /// word-like for the leading-marker test.
 fn is_word_boundary(ch: char) -> bool {
-    ch == ' ' || ch == '\n'
+    ch == ' ' || ch == '\n' || ch == LINE_BREAK
 }
 
 /// Whether an emphasis span needs braced markers because the character after it is alphanumeric, the
@@ -549,7 +568,7 @@ fn leading_char(inline: &Inline) -> Option<char> {
     match inline {
         Inline::Str(text) => normalize_whitespace(text).chars().next(),
         Inline::Space | Inline::SoftBreak => Some(' '),
-        Inline::LineBreak => Some('\n'),
+        Inline::LineBreak => Some(LINE_BREAK),
         Inline::Emph(_) => Some('_'),
         Inline::Strong(_) | Inline::SmallCaps(_) => Some('*'),
         Inline::Underline(_) => Some('+'),
@@ -581,7 +600,7 @@ fn leading_char(inline: &Inline) -> Option<char> {
 /// first character, or the `$` delimiter when the expression falls back to verbatim source.
 fn math_leading_char(kind: &MathType, text: &str) -> Option<char> {
     if matches!(kind, MathType::DisplayMath) {
-        return Some('\n');
+        return Some(LINE_BREAK);
     }
     match crate::math::to_inlines(text) {
         Some(inlines) => inlines.iter().find_map(leading_char),
@@ -842,7 +861,7 @@ fn needs_paren_escape_in(
     next: Option<char>,
     after: Option<char>,
 ) -> bool {
-    if matches!(before, Some(' ' | '\n')) && next == Some(' ') {
+    if matches!(before, Some(' ' | LINE_BREAK)) && next == Some(' ') {
         // Space-flanked `(` opens a macro only at the trailing edge; bare while content follows.
         let has_in_string_content = chars
             .get(paren + 1..)
@@ -864,7 +883,7 @@ fn needs_paren_escape_in(
 
 fn paren_boundary(neighbor: Option<char>) -> bool {
     match neighbor {
-        None | Some(' ' | '\n') => true,
+        None | Some(' ' | LINE_BREAK) => true,
         Some(ch) => PAREN_SIGNIFICANT.contains(&ch),
     }
 }
@@ -892,7 +911,7 @@ fn backslash_category(neighbor: Option<char>) -> BackslashCategory {
     match neighbor {
         Some(' ') => BackslashCategory::Space,
         Some(')') => BackslashCategory::Content,
-        Some('\\' | '\n') | None => BackslashCategory::Other,
+        Some('\\' | LINE_BREAK) | None => BackslashCategory::Other,
         Some(ch) if NEUTRAL_PUNCT.contains(&ch) => BackslashCategory::Other,
         Some(_) => BackslashCategory::Content,
     }
@@ -946,7 +965,7 @@ fn emoticon_boundary(neighbor: Option<char>) -> bool {
 /// wink.
 fn emoticon_boundary_strict(neighbor: Option<char>) -> bool {
     match neighbor {
-        None | Some(' ' | '\n' | '\\') => true,
+        None | Some(' ' | LINE_BREAK | '\\') => true,
         Some(ch) => NEUTRAL_PUNCT.contains(&ch),
     }
 }
@@ -959,7 +978,7 @@ fn needs_escape(ch: char, prev: Option<char>, next: Option<char>) -> bool {
         // A marker that closes a line could close markup, as one at the end of the text could.
         _ if is_marker(ch) => {
             prev.is_none()
-                || matches!(next, None | Some('\n'))
+                || matches!(next, None | Some(LINE_BREAK))
                 || is_content(prev) != is_content(next)
                 || is_neutral(prev)
                 || is_neutral(next)
