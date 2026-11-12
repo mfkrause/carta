@@ -422,28 +422,22 @@ fn bare_inline(inline: &Inline) -> String {
     }
 }
 
-/// A link. When the label is the destination's visible form (its exact text or its percent-decoded
-/// text) and the destination carries no space, the URL stands alone; a `mailto:` link with an
-/// all-text label renders in angle brackets; otherwise the `[[destination|label]]` form is used,
-/// with one leading `/` trimmed from the destination.
+/// A link. A `mailto:` link whose label is one text run renders that run in angle brackets. When
+/// the label is the destination's visible form (its exact text or its percent-decoded text) and the
+/// destination carries no space, the URL stands alone. Otherwise the `[[destination|label]]` form is
+/// used, with one leading `/` trimmed from the destination.
 fn link(inlines: &[Inline], target: &Target, context: Context) -> String {
+    if let [Inline::Str(address)] = inlines
+        && target.url.starts_with("mailto:")
+    {
+        return format!("<{address}>");
+    }
     let plain = to_plain_text(inlines);
     if label_matches_url(&plain, &target.url) && !target.url.contains(' ') {
         return target.url.to_string();
     }
-    if target.url.starts_with("mailto:") && !inlines.is_empty() && is_all_text(inlines) {
-        return format!("<{plain}>");
-    }
     let destination = target.url.strip_prefix('/').unwrap_or(&target.url);
     format!("[[{destination}|{}]]", inlines_to_markup(inlines, context))
-}
-
-/// Whether an inline sequence is composed only of text and spacing, so its plain-text form carries
-/// no lost markup.
-fn is_all_text(inlines: &[Inline]) -> bool {
-    inlines
-        .iter()
-        .all(|inline| matches!(inline, Inline::Str(_) | Inline::Space | Inline::SoftBreak))
 }
 
 /// An image: `{{url[?size]|caption}}`, where the caption is the title if set, else the alt text, and
@@ -829,6 +823,21 @@ mod tests {
         assert_eq!(
             render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
             "[[http://e.com/a%20b|click]]"
+        );
+    }
+
+    #[test]
+    fn mail_links_with_a_phrase_label_keep_their_address() {
+        assert_eq!(
+            render(vec![link(vec![s("me@e.com")], "mailto:me@e.com")]),
+            "<me@e.com>"
+        );
+        assert_eq!(
+            render(vec![link(
+                vec![s("mail"), Inline::Space, s("me")],
+                "mailto:me@e.com"
+            )]),
+            "[[mailto:me@e.com|mail me]]"
         );
     }
 
