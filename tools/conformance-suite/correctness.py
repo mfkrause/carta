@@ -191,6 +191,10 @@ DIALECT_FAMILIES = (
 )
 
 
+# Target names that select the same writer as another name; only that name has snapshots.
+ALIASES = {"asciidoctor": "asciidoc", "docbook5": "docbook"}
+
+
 def reviewed_snapshots(directory, name):
     """The snapshot of a control, or those of the earlier writers in its dialect family."""
     snapshot = directory / f"{name}.snap"
@@ -217,6 +221,7 @@ def expectation(label):
         return (f"golden_reader__{source}__{stem}", reason) if reason else None
     if len(parts) == 4 and parts[0] == "writer":
         _, target, feature, filename = parts
+        target = ALIASES.get(target, target)
         stem = Path(filename).stem
         reason = WRITER.get((target, feature, stem))
         return (f"golden_writer__{target}__{feature}__{stem}", reason) if reason else None
