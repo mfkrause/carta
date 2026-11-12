@@ -813,11 +813,11 @@ fn figure(
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
-    let mut parts = vec![
-        "\\begin{figure}".to_owned(),
-        "\\centering".to_owned(),
-        render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl),
-    ];
+    let mut parts = vec!["\\begin{figure}".to_owned(), "\\centering".to_owned()];
+    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl);
+    if !body.is_empty() {
+        parts.push(body);
+    }
     let caption_body = caption_body(caption, width, dialect, wrap, smart, hl);
     let label = if attr.id.is_empty() {
         String::new()

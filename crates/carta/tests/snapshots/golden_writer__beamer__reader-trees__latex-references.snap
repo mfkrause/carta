@@ -14,13 +14,11 @@ Forward: \hyperlink{second}{1.1}.
 
 \begin{figure}
 \centering
-
 \caption{Anonymous figure}
 \end{figure}
 
 \begin{figure}
 \centering
-
 \caption{Named figure}\label{figure}
 \end{figure}
 
