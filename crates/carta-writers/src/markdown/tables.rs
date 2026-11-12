@@ -2,14 +2,14 @@
 
 use carta_core::budget;
 
-use carta_ast::{Alignment, Attr, Block, Caption, Cell, ColWidth, Inline, Row, Table};
+use carta_ast::{Alignment, Attr, Block, Caption, Cell, ColWidth, Row, Table};
 use carta_core::Extension;
 
 use crate::common::{
     MEASURE_WIDTH, Piece, TableForm, body_rows, boundary_space_count, caption_runs, cell_inlines,
-    dash_rule, display_width, extend_multiline_body, fill, fill_offset, filled_cells, indent_block,
-    indent_lines, is_simple_cell, lay_row, measure_pieces, pad_align_continued, pieces_nonempty,
-    table_form, trimmed_cell_inlines,
+    dash_rule, display_width, extend_multiline_body, fill, fill_offset, filled_cells,
+    has_line_break, indent_block, indent_lines, is_simple_cell, lay_row, measure_pieces,
+    pad_align_continued, pieces_nonempty, table_form, trimmed_cell_inlines,
 };
 use crate::grid;
 use crate::markdown_common::attr_is_empty;
@@ -525,9 +525,7 @@ fn pipe_representable(table: &Table) -> bool {
         cell.row_span <= 1
             && cell.col_span <= 1
             && is_simple_cell(cell)
-            && !cell_inlines(cell)
-                .iter()
-                .any(|inline| matches!(inline, Inline::LineBreak))
+            && !has_line_break(cell_inlines(cell))
     })
 }
 

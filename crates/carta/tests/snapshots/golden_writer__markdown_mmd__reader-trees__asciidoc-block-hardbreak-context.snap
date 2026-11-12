@@ -64,8 +64,16 @@ two</p></th>
 
 after block
 
-| *one   two* |
-|-------------|
+<table>
+<thead>
+<tr>
+<th><p><em>one<br />
+two</em></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
 
 after block
 
@@ -95,7 +103,15 @@ after block
 
 after block
 
-| **one   two** |
-|---------------|
+<table>
+<thead>
+<tr>
+<th><p><strong>one<br />
+two</strong></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
 
 after block
