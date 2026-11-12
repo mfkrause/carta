@@ -239,7 +239,7 @@ impl State<'_> {
         if self.table_cell {
             // Tagged paragraph macros end the text diversion used by a table cell.
             let marker = marker.replace(' ', "\\ ");
-            let body = self.list_body(item, Some(relative));
+            let body = self.list_body(item, Some(relative), false);
             let body = if body.is_empty() {
                 String::new()
             } else {
@@ -254,7 +254,7 @@ impl State<'_> {
         } else {
             format!(".IP {marker} {field}")
         };
-        let body = self.list_body(item, Some(relative));
+        let body = self.list_body(item, Some(relative), false);
         if body.is_empty() {
             head
         } else {
@@ -262,11 +262,13 @@ impl State<'_> {
         }
     }
 
-    fn list_body(&mut self, items: &[Block], relative: Option<usize>) -> String {
+    /// Renders an item's blocks. The first block joins the marker line when it is text or when
+    /// `leads` says there is no marker text for it to hang under.
+    fn list_body(&mut self, items: &[Block], relative: Option<usize>, leads: bool) -> String {
         let Some((first, rest)) = items.split_first() else {
             return String::new();
         };
-        let starts_with_text = matches!(first, Block::Plain(_) | Block::Para(_));
+        let starts_with_text = leads || matches!(first, Block::Plain(_) | Block::Para(_));
         let mut out = if starts_with_text {
             self.block(first, true)
         } else {
@@ -298,11 +300,13 @@ impl State<'_> {
             let term = self.inline_run(term);
             if self.table_cell {
                 let _ = write!(out, ".br\n{term}\n.br\n.in +7n");
+            } else if term.is_empty() {
+                out.push_str(".TP");
             } else {
                 let _ = write!(out, ".TP\n{term}");
             }
             let blocks: Vec<Block> = definitions.iter().flatten().cloned().collect();
-            let body = self.list_body(&blocks, None);
+            let body = self.list_body(&blocks, None, term.is_empty());
             if !body.is_empty() {
                 out.push('\n');
                 out.push_str(&body);
