@@ -16,7 +16,6 @@ use carta::{
 use carta_core::container::zip;
 use carta_core::media::{base64_encode, sha1_hex};
 
-/// Chapter bodies for the EPUB controls in `tools/conformance-suite/correctness.py`.
 /// The `corpus/ast` cases whose pages a conformance control checks, as dialect, group and label.
 const CONTROL_CASES: &[(&str, &str, &str)] = &[
     ("epub2", "common", "image-external"),
@@ -84,6 +83,7 @@ const CONTROL_CASES: &[(&str, &str, &str)] = &[
     ("epub3", "reader-trees", "typst-labels-references"),
 ];
 
+/// Page bodies and the NCX for the EPUB controls in `tools/conformance-suite/correctness.py`.
 #[cfg(feature = "read-json")]
 #[test]
 fn epub_control_body_snapshots() {
