@@ -678,8 +678,12 @@ fn definition_list(
         lines.push("\\tightlist".to_owned());
     }
     for (term, definitions) in items {
+        let internal_link = term.iter().any(
+            |inline| matches!(inline, Inline::Link(_, _, target) if target.url.starts_with('#')),
+        );
         let term = inlines_to_string(term, width, dialect, wrap, smart, hl);
-        let term = if term.contains("\\hyperref[") {
+        // Braces keep an internal link's optional argument out of the item label's brackets.
+        let term = if internal_link {
             format!("{{{term}}}")
         } else {
             term
