@@ -398,12 +398,24 @@ impl State {
                 Token::Word { text, .. } if index == first && index == last => {
                     out.push(edge_word(format!("`{text}{suffix}"), true, true));
                 }
-                Token::Word { text, .. } if index == first => {
-                    out.push(edge_word(format!("`{text}"), true, false));
+                Token::Word {
+                    text,
+                    trail_complex,
+                    ..
+                } if index == first => {
+                    out.push(edge_word(format!("`{text}"), true, trail_complex));
                 }
-                Token::Word { text, .. } if index == last => {
-                    out.push(edge_word(format!("{text}{suffix}"), false, true));
-                }
+                Token::Word {
+                    text,
+                    lead_complex,
+                    lead,
+                    ..
+                } if index == last => out.push(Token::Word {
+                    text: format!("{text}{suffix}").into(),
+                    lead_complex,
+                    trail_complex: true,
+                    lead,
+                }),
                 other => out.push(other),
             }
         }
