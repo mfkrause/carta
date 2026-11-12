@@ -12,7 +12,7 @@ expression: output
 :CUSTOM_ID: deeper-heading
 :END:
 
-#+begin_src python
+#+begin_src jupyter-python
 print(1)
 #+end_src
 
@@ -20,9 +20,8 @@ print(1)
 1
 #+end_example
 
-#+begin_example
-1
-#+end_example
+#+RESULTS:
+: 1
 
 #+begin_example
 line 1

@@ -83,16 +83,21 @@ impl State {
         hang_first: bool,
         initial_column: usize,
     ) -> String {
+        let mut sequence = Vec::with_capacity(blocks.len());
+        push_sequence(blocks, &mut sequence);
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
         let mut first = true;
-        for block in blocks {
-            let text = self.block(
-                block,
-                width,
-                hang_first && first,
-                if first { initial_column } else { 0 },
-            );
+        for (block, cell_source) in sequence {
+            let text = match block {
+                Block::CodeBlock(attr, text) if cell_source => code_block(attr, text, "jupyter-"),
+                _ => self.block(
+                    block,
+                    width,
+                    hang_first && first,
+                    if first { initial_column } else { 0 },
+                ),
+            };
             if text.is_empty() {
                 continue;
             }
@@ -112,7 +117,7 @@ impl State {
                 self.leaf(inlines, width, hang, initial_column)
             }
             Block::LineBlock(lines) => self.line_block(lines),
-            Block::CodeBlock(attr, text) => code_block(attr, text),
+            Block::CodeBlock(attr, text) => code_block(attr, text, ""),
             Block::RawBlock(format, text) => raw_block(format, text),
             Block::BlockQuote(blocks) => {
                 let body = set_off(blocks, self.blocks(blocks, width, false, 0));
@@ -504,6 +509,16 @@ impl State {
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
+        if let Some(result) = cell_result(attr, blocks) {
+            let mut lines = vec!["#+RESULTS:".to_owned()];
+            lines.extend(
+                result
+                    .lines()
+                    .filter(|line| !line.is_empty())
+                    .map(|line| format!(": {line}")),
+            );
+            return lines.join("\n");
+        }
         let body = self.blocks(blocks, width, false, 0);
         if let Some(name) = drawer_name(&attr.classes) {
             let mut lines = vec![format!(":{name}:"), String::new()];
@@ -740,17 +755,65 @@ fn is_drawer(block: &Block) -> bool {
 /// Whether a block is followed by a blank line: everything except a plain block, a heading, and a raw
 /// Org block, which attach to what follows.
 fn trailing_blank(block: &Block) -> bool {
-    !matches!(block, Block::Plain(_) | Block::Header(..)) && !is_raw_org_block(block)
+    !matches!(block, Block::Plain(_) | Block::Header(..))
+        && !is_raw_org_block(block)
+        && !is_cell_result(block)
 }
 
 /// Whether a block is preceded by a blank line: the block-level constructs that stand apart from what
 /// comes before them.
 fn leading_blank(block: &Block) -> bool {
     match block {
-        Block::BlockQuote(_) | Block::Div(..) | Block::LineBlock(_) | Block::HorizontalRule => true,
+        Block::Div(..) => !is_cell_result(block) && cell_blocks(block).is_none(),
+        Block::BlockQuote(_) | Block::LineBlock(_) | Block::HorizontalRule => true,
         Block::RawBlock(format, _) => format.0.eq_ignore_ascii_case("html"),
         _ => false,
     }
+}
+
+/// The blocks of a notebook code cell: a div classed `cell code` that opens with its source block.
+fn cell_blocks(block: &Block) -> Option<(&Block, &[Block])> {
+    match block {
+        Block::Div(attr, blocks)
+            if attr.classes.iter().map(Text::as_str).eq(["cell", "code"]) =>
+        {
+            match blocks.split_first() {
+                Some((source @ Block::CodeBlock(..), rest)) => Some((source, rest)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// List `blocks` in layout order, each with whether it is the source block of a notebook code cell.
+/// A code cell lays out as the blocks it holds, so it adds no spacing of its own.
+fn push_sequence<'a>(blocks: &'a [Block], out: &mut Vec<(&'a Block, bool)>) {
+    for block in blocks {
+        match cell_blocks(block) {
+            Some((source, rest)) => {
+                out.push((source, true));
+                push_sequence(rest, out);
+            }
+            None => out.push((block, false)),
+        }
+    }
+}
+
+/// The text of a notebook cell's result: a div classed `output execute_result` holding one code block.
+fn cell_result<'a>(attr: &Attr, blocks: &'a [Block]) -> Option<&'a str> {
+    match blocks {
+        [Block::CodeBlock(_, text)]
+            if attr.classes.iter().map(Text::as_str).eq(["output", "execute_result"]) =>
+        {
+            Some(text)
+        }
+        _ => None,
+    }
+}
+
+fn is_cell_result(block: &Block) -> bool {
+    matches!(block, Block::Div(attr, blocks) if cell_result(attr, blocks).is_some())
 }
 
 fn is_raw_org_block(block: &Block) -> bool {
@@ -905,8 +968,9 @@ fn properties(attr: &Attr) -> String {
 }
 
 /// Render an Org code block: a plain `example` block when it carries no class, otherwise a `src` block
-/// tagged with its language and line-numbering switch. A leading identifier becomes a `#+name:` line.
-fn code_block(attr: &Attr, text: &str) -> String {
+/// tagged with its language (after `language_prefix`) and line-numbering switch. A leading identifier
+/// becomes a `#+name:` line.
+fn code_block(attr: &Attr, text: &str, language_prefix: &str) -> String {
     let content = escape_code(text);
     let block = if let Some(class) = attr.classes.first() {
         let language = translate_language(class);
@@ -916,7 +980,7 @@ fn code_block(attr: &Attr, text: &str) -> String {
                 "numberLines" | "number-lines" | "numberlines"
             )
         });
-        let mut begin = format!("#+begin_src {language}");
+        let mut begin = format!("#+begin_src {language_prefix}{language}");
         if numbered {
             match attribute_value(attr, "startFrom") {
                 Some(start) => {
