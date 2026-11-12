@@ -2,7 +2,6 @@
 
 use carta_ast::{Attr, Block, Format, Inline};
 
-use crate::common::Piece;
 use crate::markdown_common::attr_is_empty;
 
 use super::attr_braces;
@@ -27,42 +26,86 @@ pub(super) fn single_paragraph(item: &[Block]) -> Option<&[Inline]> {
     }
 }
 
-/// Escape a list marker that opens a paragraph, where it would otherwise start a list. Only the
-/// paragraph's first token is at risk: a marker on a later line is a continuation of the paragraph,
-/// not a list opener. A bullet marker (`-`/`+`) is escaped whenever it is the whole leading token;
-/// an ordered marker (digits then `.`/`)`) is escaped only when a space or the line end follows, the
-/// condition under which it would start a list.
-pub(super) fn escape_leading_markers(pieces: &mut [Piece]) {
-    let break_follows = matches!(
-        pieces.get(1),
-        None | Some(Piece::Space | Piece::Soft | Piece::Hard)
-    );
-    let Some(Piece::Text(text)) = pieces.first_mut() else {
-        return;
-    };
-    if let Some(escaped) = escaped_leading_marker(text, break_follows) {
-        *text = escaped.into();
-    }
-}
-
-/// The escaped form of a leading list marker, or `None` when the token is not one. A bullet token is
-/// escaped unconditionally; an ordered token only when `break_follows` reports a space or line end
-/// after it.
-fn escaped_leading_marker(text: &str, break_follows: bool) -> Option<String> {
+/// The escaped form of a word that opens a paragraph and would otherwise start a list, or `None`
+/// when the word is no list marker. A bullet (`-`/`+`) is escaped whatever follows it. An ordered
+/// marker is escaped only when `break_follows` reports a space or the paragraph end after it: a
+/// number (decimal, a single letter, a roman numeral, `#`, or an `@` example label) closed by `.`
+/// or `)` or enclosed in parentheses, at most ten characters long. Only a later line of the same
+/// paragraph is safe from being read as a list, so only the first word is at risk.
+pub(super) fn escaped_leading_marker(text: &str, break_follows: bool) -> Option<String> {
     if text == "-" || text == "+" {
         return Some(format!("\\{text}"));
     }
-    let delim = text.chars().last()?;
-    if !break_follows || (delim != '.' && delim != ')') {
+    if !break_follows || text.chars().count() > 10 {
         return None;
     }
-    let digits = text
-        .get(..text.len() - delim.len_utf8())
-        .unwrap_or_default();
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+    let (enclosed, body) = match text.strip_prefix('(') {
+        Some(rest) => (true, rest),
+        None => (false, text),
+    };
+    let delimiter = body.chars().last()?;
+    let number = body.strip_suffix(delimiter)?;
+    let closes = match delimiter {
+        ')' => true,
+        // A capital before a period reads as an initial ("B. Russell"), not as a marker.
+        '.' => !enclosed && !matches!(number.as_bytes(), [letter] if letter.is_ascii_uppercase()),
+        _ => false,
+    };
+    if !closes || !is_list_number(number) {
         return None;
     }
-    Some(format!("{digits}\\{delim}"))
+    Some(if enclosed {
+        format!("\\({number}\\)")
+    } else {
+        format!("{number}\\{delimiter}")
+    })
+}
+
+/// Whether `number` is the numbering part of an ordered-list marker.
+fn is_list_number(number: &str) -> bool {
+    match number.as_bytes() {
+        [] => false,
+        [b'#'] => true,
+        [b'@', label @ ..] => label
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')),
+        [letter] if letter.is_ascii_alphabetic() => true,
+        digits => digits.iter().all(u8::is_ascii_digit) || is_roman_numeral(number),
+    }
+}
+
+/// Whether `text` is a roman numeral in a single letter case: its value groups in descending
+/// order, each subtractive pair and each five-valued letter at most once.
+fn is_roman_numeral(text: &str) -> bool {
+    const GROUPS: [(&str, bool); 13] = [
+        ("m", true),
+        ("cm", false),
+        ("d", false),
+        ("cd", false),
+        ("c", true),
+        ("xc", false),
+        ("l", false),
+        ("xl", false),
+        ("x", true),
+        ("ix", false),
+        ("v", false),
+        ("iv", false),
+        ("i", true),
+    ];
+    let lower = text.to_ascii_lowercase();
+    if text != lower && text != text.to_ascii_uppercase() {
+        return false;
+    }
+    let mut rest = lower.as_str();
+    for (group, repeats) in GROUPS {
+        while let Some(tail) = rest.strip_prefix(group) {
+            rest = tail;
+            if !repeats {
+                break;
+            }
+        }
+    }
+    !text.is_empty() && rest.is_empty()
 }
 
 /// The info string for a fenced code block when fenced-code attributes are available, or `None` to

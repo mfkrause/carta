@@ -333,6 +333,21 @@ mod escaping {
     }
 
     #[test]
+    fn a_leading_marker_is_escaped_in_every_numbering() {
+        let leading = |word: &str| render(vec![Block::Para(vec![s(word), Inline::Space, s("x")])]);
+        assert_eq!(leading("(5)"), "\\(5\\) x");
+        assert_eq!(leading("a."), "a\\. x");
+        assert_eq!(leading("xiv)"), "xiv\\) x");
+        assert_eq!(leading("(MMXX)"), "\\(MMXX\\) x");
+        assert_eq!(leading("#."), "#\\. x");
+        assert_eq!(leading("(@note)"), "\\(@note\\) x");
+        // An initial, a malformed numeral, and an overlong marker open no list.
+        assert_eq!(leading("B."), "B. x");
+        assert_eq!(leading("vx."), "vx. x");
+        assert_eq!(leading("(555555555)"), "(555555555) x");
+    }
+
+    #[test]
     fn a_leading_bullet_marker_is_escaped() {
         assert_eq!(
             render(vec![Block::Para(vec![s("-"), Inline::Space, s("x")])]),

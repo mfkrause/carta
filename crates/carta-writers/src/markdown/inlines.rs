@@ -10,19 +10,31 @@ use crate::markdown_common::{
     push_open_tag, wiki_link,
 };
 
-use super::{State, attr_body, attr_braces};
+use super::{State, attr_body, attr_braces, escaped_leading_marker};
 
 impl State {
     pub(super) fn inlines_oneline(&mut self, inlines: &[Inline]) -> String {
-        let pieces = self.pieces(inlines);
-        let mut out = String::new();
-        for piece in &pieces {
-            match piece {
-                Piece::Text(text) => out.push_str(text),
-                Piece::Space | Piece::Soft | Piece::Hard => out.push(' '),
+        oneline(&self.pieces(inlines))
+    }
+
+    /// A paragraph's inlines on a single line, as a table cell holds them.
+    pub(super) fn paragraph_oneline(&mut self, inlines: &[Inline]) -> String {
+        oneline(&self.paragraph_pieces(inlines))
+    }
+
+    /// The pieces of a paragraph's inlines. A first word that would read as a list marker is
+    /// written with its delimiter escaped, in place of the escaping of running text.
+    pub(super) fn paragraph_pieces(&mut self, inlines: &[Inline]) -> Vec<Piece> {
+        if let [Inline::Str(text), rest @ ..] = inlines {
+            let break_follows =
+                matches!(rest.first(), None | Some(Inline::Space | Inline::SoftBreak));
+            if let Some(escaped) = escaped_leading_marker(text, break_follows) {
+                let mut pieces = vec![Piece::text(escaped)];
+                self.extend_pieces(rest, &mut pieces);
+                return pieces;
             }
         }
-        out
+        self.pieces(inlines)
     }
 
     pub(super) fn pieces(&mut self, inlines: &[Inline]) -> Vec<Piece> {
@@ -617,6 +629,17 @@ fn smart_ascii(glyph: char, next: Option<char>, old_dashes: bool) -> &'static st
         '“' | '”' => "\"",
         _ => "'",
     }
+}
+
+fn oneline(pieces: &[Piece]) -> String {
+    let mut out = String::new();
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => out.push_str(text),
+            Piece::Space | Piece::Soft | Piece::Hard => out.push(' '),
+        }
+    }
+    out
 }
 
 fn smallcaps_attr() -> Attr {

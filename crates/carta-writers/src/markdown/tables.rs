@@ -162,7 +162,7 @@ impl State {
     /// is sized to the full text.
     fn cell_oneline(&mut self, cell: &Cell) -> String {
         let inlines = cell_inlines(cell);
-        self.inlines_oneline(inlines).replace('|', "\\|")
+        self.paragraph_oneline(inlines).replace('|', "\\|")
     }
 
     /// A simple table: one line per cell, the column width sized to the widest cell plus two. A
@@ -224,7 +224,7 @@ impl State {
         let mut out: Vec<SimpleCell> = (0..columns).map(|_| SimpleCell::default()).collect();
         for (index, cell) in row.cells.iter().enumerate() {
             if let Some(slot) = out.get_mut(index) {
-                let text = self.inlines_oneline(trimmed_cell_inlines(cell));
+                let text = self.paragraph_oneline(trimmed_cell_inlines(cell));
                 let sizing_width = display_width(&text) + boundary_space_count(cell);
                 *slot = SimpleCell { text, sizing_width };
             }
@@ -311,7 +311,7 @@ impl State {
         let mut out: Vec<Vec<Piece>> = (0..columns).map(|_| Vec::new()).collect();
         for (index, cell) in row.cells.iter().enumerate() {
             if let Some(slot) = out.get_mut(index) {
-                *slot = self.pieces(cell_inlines(cell));
+                *slot = self.paragraph_pieces(cell_inlines(cell));
             }
         }
         out

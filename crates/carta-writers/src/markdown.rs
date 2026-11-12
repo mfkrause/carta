@@ -19,7 +19,7 @@ use crate::markdown_common::{
 
 use self::helpers::{
     caption_blocks_as_inlines, checkbox_state, collapse_trailing_newline, colon_fence_len,
-    div_opener, escape_leading_markers, extended_code_info, fence_run_len, github_code_info,
+    div_opener, escaped_leading_marker, extended_code_info, fence_run_len, github_code_info,
     header_attr_implicit, is_tex_format, single_paragraph, strip_checkbox,
 };
 use self::yaml::yaml_metadata_block;
@@ -392,8 +392,7 @@ impl State {
     fn block(&mut self, block: &Block, width: usize) -> String {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
-                let mut pieces = self.pieces(inlines);
-                escape_leading_markers(&mut pieces);
+                let pieces = self.paragraph_pieces(inlines);
                 fill(&pieces, width, self.wrap)
             }
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
@@ -551,8 +550,7 @@ impl State {
 
     fn line_block(&mut self, lines: &[Vec<Inline>], width: usize) -> String {
         if !self.config.has(Extension::LineBlocks) {
-            let mut pieces = self.pieces(&lines.join(&Inline::LineBreak));
-            escape_leading_markers(&mut pieces);
+            let pieces = self.paragraph_pieces(&lines.join(&Inline::LineBreak));
             return fill_hang(&pieces, width, self.wrap);
         }
         let rendered: Vec<String> = lines
@@ -590,8 +588,7 @@ impl State {
     fn list_item(&mut self, item: &[Block], body_width: usize, first: &str, rest: &str) -> String {
         let initial = first.len().saturating_sub(rest.len());
         if let Some(inlines) = single_paragraph(item) {
-            let mut pieces = self.pieces(inlines);
-            escape_leading_markers(&mut pieces);
+            let pieces = self.paragraph_pieces(inlines);
             if initial > 0 {
                 let body = fill_offset(&pieces, body_width, initial, self.wrap);
                 return indent_block(&body, first, rest);
@@ -767,7 +764,7 @@ impl State {
 
     /// Render a definition term without wrapping it, keeping each forced break as a line end.
     fn term_line(&mut self, term: &[Inline]) -> String {
-        pieces_to_string(&self.pieces(term))
+        pieces_to_string(&self.paragraph_pieces(term))
     }
 
     /// Without the definition-list extension there is no native syntax: each term renders as a line
@@ -882,8 +879,7 @@ impl NotesHost for State {
         width: usize,
         initial: usize,
     ) -> String {
-        let mut pieces = self.pieces(inlines);
-        escape_leading_markers(&mut pieces);
+        let pieces = self.paragraph_pieces(inlines);
         fill_offset(&pieces, width, initial, self.wrap)
     }
 
