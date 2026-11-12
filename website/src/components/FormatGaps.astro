@@ -1,0 +1,32 @@
+---
+import { formats } from '../data/status';
+import CodeSpans from './CodeSpans.astro';
+
+interface Props {
+  direction: 'read' | 'write';
+}
+
+const { direction } = Astro.props;
+const entries = formats.filter((format) => format[direction].gaps.length > 0);
+---
+
+{
+  entries.length === 0 ? (
+    <p>No tracked gaps.</p>
+  ) : (
+    <ul>
+      {entries.map((format) => (
+        <li>
+          <code>{format.name}</code>
+          <ul>
+            {format[direction].gaps.map((gap) => (
+              <li>
+                <CodeSpans text={gap} />
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  )
+}

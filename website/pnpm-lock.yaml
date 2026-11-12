@@ -44,6 +44,9 @@ importers:
       sharp:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@24.19.2)
+      smol-toml:
+        specifier: ^1.9.1
+        version: 1.9.1
       starlight-links-validator:
         specifier: ^0.27.0
         version: 0.27.0(@astrojs/starlight@0.42.7(astro@7.4.4(@types/node@24.19.2)(yaml@2.9.1)))(astro@7.4.4(@types/node@24.19.2)(yaml@2.9.1))

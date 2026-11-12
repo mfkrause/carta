@@ -1,0 +1,10 @@
+---
+interface Props {
+  /** Plain text in which backtick pairs mark code. */
+  text: string;
+}
+
+const parts = Astro.props.text.split('`');
+---
+
+{parts.map((part, index) => (index % 2 === 1 ? <code>{part}</code> : part))}

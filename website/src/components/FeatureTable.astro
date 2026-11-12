@@ -1,0 +1,36 @@
+---
+import { features } from '../data/status';
+import CodeSpans from './CodeSpans.astro';
+import StatusBadge from './StatusBadge.astro';
+---
+
+<table>
+  <thead>
+    <tr>
+      <th scope="col">Feature</th>
+      <th scope="col">Status</th>
+      <th scope="col">Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {
+      features.map((feature) => (
+        <tr>
+          <td>
+            <CodeSpans text={feature.name} />
+          </td>
+          <td>
+            <StatusBadge status={feature.status} />
+          </td>
+          <td>{feature.notes ? <CodeSpans text={feature.notes} /> : '—'}</td>
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<style>
+  td :global(code) {
+    white-space: nowrap;
+  }
+</style>

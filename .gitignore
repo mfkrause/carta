@@ -13,9 +13,6 @@
 /website/.astro
 /website/.vercel
 
-# Detached generator crate build output
-/tools/docgen/target
-
 # OS / editor cruft
 .DS_Store
 *.rs.bk

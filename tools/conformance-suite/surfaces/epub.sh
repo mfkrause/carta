@@ -20,7 +20,7 @@ source = document['blocks'][0]['c'][-1]['c'][2][0]
 Path(sys.argv[2]).write_bytes(base64.b64decode(source.split(',', 1)[1]))
 PY
 
-# Normalize free values and spec-valid placeholders; see docs/STATUS.md.
+# Normalize free values and spec-valid placeholders.
 epub_norm() {
   sed -e 's/content="pandoc"/content="carta"/' \
       -e 's|urn:uuid:[0-9A-Fa-f-]\{36\}|urn:uuid:NORM|g' \

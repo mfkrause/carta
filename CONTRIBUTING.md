@@ -49,15 +49,15 @@ CI rejects stale or unreferenced snapshots, so keep them tidy.
   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, …).
 - Keep output deterministic and avoid panics in library paths.
 - When you add, extend, or change support for a format or extension, edit
-  [`docs/status.toml`](docs/status.toml) and regenerate (see below).
+  [`docs/status.toml`](docs/status.toml).
 
 ### Generated documentation
 
-[`docs/STATUS.md`](docs/STATUS.md) and the documentation site's format and extension data are
-generated from [`docs/status.toml`](docs/status.toml). Edit the TOML file, not the generated files, and re-generate:
+The site's CLI reference page is generated from `carta --man`, and a test fails when it is out of
+date. When you change a command-line flag or its help text, rewrite the page:
 
 ```sh
-cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+UPDATE_CLI_REFERENCE=1 cargo nextest run -p carta --test cli_reference
 ```
 
 ## Opening a pull request

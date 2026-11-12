@@ -1,0 +1,83 @@
+---
+import { binary, formatBytes, headline, results } from '../data/benchmarks';
+
+const groups = Object.entries(
+  Object.groupBy(results, (result) => `${result.surface}: ${result.group}`),
+);
+
+/** carta throughput in MB/s over the actual input size. */
+const throughput = (result: (typeof results)[number]) =>
+  result.bytes / 1_048_576 / (result.carta_ms / 1000);
+
+const memory = (bytes: number | null) =>
+  bytes === null ? '-' : formatBytes(bytes, 1);
+---
+
+{
+  groups.map(([title, rows = []]) => (
+    <>
+      <h3>{title}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Size</th>
+            <th scope="col">carta mean ± σ</th>
+            <th scope="col">pandoc mean ± σ</th>
+            <th scope="col">Speedup</th>
+            <th scope="col">carta MB/s</th>
+            <th scope="col">carta RSS</th>
+            <th scope="col">pandoc RSS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td>{formatBytes(row.bytes, 0)}</td>
+              <td>
+                {row.carta_ms.toFixed(2)} ms ± {row.carta_sd_ms.toFixed(2)}
+              </td>
+              <td>
+                {row.pandoc_ms.toFixed(2)} ms ± {row.pandoc_sd_ms.toFixed(2)}
+              </td>
+              <td>{row.speedup.toFixed(1)}×</td>
+              <td>{throughput(row).toFixed(1)}</td>
+              <td>{memory(row.carta_rss)}</td>
+              <td>{memory(row.pandoc_rss)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  ))
+}
+
+<h3>binary size</h3>
+<table>
+  <thead>
+    <tr>
+      <th scope="col">Binary</th>
+      <th scope="col">Size</th>
+      <th scope="col">Ratio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>carta</td>
+      <td>{formatBytes(binary.carta, 1)}</td>
+      <td>1.0×</td>
+    </tr>
+    <tr>
+      <td>pandoc</td>
+      <td>{formatBytes(binary.pandoc, 1)}</td>
+      <td>{headline.binaryRatio.toFixed(0)}×</td>
+    </tr>
+  </tbody>
+</table>
+
+<style>
+  th,
+  td {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+</style>

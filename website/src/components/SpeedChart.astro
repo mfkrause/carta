@@ -1,7 +1,12 @@
 ---
-import benchmarks from "../data/generated/benchmarks.json";
-
-const { provenance, results, headline } = benchmarks;
+import {
+  binary,
+  formatBytes,
+  formatRange,
+  headline,
+  provenance,
+  results,
+} from "../data/benchmarks";
 
 // Choose landing-page conversions independently of generated measurements.
 const FEATURED = [
@@ -24,13 +29,7 @@ const cases = FEATURED.map(({ surface, group }) => {
 
 // Scale each row separately so faster conversions remain visible.
 const share = (entry: (typeof cases)[number]) =>
-  (entry.cartaMs / entry.pandocMs) * 100;
-
-const times = (value: number) => `${value.toFixed(0)}×`;
-const range = (span: { low: number; high: number }) =>
-  span.low.toFixed(0) === span.high.toFixed(0)
-    ? times(span.high)
-    : `${span.low.toFixed(0)}–${times(span.high)}`;
+  (entry.carta_ms / entry.pandoc_ms) * 100;
 ---
 
 <figure class="speed">
@@ -39,24 +38,24 @@ const range = (span: { low: number; high: number }) =>
       <li>
         <div class="case">
           <code>{entry.group}</code>
-          <span class="size">{entry.size}</span>
+          <span class="size">{formatBytes(entry.bytes, 0)}</span>
           <strong>{entry.speedup.toFixed(1)}× faster</strong>
         </div>
 
         <div class="row">
           <span class="who">carta</span>
-          <span class="track" title={`carta ${entry.cartaMs} ms`}>
+          <span class="track" title={`carta ${entry.carta_ms} ms`}>
             <span class="fill carta" style={`--w: ${share(entry)}%`} />
           </span>
-          <span class="ms">{entry.cartaMs} ms</span>
+          <span class="ms">{entry.carta_ms} ms</span>
         </div>
 
         <div class="row">
           <span class="who">pandoc</span>
-          <span class="track" title={`pandoc ${entry.pandocMs} ms`}>
+          <span class="track" title={`pandoc ${entry.pandoc_ms} ms`}>
             <span class="fill other" style="--w: 100%" />
           </span>
-          <span class="ms">{entry.pandocMs} ms</span>
+          <span class="ms">{entry.pandoc_ms} ms</span>
         </div>
       </li>
     ))}
@@ -64,9 +63,9 @@ const range = (span: { low: number; high: number }) =>
 
   <figcaption>
     <p class="binary">
-      Binary size: {headline.binarySize.carta} against{" "}
-      {headline.binarySize.pandoc} ({times(headline.binarySize.ratio)} smaller).
-      Peak memory: {range(headline.memoryRatio)} less.
+      Binary size: {formatBytes(binary.carta, 1)} against{" "}
+      {formatBytes(binary.pandoc, 1)} ({headline.binaryRatio.toFixed(0)}×
+      smaller). Peak memory: {formatRange(headline.memoryRatio)} less.
     </p>
     <p class="note">
       Each row is scaled to itself. carta {provenance.carta} against pandoc{" "}

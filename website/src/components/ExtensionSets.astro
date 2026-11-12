@@ -1,5 +1,8 @@
 ---
-import { count, recognizedNotModeled, supported } from "../data/extensions";
+import { extensions } from "../data/status";
+import CodeSpans from "./CodeSpans.astro";
+
+const { supported, recognizedNotModeled, gaps } = extensions;
 ---
 
 <h4>Supported</h4>
@@ -9,12 +12,55 @@ import { count, recognizedNotModeled, supported } from "../data/extensions";
   ))}
 </p>
 
-<h4>Not yet implemented</h4>
-<p class="tokens">
-  {recognizedNotModeled.map((name) => (
-    <code>{name}</code>
-  ))}
-</p>
+{
+  gaps.length > 0 && (
+    <>
+      <h4>Known parity gaps</h4>
+      <p>
+        Constructs the supported extensions read, each with one narrow case
+        that still diverges.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Extensions</th>
+            <th scope="col">Gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {gaps.map((gap) => (
+            <tr>
+              <td>
+                {gap.names.map((name, index) => (
+                  <>
+                    {index > 0 && " "}
+                    <code>{name}</code>
+                  </>
+                ))}
+              </td>
+              <td>
+                <CodeSpans text={gap.description} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+{
+  recognizedNotModeled.length > 0 && (
+    <>
+      <h4>Not yet implemented</h4>
+      <p class="tokens">
+        {recognizedNotModeled.map((name) => (
+          <code>{name}</code>
+        ))}
+      </p>
+    </>
+  )
+}
 
 <style>
   .tokens {

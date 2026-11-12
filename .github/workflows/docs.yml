@@ -5,15 +5,11 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
-      - 'crates/**'
-      - 'tools/docgen/**'
       - 'website/**'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
       - 'docs/**'
-      - 'crates/**'
-      - 'tools/docgen/**'
       - 'website/**'
       - '.github/workflows/docs.yml'
 
@@ -21,28 +17,7 @@ concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
-
 jobs:
-  generated:
-    name: generated docs are current
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install toolchain
-        run: rustup show active-toolchain || rustup toolchain install
-      # Build both workspaces because docgen uses the binary's man page.
-      - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
-        with:
-          workspaces: |
-            .
-            tools/docgen
-      - name: Check generated artifacts against docs/status.toml
-        run: cargo run --manifest-path tools/docgen/Cargo.toml -- --check
-
   site:
     name: website build
     runs-on: ubuntu-latest

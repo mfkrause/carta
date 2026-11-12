@@ -56,12 +56,10 @@ Markdown tables to stdout; raw hyperfine JSON per case under `$BENCH_OUT` (gitig
 ### Refreshing the committed numbers
 
 ```sh
-tools/bench-suite/run.sh all --json /tmp/bench.json
-tools/bench-suite/to-toml.sh /tmp/bench.json >docs/benchmarks.toml
-cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+tools/bench-suite/run.sh all --json docs/benchmarks.json
 ```
 
-`docs/benchmarks.toml` holds the measurements; docgen renders `docs/BENCHMARKS.md` and the site's `benchmarks.json` from it, deriving every headline figure from the rows below it. Nothing in either output is written by hand, so no claim can outlive the numbers behind it. The `Benchmarks` workflow runs these three steps on a GitHub runner and opens a PR with the result.
+`docs/benchmarks.json` holds the measurements. The documentation site reads it directly and derives every headline figure from its rows, so no claim can outlive the numbers behind it. The `Benchmarks` workflow runs this step on a GitHub runner and opens a PR with the result.
 
 ## Fixtures
 

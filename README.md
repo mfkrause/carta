@@ -25,7 +25,7 @@
 
 ## Status
 
-carta already supports most of the most-used pandoc formats. The rest is in active development. See [`STATUS.md`](docs/STATUS.md) for a detailed breakdown.
+carta already supports most of the most-used pandoc formats. The rest is in active development. See the [compatibility page](https://carta.rs/formats/) for a detailed breakdown.
 
 ## Installation
 

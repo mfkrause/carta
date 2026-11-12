@@ -1,0 +1,37 @@
+---
+title: Benchmarks
+description: How carta compares with pandoc in speed, peak memory, and binary size, for each conversion and input size.
+sidebar:
+  order: 2
+---
+
+import BenchmarkTables from '../../../components/BenchmarkTables.astro';
+import {
+  binary,
+  formatBytes,
+  formatRange,
+  headline,
+  provenance,
+} from '../../../data/benchmarks';
+
+Measured on {provenance.runner}: carta {provenance.carta} against pandoc {provenance.pandoc}, driven
+by hyperfine {provenance.hyperfine} (warmup {provenance.warmup}, {provenance.runs} runs).
+
+carta is ~{formatRange(headline.endToEndSpeedup)} faster end-to-end across formats and sizes, and up
+to ~{headline.surfaceSpeedup.toFixed(0)}× on individual reader/writer surfaces. Its binary is
+~{headline.binaryRatio.toFixed(0)}× smaller ({formatBytes(binary.carta, 1)} vs{' '}
+{formatBytes(binary.pandoc, 1)}), and it uses ~{formatRange(headline.memoryRatio)} less peak memory.
+
+## How to read this
+
+Both tools run with identical `-f/-t` flags; pandoc is configured so both tools produce equivalent
+output and do equivalent work. Times are wall-clock end-to-end (process start included). `speedup` =
+pandoc mean ÷ carta mean. `MB/s` is carta throughput over the actual input size. RSS is peak resident
+memory from a single `/usr/bin/time` run. The HTML and LaTeX targets include syntax highlighting of
+code blocks in both tools.
+
+Reproduce with `tools/bench-suite/run.sh all`. Numbers are machine-specific; yours will differ.
+
+## Measurements
+
+<BenchmarkTables />

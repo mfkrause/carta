@@ -31,10 +31,6 @@ jobs:
       - name: Install toolchain
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
-        with:
-          workspaces: |
-            .
-            tools/docgen
       - name: Cache conformance dependencies
         uses: actions/cache@v6
         with:
@@ -53,12 +49,7 @@ jobs:
       - name: Run the benchmark suite
         run: |
           set -o pipefail
-          tools/bench-suite/run.sh all --json "$RUNNER_TEMP/bench.json" | tee "$RUNNER_TEMP/bench.md"
-
-      - name: Regenerate the committed artifacts
-        run: |
-          tools/bench-suite/to-toml.sh "$RUNNER_TEMP/bench.json" >docs/benchmarks.toml
-          cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+          tools/bench-suite/run.sh all --json docs/benchmarks.json | tee "$RUNNER_TEMP/bench.md"
 
       - name: Open a pull request
         env:
@@ -67,22 +58,21 @@ jobs:
           BRANCH: bench/${{ github.run_id }}
           SUBJECT: "docs(bench): refresh benchmark measurements"
         run: |
-          paths="docs/benchmarks.toml docs/BENCHMARKS.md website/src/data/generated/benchmarks.json"
-          if git diff --quiet -- $paths; then
-            echo "no change in the generated benchmark artifacts"
+          if git diff --quiet -- docs/benchmarks.json; then
+            echo "no change in the benchmark measurements"
             exit 0
           fi
           {
             echo "Measured by the \`Benchmarks\` workflow on a GitHub-hosted runner. Shared runners"
             echo "are noisier than a quiet local machine, so read small movements as noise."
             echo
-            echo "The provenance header in \`docs/benchmarks.toml\` records the machine, the tool"
+            echo "The provenance header in \`docs/benchmarks.json\` records the machine, the tool"
             echo "versions, and the run counts behind these numbers."
           } >"$RUNNER_TEMP/pr-body.md"
           git switch -c "$BRANCH"
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "$SUBJECT" -- $paths
+              commit -m "$SUBJECT" -- docs/benchmarks.json
           git push origin "$BRANCH"
           gh pr create --base "$BASE" --head "$BRANCH" \
             --title "$SUBJECT" --body-file "$RUNNER_TEMP/pr-body.md"
@@ -93,6 +83,6 @@ jobs:
         with:
           name: bench-results
           path: |
-            ${{ runner.temp }}/bench.json
+            docs/benchmarks.json
             ${{ runner.temp }}/bench.md
           if-no-files-found: ignore
