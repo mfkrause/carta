@@ -9,22 +9,17 @@ expression: output
   - 
     [[file:nested.png]]
 
--  ::
-  [[file:same.png]]
+-  :: [[file:same.png]]
 
-- Named ::
+- Named :: 
 
   <<toc>>
 
--  ::
-  [[file:next.png]]
+-  :: [[file:next.png]]
 
 - Indented :: [[file:sound.mp3]]
-
 - A :: 
-
 - B and C :: D
 
 - Bad :: 
-
 - include :: missing[

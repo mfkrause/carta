@@ -84,6 +84,15 @@ WRITER = {
     ("mediawiki", "reader-trees", "ipynb-version-three"): (
         "Pandoc writes a level-9 heading, which MediaWiki does not have."
     ),
+    ("org", "reader-trees", "asciidoc-definitions-nested"): (
+        "Pandoc starts a nested list on the term line, where Org reads its markers as text."
+    ),
+    ("org", "reader-trees", "asciidoc-list-block-indentation"): (
+        "Pandoc starts an example block on the term line, where Org reads it as text."
+    ),
+    ("org", "reader-trees", "asciidoc-table-in-definition-continuation"): (
+        "Pandoc starts a table on the term line and indents its rows unevenly."
+    ),
     ("rst", "common", "span"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "common", "span-semantic"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "reader-trees", "asciidoc-anchor-labels"): DROPPED_TARGET,

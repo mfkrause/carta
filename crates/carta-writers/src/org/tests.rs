@@ -185,3 +185,24 @@ fn definition_terms_and_nested_bullets_share_the_first_line() {
         assert_eq!(OrgWriter.write(&document, &options).unwrap(), expected);
     }
 }
+
+#[test]
+fn tight_list_items_keep_their_own_trailing_space() {
+    let document = Document {
+        blocks: vec![Block::BulletList(vec![
+            vec![Block::Plain(vec![s("a")])],
+            vec![
+                Block::Plain(vec![s("b")]),
+                Block::CodeBlock(Box::default(), "x".into()),
+            ],
+            vec![Block::Plain(vec![s("c")])],
+        ])],
+        ..Document::default()
+    };
+    assert_eq!(
+        OrgWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap(),
+        "- a\n- b\n  #+begin_example\n  x\n  #+end_example\n\n- c"
+    );
+}

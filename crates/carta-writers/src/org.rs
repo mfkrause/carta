@@ -10,7 +10,7 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_groups, fill_hang,
-    indent_block, item_separator, label_matches_url, offset_as_i64, per_character_width,
+    indent_block, label_matches_url, offset_as_i64, per_character_width,
     quote_marks, simple_table_rows,
 };
 
@@ -119,7 +119,7 @@ impl State {
                 fence("#+begin_quote", &body, "#+end_quote")
             }
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
-            Block::BulletList(items) => self.bullet_list(items, width, ""),
+            Block::BulletList(items) => self.bullet_list(items, width, initial_column),
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::HorizontalRule => "-".repeat(RULE_WIDTH),
@@ -186,22 +186,21 @@ impl State {
         }
     }
 
-    fn bullet_list(&mut self, items: &[Vec<Block>], width: usize, prefix: &str) -> String {
+    fn bullet_list(&mut self, items: &[Vec<Block>], width: usize, initial_column: usize) -> String {
         let loose = !list_is_tight(items);
         let mut units = Vec::new();
-        let first = format!("{prefix}- ");
-        let initial_column = prefix.rsplit('\n').next().map_or(0, display_width);
         for (index, item) in items.iter().enumerate() {
             let item = self.checkbox_item(item);
-            units.push(self.list_item(
+            let text = self.list_item(
                 &item,
                 width.saturating_sub(2),
-                if index == 0 { &first } else { "- " },
+                "- ",
                 "  ",
                 if index == 0 { initial_column } else { 0 },
-            ));
+            );
+            units.push((text, loose || ends_blank(&item)));
         }
-        join_items(units, item_separator(loose))
+        join_items(units)
     }
 
     /// Replace a leading Org-ballot checkbox character in a task-list item with an Org checkbox
@@ -258,9 +257,10 @@ impl State {
             };
             let first = format!("{marker} {cookie}");
             let rest = " ".repeat(field);
-            units.push(self.list_item(item, width.saturating_sub(field), &first, &rest, 0));
+            let text = self.list_item(item, width.saturating_sub(field), &first, &rest, 0);
+            units.push((text, loose || ends_blank(item)));
         }
-        join_items(units, item_separator(loose))
+        join_items(units)
     }
 
     fn list_item(
@@ -297,16 +297,12 @@ impl State {
         items: &[(Vec<Inline>, Vec<Vec<Block>>)],
         width: usize,
     ) -> String {
-        let loose = items.iter().any(|(_, definitions)| {
-            definitions
-                .iter()
-                .any(|blocks| matches!(blocks.first(), Some(Block::Para(_))))
-        });
         let mut units = Vec::new();
         for (term, definitions) in items {
-            units.push(self.definition_item(term, definitions, width));
+            let loose = !list_is_tight(definitions);
+            units.push((self.definition_item(term, definitions, width), loose));
         }
-        join_items(units, item_separator(loose))
+        join_items(units)
     }
 
     fn definition_item(
@@ -315,31 +311,38 @@ impl State {
         definitions: &[Vec<Block>],
         width: usize,
     ) -> String {
+        let body_width = width.saturating_sub(2);
         let mut blocks: Vec<Block> = definitions.iter().flatten().cloned().collect();
-        if blocks.is_empty() {
-            let term_text = self.flat(term);
-            return format!("- {term_text} :: ");
-        }
-        if let Some((Block::BulletList(items), rest)) = blocks.split_first() {
-            let body_width = width.saturating_sub(2);
-            let mut lead = term.to_vec();
-            // Keep the separator with the term's last word during wrapping.
-            lead.push(Inline::RawInline(Format("org".into()), " ::".into()));
-            let prefix = format!("{} ", self.leaf(&lead, body_width, true, 0));
-            let mut body = self.bullet_list(items, body_width, &prefix);
-            if body.is_empty() {
-                body = prefix;
-            }
-            let remainder = self.blocks(rest, body_width, false, 0);
-            if !remainder.is_empty() {
-                body.push_str("\n\n");
-                body.push_str(&remainder);
-            }
+        if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut()
+            && !inlines.is_empty()
+        {
+            let mut fused = term.to_vec();
+            fused.extend([Inline::Space, Inline::Str("::".into()), Inline::Space]);
+            fused.append(inlines);
+            *inlines = fused;
+            let body = self.blocks(&blocks, body_width, true, 0);
             return indent_block(&body, "- ", "  ");
         }
-        fuse_term(term, &mut blocks);
-        let body = self.blocks(&blocks, width.saturating_sub(2), true, 0);
-        indent_block(&body, "- ", "  ")
+        let mut lead = term.to_vec();
+        // Keep the separator with the term's last word during wrapping.
+        lead.push(Inline::RawInline(Format("org".into()), " ::".into()));
+        let lead = self.leaf(&lead, body_width, true, 0);
+        let first = blocks.iter().find(|block| !is_empty_leaf(block));
+        let shared = first.is_none_or(shares_term_line);
+        let column = if shared {
+            lead.rsplit('\n').next().map_or(0, display_width) + 1
+        } else {
+            0
+        };
+        let body = self.blocks(&blocks, body_width, false, column);
+        let text = if shared || body.is_empty() {
+            format!("{lead} {body}")
+        } else if first.is_some_and(leading_blank) {
+            format!("{lead} \n\n{body}")
+        } else {
+            format!("{lead}\n{body}")
+        };
+        indent_block(&text, "- ", "  ")
     }
 
     fn table(&mut self, table: &Table, _width: usize) -> String {
@@ -737,16 +740,43 @@ fn is_raw_org_block(block: &Block) -> bool {
     matches!(block, Block::RawBlock(format, _) if format.0.eq_ignore_ascii_case("org"))
 }
 
-/// Whether a list is tight: every item's blocks are plain text or a nested tight list, so items are
-/// separated by a single newline. Any paragraph, quote, code, or loose nested list makes it loose.
+/// Whether a list is tight: every item is empty, opens with a plain block, or holds only a nested
+/// tight list. A loose list sets a blank line after each item.
 fn list_is_tight(items: &[Vec<Block>]) -> bool {
-    items.iter().all(|item| item.iter().all(tight_block))
+    items.iter().all(|item| match item.as_slice() {
+        [] | [Block::Plain(_), ..] => true,
+        [Block::BulletList(nested) | Block::OrderedList(_, nested)] => list_is_tight(nested),
+        _ => false,
+    })
 }
 
-fn tight_block(block: &Block) -> bool {
+/// Whether an item of a tight list is followed by a blank line: its last block wants trailing
+/// space, where a nested list counts only when it is loose or its own last item ends that way.
+fn ends_blank(item: &[Block]) -> bool {
+    match item.last() {
+        None => false,
+        Some(Block::BulletList(nested) | Block::OrderedList(_, nested)) => {
+            !list_is_tight(nested) || nested.last().is_some_and(|last| ends_blank(last))
+        }
+        Some(block) => trailing_blank(block),
+    }
+}
+
+/// Whether a block is a paragraph or plain block without content, which renders nothing.
+fn is_empty_leaf(block: &Block) -> bool {
+    matches!(block, Block::Plain(inlines) | Block::Para(inlines) if inlines.is_empty())
+}
+
+/// Whether a definition's opening block continues the term line: running text and a nested bullet
+/// list do, while a block that Org recognizes only at the start of a line opens its own line.
+fn shares_term_line(block: &Block) -> bool {
     match block {
-        Block::Plain(_) => true,
-        Block::BulletList(items) | Block::OrderedList(_, items) => list_is_tight(items),
+        Block::Plain(_) | Block::Para(_) | Block::BulletList(_) => true,
+        Block::Figure(attr, caption, blocks) => {
+            attr.id.is_empty()
+                && caption.long.is_empty()
+                && blocks.first().is_none_or(shares_term_line)
+        }
         _ => false,
     }
 }
@@ -760,13 +790,22 @@ fn fence(begin: &str, body: &str, end: &str) -> String {
     }
 }
 
-/// Join rendered list items with `separator`, dropping any that produced no output.
-fn join_items(units: Vec<String>, separator: &str) -> String {
-    units
-        .into_iter()
-        .filter(|unit| !unit.is_empty())
-        .collect::<Vec<_>>()
-        .join(separator)
+/// Join rendered list items, dropping any that produced no output. An item whose flag is set is
+/// followed by a blank line.
+fn join_items(units: Vec<(String, bool)>) -> String {
+    let mut out = String::new();
+    let mut blank = false;
+    for (unit, spaced) in units {
+        if unit.is_empty() {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push_str(if blank { "\n\n" } else { "\n" });
+        }
+        out.push_str(&unit);
+        blank = spaced;
+    }
+    out
 }
 
 /// Split every text run that reaches beyond ASCII into one piece per character. Org sets a line one
@@ -820,24 +859,6 @@ fn properties(attr: &Attr) -> String {
     }
     lines.push(":END:".to_string());
     lines.join("\n")
-}
-
-/// Prepend a definition term to its first definition block so the term and its `::` marker share the
-/// first line, inserting a plain block when the first definition block carries no inline content.
-fn fuse_term(term: &[Inline], blocks: &mut Vec<Block>) {
-    if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut() {
-        let mut fused = term.to_vec();
-        fused.push(Inline::Space);
-        fused.push(Inline::Str("::".into()));
-        fused.push(Inline::Space);
-        fused.append(inlines);
-        *inlines = fused;
-    } else {
-        let mut lead = term.to_vec();
-        lead.push(Inline::Space);
-        lead.push(Inline::Str("::".into()));
-        blocks.insert(0, Block::Plain(lead));
-    }
 }
 
 /// Render an Org code block: a plain `example` block when it carries no class, otherwise a `src` block
