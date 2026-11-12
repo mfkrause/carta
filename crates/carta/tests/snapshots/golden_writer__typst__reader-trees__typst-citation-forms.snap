@@ -6,6 +6,6 @@ A normal reference @knuth1984 sits in the sentence.
 
 Author and year: @knuth1984.
 
-Year only: @knuth1984.
+Year only: (#cite(<knuth1984>, form: "year")).
 
 Prose form: @knuth1984.

@@ -1,8 +1,6 @@
 //! Inline rendering and line filling for the Typst writer.
 
-use std::fmt::Write as _;
-
-use carta_ast::{Attr, Block, Inline, Target, to_plain_text};
+use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target, to_plain_text};
 use carta_core::WrapMode;
 
 use crate::common::{display_width, word_line_metrics};
@@ -120,6 +118,12 @@ pub(super) fn fragments(
                 )));
                 first_inline = false;
             }
+            Inline::Cite(citations, _) => {
+                for citation in citations {
+                    extend_citation(&mut out, citation, width, wrap, smart);
+                }
+                first_inline = false;
+            }
             Inline::Note(items) => {
                 out.push(Fragment::Atom("#footnote[".to_owned()));
                 out.extend(block_fragments(items, width, wrap, smart));
@@ -217,6 +221,49 @@ fn extend_wrapped(
     if !close.is_empty() {
         out.push(Fragment::Atom(close.to_owned()));
     }
+}
+
+/// Splice one citation into `out`: a bare `@key` reference for a default-mode citation whose key is
+/// a plain label, a `#cite` call otherwise. The suffix, less a leading comma and space, follows as
+/// the supplement.
+fn extend_citation(
+    out: &mut Vec<Fragment>,
+    citation: &Citation,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) {
+    let key = label_target(&citation.id);
+    let form = match citation.mode {
+        CitationMode::NormalCitation => "",
+        CitationMode::AuthorInText => ", form: \"prose\"",
+        CitationMode::SuppressAuthor => ", form: \"year\"",
+    };
+    let bare = form.is_empty() && key.starts_with('<');
+    let (mut open, mut close) = if bare {
+        (format!("@{}", citation.id), String::new())
+    } else {
+        (format!("#cite({key}{form}"), ")".to_owned())
+    };
+    if matches!(citation.mode, CitationMode::SuppressAuthor) {
+        open.insert(0, '(');
+        close.push(')');
+    }
+    if citation.suffix.is_empty() {
+        out.push(Fragment::Atom(open + &close));
+        return;
+    }
+    let supplement = match citation.suffix.as_slice() {
+        [Inline::Str(comma), Inline::Space, rest @ ..] if comma == "," => rest,
+        whole => whole,
+    };
+    if bare {
+        open.push('[');
+    } else {
+        open.push_str(", supplement: [");
+    }
+    close.insert(0, ']');
+    extend_wrapped(out, supplement, &open, &close, width, wrap, smart);
 }
 
 /// The delimiters wrapping a span's content: a semantic class selects a Typst function, otherwise the
@@ -382,7 +429,7 @@ fn inline(value: &Inline, width: usize, wrap: WrapMode, smart: bool) -> String {
             let (open, close) = quote_marks(kind, smart);
             format!("{open}{}{close}", inline_run(items, width, wrap, smart))
         }
-        Inline::Cite(citations, _) => cite(citations),
+        Inline::Cite(..) => inline_run(std::slice::from_ref(value), width, wrap, smart),
         Inline::Code(_, text) => inline_code(text),
         Inline::Space | Inline::SoftBreak => " ".to_owned(),
         Inline::LineBreak => " \\ ".to_owned(),
@@ -399,14 +446,6 @@ fn self_blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> St
     blocks(items, width, wrap, smart)
         .trim_end_matches('\n')
         .to_owned()
-}
-
-fn cite(citations: &[carta_ast::Citation]) -> String {
-    let mut out = String::new();
-    for citation in citations {
-        let _ = write!(out, "@{}", citation.id);
-    }
-    out
 }
 
 fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: bool) -> String {
