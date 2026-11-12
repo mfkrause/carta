@@ -10,8 +10,6 @@ expression: output
 
   - ![](nested.png)
 
-
-
 : ![](same.png)
 
 Named
@@ -20,14 +18,13 @@ Named
 
   </div>
 
-
-
 : ![](next.png)
 
 Indented
 : ![](sound.mp3)
 
 A
+
 : 
 
 B and C
@@ -35,6 +32,7 @@ B and C
 : D
 
 Bad
+
 : 
 
 include

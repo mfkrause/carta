@@ -727,17 +727,20 @@ impl State {
     }
 
     /// One term and its definitions in definition-list syntax: the term on its own line, then each
-    /// definition introduced by `:` with a two-column hanging indent.
+    /// definition introduced by `:` with a two-column hanging indent. The group is tight, with no
+    /// blank line between its parts, when its first definition opens with a [`Block::Plain`]. An
+    /// empty term contributes no line.
     fn definition_group(
         &mut self,
         term: &[Inline],
         definitions: &[Vec<Block>],
         width: usize,
     ) -> String {
-        let term_line = self.inlines_oneline(term);
-        let loose = definitions.iter().any(|blocks| {
-            blocks.iter().any(|block| !matches!(block, Block::Plain(_))) || blocks.len() > 1
-        });
+        let term_line = self.term_line(term);
+        let tight = matches!(
+            definitions.first().and_then(|blocks| blocks.first()),
+            Some(Block::Plain(_))
+        );
         let bodies: Vec<String> = definitions
             .iter()
             .map(|definition| {
@@ -751,13 +754,20 @@ impl State {
                 indent_block(&body, first, rest)
             })
             .collect();
-        let separator = if loose { "\n\n" } else { "\n" };
+        let separator = if tight { "\n" } else { "\n\n" };
         let definitions = bodies.join(separator);
-        if loose {
-            format!("{term_line}\n\n{definitions}")
+        if term_line.is_empty() {
+            definitions
+        } else if definitions.is_empty() {
+            term_line
         } else {
-            format!("{term_line}\n{definitions}")
+            format!("{term_line}{separator}{definitions}")
         }
+    }
+
+    /// Render a definition term without wrapping it, keeping each forced break as a line end.
+    fn term_line(&mut self, term: &[Inline]) -> String {
+        pieces_to_string(&self.pieces(term))
     }
 
     /// Without the definition-list extension there is no native syntax: each term renders as a line
@@ -770,10 +780,11 @@ impl State {
         let groups: Vec<String> = items
             .iter()
             .map(|(term, definitions)| {
-                let term_line = self.inlines_oneline(term);
+                let term_line = self.term_line(term);
                 let bodies: Vec<String> = definitions
                     .iter()
                     .map(|definition| self.blocks_to_string(definition, width, 0))
+                    .filter(|body| !body.is_empty())
                     .collect();
                 let body = bodies.join("\n\n");
                 if body.is_empty() {

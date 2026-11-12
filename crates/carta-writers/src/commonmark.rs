@@ -234,6 +234,7 @@ impl State {
                 let bodies: Vec<String> = definitions
                     .iter()
                     .map(|definition| self.blocks_to_string(definition, width, false))
+                    .filter(|body| !body.is_empty())
                     .collect();
                 let body = bodies.join("\n\n");
                 let leads_with_rule = definitions

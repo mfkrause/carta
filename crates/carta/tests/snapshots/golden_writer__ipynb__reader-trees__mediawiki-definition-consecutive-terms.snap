@@ -8,10 +8,11 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "first   second  \n",
+    "first  \n",
+    "second  \n",
     "shared definition"
    ],
-   "id": "854039eb-8e38-4abf-b9ce-34a524185d90"
+   "id": "044b06a9-614f-41b1-a8f6-91a472b64c10"
   }
  ],
  "nbformat": 4,

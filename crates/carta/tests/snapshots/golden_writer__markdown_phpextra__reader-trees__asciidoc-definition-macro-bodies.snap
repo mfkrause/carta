@@ -12,8 +12,6 @@ expression: output
     <img src="nested.png" />
     </figure>
 
-
-
 : <figure>
   <img src="same.png" />
   </figure>
@@ -24,8 +22,6 @@ Named
 
   </div>
 
-
-
 : <figure>
   <img src="next.png" />
   </figure>
@@ -34,6 +30,7 @@ Indented
 : ![](sound.mp3)
 
 A
+
 : 
 
 B and C
@@ -41,6 +38,7 @@ B and C
 : D
 
 Bad
+
 : 
 
 include
