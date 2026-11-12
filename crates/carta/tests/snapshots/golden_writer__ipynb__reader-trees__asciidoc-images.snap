@@ -8,7 +8,7 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "An <img src=\"photo.png\" width=\"100px\" height=\"200px\" alt=\"Photo\" />.\n",
+    "An <img src=\"photo.png\" width=\"100\" height=\"200\" alt=\"Photo\" />.\n",
     "\n",
     "<figure>\n",
     "<img src=\"photo.png\" width=\"100\" height=\"200\" alt=\"Photo\" />\n",
@@ -19,7 +19,7 @@ expression: output
     "<img src=\"photo.png\" />\n",
     "</figure>"
    ],
-   "id": "7e308fdb-45c4-4bc2-870f-b04ffe78bf04"
+   "id": "3cb595bc-8738-4242-9011-fa190f365024"
   }
  ],
  "nbformat": 4,

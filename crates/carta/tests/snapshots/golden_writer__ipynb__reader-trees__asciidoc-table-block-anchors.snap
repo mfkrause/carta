@@ -56,10 +56,10 @@ expression: output
     "</tfoot>\n",
     "&#10;</table>\n",
     "\n",
-    "<span class=\"counter\" name=\"dangling\">1</span>\n",
-    "<span class=\"counter\" name=\"ordered\">3</span>"
+    "<span class=\"counter\" name=\"dangling\">1</span> <span class=\"counter\"\n",
+    "name=\"ordered\">3</span>"
    ],
-   "id": "68eed38d-330f-4da7-af0e-055891c93232"
+   "id": "b5f0c5e2-2d52-46bb-899f-b60d4252241a"
   }
  ],
  "nbformat": 4,

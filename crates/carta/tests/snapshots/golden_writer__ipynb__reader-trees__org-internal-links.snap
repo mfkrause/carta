@@ -12,8 +12,8 @@ expression: output
     "\n",
     "<span id=\"later\"></span>A named target.\n",
     "\n",
-    "[later](#later) and\n",
-    "<span class=\"spurious-link\" target=\"missing\">*Missing target*</span>.\n",
+    "[later](#later) and <span class=\"spurious-link\"\n",
+    "target=\"missing\">*Missing target*</span>.\n",
     "\n",
     "<span id=\"a-b\"></span>and <span id=\"a-b-1\"></span>.\n",
     "\n",
@@ -27,7 +27,7 @@ expression: output
     "\n",
     "[1] See [later](#later)."
    ],
-   "id": "6c529042-e222-4863-9c54-4321b46dd17c"
+   "id": "cb4e28ec-445c-4a6f-97c1-5b95c10f82bc"
   }
  ],
  "nbformat": 4,

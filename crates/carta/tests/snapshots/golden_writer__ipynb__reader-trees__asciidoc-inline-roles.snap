@@ -8,10 +8,10 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "<span class=\"foo bar\" data-wrapper=\"1\">**x**</span> and <a href=\"page\"\n",
-    "class=\"b\">Hello</a>."
+    "<span class=\"foo bar\" data-wrapper=\"1\">**x**</span> and\n",
+    "<a href=\"page\" class=\"b\">Hello</a>."
    ],
-   "id": "8f2e77c7-afd5-483a-81e3-0c8fe67e9ef0"
+   "id": "05803b11-af45-4c22-9e05-d783f74dfe10"
   }
  ],
  "nbformat": 4,

@@ -22,7 +22,7 @@ Set beside the text.
 
 </div>
 
-<div class="informalequation" role="numbered" data-markdown="1">
+<div class="informalequation" data-markdown="1" role="numbered">
 
 $$y = x$$
 

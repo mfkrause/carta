@@ -11,11 +11,13 @@ data-reference="second">1.1</a>.
 
 <a href="#first" data-reference-type="ref" data-reference="first">1</a>,
 <a href="#second" data-reference-type="ref+label"
-data-reference="second">1.1</a>, <a href="#second"
-data-reference-type="ref+Label" data-reference="second">1.1</a>, <a
-href="#second" data-reference-type="eqref"
-data-reference="second">\[second\]</a>, <a href="#missing"
-data-reference-type="ref" data-reference="missing">\[missing\]</a>.
+data-reference="second">1.1</a>,
+<a href="#second" data-reference-type="ref+Label"
+data-reference="second">1.1</a>,
+<a href="#second" data-reference-type="eqref"
+data-reference="second">[second]</a>,
+<a href="#missing" data-reference-type="ref"
+data-reference="missing">[missing]</a>.
 
 <figure>
 
@@ -32,5 +34,5 @@ data-reference="figure">2</a>.
 
 # Part
 
-See Part <a href="#part" data-reference-type="ref"
-data-reference="part">I</a>.
+See Part
+<a href="#part" data-reference-type="ref" data-reference="part">I</a>.

@@ -16,10 +16,11 @@ expression: output
     "\n",
     "### Discrete\n",
     "\n",
-    "<img src=\"./images/icons/heart.png\" class=\"icon\" data-asciidoc-icon=\"user\" data-wrapper=\"1\" />\n",
+    "<img src=\"./images/icons/heart.png\" class=\"icon\"\n",
+    "data-asciidoc-icon=\"user\" data-wrapper=\"1\" />\n",
     "\n",
-    "<span id=\"spot\" data-asciidoc-identifier-source=\"user\"></span> <a\n",
-    "href=\"#spot\" class=\"cross-reference\"></a>\n",
+    "<span id=\"spot\" data-asciidoc-identifier-source=\"user\"></span>\n",
+    "<a href=\"#spot\" class=\"cross-reference\"></a>\n",
     "\n",
     "## HTML\n",
     "\n",
@@ -29,7 +30,7 @@ expression: output
     "\n",
     "### Prefix"
    ],
-   "id": "2f15ac65-d95e-4c74-b570-33aa5804f8d0"
+   "id": "08bcf926-9e9a-48ba-a461-eae91b7169c8"
   }
  ],
  "nbformat": 4,

@@ -4,7 +4,8 @@ expression: output
 ---
 # Heading [_heading]
 
-<div id="_nested" data-asciidoc-heading="titled" data-asciidoc-section="titled" data-markdown="1">
+<div id="_nested" data-markdown="1" data-asciidoc-heading="titled"
+data-asciidoc-section="titled">
 
 <div class="title" data-markdown="1">
 
@@ -16,10 +17,11 @@ Titled
 
 ### Discrete []
 
-<img src="./images/icons/heart.png" class="icon" data-asciidoc-icon="user" data-wrapper="1" />
+<img src="./images/icons/heart.png" class="icon"
+data-asciidoc-icon="user" data-wrapper="1" />
 
-<span id="spot" data-asciidoc-identifier-source="user"></span> <a
-href="#spot" class="cross-reference"></a>
+<span id="spot" data-asciidoc-identifier-source="user"></span>
+<a href="#spot" class="cross-reference"></a>
 
 ## HTML []
 

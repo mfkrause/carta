@@ -34,14 +34,14 @@ expression: output
     "\n",
     "# Target\n",
     "\n",
-    "See <a href=\"#target\" class=\"cross-reference\">Target</a> and <a\n",
-    "href=\"#term-id\" class=\"cross-reference\">term-id</a> and [2].\n",
+    "See <a href=\"#target\" class=\"cross-reference\">Target</a> and\n",
+    "<a href=\"#term-id\" class=\"cross-reference\">term-id</a> and [2].\n",
     "\n",
     "[1] Note {value}\n",
     "\n",
     "[2] "
    ],
-   "id": "eb199d05-225d-45a5-a080-c6ce2ab60350"
+   "id": "56af5be0-8e46-4e69-87b3-4557caab25a4"
   }
  ],
  "nbformat": 4,

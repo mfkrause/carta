@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-<div class="example" data-options="hardbreaks" data-markdown="1">
+<div class="example" data-markdown="1" data-options="hardbreaks">
 
 one  
 two
@@ -11,7 +11,7 @@ two
 
 after block
 
-<div class="sidebar" data-options="hardbreaks" data-markdown="1">
+<div class="sidebar" data-markdown="1" data-options="hardbreaks">
 
 one  
 two
@@ -20,7 +20,7 @@ two
 
 after block
 
-<div data-options="hardbreaks" data-markdown="1">
+<div data-markdown="1" data-options="hardbreaks">
 
 one  
 two
@@ -29,7 +29,7 @@ two
 
 after block
 
-<div data-wrapper="1" data-options="hardbreaks" data-markdown="1">
+<div data-markdown="1" data-wrapper="1" data-options="hardbreaks">
 
 > one  
 > two

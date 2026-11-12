@@ -4,7 +4,8 @@ expression: output
 ---
 # Heading {#_heading asciidoc-heading="heading" asciidoc-icon="icon" asciidoc-identifier-source="source" asciidoc-section="section" wrapper="1"}
 
-<div id="_nested" data-asciidoc-heading="titled" data-asciidoc-section="titled" data-markdown="1">
+<div id="_nested" data-markdown="1" data-asciidoc-heading="titled"
+data-asciidoc-section="titled">
 
 <div class="title" data-markdown="1">
 

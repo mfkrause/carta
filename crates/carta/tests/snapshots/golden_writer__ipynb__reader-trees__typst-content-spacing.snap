@@ -29,13 +29,13 @@ expression: output
     "\n",
     "A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.\n",
     "\n",
-    "<img src=\"diagram.png\" width=\"1000.0pt\" />\n",
+    "<img src=\"diagram.png\" style=\"width:1000pt\" />\n",
     "\n",
     "The binding kept survives its statement.\n",
     "\n",
     "[1] Trimmed on both ends."
    ],
-   "id": "d0a2f108-838a-4571-818b-62f95bfa9900"
+   "id": "eba91354-4b25-402a-b23e-21d69daf9f1c"
   }
  ],
  "nbformat": 4,

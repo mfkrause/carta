@@ -8,17 +8,17 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "See <a href=\"#section\" class=\"cross-reference\">A section</a> and <a\n",
-    "href=\"#missing\" class=\"cross-reference\">missing</a>.\n",
+    "See <a href=\"#section\" class=\"cross-reference\">A section</a> and\n",
+    "<a href=\"#missing\" class=\"cross-reference\">missing</a>.\n",
     "\n",
     "# A section\n",
     "\n",
     "An <span id=\"anchor\"></span>anchor.\n",
     "\n",
-    "See <a href=\"#anchor\" class=\"cross-reference\">Label</a> and <a\n",
-    "href=\"#section\" class=\"cross-reference\">A section</a>."
+    "See <a href=\"#anchor\" class=\"cross-reference\">Label</a> and\n",
+    "<a href=\"#section\" class=\"cross-reference\">A section</a>."
    ],
-   "id": "cba93cb6-266f-44b9-91d7-381725b0da52"
+   "id": "f0766258-afc6-4dd1-abec-08ad6db80d9a"
   }
  ],
  "nbformat": 4,

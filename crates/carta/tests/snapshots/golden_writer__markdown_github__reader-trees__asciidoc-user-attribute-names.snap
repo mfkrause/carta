@@ -10,10 +10,11 @@ Titled
 
 ### Discrete
 
-<img src="./images/icons/heart.png" class="icon" data-asciidoc-icon="user" data-wrapper="1" />
+<img src="./images/icons/heart.png" class="icon"
+data-asciidoc-icon="user" data-wrapper="1" />
 
-<span id="spot" data-asciidoc-identifier-source="user"></span> <a
-href="#spot" class="cross-reference"></a>
+<span id="spot" data-asciidoc-identifier-source="user"></span>
+<a href="#spot" class="cross-reference"></a>
 
 ## HTML
 

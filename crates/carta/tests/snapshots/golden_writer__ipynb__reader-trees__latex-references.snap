@@ -17,11 +17,13 @@ expression: output
     "\n",
     "<a href=\"#first\" data-reference-type=\"ref\" data-reference=\"first\">1</a>,\n",
     "<a href=\"#second\" data-reference-type=\"ref+label\"\n",
-    "data-reference=\"second\">1.1</a>, <a href=\"#second\"\n",
-    "data-reference-type=\"ref+Label\" data-reference=\"second\">1.1</a>, <a\n",
-    "href=\"#second\" data-reference-type=\"eqref\"\n",
-    "data-reference=\"second\">\\[second\\]</a>, <a href=\"#missing\"\n",
-    "data-reference-type=\"ref\" data-reference=\"missing\">\\[missing\\]</a>.\n",
+    "data-reference=\"second\">1.1</a>,\n",
+    "<a href=\"#second\" data-reference-type=\"ref+Label\"\n",
+    "data-reference=\"second\">1.1</a>,\n",
+    "<a href=\"#second\" data-reference-type=\"eqref\"\n",
+    "data-reference=\"second\">[second]</a>,\n",
+    "<a href=\"#missing\" data-reference-type=\"ref\"\n",
+    "data-reference=\"missing\">[missing]</a>.\n",
     "\n",
     "<figure>\n",
     "\n",
@@ -38,10 +40,10 @@ expression: output
     "\n",
     "# Part\n",
     "\n",
-    "See Part <a href=\"#part\" data-reference-type=\"ref\"\n",
-    "data-reference=\"part\">I</a>."
+    "See Part\n",
+    "<a href=\"#part\" data-reference-type=\"ref\" data-reference=\"part\">I</a>."
    ],
-   "id": "606418a1-ea01-412e-9339-847b7108a4dc"
+   "id": "e33ff6b2-82fd-49b2-988c-a67d91317d9c"
   }
  ],
  "nbformat": 4,

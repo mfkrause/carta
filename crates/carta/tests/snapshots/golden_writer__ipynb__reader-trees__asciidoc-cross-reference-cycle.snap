@@ -8,9 +8,10 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "# <a href=\"#self\" class=\"cross-reference\"><span class=\"cross-reference\">self</span></a>"
+    "# <a href=\"#self\" class=\"cross-reference\"><span\n",
+    "class=\"cross-reference\">self</span></a>"
    ],
-   "id": "be600691-b7ad-4a63-a94d-e8da00de698e"
+   "id": "4a2efac0-33c1-4be5-8454-d2362d1e6a4a"
   }
  ],
  "nbformat": 4,

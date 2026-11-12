@@ -12,7 +12,7 @@ expression: output
     "\n",
     "<span id=\"intro\"></span>\n",
     "\n",
-    "See <a href=\"#intro\" class=\"ref\">\\[intro\\]</a> for context.\n",
+    "See <a href=\"#intro\" class=\"ref\">[intro]</a> for context.\n",
     "\n",
     "<figure>\n",
     "<p><img src=\"plot.png\" /></p>\n",
@@ -21,7 +21,7 @@ expression: output
     "\n",
     "<span id=\"fig-plot\"></span>\n",
     "\n",
-    "Reference to <a href=\"#fig-plot\" class=\"ref\">\\[fig-plot\\]</a> as well.\n",
+    "Reference to <a href=\"#fig-plot\" class=\"ref\">[fig-plot]</a> as well.\n",
     "\n",
     "A <a href=\"#intro\" class=\"ref\"></a> written as a call.\n",
     "\n",
@@ -31,7 +31,7 @@ expression: output
     "\n",
     "A <a href=\"#intro\" class=\"ref\"></a> built from a label call."
    ],
-   "id": "1ab52e2e-4050-4a86-b92f-5d82d9b003e0"
+   "id": "d08f4797-7164-4252-8e8d-ab4e4439bf68"
   }
  ],
  "nbformat": 4,

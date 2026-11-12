@@ -8,8 +8,8 @@ expression: output
 
 Table *caption* {#table}
 
-See Table <a href="#table" data-reference-type="ref"
-data-reference="table">1</a>.
+See Table
+<a href="#table" data-reference-type="ref" data-reference="table">1</a>.
 
 |         |
 |:--------|

@@ -8,9 +8,9 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "<span id=\"point\"></span> See <a href=\"#point\"\n",
-    "class=\"cross-reference\">Reference Text</a> and <a href=\"#missing\"\n",
-    "class=\"cross-reference\"></a>.\n",
+    "<span id=\"point\"></span> See\n",
+    "<a href=\"#point\" class=\"cross-reference\">Reference Text</a> and\n",
+    "<a href=\"#missing\" class=\"cross-reference\"></a>.\n",
     "\n",
     "# Heading\n",
     "\n",
@@ -18,12 +18,12 @@ expression: output
     "\n",
     "See <a href=\"#multi\" class=\"cross-reference\">multi</a>.\n",
     "\n",
-    "<span id=\"macro\"></span> See <a href=\"#macro\"\n",
-    "class=\"cross-reference\">AlphaBeta</a>.\n",
+    "<span id=\"macro\"></span> See\n",
+    "<a href=\"#macro\" class=\"cross-reference\">AlphaBeta</a>.\n",
     "\n",
     "<span id=\"bib\"></span>"
    ],
-   "id": "b3ba6b07-0fde-43f8-af76-f47af1efe290"
+   "id": "e1c05e1d-77aa-4fa8-ac15-bc40dc664e30"
   }
  ],
  "nbformat": 4,

@@ -336,7 +336,6 @@ impl State {
         let key = (
             std::ptr::from_ref(table) as usize,
             self.footnotes.len(),
-            self.in_anchor,
             self.small_caps,
         );
         let [natural, minword] = if let Some(measured) = self.table_measurements.get(&key) {

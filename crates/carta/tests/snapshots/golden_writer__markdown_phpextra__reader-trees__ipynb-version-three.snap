@@ -14,7 +14,8 @@ expression: output
 
 </div>
 
-<div class="cell code" data-execution_count="1" data-collapsed="false" data-language="python" data-markdown="1">
+<div class="cell code" data-markdown="1" data-execution_count="1"
+data-collapsed="false" data-language="python">
 
 ~~~ python
 print(1)
@@ -26,13 +27,15 @@ print(1)
 
 </div>
 
-<div class="output execute_result" data-execution_count="1" data-markdown="1">
+<div class="output execute_result" data-markdown="1"
+data-execution_count="1">
 
     1
 
 </div>
 
-<div class="output error" data-ename="ExampleError" data-evalue="text" data-markdown="1">
+<div class="output error" data-markdown="1" data-ename="ExampleError"
+data-evalue="text">
 
     line 1
     ExampleError: text
@@ -41,9 +44,7 @@ print(1)
 
 </div>
 
-<div class="cell raw" data-format="text/latex" data-markdown="1">
-
-
+<div class="cell raw" data-markdown="1" data-format="text/latex">
 
 </div>
 

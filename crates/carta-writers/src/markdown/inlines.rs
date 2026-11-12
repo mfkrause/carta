@@ -1,16 +1,13 @@
 //! Inline rendering and running-text escaping for the markdown engine.
 
-use carta_ast::{Attr, Citation, CitationMode, Format, Inline, MathType, Target, Text};
+use carta_ast::{Attr, Block, Citation, CitationMode, Format, Inline, MathType, Target};
 use carta_core::Extension;
 
-use crate::common::{
-    NotesHost, Piece, clean_prefix_len, escape_html_attr, quote_marks, render_html_attr,
-    render_html_fragment_attr,
-};
+use crate::common::{NotesHost, Piece, clean_prefix_len, quote_marks, render_html_attr};
 use crate::markdown_common::{
     attr_is_empty, autolink, begins_character_reference, begins_named_entity, code_span,
     destination, is_autolink_class, is_html_format, is_word_boundary, longest_backtick_run,
-    push_html, wiki_link,
+    push_open_tag, wiki_link,
 };
 
 use super::{State, attr_body, attr_braces};
@@ -128,25 +125,30 @@ impl State {
             }
             Inline::Math(kind, text) => self.math(kind, text, out),
             Inline::RawInline(format, text) => self.raw_inline(format, text, out),
+            Inline::Link(..) | Inline::Image(..) if self.renders_as_html(inline) => {
+                out.push(Piece::text(self.html_inline(inline)));
+            }
             Inline::Link(attr, inlines, target) => self.link(attr, inlines, target, out),
             Inline::Image(attr, inlines, target) => self.image(attr, inlines, target, out),
-            Inline::Span(attr, inlines) => {
-                if attr_is_empty(attr) {
-                    self.extend_pieces(inlines, out);
-                } else if self.config.span_syntax() {
-                    self.wrap_span(attr, inlines, out);
-                } else if self.config.has(Extension::RawHtml) {
-                    out.push(Piece::text(format!("<span{}>", render_html_attr(attr))));
-                    self.extend_pieces(inlines, out);
-                    out.push(Piece::text("</span>"));
-                } else {
-                    self.extend_pieces(inlines, out);
-                }
-            }
+            Inline::Span(attr, inlines) => self.span(attr, inlines, out),
             Inline::Note(blocks) => {
                 let marker = self.record_note(blocks);
                 out.push(Piece::text(marker));
             }
+        }
+    }
+
+    fn span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if attr_is_empty(attr) {
+            self.extend_pieces(inlines, out);
+        } else if self.config.span_syntax() {
+            self.wrap_span(attr, inlines, out);
+        } else if self.config.has(Extension::RawHtml) {
+            push_open_tag(out, &format!("<span{}>", render_html_attr(attr)));
+            self.extend_pieces(inlines, out);
+            out.push(Piece::text("</span>"));
+        } else {
+            self.extend_pieces(inlines, out);
         }
     }
 
@@ -324,17 +326,31 @@ impl State {
         out.push(Piece::text(format!("]{{{}}}", attr_body(attr))));
     }
 
-    fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if self.in_anchor {
-            push_html(
-                out,
-                &format!("<span{}>", render_html_fragment_attr(attr)),
-                true,
-            );
-            self.extend_pieces(inlines, out);
-            out.push(Piece::text("</span>"));
-            return;
+    /// An inline rendered as an HTML fragment kept as one literal run: it wraps at the fill column
+    /// on its own, wherever it lands in the surrounding line.
+    fn html_inline(&self, inline: &Inline) -> String {
+        crate::html::render_fragment(&[Block::Plain(vec![inline.clone()])], self.wrap)
+    }
+
+    /// Whether a link or image must fall back to HTML: it carries attributes the dialect cannot
+    /// express as a native `{…}` suffix, and no wiki-link or autolink form applies.
+    fn renders_as_html(&self, inline: &Inline) -> bool {
+        match inline {
+            Inline::Link(attr, inlines, target) => {
+                self.config.has(Extension::RawHtml)
+                    && !self.config.has(Extension::LinkAttributes)
+                    && !attr_is_empty(attr)
+                    && wiki_link(attr, inlines, target, self.config.extensions).is_none()
+                    && !(is_autolink_class(attr) && autolink(inlines, target).is_some())
+            }
+            Inline::Image(attr, ..) => {
+                self.image_renders_as_html(attr) || self.is_wikilink_image(attr)
+            }
+            _ => false,
         }
+    }
+
+    fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
         if let Some(link) = wiki_link(attr, inlines, target, self.config.extensions) {
             out.push(Piece::text(link));
             return;
@@ -343,26 +359,6 @@ impl State {
             && let Some(autolink) = autolink(inlines, target)
         {
             out.push(Piece::text(autolink));
-            return;
-        }
-        if !self.config.has(Extension::LinkAttributes)
-            && !attr_is_empty(attr)
-            && self.config.has(Extension::RawHtml)
-        {
-            push_html(
-                out,
-                &format!(
-                    "<a href=\"{}\"{}{}>",
-                    escape_html_attr(&target.url),
-                    render_html_fragment_attr(attr),
-                    title_attr(&target.title)
-                ),
-                true,
-            );
-            self.in_anchor = true;
-            self.extend_pieces(inlines, out);
-            self.in_anchor = false;
-            out.push(Piece::text("</a>"));
             return;
         }
         out.push(Piece::text("["));
@@ -383,7 +379,15 @@ impl State {
     pub(super) fn image_renders_as_html(&self, attr: &Attr) -> bool {
         self.config.has(Extension::RawHtml)
             && !self.config.has(Extension::LinkAttributes)
-            && (has_dimension(attr) || !attr_is_empty(attr))
+            && !attr_is_empty(attr)
+    }
+
+    /// Whether an image is a wiki-link image in a dialect that writes those as an HTML `<img>`.
+    fn is_wikilink_image(&self, attr: &Attr) -> bool {
+        self.config.cmark
+            && (self.config.has(Extension::WikilinksTitleAfterPipe)
+                || self.config.has(Extension::WikilinksTitleBeforePipe))
+            && attr.classes.iter().any(|class| class == "wikilink")
     }
 
     pub(super) fn image(
@@ -393,15 +397,6 @@ impl State {
         target: &Target,
         out: &mut Vec<Piece>,
     ) {
-        if self.image_renders_as_html(attr)
-            || (self.config.cmark
-                && (self.config.has(Extension::WikilinksTitleAfterPipe)
-                    || self.config.has(Extension::WikilinksTitleBeforePipe))
-                && attr.classes.iter().any(|class| class == "wikilink"))
-        {
-            out.push(Piece::text(image_html(attr, inlines, target)));
-            return;
-        }
         if !self.config.cmark
             && let Some(link) = wiki_link(attr, inlines, target, self.config.extensions)
         {
@@ -583,37 +578,6 @@ fn downgrade_smart(text: &str, old_dashes: bool) -> String {
         }
     }
     out
-}
-
-fn has_dimension(attr: &Attr) -> bool {
-    attr.attributes
-        .iter()
-        .any(|(key, _)| matches!(key.as_str(), "width" | "height"))
-}
-
-fn title_attr(title: &Text) -> String {
-    if title.is_empty() {
-        String::new()
-    } else {
-        format!(" title=\"{}\"", escape_html_attr(title))
-    }
-}
-
-/// An image rendered as an HTML `<img>` element (the fallback for an image carrying attributes when
-/// link attributes have no native syntax).
-fn image_html(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
-    let alt = carta_ast::to_plain_text(inlines);
-    let alt_attr = if alt.is_empty() {
-        String::new()
-    } else {
-        format!(" alt=\"{}\"", escape_html_attr(&alt))
-    };
-    format!(
-        "<img src=\"{}\"{}{}{alt_attr} />",
-        escape_html_attr(&target.url),
-        title_attr(&target.title),
-        render_html_fragment_attr(attr),
-    )
 }
 
 fn underline_attr() -> Attr {

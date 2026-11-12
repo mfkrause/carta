@@ -14,14 +14,14 @@ expression: output
     "<span id=\"x\" class=\"mark\">text</span>\n",
     "<span class=\"style.role\">text</span> <span class=\"a\">text</span>\n",
     "\n",
-    "prefix <span class=\"\" data-wrapper=\"1\">**strong**</span>\n",
-    "<span class=\"\" data-wrapper=\"1\">*italic*</span>\n",
-    "<span class=\"\">span</span> <span class=\"\">span</span>\n",
+    "prefix <span class=\"\" data-wrapper=\"1\">**strong**</span> <span class=\"\"\n",
+    "data-wrapper=\"1\">*italic*</span> <span class=\"\">span</span>\n",
+    "<span class=\"\">span</span>\n",
     "\n",
     "prefix <span data-wrapper=\"1\">**strong**</span>\n",
     "<span class=\"mark\">mark</span>"
    ],
-   "id": "53521cff-d3b4-4550-bd1a-56de648fea70"
+   "id": "a926328b-15d3-44c0-8be9-46d1556ceb90"
   }
  ],
  "nbformat": 4,

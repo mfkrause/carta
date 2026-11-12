@@ -14,8 +14,8 @@ expression: output
     "\n",
     "Table *caption* {#table}\n",
     "\n",
-    "See Table <a href=\"#table\" data-reference-type=\"ref\"\n",
-    "data-reference=\"table\">1</a>.\n",
+    "See Table\n",
+    "<a href=\"#table\" data-reference-type=\"ref\" data-reference=\"table\">1</a>.\n",
     "\n",
     "|         |\n",
     "|:--------|\n",
@@ -24,7 +24,7 @@ expression: output
     "First line  \n",
     "Second line"
    ],
-   "id": "4c547a52-0291-4218-93e6-2b670cb25860"
+   "id": "58c168f2-caf3-4c74-ac19-bd275f841a58"
   }
  ],
  "nbformat": 4,

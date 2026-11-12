@@ -6,7 +6,7 @@ expression: output
 
 <span id="intro"></span>
 
-See <a href="#intro" class="ref">\[intro\]</a> for context.
+See <a href="#intro" class="ref">[intro]</a> for context.
 
 <figure>
 <p><img src="plot.png" /></p>
@@ -15,7 +15,7 @@ See <a href="#intro" class="ref">\[intro\]</a> for context.
 
 <span id="fig-plot"></span>
 
-Reference to <a href="#fig-plot" class="ref">\[fig-plot\]</a> as well.
+Reference to <a href="#fig-plot" class="ref">[fig-plot]</a> as well.
 
 A <a href="#intro" class="ref"></a> written as a call.
 

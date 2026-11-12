@@ -10,20 +10,20 @@ expression: output
    "source": [
     "# A\n",
     "\n",
-    "<a href=\"#x\" class=\"cross-reference\">x</a> <a href=\"#x\"\n",
-    "class=\"cross-reference\">x</a> <a href=\"#x\"\n",
-    "class=\"cross-reference\">`x`</a>\n",
+    "<a href=\"#x\" class=\"cross-reference\">x</a>\n",
+    "<a href=\"#x\" class=\"cross-reference\">x</a>\n",
+    "<a href=\"#x\" class=\"cross-reference\"><code>x</code></a>\n",
     "\n",
     "# B\n",
     "\n",
-    "<a href=\"#y\" class=\"cross-reference\">B</a> <a href=\"#y\"\n",
-    "class=\"cross-reference\">B</a>\n",
+    "<a href=\"#y\" class=\"cross-reference\">B</a>\n",
+    "<a href=\"#y\" class=\"cross-reference\">B</a>\n",
     "\n",
     "<span id=\"z\"></span>\n",
     "\n",
     "<a href=\"#z\" class=\"cross-reference\">Inline label</a>"
    ],
-   "id": "35d30ecd-2253-4af6-a018-92f1241bed3c"
+   "id": "c259e270-1e5d-458b-85ae-56934c738a32"
   }
  ],
  "nbformat": 4,

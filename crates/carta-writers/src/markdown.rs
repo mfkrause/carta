@@ -15,7 +15,7 @@ use crate::common::{
 };
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator,
-    offset_horizontal_rule,
+    offset_horizontal_rule, push_open_tag,
 };
 
 use self::helpers::{
@@ -326,11 +326,8 @@ struct State {
     wrap: WrapMode,
     width: usize,
     footnotes: Vec<String>,
-    /// Whether rendering is inside an HTML `<a>` fallback's label, where a nested link must
-    /// downgrade to a `<span>` (HTML forbids an anchor inside an anchor).
-    in_anchor: bool,
     small_caps: bool,
-    table_measurements: BTreeMap<(usize, usize, bool, bool), [Vec<usize>; 2]>,
+    table_measurements: BTreeMap<(usize, usize, bool), [Vec<usize>; 2]>,
     /// Whether rendering is somewhere inside a list item, a definition, or a table cell, where a
     /// [`Block::Plain`] runs on into the block after it instead of standing apart as a paragraph
     /// does.
@@ -344,7 +341,6 @@ impl State {
             wrap,
             width,
             footnotes: Vec::new(),
-            in_anchor: false,
             small_caps: false,
             table_measurements: BTreeMap::new(),
             in_item: false,
@@ -532,8 +528,12 @@ impl State {
                     || self.config.has(Extension::MarkdownInHtmlBlocks)
                     || marker)
             {
-                let data = if marker { " data-markdown=\"1\"" } else { "" };
-                return format!("<div{}{data}>\n\n{body}\n\n</div>", render_html_attr(attr));
+                let open = fill(&div_tag_pieces(attr, marker), width, self.wrap);
+                return if body.is_empty() {
+                    format!("{open}\n\n</div>")
+                } else {
+                    format!("{open}\n\n{body}\n\n</div>")
+                };
             }
             return body;
         }
@@ -899,6 +899,30 @@ impl NotesHost for State {
             body
         }
     }
+}
+
+/// The pieces of an HTML `<div>` opening tag, which may fold between attributes. With `marker` a
+/// `data-markdown="1"` attribute follows the identifier and classes.
+fn div_tag_pieces(attr: &Attr, marker: bool) -> Vec<Piece> {
+    let identity = Attr {
+        attributes: Vec::new(),
+        ..attr.clone()
+    };
+    let rest = Attr {
+        attributes: attr.attributes.clone(),
+        ..Attr::default()
+    };
+    let data = if marker { " data-markdown=\"1\"" } else { "" };
+    let mut pieces = Vec::new();
+    push_open_tag(
+        &mut pieces,
+        &format!(
+            "<div{}{data}{}>",
+            render_html_attr(&identity),
+            render_html_attr(&rest)
+        ),
+    );
+    pieces
 }
 
 fn pieces_to_string(pieces: &[Piece]) -> String {
