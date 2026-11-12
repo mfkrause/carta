@@ -18,8 +18,8 @@ mod helpers;
 use self::helpers::{
     alignment_operator, cell_span, code_block, display_math_block, escape_text, flush_left,
     image_args, indent, is_autolink_scheme, is_simple_cell, joins_word, labeled_block,
-    ordered_style_line, quote_glyphs, span_role, table_options_line, task_checkbox,
-    trim_surrounding_space, url_scheme, without_flush_marks,
+    ordered_style_line, quote_glyphs, reads_as_markup, span_role, table_options_line,
+    task_checkbox, trim_surrounding_space, url_scheme, without_flush_marks,
 };
 
 /// Renders a document to `AsciiDoc` markup.
@@ -102,7 +102,8 @@ impl State {
 
     fn block(&mut self, block: &Block, width: usize) -> String {
         match block {
-            Block::Plain(inlines) | Block::Para(inlines) => self.paragraph(inlines, width, 0),
+            Block::Plain(inlines) => self.paragraph(inlines, false, width, 0),
+            Block::Para(inlines) => self.paragraph(inlines, true, width, 0),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::CodeBlock(attr, text) => {
                 let block = code_block(attr, text);
@@ -139,12 +140,24 @@ impl State {
         }
     }
 
-    fn paragraph(&mut self, inlines: &[Inline], width: usize, initial: usize) -> String {
+    /// Render a text block. A `guarded` one gets an empty attribute reference in front when its
+    /// text would otherwise open a list item or stand as a block attribute line.
+    fn paragraph(
+        &mut self,
+        inlines: &[Inline],
+        guarded: bool,
+        width: usize,
+        initial: usize,
+    ) -> String {
         if !inlines
             .iter()
             .any(|inline| matches!(inline, Inline::Math(MathType::DisplayMath, _)))
         {
-            return fill_offset(&self.pieces(inlines), width, initial, self.wrap);
+            let mut pieces = self.pieces(inlines);
+            if guarded && reads_as_markup(&pieces, self.wrap) {
+                pieces.insert(0, Piece::text("{empty}"));
+            }
+            return fill_offset(&pieces, width, initial, self.wrap);
         }
         let mut out = String::new();
         let mut text_run: Vec<Inline> = Vec::new();
@@ -333,19 +346,16 @@ impl State {
                 let checkbox = (task_markers && !self.legacy)
                     .then(|| task_checkbox(block))
                     .flatten();
-                let text = match checkbox {
-                    Some((box_marker, rest)) => {
-                        let mut body = vec![
-                            Inline::RawInline(
-                                carta_ast::Format("asciidoc".into()),
-                                box_marker.into(),
-                            ),
-                            Inline::Space,
-                        ];
-                        body.extend(rest);
-                        self.paragraph(&body, width, initial)
-                    }
-                    None => self.paragraph(inlines, width, initial),
+                let text = if let Some((box_marker, rest)) = checkbox {
+                    let mut body = vec![
+                        Inline::RawInline(carta_ast::Format("asciidoc".into()), box_marker.into()),
+                        Inline::Space,
+                    ];
+                    body.extend(rest);
+                    self.paragraph(&body, false, width, initial)
+                } else {
+                    let guarded = matches!(block, Block::Para(_));
+                    self.paragraph(inlines, guarded, width, initial)
                 };
                 format!("{marker} {text}")
             } else {

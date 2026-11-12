@@ -62,6 +62,17 @@ fn list_items_separate_rules_and_trim_raw_trailing_breaks() {
 }
 
 #[test]
+fn only_a_list_marker_start_is_guarded() {
+    let start = |marker: &str| render(vec![s(marker), Inline::Space, s("word")]);
+    assert_eq!(start("ix)"), "{empty}ix) word");
+    assert_eq!(start("IV."), "{empty}IV. word");
+    assert_eq!(start("(b)"), "{empty}(b) word");
+    assert_eq!(start("vv."), "vv. word");
+    assert_eq!(start("B."), "B. word");
+    assert_eq!(render(vec![s("1.")]), "1.");
+}
+
+#[test]
 fn code_in_a_nested_definition_stays_at_column_zero() {
     let inner = Block::DefinitionList(vec![(
         vec![s("inner")],

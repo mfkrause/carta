@@ -7,9 +7,11 @@ use carta_ast::{
     Table, Target, Text,
 };
 
+use carta_core::WrapMode;
+
 use crate::common::{
-    Dimension, attribute_value, clean_prefix_len, dimension_pixels, format_percent_dimension,
-    is_uri_scheme, parse_dimension,
+    Dimension, Piece, attribute_value, clean_prefix_len, dimension_pixels,
+    format_percent_dimension, is_uri_scheme, parse_dimension,
 };
 
 /// The URI scheme of a URL: the lowercase run before the first `:`, when that run is a valid scheme
@@ -387,6 +389,87 @@ fn is_formatting_char(ch: char) -> bool {
         ch,
         '*' | '_' | '`' | '#' | '<' | '>' | '{' | '[' | ']' | '|' | '\\'
     )
+}
+
+/// Whether a paragraph's pieces would be read as markup instead of text: an attribute line (the
+/// text starts with `[` and ends with `]`) or an ordered list item (a list marker, then a space).
+pub(super) fn reads_as_markup(pieces: &[Piece], wrap: WrapMode) -> bool {
+    let mut texts = pieces.iter().filter_map(|piece| match piece {
+        Piece::Text(text) => Some(text.as_str()),
+        _ => None,
+    });
+    let Some(first) = texts.next() else {
+        return false;
+    };
+    if first.starts_with('[') && texts.next_back().unwrap_or(first).ends_with(']') {
+        return true;
+    }
+    let mut rest = pieces
+        .iter()
+        .skip_while(|piece| !matches!(piece, Piece::Text(_)));
+    let mut word = String::new();
+    let after = loop {
+        match rest.next() {
+            Some(Piece::Text(text)) => word.push_str(text),
+            other => break other,
+        }
+    };
+    // A hard break puts its ` +` in the run of the word before it.
+    if let Some((marker, _)) = word.split_once(' ') {
+        return is_list_marker(marker);
+    }
+    let spaced = match after {
+        Some(Piece::Space) => true,
+        Some(Piece::Soft) => wrap != WrapMode::Preserve,
+        _ => false,
+    };
+    spaced && rest.any(|piece| matches!(piece, Piece::Text(_))) && is_list_marker(&word)
+}
+
+/// Whether a word is an ordered list marker: a number, a single letter, a roman numeral or an `@`
+/// label, closed by `.` or `)` or enclosed in parentheses. A capital letter before `.` is an
+/// initial, not a marker.
+fn is_list_marker(word: &str) -> bool {
+    let (number, period) = if let Some(inner) = word.strip_suffix(')') {
+        (inner.strip_prefix('(').unwrap_or(inner), false)
+    } else if let Some(inner) = word.strip_suffix('.') {
+        (inner, true)
+    } else {
+        return false;
+    };
+    if let Some(label) = number.strip_prefix('@') {
+        return label
+            .chars()
+            .all(|ch| ch.is_alphanumeric() || matches!(ch, '-' | '_'));
+    }
+    let mut chars = number.chars();
+    match (chars.next(), chars.next()) {
+        (None, _) => false,
+        (Some(letter), None) if letter.is_ascii_alphabetic() => {
+            !(period && letter.is_ascii_uppercase())
+        }
+        _ => number.bytes().all(|byte| byte.is_ascii_digit()) || is_roman_numeral(number),
+    }
+}
+
+/// Whether a word is a roman numeral written in one letter case.
+fn is_roman_numeral(word: &str) -> bool {
+    let lower = word.to_ascii_lowercase();
+    if word != lower && word != word.to_ascii_uppercase() {
+        return false;
+    }
+    let mut rest = lower.trim_start_matches('m');
+    for (subtractive, repeated) in [
+        (["cm", "d", "cd"], 'c'),
+        (["xc", "l", "xl"], 'x'),
+        (["ix", "v", "iv"], 'i'),
+    ] {
+        for part in subtractive {
+            rest = rest.strip_prefix(part).unwrap_or(rest);
+        }
+        rest = rest.trim_start_matches(repeated);
+    }
+    !word.is_empty() && rest.is_empty()
 }
 
 /// Opens a line that stays at column zero when the body around it is indented.
