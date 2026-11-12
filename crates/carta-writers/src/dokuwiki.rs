@@ -710,10 +710,11 @@ fn caption_lines(blocks: &[Block], wrap: WrapMode) -> Vec<String> {
     lines
 }
 
-/// One column slot of a laid-out row: the start of a cell carrying its text, or a filler covered by
-/// a column or row span (or a column the row never reached), which renders as empty content.
+/// One column slot of a laid-out row: a cell's single-line text with the width it claims for its
+/// column, or a filler covered by a column or row span (or a column the row never reached), which
+/// renders as empty content.
 enum Slot {
-    Cell(String),
+    Cell { text: String, width: usize },
     Filler,
 }
 
@@ -736,7 +737,7 @@ fn place_row(
         .place_slots(&row.cells)
         .into_iter()
         .map(|slot| match slot {
-            GridSlot::Cell(_, cell) => Slot::Cell(cell_text(cell, wrap)),
+            GridSlot::Cell(_, cell) => cell_slot(cell, wrap),
             GridSlot::Covered => Slot::Filler,
         })
         .collect();
@@ -749,17 +750,39 @@ fn place_row(
 /// A cell's content rendered to a single physical line: its blocks rendered as normal markup but
 /// with top-level lists flush to the left margin, then every line break folded into the forced-break
 /// marker `\\ ` since a cell occupies one row of the source table.
-fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
-    cell.content
+///
+/// The cell claims its whole text as column width. A cell holding tables nested two deep claims
+/// only its longest nested row, so padding cannot compound with the nesting depth.
+fn cell_slot(cell: &Cell, wrap: WrapMode) -> Slot {
+    let body = cell
+        .content
         .iter()
         .map(|b| cell_block(b, wrap))
         .filter(|rendered| !rendered.is_empty())
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join("\n\n");
+    let nested_twice = body
+        .split(TABLE_ROW_END)
+        .any(|row| row.contains(TABLE_BREAK));
+    let text = body
         .replace(TABLE_ROW_END, TABLE_BREAK)
         .replace(FORCED_BREAK, "\\\\ ")
         .replace(CONTENT_BREAK, "\\\\ ")
-        .replace('\n', "\\\\ ")
+        .replace('\n', "\\\\ ");
+    let width = if nested_twice {
+        text.split(TABLE_BREAK)
+            .map(|line| line.chars().count())
+            .max()
+            .unwrap_or(0)
+    } else {
+        text_width(&text)
+    };
+    Slot::Cell { text, width }
+}
+
+/// The columns a cell's text takes once every nested row break is written out as `\\ `.
+fn text_width(text: &str) -> usize {
+    text.chars().count() + 2 * text.matches(TABLE_BREAK).count()
 }
 
 /// Render one block of a table cell. Top-level lists start at the left margin (depth zero) rather
@@ -779,20 +802,14 @@ fn cell_block(block: &Block, wrap: WrapMode) -> String {
     }
 }
 
-/// The width of each column, measured between nested table rows.
 fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
     let mut widths = vec![0usize; columns];
     for row in rows {
         for (column, slot) in row.slots.iter().enumerate() {
-            if let Slot::Cell(text) = slot
+            if let Slot::Cell { width: claimed, .. } = slot
                 && let Some(width) = widths.get_mut(column)
             {
-                *width = (*width).max(
-                    text.split(TABLE_BREAK)
-                        .map(|line| line.chars().count())
-                        .max()
-                        .unwrap_or(0),
-                );
+                *width = (*width).max(*claimed);
             }
         }
     }
@@ -807,7 +824,7 @@ fn render_row(row: &RenderedRow, widths: &[usize], aligns: &[Alignment]) -> Stri
         let width = widths.get(column).copied().unwrap_or(0);
         let align = aligns.get(column).unwrap_or(&Alignment::AlignDefault);
         let text = match slot {
-            Slot::Cell(text) => text.as_str(),
+            Slot::Cell { text, .. } => text.as_str(),
             Slot::Filler => "",
         };
         out.push_str(&pad_cell(text, width, align));
@@ -819,7 +836,7 @@ fn render_row(row: &RenderedRow, widths: &[usize], aligns: &[Alignment]) -> Stri
 /// Pad cell text to its field width per the column alignment: default fills to the bare width on the
 /// right; left and right add a one-space gutter on each side; center adds two.
 fn pad_cell(text: &str, width: usize, align: &Alignment) -> String {
-    let content = text.chars().count();
+    let content = text_width(text);
     let width = width.max(content);
     match align {
         Alignment::AlignDefault => {
@@ -873,6 +890,13 @@ mod tests {
         DokuwikiWriter
             .write(&document, &WriterOptions::default())
             .unwrap()
+    }
+
+    fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
+        match cell_slot(cell, wrap) {
+            Slot::Cell { text, .. } => text,
+            Slot::Filler => String::new(),
+        }
     }
 
     fn s(text: &str) -> Inline {
