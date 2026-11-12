@@ -423,9 +423,9 @@ fn bare_inline(inline: &Inline) -> String {
 }
 
 /// A link. A `mailto:` link whose label is one text run renders that run in angle brackets. When
-/// the label is the destination's visible form (its exact text or its percent-decoded text) and the
-/// destination carries no space, the URL stands alone. Otherwise the `[[destination|label]]` form is
-/// used, with one leading `/` trimmed from the destination.
+/// a label is present and is the destination's visible form (its exact text or its percent-decoded
+/// text) and the destination carries no space, the URL stands alone. Otherwise the
+/// `[[destination|label]]` form is used, with one leading `/` trimmed from the destination.
 fn link(inlines: &[Inline], target: &Target, context: Context) -> String {
     if let [Inline::Str(address)] = inlines
         && target.url.starts_with("mailto:")
@@ -433,7 +433,7 @@ fn link(inlines: &[Inline], target: &Target, context: Context) -> String {
         return format!("<{address}>");
     }
     let plain = to_plain_text(inlines);
-    if label_matches_url(&plain, &target.url) && !target.url.contains(' ') {
+    if !inlines.is_empty() && label_matches_url(&plain, &target.url) && !target.url.contains(' ') {
         return target.url.to_string();
     }
     let destination = target.url.strip_prefix('/').unwrap_or(&target.url);
@@ -441,7 +441,8 @@ fn link(inlines: &[Inline], target: &Target, context: Context) -> String {
 }
 
 /// An image: `{{url[?size]|caption}}`, where the caption is the title if set, else the alt text, and
-/// the optional size is derived from the `width`/`height` attributes.
+/// the optional size is derived from the `width`/`height` attributes. Only an image with neither a
+/// title nor alt inlines drops the `|`.
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, context: Context) -> String {
     let mut head = target.url.clone();
     if let Some(size) = image_size(attr) {
@@ -453,7 +454,7 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, context: Context) -> 
     } else {
         target.title.to_string()
     };
-    if caption.is_empty() {
+    if target.title.is_empty() && inlines.is_empty() {
         format!("{{{{{head}}}}}")
     } else {
         format!("{{{{{head}|{caption}}}}}")
