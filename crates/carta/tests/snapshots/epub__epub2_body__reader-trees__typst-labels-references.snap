@@ -1,7 +1,10 @@
 ---
 source: crates/carta/tests/epub.rs
-expression: body
+expression: content
 ---
+<!-- EPUB/nav.xhtml -->
+<div id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#introduction">Introduction</a></li></ol></div>
+<!-- EPUB/text/ch001.xhtml -->
 <div id="introduction" class="section level1">
 <h1>Introduction</h1>
 <p><span id="intro"></span></p>
@@ -17,3 +20,32 @@ expression: body
 <p>A <a href="ch001.xhtml#intro" class="ref">Chapter</a> with its own supplement.</p>
 <p>A <a href="ch001.xhtml#intro" class="ref"></a> built from a label call.</p>
 </div>
+<!-- EPUB/text/title_page.xhtml -->
+<div class="titlepage"></div>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:e25683f1-7b82-20a8-60c8-6f20ad7788bd" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>UNTITLED</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text></text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Introduction</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#introduction" />
+    </navPoint>
+  </navMap>
+</ncx>

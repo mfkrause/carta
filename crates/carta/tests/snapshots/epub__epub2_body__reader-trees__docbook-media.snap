@@ -1,7 +1,10 @@
 ---
 source: crates/carta/tests/epub.rs
-expression: body
+expression: content
 ---
+<!-- EPUB/nav.xhtml -->
+<div id="toc"><h1 id="toc-title">Figures and media</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#figures-and-media">Figures and media</a></li></ol></div>
+<!-- EPUB/text/ch001.xhtml -->
 <div id="figures-and-media" class="section level1 unnumbered">
 <h1 class="unnumbered">Figures and media</h1>
 <div class="float" id="plot">
@@ -12,3 +15,32 @@ expression: body
 <p><span></span></p>
 <p>An inline <span></span> image.</p>
 </div>
+<!-- EPUB/text/title_page.xhtml -->
+  <h1 class="title">Figures and media</h1>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:0e680d3a-7722-e704-2a97-1de6450096c6" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>Figures and media</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text>Figures and media</text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Figures and media</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#figures-and-media" />
+    </navPoint>
+  </navMap>
+</ncx>

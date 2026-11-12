@@ -32,7 +32,7 @@ epub_norm() {
 }
 
 epub_diff() {
-  local odir="$1" xdir="$2" label="$3" rel bad="" d fl control
+  local odir="$1" xdir="$2" label="$3" rel bad="" d fl control controlled=""
   fl=$(diff <(cd "$odir" && find . -type f | sort) <(cd "$xdir" && find . -type f | sort))
   [ -n "$fl" ] && bad="file list differs:
 $fl"
@@ -46,10 +46,16 @@ $fl"
         continue ;;
     esac
     d=$(diff <(epub_norm <"$odir/$rel") <(epub_norm <"$xdir/$rel"))
-    if [ -n "$d" ] && [ "$rel" = EPUB/text/ch001.xhtml ] && \
-        control=$(python3 "$CONF_DIR/correctness.py" epub "$label" "$xdir/$rel"); then
-      printf 'CONTROL %s\n' "$control" >>"$SURFACE_LOG"
-      d=""
+    # A control covers the pages and the NCX of the package together, so it is checked one time.
+    if [ -n "$d" ] && { [ "${rel##*.}" = xhtml ] || [ "${rel##*.}" = ncx ]; }; then
+      if [ -z "$controlled" ]; then
+        controlled=no
+        if control=$(python3 "$CONF_DIR/correctness.py" epub "$label" "$xdir"); then
+          controlled=yes
+          printf 'CONTROL %s\n' "$control" >>"$SURFACE_LOG"
+        fi
+      fi
+      [ "$controlled" = yes ] && d=""
     fi
     [ -n "$d" ] && bad="${bad:+$bad
 }--- $rel ---
@@ -68,13 +74,15 @@ run_dialect() {
     work="$WORK/epub/$dialect/$feature-$stem"
     rm -rf "$work"
     mkdir -p "$work/o" "$work/x"
-    repro="repro: $OX -f json -t $dialect $input -o out.epub  (then unzip)"
+    repro="repro: $OX -f json -t $dialect --syntax-highlighting=none $input -o out.epub  (then unzip)"
     # shellcheck disable=SC2086
-    if ! "$ORACLE" -f json -t "$dialect" --resource-path="$RESOURCE_DIR" "$input" -o "$work/o.epub" 2>/dev/null; then
+    if ! "$ORACLE" -f json -t "$dialect" --syntax-highlighting=none --resource-path="$RESOURCE_DIR" \
+      "$input" -o "$work/o.epub" 2>/dev/null; then
       SKIP=$((SKIP + 1))
       continue
     fi
-    if ! "$OX" -f json -t "$dialect" --resource-path="$RESOURCE_DIR" "$input" -o "$work/x.epub" 2>"$work/err"; then
+    if ! "$OX" -f json -t "$dialect" --syntax-highlighting=none --resource-path="$RESOURCE_DIR" \
+      "$input" -o "$work/x.epub" 2>"$work/err"; then
       note_err "$label" "$repro
 $(head -n 3 "$work/err")"
       continue

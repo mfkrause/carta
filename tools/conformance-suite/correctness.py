@@ -192,22 +192,32 @@ EPUB = {
         for dialect in ("epub2", "epub3")
         for case in (
             "asciidoc-definition-macro-bodies",
+            "asciidoc-heading-unresolved-attributes",
             "asciidoc-images",
             "asciidoc-inline-macros",
             "asciidoc-table-monospace-nested",
             "asciidoc-user-attribute-names",
             "docbook-media",
+            "docbook-nested-documents",
             "latex-figures",
             "latex-raised-boxes",
             "typst-content-spacing",
             "typst-labels-references",
         )
     },
+    **{
+        (dialect, "reader-trees", "asciidoc-cross-references"): (
+            "Pandoc gives the text before the first heading the identifier of a later heading, so"
+            " links to that heading open the wrong page."
+        )
+        for dialect in ("epub2", "epub3")
+    },
     ("epub2", "common", "ordered-start"): f"Pandoc uses the start attribute, {XHTML11}.",
     ("epub2", "common", "span-semantic"): MARK_ELEMENT,
     ("epub2", "common", "underline-smallcaps"): U_ELEMENT,
     ("epub2", "reader-trees", "asciidoc-definition-terms"): SPAN_NAME,
     ("epub2", "reader-trees", "asciidoc-formatted-shorthand"): MARK_ELEMENT,
+    ("epub2", "reader-trees", "asciidoc-heading-macro-text"): SPAN_NAME,
     ("epub2", "reader-trees", "asciidoc-images"): (
         f"{MISSING_FILE} It also puts an alt attribute on a division, {XHTML11}."
     ),
@@ -220,6 +230,9 @@ EPUB = {
     ),
     ("epub2", "reader-trees", "asciidoc-table-title-counters"): SPAN_NAME,
     ("epub2", "reader-trees", "docbook-inline"): U_ELEMENT,
+    ("epub2", "reader-trees", "ipynb-version-three"): (
+        f"Pandoc puts a language attribute on a division, {XHTML11}."
+    ),
     ("epub2", "reader-trees", "jira-color-inline-multiline"): (
         f"Pandoc puts a color attribute on a span, {XHTML11}."
     ),
@@ -289,6 +302,18 @@ def reviewed_snapshots(directory, name):
     return [directory / f"golden_writer__{dialect}__{case}.snap" for dialect in earlier]
 
 
+def epub_content(package):
+    """The text that an EPUB control covers: the body of every page and the NCX table of contents."""
+    content = b""
+    entries = [entry for entry in package.rglob("*") if entry.suffix in (".xhtml", ".ncx")]
+    for entry in sorted(entries, key=lambda entry: entry.relative_to(package).as_posix()):
+        part = entry.read_bytes()
+        if entry.suffix == ".xhtml":
+            part = part.split(b"<body", 1)[1].split(b">\n", 1)[1].split(b"</body>", 1)[0]
+        content += b"<!-- " + entry.relative_to(package).as_posix().encode() + b" -->\n" + part
+    return content
+
+
 def expectation(label):
     """The reviewed snapshot and the reason for a control label, or None."""
     parts = label.split("/")
@@ -328,11 +353,9 @@ def main():
         return 2
     name, reason = expected
     root = Path(__file__).resolve().parents[2]
-    actual = Path(actual_path).read_bytes()
+    actual = epub_content(Path(actual_path)) if mode == "epub" else Path(actual_path).read_bytes()
     if mode == "docx":
         actual = actual.replace(b"><", b">\n<")
-    if mode == "epub":
-        actual = actual.split(b"<body", 1)[1].split(b">\n", 1)[1].split(b"</body>", 1)[0]
     for snapshot in reviewed_snapshots(root / "crates/carta/tests/snapshots", name):
         if not snapshot.exists():
             continue

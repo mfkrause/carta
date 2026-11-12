@@ -1,0 +1,88 @@
+---
+source: crates/carta/tests/epub.rs
+expression: content
+---
+<!-- EPUB/nav.xhtml -->
+<div id="toc"><h1 id="toc-title">Nested article</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#first-chapter">First chapter</a><ol class="toc"><li id="toc-li-2"><a href="text/ch001.xhtml#a-section">A section</a></li><li id="toc-li-3"><a href="text/ch001.xhtml#deeper-still">Deeper still</a></li></ol></li><li id="toc-li-4"><a href="text/ch002.xhtml#second-chapter">Second chapter</a></li></ol></div>
+<!-- EPUB/text/ch001.xhtml -->
+<div id="first-chapter" class="section level1">
+<h1>First chapter</h1>
+<p>Text in the chapter.</p>
+<div id="a-section" class="section level2">
+<h2>A section</h2>
+<p>An equation <span class="math display"><em>e</em> = 2</span> stands in the sentence around it.</p>
+<div class="sidebar">
+<div class="title">
+Aside
+</div>
+<p>Set beside the text.</p>
+</div>
+<div class="informalequation">
+<p><span class="math display"><em>y</em> = <em>x</em></span></p>
+</div>
+</div>
+<div id="deeper-still" class="section level2">
+<h2>Deeper still</h2>
+<p>The count restarts where the article stands.</p>
+</div>
+</div>
+<!-- EPUB/text/ch002.xhtml -->
+<div id="second-chapter" class="section level1">
+<h1>Second chapter</h1>
+<div class="float">
+<span>Alternative words</span>
+<div class="figcaption">A figure</div>
+</div>
+</div>
+<!-- EPUB/text/title_page.xhtml -->
+  <h1 class="title">Nested article</h1>
+  <p class="author">Ada Byron</p>
+<div class="abstract">
+<div class="abstract-title">Abstract</div>
+<p>Held inside a section.</p>
+</div>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:f6df216d-1177-ce69-3c9d-ae91e3ce7b66" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>Nested article</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text>Nested article</text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>First chapter</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#first-chapter" />
+      <navPoint id="navPoint-2">
+        <navLabel>
+          <text>A section</text>
+        </navLabel>
+        <content src="text/ch001.xhtml#a-section" />
+      </navPoint>
+      <navPoint id="navPoint-3">
+        <navLabel>
+          <text>Deeper still</text>
+        </navLabel>
+        <content src="text/ch001.xhtml#deeper-still" />
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint-4">
+      <navLabel>
+        <text>Second chapter</text>
+      </navLabel>
+      <content src="text/ch002.xhtml#second-chapter" />
+    </navPoint>
+  </navMap>
+</ncx>

@@ -1,0 +1,109 @@
+---
+source: crates/carta/tests/epub.rs
+expression: content
+---
+<!-- EPUB/nav.xhtml -->
+<div id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#id__alpha">Alpha <span class="counter">1</span></a></li><li id="toc-li-2"><a href="text/ch002.xhtml#id__alpha_2">Alpha <span class="index">term</span></a></li><li id="toc-li-3"><a href="text/ch003.xhtml#id__alpha_3">Alpha <span class="index">foo</span></a></li><li id="toc-li-4"><a href="text/ch004.xhtml#id__alpha_4">Alpha word</a></li><li id="toc-li-5"><a href="text/ch005.xhtml#id__alpha_5">Alpha <span class="menu"><strong>Tools › Build › Run</strong></span></a></li><li id="toc-li-6"><a href="text/ch006.xhtml#id__alpha_6">Alpha <span class="button"><strong>[Save]</strong></span></a></li><li id="toc-li-7"><a href="text/ch007.xhtml#id__alpha_7">Alpha <kbd><strong>Ctrl</strong></kbd>+<kbd><strong>X</strong></kbd></a></li><li id="toc-li-8"><a href="text/ch008.xhtml#id__alpha_label">Alpha <span id="key" /></a></li></ol></div>
+<!-- EPUB/text/ch001.xhtml -->
+<div id="id__alpha" class="section level1">
+<h1>Alpha <span class="counter">1</span></h1>
+</div>
+<!-- EPUB/text/ch002.xhtml -->
+<div id="id__alpha_2" class="section level1">
+<h1>Alpha <span class="index">term</span></h1>
+</div>
+<!-- EPUB/text/ch003.xhtml -->
+<div id="id__alpha_3" class="section level1">
+<h1>Alpha <span class="index">foo</span></h1>
+</div>
+<!-- EPUB/text/ch004.xhtml -->
+<div id="id__alpha_4" class="section level1">
+<h1>Alpha word</h1>
+</div>
+<!-- EPUB/text/ch005.xhtml -->
+<div id="id__alpha_5" class="section level1">
+<h1>Alpha <span class="menu"><strong>Tools › Build › Run</strong></span></h1>
+</div>
+<!-- EPUB/text/ch006.xhtml -->
+<div id="id__alpha_6" class="section level1">
+<h1>Alpha <span class="button"><strong>[Save]</strong></span></h1>
+</div>
+<!-- EPUB/text/ch007.xhtml -->
+<div id="id__alpha_7" class="section level1">
+<h1>Alpha <kbd><strong>Ctrl</strong></kbd>+<kbd><strong>X</strong></kbd></h1>
+</div>
+<!-- EPUB/text/ch008.xhtml -->
+<div id="id__alpha_label" class="section level1">
+<h1>Alpha <span id="key"></span></h1>
+</div>
+<!-- EPUB/text/title_page.xhtml -->
+<div class="titlepage"></div>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:82a7cc25-80e3-d894-6529-2ba52167b63d" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>UNTITLED</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text></text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Alpha 1</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#id__alpha" />
+    </navPoint>
+    <navPoint id="navPoint-2">
+      <navLabel>
+        <text>Alpha term</text>
+      </navLabel>
+      <content src="text/ch002.xhtml#id__alpha_2" />
+    </navPoint>
+    <navPoint id="navPoint-3">
+      <navLabel>
+        <text>Alpha foo</text>
+      </navLabel>
+      <content src="text/ch003.xhtml#id__alpha_3" />
+    </navPoint>
+    <navPoint id="navPoint-4">
+      <navLabel>
+        <text>Alpha word</text>
+      </navLabel>
+      <content src="text/ch004.xhtml#id__alpha_4" />
+    </navPoint>
+    <navPoint id="navPoint-5">
+      <navLabel>
+        <text>Alpha Tools › Build › Run</text>
+      </navLabel>
+      <content src="text/ch005.xhtml#id__alpha_5" />
+    </navPoint>
+    <navPoint id="navPoint-6">
+      <navLabel>
+        <text>Alpha [Save]</text>
+      </navLabel>
+      <content src="text/ch006.xhtml#id__alpha_6" />
+    </navPoint>
+    <navPoint id="navPoint-7">
+      <navLabel>
+        <text>Alpha Ctrl+X</text>
+      </navLabel>
+      <content src="text/ch007.xhtml#id__alpha_7" />
+    </navPoint>
+    <navPoint id="navPoint-8">
+      <navLabel>
+        <text>Alpha </text>
+      </navLabel>
+      <content src="text/ch008.xhtml#id__alpha_label" />
+    </navPoint>
+  </navMap>
+</ncx>

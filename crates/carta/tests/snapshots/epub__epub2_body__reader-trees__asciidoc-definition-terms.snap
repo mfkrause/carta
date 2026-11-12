@@ -1,7 +1,10 @@
 ---
 source: crates/carta/tests/epub.rs
-expression: body
+expression: content
 ---
+<!-- EPUB/nav.xhtml -->
+<div id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#section">UNTITLED</a></li><li id="toc-li-2"><a href="text/ch002.xhtml#target">Target</a></li></ol></div>
+<!-- EPUB/text/ch001.xhtml -->
 <div id="section" class="section level1 unnumbered">
 <h1 class="unnumbered"></h1>
 <dl>
@@ -45,3 +48,49 @@ expression: body
 <p><a href="#fnref1" class="footnote-back">1</a>. Note {value}</p>
 </div>
 </div>
+<!-- EPUB/text/ch002.xhtml -->
+<div id="target" class="section level1">
+<h1>Target</h1>
+<p>See <a href="ch002.xhtml#target" class="cross-reference">Target</a> and <a href="ch001.xhtml#term-id" class="cross-reference">term-id</a> and <a href="#fn1" class="footnote-ref" id="fnref1">1</a>.</p>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<div id="fn1">
+<p><a href="#fnref1" class="footnote-back">1</a>. </p>
+</div>
+</div>
+<!-- EPUB/text/title_page.xhtml -->
+<div class="titlepage"></div>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:a0427e83-5751-e393-2d64-c301c126c850" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>UNTITLED</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text></text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text></text>
+      </navLabel>
+      <content src="text/ch001.xhtml#section" />
+    </navPoint>
+    <navPoint id="navPoint-2">
+      <navLabel>
+        <text>Target</text>
+      </navLabel>
+      <content src="text/ch002.xhtml#target" />
+    </navPoint>
+  </navMap>
+</ncx>

@@ -27,9 +27,16 @@ fn epub_control_body_snapshots() {
         ("epub2", "common", "ordered-start"),
         ("epub2", "common", "span-semantic"),
         ("epub2", "common", "underline-smallcaps"),
+        ("epub2", "reader-trees", "asciidoc-cross-references"),
         ("epub2", "reader-trees", "asciidoc-definition-macro-bodies"),
         ("epub2", "reader-trees", "asciidoc-definition-terms"),
         ("epub2", "reader-trees", "asciidoc-formatted-shorthand"),
+        ("epub2", "reader-trees", "asciidoc-heading-macro-text"),
+        (
+            "epub2",
+            "reader-trees",
+            "asciidoc-heading-unresolved-attributes",
+        ),
         ("epub2", "reader-trees", "asciidoc-images"),
         ("epub2", "reader-trees", "asciidoc-inline-macros"),
         ("epub2", "reader-trees", "asciidoc-table-block-anchors"),
@@ -43,6 +50,8 @@ fn epub_control_body_snapshots() {
         ("epub2", "reader-trees", "asciidoc-user-attribute-names"),
         ("epub2", "reader-trees", "docbook-inline"),
         ("epub2", "reader-trees", "docbook-media"),
+        ("epub2", "reader-trees", "docbook-nested-documents"),
+        ("epub2", "reader-trees", "ipynb-version-three"),
         ("epub2", "reader-trees", "jira-color-inline-multiline"),
         ("epub2", "reader-trees", "latex-emphasis"),
         ("epub2", "reader-trees", "latex-figures"),
@@ -59,12 +68,19 @@ fn epub_control_body_snapshots() {
         ("epub2", "task-list", "checkboxes"),
         ("epub3", "common", "image-external"),
         ("epub3", "common", "literal-control-chars"),
+        ("epub3", "reader-trees", "asciidoc-cross-references"),
         ("epub3", "reader-trees", "asciidoc-definition-macro-bodies"),
+        (
+            "epub3",
+            "reader-trees",
+            "asciidoc-heading-unresolved-attributes",
+        ),
         ("epub3", "reader-trees", "asciidoc-images"),
         ("epub3", "reader-trees", "asciidoc-inline-macros"),
         ("epub3", "reader-trees", "asciidoc-table-monospace-nested"),
         ("epub3", "reader-trees", "asciidoc-user-attribute-names"),
         ("epub3", "reader-trees", "docbook-media"),
+        ("epub3", "reader-trees", "docbook-nested-documents"),
         ("epub3", "reader-trees", "latex-figures"),
         ("epub3", "reader-trees", "latex-raised-boxes"),
         ("epub3", "reader-trees", "typst-content-spacing"),
@@ -77,21 +93,28 @@ fn epub_control_body_snapshots() {
         else {
             panic!("EPUB output must contain archive bytes");
         };
-        let entries = zip::read(&bytes).unwrap();
-        let chapter = entries
-            .iter()
-            .find(|entry| entry.name == "EPUB/text/ch001.xhtml")
-            .unwrap();
-        let text = std::str::from_utf8(&chapter.data).unwrap();
-        let body = text
-            .split_once("<body")
-            .and_then(|(_, rest)| rest.split_once(">\n"))
-            .unwrap()
-            .1
-            .split_once("</body>")
-            .unwrap()
-            .0;
-        insta::assert_snapshot!(format!("{dialect}_body__{group}__{case}"), body);
+        let mut entries = zip::read(&bytes).unwrap();
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut content = String::new();
+        for entry in &entries {
+            let text = std::str::from_utf8(&entry.data).unwrap_or_default();
+            // A page contributes its body; the NCX table of contents contributes all of its text.
+            let part = if entry.name.ends_with(".xhtml") {
+                text.split_once("<body")
+                    .and_then(|(_, rest)| rest.split_once(">\n"))
+                    .unwrap()
+                    .1
+                    .split_once("</body>")
+                    .unwrap()
+                    .0
+            } else if entry.name.ends_with(".ncx") {
+                text
+            } else {
+                continue;
+            };
+            content.push_str(&format!("<!-- {} -->\n{part}", entry.name));
+        }
+        insta::assert_snapshot!(format!("{dialect}_body__{group}__{case}"), content);
     }
 }
 

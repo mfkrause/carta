@@ -1,7 +1,10 @@
 ---
 source: crates/carta/tests/epub.rs
-expression: body
+expression: content
 ---
+<!-- EPUB/nav.xhtml -->
+<div id="toc"><h1 id="toc-title">Links to later</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#links-to-later">Links to <span>later</span></a></li></ol></div>
+<!-- EPUB/text/ch001.xhtml -->
 <div id="links-to-later" class="section level1 unnumbered">
 <h1 class="unnumbered">Links to <a href="ch001.xhtml#later">later</a></h1>
 <p><a href="ch001.xhtml#later"><strong>Forward link</strong></a> and <a href="later">file:later</a>.</p>
@@ -25,3 +28,32 @@ expression: body
 <p><a href="#fnref1" class="footnote-back">1</a>. See <a href="ch001.xhtml#later">later</a>.</p>
 </div>
 </div>
+<!-- EPUB/text/title_page.xhtml -->
+  <h1 class="title">Links to <a href="#later">later</a></h1>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:8327c59d-a574-6919-a814-c3d36688789f" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>Links to later</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text>Links to later</text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Links to later</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#links-to-later" />
+    </navPoint>
+  </navMap>
+</ncx>

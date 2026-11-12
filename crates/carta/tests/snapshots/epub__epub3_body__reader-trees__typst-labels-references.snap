@@ -1,7 +1,17 @@
 ---
 source: crates/carta/tests/epub.rs
-expression: body
+expression: content
 ---
+<!-- EPUB/nav.xhtml -->
+<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#introduction">Introduction</a></li></ol></nav>
+<nav epub:type="landmarks" id="landmarks" hidden="hidden">
+  <ol>
+    <li>
+      <a href="text/title_page.xhtml" epub:type="titlepage">Title Page</a>
+    </li>
+  </ol>
+</nav>
+<!-- EPUB/text/ch001.xhtml -->
 <section id="introduction" class="level1">
 <h1>Introduction</h1>
 <p><span id="intro"></span></p>
@@ -17,3 +27,33 @@ expression: body
 <p>A <a href="ch001.xhtml#intro" class="ref">Chapter</a> with its own supplement.</p>
 <p>A <a href="ch001.xhtml#intro" class="ref"></a> built from a label call.</p>
 </section>
+<!-- EPUB/text/title_page.xhtml -->
+<section epub:type="titlepage" class="titlepage">
+</section>
+<!-- EPUB/toc.ncx -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:a1665573-2341-c01e-0ec0-b8e45d18f082" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>UNTITLED</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text></text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Introduction</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#introduction" />
+    </navPoint>
+  </navMap>
+</ncx>
