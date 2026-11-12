@@ -188,11 +188,28 @@ WRITER = {
     ("rst", "reader-trees", "latex-longtable-captions"): (
         "Pandoc breaks a caption over two lines, which ends the table directive early."
     ),
+    ("rst", "reader-trees", "latex-references"): (
+        "Pandoc drops the figure captions and writes containers without content, which"
+        " docutils rejects."
+    ),
+    ("rst", "reader-trees", "man-tables"): (
+        "Pandoc writes a malformed simple table for a span over a column without cells of its own."
+    ),
+    ("rst", "reader-trees", "org-internal-links"): (
+        "Pandoc's RST output drops inline targets and emphasis."
+    ),
     ("rst", "reader-trees", "rst-inline-targets"): DROPPED_TARGET,
     ("rst", "reader-trees", "rst-internal-targets-multiple"): DROPPED_TARGET,
     ("rst", "reader-trees", "rtf-bookmark"): DROPPED_TARGET,
     ("rst", "reader-trees", "rtf-bookmark-empty"): DROPPED_TARGET,
     ("rst", "reader-trees", "typst-labels-references"): DROPPED_TARGET,
+    ("rtf", "reader-trees", "asciidoc-table-monospace-nested"): (
+        "Pandoc marks the footnote's paragraphs as table content, though no table row holds them."
+    ),
+    ("rtf", "reader-trees", "latex-nested-tables"): (
+        "Pandoc writes the rows of a nested table as rows of the outer table, which splits the"
+        " outer row."
+    ),
     ("typst", "reader-trees", "asciidoc-table-cell-contexts"): (
         "Pandoc opens a cell with a bare '==', which Typst reads as a heading."
     ),
