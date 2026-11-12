@@ -3,6 +3,12 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 \begin{frame}
+\end{frame}
+
+\begin{frame}
+\end{frame}
+
+\begin{frame}
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}

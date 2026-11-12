@@ -92,12 +92,22 @@ pub(crate) fn segment(blocks: &[Block], level: i64) -> Vec<Slide<'_>> {
                 slides.push(Slide::Frame { title, body });
                 index = next;
             }
-            _ if matches!(block, Block::HorizontalRule) => index += 1,
+            // A rule before a frame title only separates; the title opens the frame.
+            _ if matches!(block, Block::HorizontalRule)
+                && blocks
+                    .get(index + 1)
+                    .and_then(section_opening)
+                    .is_some_and(|open| open.level == level) =>
+            {
+                index += 1;
+            }
             _ => {
-                let end = frame_end(blocks, index, level);
+                // Any other rule opens a frame of its own, which stays empty when nothing follows.
+                let start = index + usize::from(matches!(block, Block::HorizontalRule));
+                let end = frame_end(blocks, start, level);
                 slides.push(Slide::Frame {
                     title: None,
-                    body: blocks.get(index..end).unwrap_or(&[]),
+                    body: blocks.get(start..end).unwrap_or(&[]),
                 });
                 index = end;
             }
