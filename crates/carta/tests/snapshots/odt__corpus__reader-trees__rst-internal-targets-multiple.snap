@@ -18,8 +18,7 @@ expression: output
 <office:body>
 <office:text>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="second target" />Section Title<text:bookmark-start text:name="first target" />
-<text:bookmark-end text:name="first target" />
+<text:bookmark-start text:name="second target" />Section Title<text:bookmark text:name="first target" />
 <text:bookmark-end text:name="second target" />
 </text:h>
 <text:p text:style-name="First_20_paragraph">Body under the section.</text:p>

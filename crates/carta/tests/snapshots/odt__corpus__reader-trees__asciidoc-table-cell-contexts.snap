@@ -79,7 +79,7 @@ expression: output
 <text:span text:style-name="Emphasis">First paragraph.</text:span>
 </text:p>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_cell_section" />Cell section<text:bookmark-end text:name="_cell_section" />
+<text:bookmark-start text:name="id__cell_section" />Cell section<text:bookmark-end text:name="id__cell_section" />
 </text:h>
 <text:p text:style-name="Table_20_Heading">Section body.</text:p>
       </table:table-cell>
@@ -95,7 +95,7 @@ expression: output
 <text:span text:style-name="Source_20_Text">First</text:span> <text:span text:style-name="Source_20_Text">paragraph.</text:span>
 </text:p>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_cell_section_2" />Cell section<text:bookmark-end text:name="_cell_section_2" />
+<text:bookmark-start text:name="id__cell_section_2" />Cell section<text:bookmark-end text:name="id__cell_section_2" />
 </text:h>
 <text:p text:style-name="Table_20_Heading">Section body.</text:p>
       </table:table-cell>
@@ -114,7 +114,7 @@ expression: output
   </table:table-header-rows>
 </table:table>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_outer" />Outer<text:bookmark-end text:name="_outer" />
+<text:bookmark-start text:name="id__outer" />Outer<text:bookmark-end text:name="id__outer" />
 </text:h>
 <table:table table:name="Table6" table:style-name="Table6">
   <table:table-column table:style-name="Table6.A" />
@@ -122,7 +122,7 @@ expression: output
     <table:table-row>
       <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
         <text:h text:style-name="Heading_20_2" text:outline-level="2">
-<text:bookmark-start text:name="_inner" />Inner<text:bookmark-end text:name="_inner" />
+<text:bookmark-start text:name="id__inner" />Inner<text:bookmark-end text:name="id__inner" />
 </text:h>
 <text:p text:style-name="Table_20_Heading">Inner body.</text:p>
       </table:table-cell>

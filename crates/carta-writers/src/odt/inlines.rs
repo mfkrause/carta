@@ -6,7 +6,7 @@ use carta_ast::{Attr, Block, Inline, MathType, QuoteType, Target};
 use carta_core::container::xml::{escape_attribute, is_xml_char};
 use carta_core::media::{decode_data_uri, extension_for_mime, image_mime_for_extension};
 
-use super::helpers::{attr_value, custom_style, is_opendocument, parent_prefix_index};
+use super::helpers::{anchor_name, attr_value, custom_style, is_opendocument, parent_prefix_index};
 use super::media::{image_metrics, image_size};
 use super::{
     Builder, Deco, Formula, Image, Language, ReferenceKind, STACK_RED_ZONE, STACK_SEGMENT,
@@ -209,9 +209,15 @@ impl Builder<'_> {
         };
         let decos = extended.as_deref().unwrap_or(decos);
         let anchored = !attr.id.is_empty();
+        if anchored && inner.is_empty() {
+            self.body.push_str("<text:bookmark text:name=\"");
+            escape_attribute(&anchor_name(attr.id.as_str()), &mut self.body);
+            self.body.push_str("\" />");
+            return;
+        }
         if anchored {
             self.body.push_str("<text:bookmark-start text:name=\"");
-            escape_attribute(attr.id.as_str(), &mut self.body);
+            escape_attribute(&anchor_name(attr.id.as_str()), &mut self.body);
             self.body.push_str("\" />");
         }
         let style = if !anchored
@@ -234,7 +240,7 @@ impl Builder<'_> {
         }
         if anchored {
             self.body.push_str("<text:bookmark-end text:name=\"");
-            escape_attribute(attr.id.as_str(), &mut self.body);
+            escape_attribute(&anchor_name(attr.id.as_str()), &mut self.body);
             self.body.push_str("\" />");
         }
     }
@@ -252,13 +258,18 @@ impl Builder<'_> {
         self.body
             .push_str("<text:a xlink:type=\"simple\" xlink:href=\"");
         let url = target.url.as_str();
-        match parent_prefix_index(url) {
-            Some(at) => {
+        let anchor = url.strip_prefix('#').filter(|name| !name.is_empty());
+        match (anchor, parent_prefix_index(url)) {
+            (Some(name), _) => {
+                self.body.push('#');
+                escape_attribute(&anchor_name(name), &mut self.body);
+            }
+            (None, Some(at)) => {
                 escape_attribute(url.get(..at).unwrap_or_default(), &mut self.body);
                 self.body.push_str("../");
                 escape_attribute(url.get(at..).unwrap_or(url), &mut self.body);
             }
-            None => escape_attribute(url, &mut self.body),
+            (None, None) => escape_attribute(url, &mut self.body),
         }
         self.body.push_str("\" office:name=\"");
         escape_attribute(target.title.as_str(), &mut self.body);
@@ -302,7 +313,7 @@ impl Builder<'_> {
                 self.body,
                 "<{element} text:reference-format=\"{format}\" text:ref-name=\""
             );
-            escape_attribute(identifier, &mut self.body);
+            escape_attribute(&anchor_name(identifier), &mut self.body);
             self.body.push_str("\">");
             if show_text {
                 self.walk(text, decos);

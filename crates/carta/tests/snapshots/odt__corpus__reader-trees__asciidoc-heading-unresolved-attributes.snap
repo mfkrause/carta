@@ -18,14 +18,14 @@ expression: output
 <office:body>
 <office:text>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_and" />Example and {missing}<text:bookmark-end text:name="_and" />
+<text:bookmark-start text:name="id__and" />Example and {missing}<text:bookmark-end text:name="id__and" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_code" />
+<text:bookmark-start text:name="id__code" />
 <text:span text:style-name="Emphasis">Photo</text:span> <draw:frame draw:style-name="fr1" text:anchor-type="as-char">
 <draw:object xlink:href="Formula-0/" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad" />
 </draw:frame> <text:span text:style-name="Source_20_Text">code</text:span>
-<text:bookmark-end text:name="_code" />
+<text:bookmark-end text:name="id__code" />
 </text:h>
 </office:text>
 </office:body>

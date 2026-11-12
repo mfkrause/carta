@@ -18,8 +18,7 @@ expression: output
 <office:body>
 <office:text>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="point" />
-<text:bookmark-end text:name="point" /> See <text:a xlink:type="simple" xlink:href="#point" office:name="">
+<text:bookmark text:name="point" /> See <text:a xlink:type="simple" xlink:href="#point" office:name="">
 <text:span text:style-name="Definition">Reference Text</text:span>
 </text:a> and <text:a xlink:type="simple" xlink:href="#missing" office:name="">
 <text:span text:style-name="Definition">
@@ -37,13 +36,11 @@ expression: output
 </text:a>.</text:p>
 </text:section>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="macro" />
-<text:bookmark-end text:name="macro" /> See <text:a xlink:type="simple" xlink:href="#macro" office:name="">
+<text:bookmark text:name="macro" /> See <text:a xlink:type="simple" xlink:href="#macro" office:name="">
 <text:span text:style-name="Definition">AlphaBeta</text:span>
 </text:a>.</text:p>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="bib" />
-<text:bookmark-end text:name="bib" />
+<text:bookmark text:name="bib" />
 </text:p>
 </office:text>
 </office:body>

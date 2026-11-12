@@ -19,8 +19,7 @@ expression: output
 <office:text>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">Introduction</text:h>
 <text:p text:style-name="First_20_paragraph">
-<text:bookmark-start text:name="intro" />
-<text:bookmark-end text:name="intro" />
+<text:bookmark text:name="intro" />
 </text:p>
 <text:p text:style-name="Text_20_body">See <text:a xlink:type="simple" xlink:href="#intro" office:name="">
 <text:span text:style-name="Definition">[intro]</text:span>
@@ -29,8 +28,7 @@ expression: output
 </text:p>
 <text:p text:style-name="FigureCaption">A labelled figure.</text:p>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="fig-plot" />
-<text:bookmark-end text:name="fig-plot" />
+<text:bookmark text:name="fig-plot" />
 </text:p>
 <text:p text:style-name="Text_20_body">Reference to <text:a xlink:type="simple" xlink:href="#fig-plot" office:name="">
 <text:span text:style-name="Definition">[fig-plot]</text:span>

@@ -60,14 +60,12 @@ expression: output
   <table:table-row>
     <table:table-cell table:style-name="TableRowCell" office:value-type="string">
       <text:p text:style-name="Table_20_Contents">
-<text:bookmark-start text:name="inline" />
-<text:bookmark-end text:name="inline" /> remainder</text:p>
+<text:bookmark text:name="inline" /> remainder</text:p>
     </table:table-cell>
   </table:table-row>
   <table:table-row>
     <table:table-cell table:style-name="TableRowCell" office:value-type="string">
-      <text:p text:style-name="Table_20_Contents">before <text:bookmark-start text:name="middle" />
-<text:bookmark-end text:name="middle" /> after</text:p>
+      <text:p text:style-name="Table_20_Contents">before <text:bookmark text:name="middle" /> after</text:p>
 <text:section text:name="after-blank">
 <text:p text:style-name="Text_20_body">After blank</text:p>
 </text:section>
@@ -76,22 +74,19 @@ expression: output
   <table:table-row>
     <table:table-cell table:style-name="TableRowCell" office:value-type="string">
       <text:p text:style-name="Table_20_Contents">
-<text:bookmark-start text:name="space inside" />
-<text:bookmark-end text:name="space inside" /> Whitespace id</text:p>
+<text:bookmark text:name="space inside" /> Whitespace id</text:p>
     </table:table-cell>
   </table:table-row>
   <table:table-row>
     <table:table-cell table:style-name="TableRowCell" office:value-type="string">
       <text:p text:style-name="Table_20_Contents">
-<text:bookmark-start text:name="bad]bracket" />
-<text:bookmark-end text:name="bad]bracket" /> Malformed id</text:p>
+<text:bookmark text:name="bad]bracket" /> Malformed id</text:p>
     </table:table-cell>
   </table:table-row>
   <table:table-row>
     <table:table-cell table:style-name="TableRowCell" office:value-type="string">
       <text:p text:style-name="Table_20_Contents">
-<text:bookmark-start text:name="trailing" />
-<text:bookmark-end text:name="trailing" /> Trailing spaces</text:p>
+<text:bookmark text:name="trailing" /> Trailing spaces</text:p>
     </table:table-cell>
   </table:table-row>
 </table:table>

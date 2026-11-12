@@ -18,33 +18,32 @@ expression: output
 <office:body>
 <office:text>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha" />Alpha 1<text:bookmark-end text:name="_alpha" />
+<text:bookmark-start text:name="id__alpha" />Alpha 1<text:bookmark-end text:name="id__alpha" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_2" />Alpha term<text:bookmark-end text:name="_alpha_2" />
+<text:bookmark-start text:name="id__alpha_2" />Alpha term<text:bookmark-end text:name="id__alpha_2" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_3" />Alpha foo<text:bookmark-end text:name="_alpha_3" />
+<text:bookmark-start text:name="id__alpha_3" />Alpha foo<text:bookmark-end text:name="id__alpha_3" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_4" />Alpha word<text:bookmark-end text:name="_alpha_4" />
+<text:bookmark-start text:name="id__alpha_4" />Alpha word<text:bookmark-end text:name="id__alpha_4" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_5" />Alpha <text:span text:style-name="Strong_20_Emphasis">Tools › Build › Run</text:span>
-<text:bookmark-end text:name="_alpha_5" />
+<text:bookmark-start text:name="id__alpha_5" />Alpha <text:span text:style-name="Strong_20_Emphasis">Tools › Build › Run</text:span>
+<text:bookmark-end text:name="id__alpha_5" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_6" />Alpha <text:span text:style-name="Strong_20_Emphasis">[Save]</text:span>
-<text:bookmark-end text:name="_alpha_6" />
+<text:bookmark-start text:name="id__alpha_6" />Alpha <text:span text:style-name="Strong_20_Emphasis">[Save]</text:span>
+<text:bookmark-end text:name="id__alpha_6" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_7" />Alpha <text:span text:style-name="Strong_20_Emphasis">Ctrl</text:span>+<text:span text:style-name="Strong_20_Emphasis">X</text:span>
-<text:bookmark-end text:name="_alpha_7" />
+<text:bookmark-start text:name="id__alpha_7" />Alpha <text:span text:style-name="Strong_20_Emphasis">Ctrl</text:span>+<text:span text:style-name="Strong_20_Emphasis">X</text:span>
+<text:bookmark-end text:name="id__alpha_7" />
 </text:h>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_alpha_label" />Alpha <text:bookmark-start text:name="key" />
-<text:bookmark-end text:name="key" />
-<text:bookmark-end text:name="_alpha_label" />
+<text:bookmark-start text:name="id__alpha_label" />Alpha <text:bookmark text:name="key" />
+<text:bookmark-end text:name="id__alpha_label" />
 </text:h>
 </office:text>
 </office:body>

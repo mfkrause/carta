@@ -16,6 +16,17 @@ pub(super) fn inlines_are_empty(inlines: &[Inline]) -> bool {
     })
 }
 
+/// The name an identifier anchors under: itself when it begins with a letter, otherwise prefixed
+/// with `id_`, so that every anchor name starts with a letter.
+pub(super) fn anchor_name(identifier: &str) -> Cow<'_, str> {
+    let letter = |first: char| first.is_alphabetic() && !first.is_numeric();
+    if identifier.chars().next().is_some_and(letter) {
+        Cow::Borrowed(identifier)
+    } else {
+        Cow::Owned(format!("id_{identifier}"))
+    }
+}
+
 /// Whether an inline is a display formula, which occupies a paragraph of its own.
 pub(super) fn is_block_math(inline: &Inline) -> bool {
     matches!(inline, Inline::Math(MathType::DisplayMath, _))

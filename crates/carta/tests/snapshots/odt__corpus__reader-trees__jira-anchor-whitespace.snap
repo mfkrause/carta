@@ -18,8 +18,7 @@ expression: output
 <office:body>
 <office:text>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="abc" />
-<text:bookmark-end text:name="abc" /> marks a spot.</text:p>
+<text:bookmark text:name="abc" /> marks a spot.</text:p>
 </office:text>
 </office:body>
 </office:document-content>

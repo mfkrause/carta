@@ -17,8 +17,7 @@ expression: output
 </office:automatic-styles>
 <office:body>
 <office:text>
-<text:p text:style-name="Text_20_body">An <text:bookmark-start text:name="target" />
-<text:bookmark-end text:name="target" /> anchor marks a spot.</text:p>
+<text:p text:style-name="Text_20_body">An <text:bookmark text:name="target" /> anchor marks a spot.</text:p>
 <text:p text:style-name="Text_20_body">Text continues after the anchor span.</text:p>
 </office:text>
 </office:body>

@@ -29,8 +29,7 @@ expression: output
 <text:p text:style-name="Text_20_body">A <text:span text:style-name="Emphasis">lingua franca</text:span> and a <text:span text:style-name="Emphasis">word</text:span>.</text:p>
 <text:p text:style-name="Text_20_body">A bare phrase carries nothing extra.</text:p>
 <text:p text:style-name="Text_20_body">Press Ctrl+C or pick File &gt; Save.</text:p>
-<text:p text:style-name="Text_20_body">An <text:bookmark-start text:name="spot" />
-<text:bookmark-end text:name="spot" />anchored spot.</text:p>
+<text:p text:style-name="Text_20_body">An <text:bookmark text:name="spot" />anchored spot.</text:p>
 </office:text>
 </office:body>
 </office:document-content>

@@ -11,7 +11,7 @@ use carta_ast::{
 use carta_core::container::xml::escape_attribute;
 
 use super::helpers::{
-    attr_value, collect_caption_runs, column_letter, custom_style, inlines_are_empty,
+    anchor_name, attr_value, collect_caption_runs, column_letter, custom_style, inlines_are_empty,
     is_block_math, is_opendocument, is_tight, table_column_count, trim_flanking_spacing,
 };
 use super::meta::{abstract_paragraphs, meta_authors, meta_inlines};
@@ -165,7 +165,7 @@ impl Builder<'_> {
         let section = !attr.id.is_empty();
         if section {
             self.body.push_str("<text:section text:name=\"");
-            escape_attribute(attr.id.as_str(), &mut self.body);
+            escape_attribute(&anchor_name(attr.id.as_str()), &mut self.body);
             self.body.push_str("\">");
         }
         match custom_style(attr) {
@@ -235,13 +235,13 @@ impl Builder<'_> {
         );
         if !attr.id.is_empty() {
             self.body.push_str("<text:bookmark-start text:name=\"");
-            escape_attribute(attr.id.as_str(), &mut self.body);
+            escape_attribute(&anchor_name(attr.id.as_str()), &mut self.body);
             self.body.push_str("\" />");
         }
         self.inlines(inlines);
         if !attr.id.is_empty() {
             self.body.push_str("<text:bookmark-end text:name=\"");
-            escape_attribute(attr.id.as_str(), &mut self.body);
+            escape_attribute(&anchor_name(attr.id.as_str()), &mut self.body);
             self.body.push_str("\" />");
         }
         self.body.push_str("</text:h>");
@@ -443,7 +443,7 @@ impl Builder<'_> {
         if identifier.is_empty() {
             let _ = write!(self.body, "ref{sequence}{index}");
         } else {
-            escape_attribute(identifier, &mut self.body);
+            escape_attribute(&anchor_name(identifier), &mut self.body);
         }
         let _ = write!(
             self.body,

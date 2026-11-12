@@ -30,8 +30,7 @@ expression: output
 </text:p>
 <text:p text:style-name="Definition_20_Definition">Link definition Cedar Ridge</text:p>
 <text:p text:style-name="Definition_20_Term">
-<text:bookmark-start text:name="term-id" />
-<text:bookmark-end text:name="term-id" />
+<text:bookmark text:name="term-id" />
 </text:p>
 <text:p text:style-name="Definition_20_Definition">Anchor definition Cedar Ridge</text:p>
 <text:p text:style-name="Definition_20_Term">[heart]</text:p>

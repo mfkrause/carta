@@ -18,17 +18,16 @@ expression: output
 <office:body>
 <office:text>
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
-<text:bookmark-start text:name="_heading" />Heading<text:bookmark-end text:name="_heading" />
+<text:bookmark-start text:name="id__heading" />Heading<text:bookmark-end text:name="id__heading" />
 </text:h>
-<text:section text:name="_nested">
+<text:section text:name="id__nested">
 <text:p text:style-name="First_20_paragraph">Titled</text:p>
 <text:h text:style-name="Heading_20_2" text:outline-level="2">Nested</text:h>
 <text:h text:style-name="Heading_20_3" text:outline-level="3">Discrete</text:h>
 <text:p text:style-name="First_20_paragraph">
 </text:p>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="spot" />
-<text:bookmark-end text:name="spot" /> <text:a xlink:type="simple" xlink:href="#spot" office:name="">
+<text:bookmark text:name="spot" /> <text:a xlink:type="simple" xlink:href="#spot" office:name="">
 <text:span text:style-name="Definition">
 </text:span>
 </text:a>
@@ -37,7 +36,7 @@ expression: output
 <text:h text:style-name="Heading_20_2" text:outline-level="2">Data</text:h>
 <text:h text:style-name="Heading_20_2" text:outline-level="2">Prefix</text:h>
 <text:h text:style-name="Heading_20_3" text:outline-level="3">
-<text:bookmark-start text:name="_prefix" />Prefix<text:bookmark-end text:name="_prefix" />
+<text:bookmark-start text:name="id__prefix" />Prefix<text:bookmark-end text:name="id__prefix" />
 </text:h>
 </text:section>
 </office:text>

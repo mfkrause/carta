@@ -41,16 +41,13 @@ expression: output
 <text:span text:style-name="Definition">file:later</text:span>
 </text:a>.</text:p>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="later" />
-<text:bookmark-end text:name="later" />A named target.</text:p>
+<text:bookmark text:name="later" />A named target.</text:p>
 <text:p text:style-name="Text_20_body">
 <text:a xlink:type="simple" xlink:href="#later" office:name="">
 <text:span text:style-name="Definition">later</text:span>
 </text:a> and <text:span text:style-name="Emphasis">Missing target</text:span>.</text:p>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="a-b" />
-<text:bookmark-end text:name="a-b" />and <text:bookmark-start text:name="a-b-1" />
-<text:bookmark-end text:name="a-b-1" />.</text:p>
+<text:bookmark text:name="a-b" />and <text:bookmark text:name="a-b-1" />.</text:p>
 <text:p text:style-name="Text_20_body">
 <text:a xlink:type="simple" xlink:href="#a-b" office:name="">
 <text:span text:style-name="Definition">a/b</text:span>

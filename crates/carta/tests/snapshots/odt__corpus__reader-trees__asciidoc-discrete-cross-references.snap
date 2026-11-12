@@ -42,8 +42,7 @@ expression: output
 </text:a>
 </text:p>
 <text:p text:style-name="Text_20_body">
-<text:bookmark-start text:name="z" />
-<text:bookmark-end text:name="z" />
+<text:bookmark text:name="z" />
 </text:p>
 <text:p text:style-name="Text_20_body">
 <text:a xlink:type="simple" xlink:href="#z" office:name="">

@@ -20,8 +20,7 @@ expression: output
 <text:p text:style-name="Text_20_body">
 <text:span text:style-name="Strong_20_Emphasis">Ctrl</text:span>+<text:span text:style-name="Strong_20_Emphasis">Shift</text:span>+<text:span text:style-name="Strong_20_Emphasis">F</text:span> <text:span text:style-name="Strong_20_Emphasis">[Cancel]</text:span> <text:span text:style-name="Strong_20_Emphasis">File › Open › Recent</text:span>
 </text:p>
-<text:p text:style-name="Text_20_body"> <text:bookmark-start text:name="point" />
-<text:bookmark-end text:name="point" />
+<text:p text:style-name="Text_20_body"> <text:bookmark text:name="point" />
 </text:p>
 <text:p text:style-name="Text_20_body">visible </text:p>
 </office:text>

@@ -25,8 +25,7 @@ expression: output
 <text:h text:style-name="Heading_20_1" text:outline-level="1">
 <text:bookmark-start text:name="section" />A section<text:bookmark-end text:name="section" />
 </text:h>
-<text:p text:style-name="First_20_paragraph">An <text:bookmark-start text:name="anchor" />
-<text:bookmark-end text:name="anchor" />anchor.</text:p>
+<text:p text:style-name="First_20_paragraph">An <text:bookmark text:name="anchor" />anchor.</text:p>
 <text:p text:style-name="Text_20_body">See <text:a xlink:type="simple" xlink:href="#anchor" office:name="">
 <text:span text:style-name="Definition">Label</text:span>
 </text:a> and <text:a xlink:type="simple" xlink:href="#section" office:name="">
