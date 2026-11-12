@@ -307,7 +307,8 @@ fn render_document(
 }
 
 /// Render a block sequence as a markdown fragment, accumulating footnotes for a trailing section.
-/// Exposed so a writer embedding markdown text can render a block list through this engine.
+/// The fragment ends with its text: trailing whitespace is dropped. Exposed so a writer embedding
+/// markdown text can render a block list through this engine.
 #[cfg(feature = "opml")]
 pub(crate) fn render_blocks(
     blocks: &[Block],
@@ -317,7 +318,7 @@ pub(crate) fn render_blocks(
 ) -> String {
     let mut state = State::new(config, width, wrap);
     let body = state.blocks_to_string(blocks, width, 0);
-    append_notes(body, &state.footnotes)
+    append_notes(body, &state.footnotes).trim_end().to_owned()
 }
 
 #[derive(Debug)]
@@ -863,10 +864,10 @@ impl NotesHost for State {
         let label = format!("{marker}:");
         let body = self.note_body(blocks, label.len() + 1);
         let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
-        let rendered = if body.is_empty() {
-            label
-        } else if starts_inline {
+        let rendered = if starts_inline {
             format!("{label} {body}")
+        } else if body.is_empty() {
+            label
         } else {
             format!("{label}\n{}", indent_block(&body, "    ", "    "))
         };
