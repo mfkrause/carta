@@ -2,13 +2,13 @@
 
 # Benchmarks: carta vs pandoc
 
-Measured on AMD EPYC 9V45 96-Core Processor (4 cores), 16 GB RAM, Ubuntu 24.04.5 LTS (x86_64): carta
-0.0.13 against pandoc 3.10, driven by hyperfine 2.0.0 (warmup 5, 20 runs).
+Measured on AMD EPYC 9V74 80-Core Processor (4 cores), 16 GB RAM, Ubuntu 26.04.1 LTS (x86_64): carta
+0.0.14 against pandoc 3.10, driven by hyperfine 2.0.0 (warmup 5, 20 runs).
 
 ## Headline
 
-carta is ~14–32× faster end-to-end across formats and sizes, and up to ~46× on individual
-reader/writer surfaces. Its binary is ~12× smaller (13.1 MB vs 154.8 MB), and it uses ~2–15× less
+carta is ~13–27× faster end-to-end across formats and sizes, and up to ~40× on individual
+reader/writer surfaces. Its binary is ~11× smaller (13.6 MB vs 154.8 MB), and it uses ~3–14× less
 peak memory.
 
 ## How to read this
@@ -25,129 +25,129 @@ Reproduce with `tools/bench-suite/run.sh all`. Numbers are machine-specific; you
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 13 KB  |     2.02 ms ± 0.02  |    39.36 ms ± 1.81  |   19.5x |        6.3 |    9.0 MB |   116.6 MB |
-| 101 KB |     4.85 ms ± 0.08  |    87.16 ms ± 1.17  |   18.0x |       20.4 |   11.9 MB |   128.7 MB |
-| 1 MB   |    36.68 ms ± 0.72  |   629.43 ms ± 7.48  |   17.2x |       27.3 |   40.9 MB |   234.8 MB |
+| 13 KB  |     2.28 ms ± 0.04  |    45.94 ms ± 2.88  |   20.1x |        5.6 |    8.5 MB |   116.7 MB |
+| 101 KB |     5.91 ms ± 0.16  |   100.22 ms ± 4.88  |   17.0x |       16.7 |   11.7 MB |   128.9 MB |
+| 1 MB   |    45.59 ms ± 0.57  |   694.13 ms ± 8.66  |   15.2x |       22.0 |   41.0 MB |   234.6 MB |
 
 ## reader: html → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 19 KB  |     2.01 ms ± 0.03  |    55.89 ms ± 2.72  |   27.8x |        9.1 |    8.7 MB |   118.3 MB |
-| 145 KB |     5.75 ms ± 0.13  |   216.31 ms ± 14.36 |   37.6x |       24.6 |   13.5 MB |   156.2 MB |
-| 1 MB   |    53.55 ms ± 0.88  |  1592.46 ms ± 26.04 |   29.7x |       26.8 |   61.0 MB |   477.1 MB |
+| 19 KB  |     2.44 ms ± 0.03  |    63.08 ms ± 3.04  |   25.9x |        7.5 |    8.5 MB |   118.4 MB |
+| 145 KB |     7.38 ms ± 0.25  |   246.59 ms ± 6.69  |   33.4x |       19.2 |   13.0 MB |   156.2 MB |
+| 1 MB   |    65.62 ms ± 1.03  |  1809.88 ms ± 15.81 |   27.6x |       21.9 |   60.4 MB |   477.2 MB |
 
 ## writer: json → html
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     2.35 ms ± 0.07  |    12.83 ms ± 1.29  |    5.5x |        5.1 |    9.6 MB |    43.3 MB |
-| 113 KB |     2.61 ms ± 0.04  |    26.06 ms ± 1.85  |   10.0x |       42.2 |    9.6 MB |    71.1 MB |
-| 1 MB   |     5.43 ms ± 0.14  |   112.07 ms ± 3.42  |   20.6x |      205.5 |   11.2 MB |   132.5 MB |
+| 12 KB  |     2.64 ms ± 0.03  |    12.63 ms ± 1.07  |    4.8x |        4.6 |    9.7 MB |    41.7 MB |
+| 113 KB |     2.98 ms ± 0.02  |    27.46 ms ± 3.91  |    9.2x |       36.9 |    9.6 MB |    71.2 MB |
+| 1 MB   |     6.41 ms ± 0.07  |   125.24 ms ± 3.89  |   19.5x |      174.0 |   11.4 MB |   132.5 MB |
 
 ## writer: json → latex
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     2.28 ms ± 0.05  |     7.46 ms ± 0.94  |    3.3x |        5.3 |    9.7 MB |    36.0 MB |
-| 113 KB |     2.61 ms ± 0.04  |    19.39 ms ± 2.11  |    7.4x |       42.2 |    9.7 MB |    65.9 MB |
-| 1 MB   |     5.87 ms ± 0.09  |   106.80 ms ± 9.05  |   18.2x |      190.1 |   11.5 MB |   131.9 MB |
+| 12 KB  |     2.66 ms ± 0.04  |     7.91 ms ± 1.15  |    3.0x |        4.5 |    9.7 MB |    36.1 MB |
+| 113 KB |     3.09 ms ± 0.05  |    22.46 ms ± 1.59  |    7.3x |       35.6 |    9.9 MB |    66.2 MB |
+| 1 MB   |     7.17 ms ± 0.17  |   116.06 ms ± 4.41  |   16.2x |      155.6 |   11.4 MB |   132.0 MB |
 
 ## writer: json → rst
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     1.59 ms ± 0.03  |     5.09 ms ± 0.82  |    3.2x |        7.6 |    7.6 MB |    26.2 MB |
-| 113 KB |     1.91 ms ± 0.04  |    12.08 ms ± 0.94  |    6.3x |       57.6 |    7.8 MB |    35.5 MB |
-| 1 MB   |     4.81 ms ± 0.13  |    88.16 ms ± 8.07  |   18.3x |      231.9 |    8.8 MB |   128.4 MB |
+| 12 KB  |     1.73 ms ± 0.05  |     5.19 ms ± 1.05  |    3.0x |        7.0 |    7.4 MB |    23.5 MB |
+| 113 KB |     2.11 ms ± 0.04  |    13.33 ms ± 1.56  |    6.3x |       52.2 |    7.8 MB |    35.5 MB |
+| 1 MB   |     5.77 ms ± 0.11  |    99.50 ms ± 4.66  |   17.2x |      193.3 |    9.0 MB |   128.5 MB |
 
 ## writer: json → plain
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     1.48 ms ± 0.03  |     4.64 ms ± 0.45  |    3.1x |        8.1 |    7.7 MB |    27.2 MB |
-| 113 KB |     1.76 ms ± 0.03  |    22.46 ms ± 2.02  |   12.8x |       62.5 |    7.7 MB |    70.5 MB |
-| 1 MB   |     4.42 ms ± 0.05  |    90.34 ms ± 2.40  |   20.4x |      252.4 |    9.2 MB |   128.9 MB |
+| 12 KB  |     1.71 ms ± 0.03  |     5.28 ms ± 0.64  |    3.1x |        7.0 |    7.6 MB |    27.1 MB |
+| 113 KB |     2.05 ms ± 0.04  |    23.63 ms ± 1.52  |   11.5x |       53.7 |    7.8 MB |    70.6 MB |
+| 1 MB   |     5.34 ms ± 0.06  |   104.68 ms ± 5.05  |   19.6x |      208.9 |    9.2 MB |   128.9 MB |
 
 ## writer: json → commonmark
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     1.53 ms ± 0.02  |    12.10 ms ± 0.92  |    7.9x |        7.9 |    7.6 MB |    37.0 MB |
-| 113 KB |     1.85 ms ± 0.16  |    36.55 ms ± 2.92  |   19.8x |       59.5 |    7.9 MB |    71.3 MB |
-| 1 MB   |     4.47 ms ± 0.10  |   204.80 ms ± 3.46  |   45.8x |      249.6 |    9.4 MB |   130.9 MB |
+| 12 KB  |     1.72 ms ± 0.03  |    12.06 ms ± 1.51  |    7.0x |        7.0 |    7.8 MB |    37.2 MB |
+| 113 KB |     2.07 ms ± 0.03  |    39.61 ms ± 3.87  |   19.1x |       53.2 |    8.3 MB |    71.1 MB |
+| 1 MB   |     5.56 ms ± 0.15  |   223.57 ms ± 4.37  |   40.2x |      200.6 |    9.1 MB |   130.9 MB |
 
 ## writer: json → mediawiki
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     1.53 ms ± 0.03  |     5.33 ms ± 0.60  |    3.5x |        7.9 |    7.4 MB |    27.5 MB |
-| 113 KB |     1.81 ms ± 0.03  |    14.00 ms ± 1.38  |    7.7x |       60.8 |    7.9 MB |    43.0 MB |
-| 1 MB   |     4.44 ms ± 0.11  |    95.19 ms ± 3.12  |   21.4x |      251.3 |    9.1 MB |   128.6 MB |
+| 12 KB  |     1.72 ms ± 0.07  |     5.34 ms ± 0.60  |    3.1x |        7.0 |    7.4 MB |    27.1 MB |
+| 113 KB |     2.04 ms ± 0.02  |    14.78 ms ± 1.25  |    7.2x |       54.0 |    7.6 MB |    38.2 MB |
+| 1 MB   |     5.28 ms ± 0.04  |   101.62 ms ± 3.75  |   19.2x |      211.3 |    9.1 MB |   128.9 MB |
 
 ## writer: json → native
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     1.54 ms ± 0.05  |     7.45 ms ± 0.61  |    4.8x |        7.8 |    7.3 MB |    28.8 MB |
-| 113 KB |     1.98 ms ± 0.03  |    21.40 ms ± 2.33  |   10.8x |       55.6 |    7.4 MB |    42.7 MB |
-| 1 MB   |     6.33 ms ± 0.12  |   224.01 ms ± 7.30  |   35.4x |      176.2 |   11.6 MB |   152.2 MB |
+| 12 KB  |     1.71 ms ± 0.03  |     8.05 ms ± 1.21  |    4.7x |        7.0 |    7.3 MB |    28.6 MB |
+| 113 KB |     2.38 ms ± 0.27  |    23.69 ms ± 3.04  |   10.0x |       46.2 |    7.8 MB |    42.8 MB |
+| 1 MB   |     7.61 ms ± 0.15  |   210.14 ms ± 5.91  |   27.6x |      146.6 |   11.4 MB |   152.5 MB |
 
 ## writer: json → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 12 KB  |     1.50 ms ± 0.04  |     4.36 ms ± 0.48  |    2.9x |        8.0 |    7.3 MB |    24.7 MB |
-| 113 KB |     1.76 ms ± 0.06  |    11.65 ms ± 0.91  |    6.6x |       62.5 |    7.1 MB |    33.1 MB |
-| 1 MB   |     4.15 ms ± 0.07  |    85.14 ms ± 3.54  |   20.5x |      268.8 |    8.7 MB |   128.1 MB |
+| 12 KB  |     1.63 ms ± 0.03  |     4.56 ms ± 0.74  |    2.8x |        7.4 |    7.2 MB |    24.7 MB |
+| 113 KB |     1.95 ms ± 0.04  |    11.32 ms ± 1.43  |    5.8x |       56.4 |    7.2 MB |    33.1 MB |
+| 1 MB   |     4.82 ms ± 0.06  |    94.55 ms ± 5.84  |   19.6x |      231.5 |    9.0 MB |   128.1 MB |
 
 ## e2e: commonmark → html
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 13 KB  |     3.22 ms ± 0.07  |    55.55 ms ± 4.65  |   17.3x |        4.0 |   11.2 MB |   121.1 MB |
-| 101 KB |     6.18 ms ± 0.14  |   174.45 ms ± 4.01  |   28.2x |       16.0 |   13.3 MB |   134.3 MB |
-| 1 MB   |    47.44 ms ± 0.98  |  1493.27 ms ± 36.63 |   31.5x |       21.1 |   38.7 MB |   259.0 MB |
+| 13 KB  |     3.83 ms ± 0.03  |    56.42 ms ± 3.72  |   14.7x |        3.3 |   10.9 MB |   121.1 MB |
+| 101 KB |     7.75 ms ± 0.11  |   172.72 ms ± 3.90  |   22.3x |       12.7 |   13.4 MB |   134.2 MB |
+| 1 MB   |    55.07 ms ± 1.56  |  1496.10 ms ± 13.24 |   27.2x |       18.2 |   38.6 MB |   259.1 MB |
 
 ## e2e: commonmark → latex
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 13 KB  |     3.67 ms ± 0.14  |    52.08 ms ± 2.18  |   14.2x |        3.5 |   11.5 MB |   119.2 MB |
-| 101 KB |     7.84 ms ± 0.32  |   171.96 ms ± 4.52  |   21.9x |       12.6 |   14.0 MB |   134.9 MB |
-| 1 MB   |    66.60 ms ± 2.29  |  1406.10 ms ± 52.76 |   21.1x |       15.0 |   40.4 MB |   266.1 MB |
+| 13 KB  |     4.01 ms ± 0.04  |    52.66 ms ± 3.68  |   13.1x |        3.2 |   11.0 MB |   119.1 MB |
+| 101 KB |     9.08 ms ± 0.18  |   157.30 ms ± 3.09  |   17.3x |       10.9 |   13.3 MB |   134.8 MB |
+| 1 MB   |    67.97 ms ± 0.32  |  1418.41 ms ± 16.24 |   20.9x |       14.7 |   40.2 MB |   266.1 MB |
 
 ## e2e: commonmark → rst
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 13 KB  |     2.41 ms ± 0.12  |    47.38 ms ± 2.56  |   19.7x |        5.3 |    9.5 MB |   116.7 MB |
-| 101 KB |     5.83 ms ± 0.12  |   134.82 ms ± 4.59  |   23.1x |       16.9 |   11.8 MB |   131.8 MB |
-| 1 MB   |    50.62 ms ± 0.98  |  1079.81 ms ± 22.94 |   21.3x |       19.8 |   37.1 MB |   245.7 MB |
+| 13 KB  |     2.46 ms ± 0.04  |    49.28 ms ± 3.63  |   20.0x |        5.2 |    8.4 MB |   116.6 MB |
+| 101 KB |     6.72 ms ± 0.05  |   127.74 ms ± 3.93  |   19.0x |       14.7 |   11.2 MB |   131.9 MB |
+| 1 MB   |    54.11 ms ± 0.49  |  1069.63 ms ± 8.41  |   19.8x |       18.5 |   36.9 MB |   245.8 MB |
 
 ## e2e: commonmark → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 13 KB  |     2.08 ms ± 0.03  |    43.09 ms ± 2.07  |   20.7x |        6.1 |    9.1 MB |   116.8 MB |
-| 101 KB |     4.96 ms ± 0.05  |    97.22 ms ± 2.47  |   19.6x |       19.9 |   12.1 MB |   128.8 MB |
-| 1 MB   |    42.88 ms ± 0.60  |   672.95 ms ± 9.90  |   15.7x |       23.3 |   41.7 MB |   234.7 MB |
+| 13 KB  |     2.29 ms ± 0.04  |    44.02 ms ± 1.93  |   19.2x |        5.6 |    8.6 MB |   116.7 MB |
+| 101 KB |     5.60 ms ± 0.12  |    97.38 ms ± 2.14  |   17.4x |       17.6 |   11.5 MB |   128.8 MB |
+| 1 MB   |    43.94 ms ± 0.35  |   688.66 ms ± 10.90 |   15.7x |       22.8 |   41.2 MB |   235.0 MB |
 
 ## startup: commonmark → html (near-empty input)
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 27 B   |     1.55 ms ± 0.05  |     7.61 ms ± 0.80  |    4.9x |        0.0 |    8.2 MB |    31.7 MB |
+| 27 B   |     1.71 ms ± 0.06  |     6.75 ms ± 0.84  |    3.9x |        0.0 |    7.7 MB |    31.6 MB |
 
 ## startup: commonmark → json (near-empty input)
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
-| 27 B   |     1.58 ms ± 0.03  |     3.87 ms ± 0.62  |    2.4x |        0.0 |    8.4 MB |    17.4 MB |
+| 27 B   |     1.70 ms ± 0.03  |     3.81 ms ± 0.82  |    2.2x |        0.0 |    8.0 MB |    23.3 MB |
 
 ## binary size
 
 | binary | size       | ratio |
 |--------|------------|-------|
-| carta  |    13.1 MB |  1.0x |
-| pandoc |   154.8 MB |   12x |
+| carta  |    13.6 MB |  1.0x |
+| pandoc |   154.8 MB |   11x |
