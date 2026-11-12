@@ -3,8 +3,8 @@
 use std::fmt::Write as _;
 
 use carta_ast::{
-    Alignment, Attr, Block, Cell, ColWidth, Inline, ListAttributes, ListNumberStyle, QuoteType,
-    Table, Target, Text,
+    Alignment, Attr, Block, Cell, ColWidth, Inline, ListAttributes, ListNumberStyle, MathType,
+    QuoteType, Table, Target, Text,
 };
 
 use carta_core::WrapMode;
@@ -256,6 +256,30 @@ pub(super) fn display_math_block(math: &str, legacy: bool) -> String {
         math.to_owned()
     };
     format!("[latexmath]\n++++\n{body}\n++++")
+}
+
+/// Whether a run holds display math, directly or inside spans that carry no id or class.
+pub(super) fn holds_display_math(inlines: &[Inline]) -> bool {
+    inlines.iter().any(|inline| match inline {
+        Inline::Math(MathType::DisplayMath, _) => true,
+        Inline::Span(attr, children) => span_role(attr).is_none() && holds_display_math(children),
+        _ => false,
+    })
+}
+
+/// Copy a run into `out`, replacing each span that [`holds_display_math`] by its content, so the
+/// math can stand as a block of its own.
+pub(super) fn lift_display_math(inlines: &[Inline], out: &mut Vec<Inline>) {
+    for inline in inlines {
+        match inline {
+            Inline::Span(attr, children)
+                if span_role(attr).is_none() && holds_display_math(children) =>
+            {
+                lift_display_math(children, out);
+            }
+            other => out.push(other.clone()),
+        }
+    }
 }
 
 /// Drop leading and trailing whitespace inlines from a run, since a block boundary already supplies

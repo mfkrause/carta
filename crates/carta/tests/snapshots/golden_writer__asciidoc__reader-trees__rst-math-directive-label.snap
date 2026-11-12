@@ -2,4 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-latexmath:[e^{i\pi} + 1 = 0]
+[latexmath]
+++++
+e^{i\pi} + 1 = 0
+++++

@@ -17,9 +17,9 @@ mod helpers;
 
 use self::helpers::{
     alignment_operator, cell_span, code_block, display_math_block, escape_text, flush_left,
-    image_args, indent, is_autolink_scheme, is_simple_cell, joins_word, labeled_block,
-    ordered_style_line, quote_glyphs, reads_as_markup, span_role, table_options_line,
-    task_checkbox, trim_surrounding_space, url_scheme, without_flush_marks,
+    holds_display_math, image_args, indent, is_autolink_scheme, is_simple_cell, joins_word,
+    labeled_block, lift_display_math, ordered_style_line, quote_glyphs, reads_as_markup, span_role,
+    table_options_line, task_checkbox, trim_surrounding_space, url_scheme, without_flush_marks,
 };
 
 /// Renders a document to `AsciiDoc` markup.
@@ -150,10 +150,7 @@ impl State {
         width: usize,
         initial: usize,
     ) -> String {
-        if !inlines
-            .iter()
-            .any(|inline| matches!(inline, Inline::Math(MathType::DisplayMath, _)))
-        {
+        if !holds_display_math(inlines) {
             let mut pieces = self.pieces(inlines);
             if guarded && reads_as_markup(&pieces, self.wrap) {
                 pieces.insert(0, Piece::text("{empty}"));
@@ -161,8 +158,7 @@ impl State {
             return fill_offset(&pieces, width, initial, self.wrap);
         }
         let mut out = String::new();
-        let mut text_run: Vec<Inline> = Vec::new();
-        let flush_text = |state: &mut Self, run: &mut Vec<Inline>, out: &mut String| {
+        let flush_text = |state: &mut Self, run: &[Inline], out: &mut String| {
             let offset = if out.is_empty() { initial } else { 0 };
             if let Some(rendered) = state.text_segment(run, width, offset) {
                 if !out.is_empty() {
@@ -170,21 +166,22 @@ impl State {
                 }
                 out.push_str(&rendered);
             }
-            run.clear();
         };
-        for inline in inlines {
-            match inline {
-                Inline::Math(MathType::DisplayMath, math) => {
-                    flush_text(self, &mut text_run, &mut out);
-                    if !out.is_empty() {
-                        out.push_str("\n\n");
-                    }
-                    out.push_str(&display_math_block(math, self.legacy));
-                }
-                _ => text_run.push(inline.clone()),
+        let mut lifted = Vec::new();
+        lift_display_math(inlines, &mut lifted);
+        let mut run_start = 0;
+        for (index, inline) in lifted.iter().enumerate() {
+            let Inline::Math(MathType::DisplayMath, math) = inline else {
+                continue;
+            };
+            flush_text(self, lifted.get(run_start..index).unwrap_or(&[]), &mut out);
+            if !out.is_empty() {
+                out.push_str("\n\n");
             }
+            out.push_str(&display_math_block(math, self.legacy));
+            run_start = index + 1;
         }
-        flush_text(self, &mut text_run, &mut out);
+        flush_text(self, lifted.get(run_start..).unwrap_or(&[]), &mut out);
         out
     }
 
