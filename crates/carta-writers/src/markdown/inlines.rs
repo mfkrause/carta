@@ -468,15 +468,11 @@ impl State {
     /// escaped at a word boundary, and everywhere in a `markdown` dialect without
     /// `intraword_underscores` (the `CommonMark` family never treats an intra-word `_` as emphasis,
     /// so it is left literal there). A backslash is escaped per the raw-TeX extension.
-    /// Smart-punctuation glyphs are rewritten to ASCII when the `smart` extension is active.
+    /// When the `smart` extension is active, smart-punctuation glyphs are rewritten to ASCII, and
+    /// the ASCII spellings already in the text (quotes, `--`, `...`) are escaped so they are not
+    /// read as those glyphs.
     pub(super) fn escape_str(&self, text: &str) -> String {
-        let downgraded;
-        let text = if self.config.has(Extension::Smart) {
-            downgraded = downgrade_smart(text, self.config.has(Extension::OldDashes));
-            downgraded.as_str()
-        } else {
-            text
-        };
+        let smart = self.config.has(Extension::Smart);
         let literate = self.config.has(Extension::LiterateHaskell);
         let is_trigger = |byte: u8| {
             matches!(
@@ -497,6 +493,8 @@ impl State {
                     | b'_'
                     | b'\\'
             ) || (literate && byte == b'=')
+                // 0xE2 leads the encoding of every smart-punctuation glyph.
+                || (smart && matches!(byte, b'"' | b'\'' | b'-' | b'.' | 0xE2))
         };
         let mut out = String::with_capacity(text.len());
         let mut prev: Option<char> = None;
@@ -527,27 +525,16 @@ impl State {
                 '=' if literate && word_start => out.push_str("&#61;"),
                 '#' if at_start && self.could_open_heading(text) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
-                '`' | '*' | '[' | ']' | '<' | '>' => {
-                    out.push('\\');
-                    out.push(ch);
+                '.' if smart && tail().starts_with("...") => {
+                    out.push_str("\\...");
+                    prev = Some(ch);
+                    offset += 3;
+                    continue;
                 }
-                '|' if self.config.has(Extension::PipeTables) => {
-                    out.push('\\');
-                    out.push(ch);
+                '…' | '—' | '–' | '“' | '”' | '‘' | '’' if smart => {
+                    out.push_str(smart_ascii(ch, next, self.config.has(Extension::OldDashes)));
                 }
-                '$' if self.config.has(Extension::TexMathDollars) => {
-                    out.push('\\');
-                    out.push(ch);
-                }
-                '~' if self.config.has(Extension::Subscript) => {
-                    out.push('\\');
-                    out.push(ch);
-                }
-                '~' if self.config.has(Extension::Strikeout) && next == Some('~') => {
-                    out.push('\\');
-                    out.push(ch);
-                }
-                '^' if self.config.has(Extension::Superscript) => {
+                _ if self.takes_backslash(ch, next) => {
                     out.push('\\');
                     out.push(ch);
                 }
@@ -566,6 +553,24 @@ impl State {
             offset += ch.len_utf8();
         }
         out
+    }
+
+    /// Whether a character that would otherwise open or close markup is neutralized by a backslash:
+    /// the inline-markup openers always, the others only where the dialect gives them meaning.
+    fn takes_backslash(&self, ch: char, next: Option<char>) -> bool {
+        match ch {
+            '`' | '*' | '[' | ']' | '<' | '>' => true,
+            '|' => self.config.has(Extension::PipeTables),
+            '$' => self.config.has(Extension::TexMathDollars),
+            '~' => {
+                self.config.has(Extension::Subscript)
+                    || (self.config.has(Extension::Strikeout) && next == Some('~'))
+            }
+            '^' => self.config.has(Extension::Superscript),
+            '"' | '\'' => self.config.has(Extension::Smart),
+            '-' => self.config.has(Extension::Smart) && next == Some('-'),
+            _ => false,
+        }
     }
 
     /// Whether text that opens with `#` could be read as a heading marker.
@@ -590,33 +595,20 @@ impl State {
     }
 }
 
-/// Replace smart-punctuation glyphs with their ASCII equivalents for a dialect that does not write
-/// them: ellipsis, en/em dashes, and curly quotes.
-fn downgrade_smart(text: &str, old_dashes: bool) -> String {
-    let mut out = String::with_capacity(text.len());
-    for (position, ch) in text.char_indices() {
-        match ch {
-            '…' => out.push_str("..."),
-            '—' => out.push_str(if old_dashes { "--" } else { "---" }),
-            '–' if old_dashes => {
-                // A single hyphen forms an en dash only before an ASCII digit.
-                if text
-                    .as_bytes()
-                    .get(position + ch.len_utf8())
-                    .is_some_and(u8::is_ascii_digit)
-                {
-                    out.push('-');
-                } else {
-                    out.push(ch);
-                }
-            }
-            '–' => out.push_str("--"),
-            '“' | '”' => out.push('"'),
-            '‘' | '’' => out.push('\''),
-            other => out.push(other),
-        }
+/// The ASCII spelling of a smart-punctuation glyph (ellipsis, en/em dash, curly quote) for a
+/// dialect that reads the spelling back as the glyph. `next` is the character after the glyph.
+fn smart_ascii(glyph: char, next: Option<char>, old_dashes: bool) -> &'static str {
+    match glyph {
+        '…' => "...",
+        '—' if old_dashes => "--",
+        '—' => "---",
+        '–' if !old_dashes => "--",
+        // A single hyphen forms an en dash only before an ASCII digit.
+        '–' if next.is_some_and(|ch| ch.is_ascii_digit()) => "-",
+        '–' => "–",
+        '“' | '”' => "\"",
+        _ => "'",
     }
-    out
 }
 
 fn smallcaps_attr() -> Attr {
