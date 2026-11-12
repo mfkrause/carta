@@ -137,6 +137,7 @@ impl State {
                     push_attr_braces(out, attr);
                 }
             }
+            Inline::Space | Inline::SoftBreak if self.script => out.push(Piece::text("\\ ")),
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
@@ -151,11 +152,17 @@ impl State {
             Inline::Link(attr, inlines, target) => self.link(attr, inlines, target, out),
             Inline::Image(attr, inlines, target) => self.image(attr, inlines, target, out),
             Inline::Span(attr, inlines) => self.span(attr, inlines, out),
-            Inline::Note(blocks) => {
-                let marker = self.record_note(blocks);
-                out.push(Piece::text(marker));
-            }
+            Inline::Note(blocks) => self.note(blocks, out),
         }
+    }
+
+    /// Record a footnote and write its marker. The note body is laid out apart from the running
+    /// text, so it starts outside any script the marker sits in.
+    fn note(&mut self, blocks: &[Block], out: &mut Vec<Piece>) {
+        let script = std::mem::take(&mut self.script);
+        let marker = self.record_note(blocks);
+        self.script = script;
+        out.push(Piece::text(marker));
     }
 
     fn span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
@@ -353,9 +360,11 @@ impl State {
         if self.config.cmark {
             self.wrap_markup(marker, marker, inlines, out);
         } else if !inlines.is_empty() {
+            let outer = std::mem::replace(&mut self.script, true);
             out.push(Piece::text(marker.to_owned()));
             self.extend_pieces(inlines, out);
             out.push(Piece::text(marker.to_owned()));
+            self.script = outer;
         }
     }
 

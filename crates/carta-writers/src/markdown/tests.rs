@@ -378,6 +378,21 @@ mod escaping {
     }
 
     #[test]
+    fn a_space_inside_a_native_script_is_escaped() {
+        let script = Inline::Superscript(vec![s("a"), Inline::Space, s("b")]);
+        let note = Inline::Note(vec![Block::Para(vec![s("n"), Inline::Space, s("m")])]);
+        assert_eq!(render(vec![Block::Para(vec![s("x"), script])]), "x^a\\ b^");
+        // A note body is laid out on its own, outside the script that holds its marker.
+        assert_eq!(
+            render(vec![Block::Para(vec![Inline::Subscript(vec![
+                s("a"),
+                note
+            ])])]),
+            "~a[^1]~\n\n[^1]: n m"
+        );
+    }
+
+    #[test]
     fn a_double_tilde_is_escaped_under_strikeout() {
         assert_eq!(
             render_with(

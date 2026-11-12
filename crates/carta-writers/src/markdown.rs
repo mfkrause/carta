@@ -327,6 +327,9 @@ struct State {
     width: usize,
     footnotes: Vec<String>,
     small_caps: bool,
+    /// Whether rendering is inside a super- or subscript written in a `markdown` dialect's own
+    /// syntax, where a bare space would end the script and is written `\ ` instead.
+    script: bool,
     table_measurements: BTreeMap<(usize, usize, bool), [Vec<usize>; 2]>,
     /// Whether rendering is somewhere inside a list item, a definition, or a table cell, where a
     /// [`Block::Plain`] runs on into the block after it instead of standing apart as a paragraph
@@ -342,6 +345,7 @@ impl State {
             width,
             footnotes: Vec::new(),
             small_caps: false,
+            script: false,
             table_measurements: BTreeMap::new(),
             in_item: false,
         }
