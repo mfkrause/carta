@@ -93,6 +93,9 @@ WRITER = {
     ("org", "reader-trees", "asciidoc-table-in-definition-continuation"): (
         "Pandoc starts a table on the term line and indents its rows unevenly."
     ),
+    ("org", "reader-trees", "asciidoc-table-monospace-nested"): (
+        "Pandoc writes the footnote of a table body cell twice and never refers to the first copy."
+    ),
     ("rst", "common", "span"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "common", "span-semantic"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "reader-trees", "asciidoc-anchor-labels"): DROPPED_TARGET,
