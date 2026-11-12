@@ -14,7 +14,7 @@ use crate::common::{
     offset_quoted_table, ordered_marker, quote_block, render_html_attr,
 };
 use crate::markdown_common::{
-    attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator, push_open_tag,
+    atx_heading_marker, indent_code, is_html_format, needs_separator, push_open_tag,
 };
 
 use self::helpers::{
@@ -815,7 +815,7 @@ impl State {
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {
         if self.config.has(Extension::ImplicitFigures)
-            && let Some(rendered) = self.implicit_figure(attr, caption, blocks)
+            && let Some(rendered) = self.implicit_figure(attr, caption, blocks, width)
         {
             return rendered;
         }
@@ -838,18 +838,20 @@ impl State {
         )
     }
 
-    /// A figure renders as a bare image when it carries no attributes and its body is a single image
-    /// in a `Plain` block whose own attributes hold neither an identifier nor classes. The visible
-    /// text is the caption; the image's alt text, when non-empty and not already equal to the
-    /// caption, is preserved as an `alt` attribute. Returns `None` when the shorthand does not apply,
-    /// so the caller can fall back to an HTML figure.
+    /// A figure renders as a paragraph holding a bare image when it carries at most an identifier
+    /// and its body is a single image, without an identifier of its own, in a `Plain` block. The
+    /// image takes the figure's identifier. The visible text is the caption; the image's alt text,
+    /// when non-empty and not already equal to the caption, is preserved as an `alt` attribute.
+    /// Returns `None` when the shorthand does not apply or the dialect cannot write the image's
+    /// attributes, so the caller can fall back to an HTML figure.
     fn implicit_figure(
         &mut self,
         attr: &Attr,
         caption: &Caption,
         blocks: &[Block],
+        width: usize,
     ) -> Option<String> {
-        if !attr_is_empty(attr) {
+        if !attr.classes.is_empty() || !attr.attributes.is_empty() {
             return None;
         }
         let [Block::Plain(inlines)] = blocks else {
@@ -858,12 +860,13 @@ impl State {
         let [Inline::Image(image_attr, alt, target)] = inlines.as_slice() else {
             return None;
         };
-        if !image_attr.id.is_empty() || !image_attr.classes.is_empty() {
+        if !image_attr.id.is_empty() {
             return None;
         }
         let caption_inlines = caption_blocks_as_inlines(&caption.long)?;
         let alt_text = carta_ast::to_plain_text(alt);
         let mut image_attr = image_attr.clone();
+        image_attr.id.clone_from(&attr.id);
         if !alt_text.is_empty() && alt_text != carta_ast::to_plain_text(&caption_inlines) {
             image_attr
                 .attributes
@@ -874,7 +877,7 @@ impl State {
         }
         let mut out = Vec::new();
         self.image(&image_attr, &caption_inlines, target, &mut out);
-        Some(pieces_to_string(&out))
+        Some(fill(&out, width, self.wrap))
     }
 }
 

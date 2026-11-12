@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+![A sample diagram.](diagram.png){#fig:sample}
