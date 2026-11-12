@@ -3,7 +3,7 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 <outline text="First level heading" _note="Body text under the first heading.">
-  <outline text="Second level heading &lt;span class=&quot;tag&quot; data-tag-name=&quot;work&quot;&gt;&lt;span class=&quot;smallcaps&quot;&gt;work&lt;/span&gt;&lt;/span&gt; &lt;span class=&quot;tag&quot; data-tag-name=&quot;urgent&quot;&gt;&lt;span class=&quot;smallcaps&quot;&gt;urgent&lt;/span&gt;&lt;/span&gt;">
+  <outline text="Second level heading &lt;span class=&quot;tag&quot; data-tag-name=&quot;work&quot;&gt;&lt;span&#10;class=&quot;smallcaps&quot;&gt;work&lt;/span&gt;&lt;/span&gt; &lt;span class=&quot;tag&quot;&#10;data-tag-name=&quot;urgent&quot;&gt;&lt;span class=&quot;smallcaps&quot;&gt;urgent&lt;/span&gt;&lt;/span&gt;">
     <outline text="Third level heading">
     </outline>
   </outline>

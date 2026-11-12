@@ -4,5 +4,5 @@ expression: output
 ---
 <outline text="Example and {missing}">
 </outline>
-<outline text="&lt;img src=&quot;photo.png&quot; alt=&quot;Photo&quot; /&gt; &lt;span class=&quot;math inline&quot;&gt;&lt;em&gt;x&lt;/em&gt;&lt;/span&gt; &lt;code&gt;code&lt;/code&gt;">
+<outline text="&lt;img src=&quot;photo.png&quot; alt=&quot;Photo&quot; /&gt; &lt;span&#10;class=&quot;math inline&quot;&gt;&lt;em&gt;x&lt;/em&gt;&lt;/span&gt; &lt;code&gt;code&lt;/code&gt;">
 </outline>

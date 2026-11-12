@@ -5,7 +5,7 @@ use carta_core::sections::section_opening;
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::FILL_COLUMN;
-use crate::html::render_inline_line;
+use crate::html::render_fragment;
 use crate::markdown::{MarkdownConfig, render_blocks};
 
 /// Renders a document to a nested outline.
@@ -102,7 +102,9 @@ fn sectionize(blocks: &[Block]) -> Vec<Section<'_>> {
 
 fn render_section(section: &Section, depth: usize, width: usize, wrap: WrapMode, out: &mut String) {
     let indent = "  ".repeat(depth);
-    let text = escape_outline(&render_inline_line(section.heading));
+    // An outline title is always filled to the default column, whatever the wrap setting.
+    let title = render_fragment(&[Block::Plain(section.heading.to_vec())], WrapMode::Auto);
+    let text = escape_outline(&title);
     let body_blocks: Vec<Block> = section.body.iter().map(|block| (*block).clone()).collect();
     let note = render_blocks(&body_blocks, MarkdownConfig::extended(), width, wrap);
     out.push_str(&indent);

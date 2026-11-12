@@ -398,17 +398,6 @@ fn math_output(options: &WriterOptions) -> MathOutput<'_> {
     }
 }
 
-/// Render an inline sequence to a single line of html, with every breakable space emitted as one
-/// ordinary space (no reflow). Exposed for writers that embed inline html in an attribute value.
-// Used by the outline writer; unreferenced when its feature is sliced out of the build.
-#[cfg_attr(not(feature = "opml"), allow(dead_code))]
-pub(crate) fn render_inline_line(inlines: &[Inline]) -> String {
-    let mut state = State::default();
-    let mut out = String::new();
-    state.inlines(&mut out, inlines);
-    out.replace([BREAK, SOFT], " ")
-}
-
 /// Sentinel marking a breakable inline space while the document is assembled as a flat string.
 /// [`reflow`] later turns each into either a single space or a line break to fill to
 /// [`FILL_COLUMN`]. A literal `U+0000` from document content is preserved
