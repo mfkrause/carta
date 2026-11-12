@@ -17,7 +17,7 @@ expression: output
 </office:automatic-styles>
 <office:body>
 <office:text>
-<text:p text:style-name="Text_20_body">As shown by  and , this holds.</text:p>
+<text:p text:style-name="Text_20_body">As shown by and , this holds.</text:p>
 </office:text>
 </office:body>
 </office:document-content>

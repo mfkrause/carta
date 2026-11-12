@@ -128,30 +128,40 @@ impl Builder<'_> {
         }
     }
 
-    /// Emits the accumulated run wrapped in one styled span (bare, when no decoration is active) and
-    /// clears it. A run that renders to nothing contributes nothing.
+    /// Emits the accumulated run and clears it: bare when no decoration is active, otherwise as
+    /// styled spans that stop at each line break, so a break always sits between spans. A stretch
+    /// that renders to nothing contributes nothing.
     fn flush_run(&mut self, run: &mut Vec<&Inline>, decos: &[Deco]) {
-        if run.is_empty() {
+        if decos.is_empty() {
+            self.render_run_content(run, true);
+            run.clear();
             return;
         }
-        let start = self.body.len();
-        self.render_run_content(run);
+        let stretches = run.split(|inline| matches!(inline, Inline::LineBreak));
+        for (index, stretch) in stretches.enumerate() {
+            if index > 0 {
+                self.body.push_str("<text:line-break />");
+            }
+            let start = self.body.len();
+            self.render_run_content(stretch, false);
+            if self.body.len() == start {
+                continue;
+            }
+            let Some(style) = self.run_style(decos) else {
+                self.body.truncate(start);
+                break;
+            };
+            self.body
+                .insert_str(start, &format!("<text:span text:style-name=\"{style}\">"));
+            self.body.push_str("</text:span>");
+        }
         run.clear();
-        if self.body.len() == start || decos.is_empty() {
-            return;
-        }
-        let Some(style) = self.run_style(decos) else {
-            self.body.truncate(start);
-            return;
-        };
-        self.body
-            .insert_str(start, &format!("<text:span text:style-name=\"{style}\">"));
-        self.body.push_str("</text:span>");
     }
 
     /// Renders the plain inlines gathered into a run, collapsing breaking spaces the way a flowing
-    /// paragraph does.
-    fn render_run_content(&mut self, run: &[&Inline]) {
+    /// paragraph does. A `bare` run sits directly in the paragraph text, so its leading space also
+    /// merges with a breaking space that ends the text before it.
+    fn render_run_content(&mut self, run: &[&Inline], bare: bool) {
         let mut pending_space = false;
         for inline in run {
             if matches!(inline, Inline::Space | Inline::SoftBreak) {
@@ -159,7 +169,7 @@ impl Builder<'_> {
                 continue;
             }
             if pending_space {
-                self.body.push(' ');
+                self.push_breaking_space(bare);
                 pending_space = false;
             }
             match inline {
@@ -169,8 +179,17 @@ impl Builder<'_> {
             }
         }
         if pending_space {
-            self.body.push(' ');
+            self.push_breaking_space(bare);
         }
+    }
+
+    /// Appends one breaking space, unless `merge` is set and the body already ends with one.
+    fn push_breaking_space(&mut self, merge: bool) {
+        if merge && self.body.len() == self.breaking_space_end && self.body.ends_with(' ') {
+            return;
+        }
+        self.body.push(' ');
+        self.breaking_space_end = self.body.len();
     }
 
     /// The style name a text run carries under an active set of decorations: a fixed named style for

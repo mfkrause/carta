@@ -300,6 +300,8 @@ struct Builder<'a> {
     references: BTreeMap<Text, ReferenceKind>,
     para_styles: Vec<ParaStyle>,
     quote_depth: usize,
+    /// The body length right after the last breaking space was appended.
+    breaking_space_end: usize,
     list_styles: Vec<ListStyle>,
     table_styles: String,
     note_id: usize,
@@ -328,6 +330,7 @@ impl<'a> Builder<'a> {
             references: BTreeMap::new(),
             para_styles: Vec::new(),
             quote_depth: 0,
+            breaking_space_end: 0,
             list_styles: Vec::new(),
             table_styles: String::new(),
             note_id: 0,

@@ -23,7 +23,7 @@ expression: output
 <text:p text:style-name="Text_20_body">A <text:a xlink:type="simple" xlink:href="https://example.com" office:name="">
 <text:span text:style-name="Definition"> linked body </text:span>
 </text:a> keeps the padding of its content.</text:p>
-<text:p text:style-name="Text_20_body">A box holds  its own spacing  within the line.</text:p>
+<text:p text:style-name="Text_20_body">A box holds its own spacing within the line.</text:p>
 <text:p text:style-name="Text_20_body">An underlined <text:span text:style-name="T1"> padded body </text:span> sits beside plain words.</text:p>
 <text:p text:style-name="Quotations">A spaced quotation.</text:p>
 <text:p text:style-name="Quotations">—  A. Author </text:p>

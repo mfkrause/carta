@@ -25,7 +25,7 @@ expression: output
 <text:p text:style-name="Text_20_body">A standalone block image:</text:p>
 <text:p text:style-name="Text_20_body">
 </text:p>
-<text:p text:style-name="Text_20_body">An inline  image.</text:p>
+<text:p text:style-name="Text_20_body">An inline image.</text:p>
 </office:text>
 </office:body>
 </office:document-content>
