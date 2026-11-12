@@ -330,6 +330,19 @@ fn marker_against_an_entity_backslash_is_escaped() {
 }
 
 #[test]
+fn a_line_break_bounds_markup_like_the_text_edge() {
+    let broken = |before: &str, after: &str| {
+        render(vec![para(vec![
+            str_inline(before),
+            Inline::LineBreak,
+            str_inline(after),
+        ])])
+    };
+    assert_eq!(broken("a\\", "b"), "a&bsol;\nb");
+    assert_eq!(broken("a -", "(b"), "a \\-\n\\(b");
+}
+
+#[test]
 fn marker_against_a_neutralized_emoticon_stays_bare() {
     assert_eq!(text("a_:)"), "a_\\:)");
     assert_eq!(text(":(*<>:"), "\\:(*<>:");

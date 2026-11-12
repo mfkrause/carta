@@ -817,16 +817,16 @@ const PAREN_SIGNIFICANT: &[char] = &[
 ];
 
 /// Whether an open parenthesis must be escaped: it is, unless both neighbors are ordinary content. A
-/// markup boundary (string edge or a plain space) or one of the markup-significant punctuation
-/// characters on either side makes Jira read the `(` as opening an emoticon or macro.
+/// markup boundary (string edge, a plain space or a line break) or one of the markup-significant
+/// punctuation characters on either side makes Jira read the `(` as opening an emoticon or macro.
 fn needs_paren_escape(prev: Option<char>, next: Option<char>) -> bool {
     paren_boundary(prev) || paren_boundary(next)
 }
 
 /// The escape decision for an open parenthesis with access to the surrounding text. A `(` set off by
-/// a plain space on each side is a lone parenthetical in running prose, not the start of an icon, so
-/// it is left bare, unless it rests against the trailing edge of the document, where it would still
-/// open a macro. `after` is the character the surrounding inline stream contributes once this string
+/// a plain space on each side (or opening a line before one) is a lone parenthetical in running
+/// prose, not the start of an icon, so it is left bare, unless it rests against the trailing edge of
+/// the document, where it would still open a macro. `after` is the character the surrounding inline stream contributes once this string
 /// is exhausted, so a following space inline keeps the parenthesis in running prose even when nothing
 /// but spaces remain in this string. Every other position falls back to the neighbor-only rule.
 fn needs_paren_escape_in(
@@ -836,7 +836,7 @@ fn needs_paren_escape_in(
     next: Option<char>,
     after: Option<char>,
 ) -> bool {
-    if before == Some(' ') && next == Some(' ') {
+    if matches!(before, Some(' ' | '\n')) && next == Some(' ') {
         // Space-flanked `(` opens a macro only at the trailing edge; bare while content follows.
         let has_in_string_content = chars
             .get(paren + 1..)
@@ -858,15 +858,15 @@ fn needs_paren_escape_in(
 
 fn paren_boundary(neighbor: Option<char>) -> bool {
     match neighbor {
-        None | Some(' ') => true,
+        None | Some(' ' | '\n') => true,
         Some(ch) => PAREN_SIGNIFICANT.contains(&ch),
     }
 }
 
 /// Whether a backslash should be emitted literally rather than as the `&bsol;` entity. Jira keeps a
 /// backslash verbatim only when both of its neighbors share the same plain category: both ordinary
-/// content, or both spaces. Against a string edge, another backslash, or markup punctuation it would
-/// be consumed as an escape, so it is rendered as the entity there.
+/// content, or both spaces. Against a string edge, a line break, another backslash, or markup
+/// punctuation it would be consumed as an escape, so it is rendered as the entity there.
 fn backslash_is_literal(prev: Option<char>, next: Option<char>) -> bool {
     let category = backslash_category(prev);
     matches!(
@@ -886,7 +886,7 @@ fn backslash_category(neighbor: Option<char>) -> BackslashCategory {
     match neighbor {
         Some(' ') => BackslashCategory::Space,
         Some(')') => BackslashCategory::Content,
-        Some('\\') | None => BackslashCategory::Other,
+        Some('\\' | '\n') | None => BackslashCategory::Other,
         Some(ch) if NEUTRAL_PUNCT.contains(&ch) => BackslashCategory::Other,
         Some(_) => BackslashCategory::Content,
     }
@@ -935,11 +935,12 @@ fn emoticon_boundary(neighbor: Option<char>) -> bool {
 }
 
 /// A stricter emoticon boundary used for the `;P` and `;D` winks: only the string edge, a plain
-/// space, or one of the markup-significant punctuation characters bounds them. A word character, a
-/// closing parenthesis, or ordinary punctuation is word-like here and suppresses the wink.
+/// space, a line break, or one of the markup-significant punctuation characters bounds them. A word
+/// character, a closing parenthesis, or ordinary punctuation is word-like here and suppresses the
+/// wink.
 fn emoticon_boundary_strict(neighbor: Option<char>) -> bool {
     match neighbor {
-        None | Some(' ' | '\\') => true,
+        None | Some(' ' | '\n' | '\\') => true,
         Some(ch) => NEUTRAL_PUNCT.contains(&ch),
     }
 }
@@ -949,9 +950,10 @@ fn needs_escape(ch: char, prev: Option<char>, next: Option<char>) -> bool {
         '{' | '}' => true,
         '?' => next == Some('?'),
         // Adjacent significant characters require escaping every marker in a run.
+        // A marker that closes a line could close markup, as one at the end of the text could.
         _ if is_marker(ch) => {
             prev.is_none()
-                || next.is_none()
+                || matches!(next, None | Some('\n'))
                 || is_content(prev) != is_content(next)
                 || is_neutral(prev)
                 || is_neutral(next)
