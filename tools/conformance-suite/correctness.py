@@ -45,6 +45,7 @@ BROKEN_KEY_SPAN = (
 )
 DROPPED_ANCHOR = "Pandoc drops the anchor of a figure without content, so the link to it breaks."
 DROPPED_CAPTION = "Pandoc drops the caption of a figure whose image is in a paragraph."
+HTML4_FOOT = "Pandoc puts tfoot after tbody, which HTML 4 forbids."
 
 # (target, feature, case) -> reason. A `reader-trees` case is the tree that carta reads from the
 # `corpus/text` case of that name, so its entry also covers that e2e conversion.
@@ -70,7 +71,13 @@ WRITER = {
     ("gfm", "reader-trees", "ipynb-version-three"): (
         "Pandoc writes a level-9 heading, which GFM reads as text."
     ),
-    ("html4", "table", "table-foot"): "Pandoc puts tfoot after tbody, which HTML 4 forbids.",
+    ("html4", "reader-trees", "asciidoc-definition-macro-bodies"): (
+        "Pandoc uses the video and audio elements, which HTML 4 does not have."
+    ),
+    ("html4", "reader-trees", "asciidoc-table-block-anchors"): HTML4_FOOT,
+    ("html4", "reader-trees", "asciidoc-table-in-definition-continuation"): HTML4_FOOT,
+    ("html4", "reader-trees", "asciidoc-table-monospace-nested"): HTML4_FOOT,
+    ("html4", "table", "table-foot"): HTML4_FOOT,
     ("latex", "image-dimensions", "image-embedded-jpeg"): DATA_IMAGE,
     ("latex", "image-dimensions", "image-embedded-png"): DATA_IMAGE,
     ("latex", "reader-trees", "latex-nested-tables"): (
@@ -104,6 +111,9 @@ WRITER = {
     ),
     ("org", "reader-trees", "asciidoc-table-monospace-nested"): (
         "Pandoc writes the footnote of a table body cell twice and never refers to the first copy."
+    ),
+    ("revealjs", "reader-trees", "ipynb-version-three"): (
+        "Pandoc leaves the cells after a level-9 heading outside every slide."
     ),
     ("rst", "common", "span"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "common", "span-semantic"): "Pandoc's RST output drops the span's identifier.",
