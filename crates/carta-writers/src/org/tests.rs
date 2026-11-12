@@ -187,6 +187,35 @@ fn definition_terms_and_nested_bullets_share_the_first_line() {
 }
 
 #[test]
+fn citation_suffix_opens_with_a_locator_or_a_comma() {
+    for (suffix, expected) in [
+        ("p. 5", "[cite:@key p. 5]"),
+        (", pp. 5-7, 9", "[cite:@key pp. 5-7, 9]"),
+        ("p. 5, see there", "[cite:@key p. 5 , see there]"),
+        ("12 and later", "[cite:@key 12 and later]"),
+        ("emphasis added", "[cite:@key , emphasis added]"),
+        (", emphasis added", "[cite:@key , emphasis added]"),
+        ("p.", "[cite:@key , p.]"),
+    ] {
+        let citation = Citation {
+            id: "key".into(),
+            prefix: Vec::new(),
+            suffix: words(suffix),
+            mode: CitationMode::NormalCitation,
+            note_num: 0,
+            hash: 0,
+        };
+        let document = Document {
+            blocks: vec![Block::Para(vec![Inline::Cite(vec![citation], Vec::new())])],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.extensions.insert(Extension::Citations);
+        assert_eq!(OrgWriter.write(&document, &options).unwrap(), expected);
+    }
+}
+
+#[test]
 fn tight_list_items_keep_their_own_trailing_space() {
     let document = Document {
         blocks: vec![Block::BulletList(vec![

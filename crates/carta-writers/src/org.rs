@@ -588,9 +588,9 @@ impl State {
     }
 
     fn citation(&mut self, citations: &[Citation]) -> String {
-        let variant = match citations.first().map(|citation| &citation.mode) {
-            Some(CitationMode::AuthorInText) => "/t",
-            Some(CitationMode::SuppressAuthor) => "/na",
+        let variant = match citations {
+            [first, ..] if matches!(first.mode, CitationMode::AuthorInText) => "/t",
+            [only] if matches!(only.mode, CitationMode::SuppressAuthor) => "/na",
             _ => "",
         };
         let items: Vec<String> = citations
@@ -602,17 +602,35 @@ impl State {
 
     fn citation_item(&mut self, citation: &Citation) -> String {
         let prefix = self.flat(&citation.prefix);
-        let suffix_text = self.flat(&citation.suffix);
-        let suffix = suffix_text.strip_prefix(',').unwrap_or(&suffix_text);
+        let prefix = prefix.trim_end();
         let mut item = String::new();
         if !prefix.is_empty() {
-            item.push_str(&prefix);
+            item.push_str(prefix);
             item.push(' ');
         }
         item.push('@');
         item.push_str(&citation.id);
-        item.push_str(suffix);
+        item.push_str(&self.citation_suffix(&citation.suffix));
         item
+    }
+
+    /// Render a citation's suffix after its key. A suffix that opens with a locator follows the key
+    /// as plain text; any other suffix is set off by a comma unless it brings its own punctuation.
+    fn citation_suffix(&mut self, suffix: &[Inline]) -> String {
+        if let Some(locator) = split_locator(suffix) {
+            let rest = self.flat(locator.rest);
+            let gap = if locator.trailing.is_empty() { "" } else { " " };
+            return format!(" {}{gap}{}{rest}", locator.text, locator.trailing);
+        }
+        let text = self.flat(suffix);
+        match suffix.first() {
+            None => String::new(),
+            Some(Inline::Space) => format!(" {}", text.trim_start()),
+            Some(Inline::Str(word)) if word.starts_with(|ch: char| ch.is_ascii_punctuation()) => {
+                format!(" {text}")
+            }
+            Some(_) => format!(" , {}", text.trim_start()),
+        }
     }
 
     /// Keep span and quote delimiters with their outer words while the interior wraps.
@@ -729,6 +747,138 @@ impl State {
             quote_marks(kind)
         }
     }
+}
+
+/// Labels that open a citation locator, in lower case.
+const LOCATOR_LABELS: [&str; 52] = [
+    "bk.",
+    "bks.",
+    "book",
+    "chap.",
+    "chaps.",
+    "chapter",
+    "col.",
+    "cols.",
+    "column",
+    "fig.",
+    "figs.",
+    "figure",
+    "fol.",
+    "fols.",
+    "folio",
+    "l.",
+    "ll.",
+    "line",
+    "n.",
+    "nn.",
+    "no.",
+    "nos.",
+    "note",
+    "number",
+    "op.",
+    "opp.",
+    "opus",
+    "p.",
+    "pp.",
+    "page",
+    "para.",
+    "paras.",
+    "paragraph",
+    "pt.",
+    "pts.",
+    "part",
+    "s.v.",
+    "s.vv.",
+    "sec.",
+    "secs.",
+    "section",
+    "sub verbo",
+    "v.",
+    "vv.",
+    "verse",
+    "vol.",
+    "vols.",
+    "volume",
+    "\u{a7}",
+    "\u{a7}\u{a7}",
+    "\u{b6}",
+    "\u{b6}\u{b6}",
+];
+
+/// A locator that opens a citation suffix.
+struct Locator<'a> {
+    /// The locator as plain text: its label, if any, and its value.
+    text: String,
+    /// Punctuation that closed the value and belongs to what follows.
+    trailing: String,
+    /// The suffix inlines after the locator.
+    rest: &'a [Inline],
+}
+
+/// Split a locator off the front of a citation suffix, after an optional comma: a label and its
+/// value, or a bare value that holds a digit, with any further values that hold a digit.
+fn split_locator(suffix: &[Inline]) -> Option<Locator<'_>> {
+    let has_digit = |word: &str| word.chars().any(|ch| ch.is_ascii_digit());
+    let mut words: Vec<(usize, String)> = Vec::new();
+    let mut open = false;
+    for (index, inline) in suffix.iter().enumerate() {
+        if matches!(inline, Inline::Space | Inline::SoftBreak) {
+            open = false;
+            continue;
+        }
+        let text = to_plain_text(std::slice::from_ref(inline)).replace('\u{a0}', " ");
+        match words.last_mut() {
+            Some((end, word)) if open => {
+                word.push_str(&text);
+                *end = index + 1;
+            }
+            _ => words.push((index + 1, text)),
+        }
+        open = true;
+    }
+    if let Some((_, first)) = words.first_mut()
+        && let Some(stripped) = first.strip_prefix(',')
+    {
+        *first = stripped.to_owned();
+        if first.is_empty() {
+            words.remove(0);
+        }
+    }
+    let lowered: Vec<String> = words
+        .iter()
+        .take(2)
+        .map(|(_, word)| word.to_lowercase())
+        .collect();
+    let label_words = match lowered.as_slice() {
+        [first, second] if LOCATOR_LABELS.contains(&format!("{first} {second}").as_str()) => 2,
+        [first, ..] if LOCATOR_LABELS.contains(&first.as_str()) => 1,
+        _ => 0,
+    };
+    let (_, value) = words.get(label_words)?;
+    if label_words == 0 && !has_digit(value) {
+        return None;
+    }
+    let mut count = label_words + 1;
+    while words.get(count).is_some_and(|(_, word)| has_digit(word)) {
+        count += 1;
+    }
+    let mut text = words
+        .iter()
+        .take(count)
+        .map(|(_, word)| word.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut trailing = String::new();
+    let core = value.trim_end_matches([',', ';', '.', '!', '?', ')']);
+    if count == label_words + 1 && !core.is_empty() {
+        trailing = text.split_off(text.len() - (value.len() - core.len()));
+    }
+    let end = words.get(count - 1).map_or(suffix.len(), |(end, _)| *end);
+    Some(Locator {
+        text,
+        trailing,
+        rest: suffix.get(end..).unwrap_or_default(),
+    })
 }
 
 /// The separator between two consecutive blocks: a blank line when the earlier block wants trailing
