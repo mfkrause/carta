@@ -8,7 +8,7 @@ META-INF/container.xml (253 bytes)
 META-INF/com.apple.ibooks.display-options.xml (161 bytes)
 OEBPS/content.opf (3121 bytes)
 OEBPS/toc.ncx (1091 bytes)
-OEBPS/nav.xhtml (1044 bytes)
+OEBPS/nav.xhtml (1057 bytes)
 OEBPS/text/title_page.xhtml (825 bytes)
 OEBPS/styles/stylesheet1.css (22 bytes)
 OEBPS/text/ch001.xhtml (1351 bytes)
@@ -141,7 +141,7 @@ application/epub+zip
   <link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />
 </head>
 <body epub:type="frontmatter">
-<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">The Wonderful Journey</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#ch-one">Chapter One</a><ol class="toc"><li id="toc-li-2"><a href="text/ch001.xhtml#sub">A Subsection</a></li></ol></li><li id="toc-li-3"><a href="text/ch002.xhtml#ch-two">Chapter Two</a></li></ol></nav>
+<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">The Wonderful Journey</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#ch-one">Chapter <span>One</span></a><ol class="toc"><li id="toc-li-2"><a href="text/ch001.xhtml#sub">A Subsection</a></li></ol></li><li id="toc-li-3"><a href="text/ch002.xhtml#ch-two">Chapter Two</a></li></ol></nav>
 <nav epub:type="landmarks" id="landmarks" hidden="hidden">
   <ol>
     <li>

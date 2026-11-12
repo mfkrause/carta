@@ -159,7 +159,10 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
         let index = *counter;
         let mut href = String::new();
         escape_attribute(&format!("{}#{}", entry.file, entry.anchor), &mut href);
-        let text = render_epub_inlines(&nav_label_inlines(&entry.title), epub3);
+        let text = canonical_tags(&render_epub_inlines(
+            &nav_label_inlines(&entry.title),
+            epub3,
+        ));
         // An anchor must carry text; an untitled section falls back to a placeholder.
         let label = if text.is_empty() { UNTITLED } else { &text };
         let anchor = format!("<a href=\"text/{href}\">{label}</a>");
@@ -170,10 +173,91 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
     out
 }
 
-/// Prepare a heading's inlines for a navigation label: drop footnotes and replace each link with its
-/// own content, since a nav anchor cannot nest another; relabel the body's section-number span with
-/// the navigation's own class. Everything else (emphasis, code, images already pointing at their
-/// stored path, and raw inline markup) is carried through, recursing into styled spans.
+/// Write a label's start tags in the navigation document's canonical form: attributes in name
+/// order, and an empty element closed in its start tag. Markup that is not a start tag is kept.
+fn canonical_tags(markup: &str) -> String {
+    let mut out = String::with_capacity(markup.len());
+    let mut rest = markup;
+    while let Some(start) = rest.find('<') {
+        let (text, tail) = rest.split_at(start);
+        out.push_str(text);
+        let Some(tag) = start_tag(tail) else {
+            out.push('<');
+            rest = tail.get(1..).unwrap_or_default();
+            continue;
+        };
+        let _ = write!(out, "<{}", tag.name);
+        for (name, value) in &tag.attributes {
+            let _ = write!(out, " {name}=\"{value}\"");
+        }
+        let end_tag = format!("</{}>", tag.name);
+        match tag.after.strip_prefix(end_tag.as_str()) {
+            Some(after) if !tag.closed => {
+                out.push_str(" />");
+                rest = after;
+            }
+            _ => {
+                out.push_str(if tag.closed { " />" } else { ">" });
+                rest = tag.after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// A start tag at the head of a markup run.
+struct StartTag<'a> {
+    name: &'a str,
+    /// The attributes in name order, each value as written between its double quotes.
+    attributes: Vec<(&'a str, &'a str)>,
+    /// Whether the tag closes its own element (`<br />`).
+    closed: bool,
+    /// The markup after the tag.
+    after: &'a str,
+}
+
+/// Parse the start tag that opens `markup`, or `None` when it opens with anything else.
+fn start_tag(markup: &str) -> Option<StartTag<'_>> {
+    let body = markup.strip_prefix('<')?;
+    let is_name = |ch: char| ch.is_ascii_alphanumeric() || matches!(ch, ':' | '-' | '_');
+    let (name, mut rest) = body.split_at_checked(body.find(|ch| !is_name(ch))?)?;
+    if !name.starts_with(|first: char| first.is_ascii_alphabetic()) {
+        return None;
+    }
+    let mut attributes = Vec::new();
+    let closed = loop {
+        rest = rest.trim_start();
+        if let Some(after) = rest.strip_prefix("/>") {
+            rest = after;
+            break true;
+        }
+        if let Some(after) = rest.strip_prefix('>') {
+            rest = after;
+            break false;
+        }
+        let (key, quoted) = rest.split_once("=\"")?;
+        let (value, after) = quoted.split_once('"')?;
+        if key.is_empty() || !key.chars().all(is_name) {
+            return None;
+        }
+        attributes.push((key, value));
+        rest = after;
+    };
+    attributes.sort_by_key(|(key, _)| *key);
+    Some(StartTag {
+        name,
+        attributes,
+        closed,
+        after: rest,
+    })
+}
+
+/// Prepare a heading's inlines for a navigation label: drop footnotes and turn each link into a
+/// plain span of its content, since a nav anchor cannot nest another; relabel the body's
+/// section-number span with the navigation's own class. Everything else (emphasis, code, images
+/// already pointing at their stored path, and raw inline markup) is carried through, recursing into
+/// styled spans.
 fn nav_label_inlines(inlines: &[Inline]) -> Vec<Inline> {
     let mut out = Vec::new();
     let mut after_number = false;
@@ -187,7 +271,9 @@ fn nav_label_inlines(inlines: &[Inline]) -> Vec<Inline> {
         after_number = false;
         match inline {
             Inline::Note(_) => {}
-            Inline::Link(_, inner, _) => out.extend(nav_label_inlines(inner)),
+            Inline::Link(_, inner, _) => {
+                out.push(Inline::Span(Box::default(), nav_label_inlines(inner)));
+            }
             Inline::Span(attr, inner) => {
                 after_number = attr
                     .classes
