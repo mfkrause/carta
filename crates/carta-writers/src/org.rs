@@ -281,7 +281,7 @@ impl State {
             && !body.is_empty()
             && !matches!(block, Block::Plain(_) | Block::Para(_))
         {
-            let breaks = if leading_blank(block) && !matches!(block, Block::Table(_)) {
+            let breaks = if leading_blank(block) {
                 "\n\n"
             } else {
                 "\n"
@@ -698,8 +698,8 @@ impl State {
 
 /// The separator between two consecutive blocks: a blank line when the earlier block wants trailing
 /// space or the later block wants leading space, a single newline otherwise. A plain block, heading,
-/// or raw Org block attaches tightly to what follows; a block quote, div, verse, rule, table, or raw
-/// HTML block is set off from what precedes it. A drawer opening a heading's section attaches to the
+/// or raw Org block attaches tightly to what follows; a block quote, div, verse, rule, or raw HTML
+/// block is set off from what precedes it. A drawer opening a heading's section attaches to the
 /// headline like the section's other leading content.
 fn block_separator(previous: &Block, next: &Block) -> &'static str {
     if matches!(previous, Block::Header(..)) && is_drawer(next) {
@@ -727,11 +727,7 @@ fn trailing_blank(block: &Block) -> bool {
 /// comes before them.
 fn leading_blank(block: &Block) -> bool {
     match block {
-        Block::BlockQuote(_)
-        | Block::Div(..)
-        | Block::LineBlock(_)
-        | Block::HorizontalRule
-        | Block::Table(_) => true,
+        Block::BlockQuote(_) | Block::Div(..) | Block::LineBlock(_) | Block::HorizontalRule => true,
         Block::RawBlock(format, _) => format.0.eq_ignore_ascii_case("html"),
         _ => false,
     }

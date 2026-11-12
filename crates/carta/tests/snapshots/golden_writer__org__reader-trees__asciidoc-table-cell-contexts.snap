@@ -32,7 +32,6 @@ expression: output
 :PROPERTIES:
 :CUSTOM_ID: _outer
 :END:
-
 | ** Inner           |
 | :PROPERTIES:       |
 | :CUSTOM_ID: _inner |
