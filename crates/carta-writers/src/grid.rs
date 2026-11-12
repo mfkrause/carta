@@ -232,13 +232,29 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
     // Section separators use every row below; interior separators use only the next row.
     let leads_section = boundary < row_count
         && (boundary == 0 || layout.sections.get(boundary - 1) != layout.sections.get(boundary));
+    // Per column, whether its segment opens and closes with an alignment colon. Columns that no
+    // row splits apart share one run of marks, aligned as the first of them.
+    let mut colons = vec![(false, false); columns];
+    if marks_alignment && let Some(aligns) = table.aligns {
+        let split: Vec<bool> = (0..=columns)
+            .map(|col| col == 0 || col == columns || (0..row_count).any(|row| exposes(row, col)))
+            .collect();
+        let mut lead = 0;
+        for (col, slot) in colons.iter_mut().enumerate() {
+            if split.get(col) == Some(&true) {
+                lead = col;
+            }
+            let align = aligns.get(lead);
+            *slot = (
+                lead == col && align.is_some_and(marks_left),
+                split.get(col + 1) == Some(&true) && align.is_some_and(marks_right),
+            );
+        }
+    }
     // Split borders where adjacent cells differ or an alignment colon must remain visible.
     let divider = |col: usize| -> bool {
-        let aligned = marks_alignment
-            && table.aligns.is_some_and(|aligns| {
-                aligns.get(col - 1).is_some_and(marks_right)
-                    || aligns.get(col).is_some_and(marks_left)
-            });
+        let aligned = colons.get(col - 1).is_some_and(|&(_, right)| right)
+            || colons.get(col).is_some_and(|&(left, _)| left);
         let below = if leads_section {
             let section = layout.sections.get(boundary).copied();
             (boundary..row_count)
@@ -278,16 +294,8 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
     for (col, &width) in table.col_widths.iter().enumerate() {
         line.push(junction(col));
         if drawn.get(col).copied().unwrap_or(false) {
-            let align = if marks_alignment {
-                table
-                    .aligns
-                    .and_then(|aligns| aligns.get(col))
-                    .cloned()
-                    .unwrap_or(Alignment::AlignDefault)
-            } else {
-                Alignment::AlignDefault
-            };
-            line.push_str(&segment(fill, width, &align));
+            let marks = colons.get(col).copied().unwrap_or_default();
+            line.push_str(&segment(fill, width, marks));
         } else {
             line.extend(std::iter::repeat_n(' ', width));
         }
@@ -308,14 +316,8 @@ fn marks_right(align: &Alignment) -> bool {
 
 /// A column's stretch of a separator line, with alignment colons replacing the first and/or
 /// last fill character.
-fn segment(fill: char, width: usize, align: &Alignment) -> String {
+fn segment(fill: char, width: usize, (left, right): (bool, bool)) -> String {
     let mut chars: Vec<char> = std::iter::repeat_n(fill, width).collect();
-    let (left, right) = match align {
-        Alignment::AlignLeft => (true, false),
-        Alignment::AlignRight => (false, true),
-        Alignment::AlignCenter => (true, true),
-        Alignment::AlignDefault => (false, false),
-    };
     if left && let Some(first) = chars.first_mut() {
         *first = ':';
     }
