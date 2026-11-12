@@ -16,7 +16,7 @@ Label text
 T}
 T{
 .sp
-remainder
+\ remainder
 T}
 T{
 .sp
@@ -26,15 +26,15 @@ After blank
 T}
 T{
 .sp
-Whitespace id
+\ Whitespace id
 T}
 T{
 .sp
-Malformed id
+\ Malformed id
 T}
 T{
 .sp
-Trailing spaces
+\ Trailing spaces
 T}
 .TE
 .PP

@@ -198,13 +198,7 @@ impl State<'_> {
                     ".PD 0\n.P\n.PD\n"
                 });
             }
-            let mut fragments = self.fragments(line, Font::default());
-            if let Some(fragment @ Fragment::Space) = fragments.first_mut() {
-                *fragment = Fragment::Text {
-                    rendered: "\\ ".to_owned(),
-                    width: 2,
-                };
-            }
+            let fragments = self.fragments(line, Font::default());
             out.push_str(&fill(&fragments, self.width, true, self.wrap));
         }
         out
@@ -298,12 +292,14 @@ impl State<'_> {
                 out.push('\n');
             }
             let term = self.inline_run(term);
+            // roff drops a plain space that opens a line.
+            let escape = if term.starts_with(' ') { "\\" } else { "" };
             if self.table_cell {
-                let _ = write!(out, ".br\n{term}\n.br\n.in +7n");
+                let _ = write!(out, ".br\n{escape}{term}\n.br\n.in +7n");
             } else if term.is_empty() {
                 out.push_str(".TP");
             } else {
-                let _ = write!(out, ".TP\n{term}");
+                let _ = write!(out, ".TP\n{escape}{term}");
             }
             let blocks: Vec<Block> = definitions.iter().flatten().cloned().collect();
             let body = self.list_body(&blocks, None, term.is_empty());
@@ -365,9 +361,6 @@ impl State<'_> {
                     self.table_cell = table_cell;
                     blocks.push(if body.is_empty() {
                         "T{\nT}".to_owned()
-                    } else if cell_opens_with_space(&cell.content) {
-                        // roff eats plain leading whitespace; escape it so it survives
-                        format!("T{{\n\\ {body}\nT}}")
                     } else {
                         format!("T{{\n{body}\nT}}")
                     });
@@ -588,16 +581,6 @@ impl State<'_> {
     }
 }
 
-/// Whether a table cell's sole paragraph opens with a space inline, which must render as an escaped
-/// space to stay visible.
-fn cell_opens_with_space(content: &[Block]) -> bool {
-    matches!(
-        content,
-        [Block::Plain(inlines) | Block::Para(inlines)]
-            if matches!(inlines.first(), Some(Inline::Space))
-    )
-}
-
 /// Protect a link target for a roff macro argument: only the escape character itself must be guarded,
 /// since URI punctuation carries no roff meaning in this position.
 fn escape_url(url: &str) -> String {
@@ -773,7 +756,6 @@ struct Filler<'a> {
     at_line_start: bool,
     pending_space: bool,
     pending_break: bool,
-    after_continuation: bool,
     word: Vec<&'a str>,
     word_width: usize,
 }
@@ -786,17 +768,36 @@ impl<'a> Filler<'a> {
 
     /// A space separator. Consecutive spaces with no word between them (an empty inline collapsed to
     /// nothing) each materialize, so the pending one is emitted literally before the new one is held.
+    /// A space after a sentence break opens the next line.
     fn space(&mut self, sentence_breaks: bool) {
-        let closes_sentence = sentence_breaks
-            && !self.word.is_empty()
-            && ends_sentence(&visible_text(&self.word.concat()));
-        if self.word.is_empty() && self.pending_space && !self.at_line_start {
-            self.out.push(' ');
-            self.column += 1;
+        if self.word.is_empty() {
+            if self.pending_break {
+                self.out.push('\n');
+                self.column = 0;
+                self.at_line_start = true;
+                self.pending_break = false;
+            } else if self.pending_space {
+                self.open_space();
+            }
+            self.pending_space = true;
+            return;
         }
+        let closes_sentence = sentence_breaks && ends_sentence(&visible_text(&self.word.concat()));
         self.flush_word();
         self.pending_space = true;
         self.pending_break = closes_sentence;
+    }
+
+    /// Emit the pending space. roff drops a plain space that opens a line, so that one is escaped.
+    fn open_space(&mut self) {
+        if self.at_line_start {
+            self.out.push_str("\\ ");
+            self.column = 2;
+            self.at_line_start = false;
+        } else {
+            self.out.push(' ');
+            self.column += 1;
+        }
     }
 
     fn control(&mut self, text: &str) {
@@ -818,7 +819,6 @@ impl<'a> Filler<'a> {
         self.at_line_start = true;
         self.pending_space = false;
         self.pending_break = false;
-        self.after_continuation = text.ends_with("\\c");
     }
 
     /// Set off a display equation on its own line, indented one relative-indent level. The flow breaks
@@ -834,7 +834,6 @@ impl<'a> Filler<'a> {
         self.at_line_start = false;
         self.pending_space = false;
         self.pending_break = false;
-        self.after_continuation = false;
     }
 
     fn flush_word(&mut self) {
@@ -865,17 +864,14 @@ impl<'a> Filler<'a> {
         self.word_width = 0;
         self.pending_space = false;
         self.pending_break = false;
-        self.after_continuation = multiline && last_width == 0;
     }
 
     /// Emit the separator that precedes the pending word and report whether the word opens a line.
     fn open_word_line(&mut self, first_width: usize) -> bool {
-        if self.after_continuation && self.pending_space {
-            self.out.push_str("\\ ");
-            self.column = 2;
-            self.at_line_start = false;
-            true
-        } else if self.at_line_start {
+        if self.at_line_start {
+            if self.pending_space {
+                self.open_space();
+            }
             self.at_line_start = false;
             true
         } else if self.pending_break
@@ -887,8 +883,7 @@ impl<'a> Filler<'a> {
             true
         } else {
             if self.pending_space {
-                self.out.push(' ');
-                self.column += 1;
+                self.open_space();
             }
             false
         }
@@ -896,6 +891,10 @@ impl<'a> Filler<'a> {
 
     fn finish(mut self) -> String {
         self.flush_word();
+        // The escape of a space that opens the last line stays; the space itself is trimmed.
+        if self.pending_space && self.at_line_start {
+            self.out.push('\\');
+        }
         self.out.trim_end_matches('\n').to_owned()
     }
 }

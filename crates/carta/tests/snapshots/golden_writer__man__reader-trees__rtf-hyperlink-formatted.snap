@@ -13,6 +13,6 @@ bold
 .UE \c
 \f[R]\c
 .UR http://other.com
-plain
+\ plain
 .UE \c
 \&.

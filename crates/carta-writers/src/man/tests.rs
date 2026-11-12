@@ -82,6 +82,24 @@ fn line_start_dot_is_protected() {
 }
 
 #[test]
+fn a_space_that_opens_a_line_is_escaped() {
+    for (inlines, expected) in [
+        (vec![Inline::Space, Inline::Space, s("x")], ".PP\n\\  x"),
+        (
+            vec![s("a."), Inline::Space, Inline::Space, s("b")],
+            ".PP\na.\n\\ b",
+        ),
+        (
+            vec![s("a"), Inline::Space, Inline::Space, s("b")],
+            ".PP\na  b",
+        ),
+        (vec![Inline::Space], ".PP\n\\"),
+    ] {
+        assert_eq!(render(vec![para(inlines)]), expected);
+    }
+}
+
+#[test]
 fn bullet_list_items() {
     assert_eq!(
         render(vec![Block::BulletList(vec![
