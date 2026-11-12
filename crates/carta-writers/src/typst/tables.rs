@@ -197,20 +197,23 @@ fn leading_run(body: &CellBody) -> (usize, bool) {
     }
 }
 
-/// The `table.cell(..)` wrapper opening a spanning cell, or empty for a plain one. Row spans precede
-/// column spans in the argument list.
+/// The `table.cell(..)` wrapper opening a cell with its own alignment or a span, or empty for a
+/// plain one. The arguments run alignment, row span, column span.
 fn cell_prefix(cell: &Cell) -> String {
-    let mut spans = Vec::new();
+    let mut arguments = Vec::new();
+    if !matches!(cell.align, Alignment::AlignDefault) {
+        arguments.push(format!("align: {}", alignment(&cell.align)));
+    }
     if cell.row_span != 1 {
-        spans.push(format!("rowspan: {}", cell.row_span));
+        arguments.push(format!("rowspan: {}", cell.row_span));
     }
     if cell.col_span != 1 {
-        spans.push(format!("colspan: {}", cell.col_span));
+        arguments.push(format!("colspan: {}", cell.col_span));
     }
-    if spans.is_empty() {
+    if arguments.is_empty() {
         String::new()
     } else {
-        format!("table.cell({})", spans.join(", "))
+        format!("table.cell({})", arguments.join(", "))
     }
 }
 

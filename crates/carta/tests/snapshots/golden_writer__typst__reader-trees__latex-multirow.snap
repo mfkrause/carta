@@ -16,7 +16,7 @@ expression: output
   align(center)[#table(
     columns: 3,
     align: (left,left,left,),
-    table.cell(rowspan: 2, colspan: 2)[Wide], [First],
+    table.cell(align: center, rowspan: 2, colspan: 2)[Wide], [First],
     [Second],
   )]
   , kind: table
