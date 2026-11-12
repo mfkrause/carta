@@ -8,7 +8,7 @@ expression: output
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "- ![movie.mp4](movie.mp4)\n",
+    "- ![](movie.mp4)\n",
     "\n",
     "<!-- -->\n",
     "\n",
@@ -31,7 +31,7 @@ expression: output
     "</figure>\n",
     "\n",
     "Indented  \n",
-    "![sound.mp3](sound.mp3)\n",
+    "![](sound.mp3)\n",
     "\n",
     "A  \n",
     "\n",
@@ -43,7 +43,7 @@ expression: output
     "include  \n",
     "missing\\["
    ],
-   "id": "85626ef8-d2e0-4890-afe7-10876c1adf70"
+   "id": "1cdb8fc5-8c25-4c9c-8935-46af7d86c5f0"
   }
  ],
  "nbformat": 4,

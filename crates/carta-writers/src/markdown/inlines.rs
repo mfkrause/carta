@@ -440,7 +440,10 @@ impl State {
             return;
         }
         out.push(Piece::text("!["));
-        self.extend_pieces(inlines, out);
+        // A description that only repeats the address says nothing a reader lacks.
+        if !matches!(inlines, [Inline::Str(text)] if text == target.url) {
+            self.extend_pieces(inlines, out);
+        }
         let attr_suffix = if attr_is_empty(attr) || !self.config.has(Extension::LinkAttributes) {
             String::new()
         } else {

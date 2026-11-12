@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-- ![movie.mp4](movie.mp4)
+- ![](movie.mp4)
 
 <!-- -->
 
@@ -25,7 +25,7 @@ Named
 : ![](next.png)
 
 Indented
-: ![sound.mp3](sound.mp3)
+: ![](sound.mp3)
 
 A
 : 
