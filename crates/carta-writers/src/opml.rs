@@ -1,8 +1,8 @@
 //! Render the document model as nested `<outline>` elements.
 
-use carta_ast::{Block, Document, Inline};
-use carta_core::sections::section_opening;
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_ast::{Attr, Block, Document, Inline, Text};
+use carta_core::sections::{SECTION_CLASS, section_heading, section_opening};
+use carta_core::{Result, WrapMode, Writer, WriterOptions, with_stack};
 
 use crate::common::FILL_COLUMN;
 use crate::html::render_fragment;
@@ -51,7 +51,7 @@ impl Writer for OpmlWriter {
 /// subsection) and the subsections nested beneath it.
 struct Section<'a> {
     heading: &'a [Inline],
-    body: Vec<&'a Block>,
+    body: &'a [Block],
     children: Vec<Section<'a>>,
 }
 
@@ -89,11 +89,7 @@ fn sectionize(blocks: &[Block]) -> Vec<Section<'_>> {
             .unwrap_or(inner.len());
         sections.push(Section {
             heading: open.title,
-            body: inner
-                .get(..child_start)
-                .unwrap_or_default()
-                .iter()
-                .collect(),
+            body: inner.get(..child_start).unwrap_or_default(),
             children: sectionize(inner.get(child_start..).unwrap_or_default()),
         });
     }
@@ -105,8 +101,12 @@ fn render_section(section: &Section, depth: usize, width: usize, wrap: WrapMode,
     // An outline title is always filled to the default column, whatever the wrap setting.
     let title = render_fragment(&[Block::Plain(section.heading.to_vec())], WrapMode::Auto);
     let text = escape_outline(&title);
-    let body_blocks: Vec<Block> = section.body.iter().map(|block| (*block).clone()).collect();
-    let note = render_blocks(&body_blocks, MarkdownConfig::extended(), width, wrap);
+    let note = render_blocks(
+        &section_divisions(section.body),
+        MarkdownConfig::extended(),
+        width,
+        wrap,
+    );
     out.push_str(&indent);
     out.push_str("<outline text=\"");
     out.push_str(&text);
@@ -122,6 +122,54 @@ fn render_section(section: &Section, depth: usize, width: usize, wrap: WrapMode,
     }
     out.push_str(&indent);
     out.push_str("</outline>\n");
+}
+
+/// Copy note blocks, wrapping each header that sits inside a division, with the blocks it governs,
+/// in a section division. The section takes the header's identifier and repeats its classes and
+/// attributes after the section class. Only divisions are searched for headers.
+fn section_divisions(blocks: &[Block]) -> Vec<Block> {
+    let mut out = Vec::with_capacity(blocks.len());
+    let mut index = 0;
+    while let Some(block) = blocks.get(index) {
+        index += 1;
+        match block {
+            Block::Header(level, attr, title) => {
+                let start = index;
+                while blocks.get(index).is_some_and(|next| {
+                    section_opening(next).is_none_or(|opening| opening.level > *level)
+                }) {
+                    index += 1;
+                }
+                let mut classes = vec![Text::from(SECTION_CLASS)];
+                classes.extend(attr.classes.iter().cloned());
+                let section = Attr {
+                    id: attr.id.clone(),
+                    classes,
+                    attributes: attr.attributes.clone(),
+                };
+                let heading = Attr {
+                    id: Text::default(),
+                    ..(**attr).clone()
+                };
+                let mut children = vec![Block::Header(*level, Box::new(heading), title.clone())];
+                children.extend(section_divisions(
+                    blocks.get(start..index).unwrap_or_default(),
+                ));
+                out.push(Block::Div(Box::new(section), children));
+            }
+            Block::Div(attr, inner) => {
+                // A division that already is a section keeps its own header.
+                let kept = usize::from(section_heading(attr, inner).is_some());
+                let mut children: Vec<Block> = inner.iter().take(kept).cloned().collect();
+                children.extend(with_stack(|| {
+                    section_divisions(inner.get(kept..).unwrap_or_default())
+                }));
+                out.push(Block::Div(attr.clone(), children));
+            }
+            other => out.push(other.clone()),
+        }
+    }
+    out
 }
 
 /// Escape a string for an XML attribute value: the metacharacters `& < > "` to their entities and a
