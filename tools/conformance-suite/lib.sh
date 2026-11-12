@@ -32,6 +32,10 @@ require_tools() {
     printf 'error: jq not found on PATH (used for JSON comparison)\n' >&2
     missing=1
   fi
+  if ! command -v perl >/dev/null 2>&1; then
+    printf 'error: perl not found on PATH (used to limit the run time of the oracle)\n' >&2
+    missing=1
+  fi
   [ "$missing" -eq 0 ] || exit 1
 }
 
@@ -156,6 +160,9 @@ tally_group() {
   fi
 }
 
+# The oracle never returns for some trees; a run past this many seconds counts as a failed run.
+ORACLE_TIME_LIMIT=30
+
 # run_diff <json|text> <label> <input_file> <oracle_args> <carta_args>: flags split intentionally.
 run_diff() {
   local mode="$1" label="$2" input="$3" oargs="$4" xargs="$5"
@@ -164,7 +171,8 @@ run_diff() {
        $OX $xargs <$input"
   # Both tools may write extracted media, so they run in the scratch directory.
   # shellcheck disable=SC2086
-  if ! (cd "$WORK" && exec "$ORACLE" $oargs) <"$input" >"$ofile" 2>/dev/null; then
+  if ! (cd "$WORK" && exec perl -e 'alarm shift; exec @ARGV' "$ORACLE_TIME_LIMIT" "$ORACLE" $oargs) \
+    <"$input" >"$ofile" 2>/dev/null; then
     SKIP=$((SKIP + 1))
     return
   fi
