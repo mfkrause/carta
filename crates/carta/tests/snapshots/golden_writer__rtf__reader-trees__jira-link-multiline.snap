@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "http://x.com"}}{\fldrslt{\ul
+a\line b
+}}}
+ keeps the break inside the link label.\par}

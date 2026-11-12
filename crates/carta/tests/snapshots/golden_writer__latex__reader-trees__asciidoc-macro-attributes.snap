@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\textbf{strong}} and \texttt{two}{ }\texttt{words}.
+
+\footnote{S. Smith.}

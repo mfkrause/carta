@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.. _first target:
+
+.. _second target:
+
+Section Title
+=============
+
+Body under the section.

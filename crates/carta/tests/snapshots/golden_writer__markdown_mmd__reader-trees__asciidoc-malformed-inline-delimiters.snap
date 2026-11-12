@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+`<>`{=html}
+
+<span class="[" data-wrapper="1">*\]\]*</span>
+
+\<\< \>\>
+
+\]

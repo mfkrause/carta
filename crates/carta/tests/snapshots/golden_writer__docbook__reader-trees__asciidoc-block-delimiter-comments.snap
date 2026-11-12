@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<programlisting>
+code
+</programlisting>
+<para>
+  after
+</para>
+<programlisting>
+literal
+</programlisting>
+<para>
+  after
+</para>
+<span>raw</span>
+<para>
+  after
+</para>
+<para>
+  ==== example ==== after
+</para>

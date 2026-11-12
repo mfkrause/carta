@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:_alpha}Alpha 1
+h1. {anchor:_alpha_2}Alpha term
+h1. {anchor:_alpha_3}Alpha foo
+h1. {anchor:_alpha_4}Alpha word
+h1. {anchor:_alpha_5}Alpha *Tools › Build › Run*
+h1. {anchor:_alpha_6}Alpha *\[Save\]*
+h1. {anchor:_alpha_7}Alpha *Ctrl*\+*X*
+h1. {anchor:_alpha_label}Alpha {anchor:key}

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="TABLES" _note="  Name             Age&#10;  -------------- -----&#10;  Ada               36&#10;  Grace Hopper      85&#10;&#10;A second table without a header rule follows.&#10;&#10;  ------ -------&#10;   Left   Right&#10;   one     two&#10;  ------ -------&#10;&#10;A table with a multi-line text block follows.&#10;&#10;  ------ --------------------&#10;  Name   A long description&#10;  Left   Right&#10;  ------ --------------------&#10;&#10;A table with a horizontal span follows.&#10;&#10;+:--------------+:------+&#10;| Wide span     | End   |&#10;+---------------+-------+&#10;| one           | three |&#10;+---------------+-------+&#10;&#10;A table with a vertical span follows.&#10;&#10;+:-----+:----+&#10;| Name | One |&#10;|      +-----+&#10;|      | Two |&#10;+------+-----+&#10;&#10;A table with combined spans follows.&#10;&#10;+:--------+:-------+&#10;| Wide    | First  |&#10;|         +--------+&#10;|         | Second |&#10;+---------+--------+">
+</outline>

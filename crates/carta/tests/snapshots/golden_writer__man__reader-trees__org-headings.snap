@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH First level heading
+Body text under the first heading.
+.SS Second level heading work\ urgent
+.SS Third level heading

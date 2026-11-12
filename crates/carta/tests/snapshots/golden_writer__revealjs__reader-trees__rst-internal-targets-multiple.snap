@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="second target" class="slide level1">
+<h1>Section Title<span id="first target"></span></h1>
+<p>Body under the section.</p>
+</section>

@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# FONTS\n",
+    "\n",
+    "plain `mono` and **`monobold`** and *`monoital`* back.\n",
+    "\n",
+    "bracket `mono` and single `mono` end."
+   ],
+   "id": "9c96f9c8-9b04-4e53-b6a1-922af2a20400"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

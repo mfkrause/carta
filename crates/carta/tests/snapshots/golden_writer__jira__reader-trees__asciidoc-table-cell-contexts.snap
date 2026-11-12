@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+|| Cell body. ||
+
+
+
+|| _First paragraph._
+h1. {anchor:_cell_section}Cell section
+Section body. ||
+
+|| {{First}} {{paragraph.}}
+h1. {anchor:_cell_section_2}Cell section
+Section body. ||
+
+|| == Paragraph text
+Next paragraph. ||
+
+h1. {anchor:_outer}Outer
+|| h2. {anchor:_inner}Inner
+Inner body. ||
+
+|| _Before   After_ ||

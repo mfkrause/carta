@@ -1,0 +1,164 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  1
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            1
+          </para>
+          <para>
+            2
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  3
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  1
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            1
+          </para>
+          <para>
+            <emphasis>2</emphasis>
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  3
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  1
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            1
+          </para>
+          <para>
+            2
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  3
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  1
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            1
+          </para>
+          <para>
+            <literal>2</literal>
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  3
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  1
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            1
+          </para>
+          <para>
+            <emphasis role="strong">2</emphasis>
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  3
+</para>

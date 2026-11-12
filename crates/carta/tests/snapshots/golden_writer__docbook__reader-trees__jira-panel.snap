@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis role="strong">Notice</emphasis>
+</para>
+<para>
+  Body text inside the panel.
+</para>

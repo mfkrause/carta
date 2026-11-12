@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Introduction\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#intro"}}{\fldrslt{\ul
+[intro]
+}}}
+ for context.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\cf1 [image: plot.png]\cf0}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A labelled figure.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Reference to {\field{\*\fldinst{HYPERLINK "#fig-plot"}}{\fldrslt{\ul
+[fig-plot]
+}}}
+ as well.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A {\field{\*\fldinst{HYPERLINK "#intro"}}{\fldrslt{\ul
+
+}}}
+ written as a call.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A {\field{\*\fldinst{HYPERLINK "#intro"}}{\fldrslt{\ul
+link to a label
+}}}
+ and a bare {\field{\*\fldinst{HYPERLINK "#intro"}}{\fldrslt{\ul
+#intro
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A {\field{\*\fldinst{HYPERLINK "#intro"}}{\fldrslt{\ul
+Chapter
+}}}
+ with its own supplement.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A {\field{\*\fldinst{HYPERLINK "#intro"}}{\fldrslt{\ul
+
+}}}
+ built from a label call.\par}

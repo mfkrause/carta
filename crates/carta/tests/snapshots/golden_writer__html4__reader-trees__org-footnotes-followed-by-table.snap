@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p>See the note<a href="#fn1" class="footnote-ref"
+id="fnref1"><sup>1</sup></a> below.</p>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>The note body paragraph.</p>
+<table>
+<tbody>
+<tr>
+<td>Column A</td>
+<td>Column B</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<a href="#fnref1" class="footnote-back">↩︎</a></li>
+</ol>
+</div>

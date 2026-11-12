@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <link linkend="later"><emphasis role="strong">Forward
+  link</emphasis></link> and <link xlink:href="later">file:later</link>.
+</para>
+<para>
+  <anchor xml:id="later" />A named target.
+</para>
+<para>
+  <link linkend="later">later</link> and <emphasis>Missing
+  target</emphasis>.
+</para>
+<para>
+  <anchor xml:id="a-b" />and <anchor xml:id="a-b-1" />.
+</para>
+<para>
+  <link linkend="a-b">a/b</link> and <link linkend="a-b-1">a+b</link>.
+</para>
+<informaltable>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <tbody>
+      <row>
+        <entry>
+          Link
+        </entry>
+        <entry>
+          <link linkend="later">later</link>
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  Text with a note.<footnote>
+    <para>
+      See <link linkend="later">later</link>.
+    </para>
+  </footnote>
+</para>

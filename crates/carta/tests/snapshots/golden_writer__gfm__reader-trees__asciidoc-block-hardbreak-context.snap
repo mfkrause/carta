@@ -1,0 +1,101 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="example" data-options="hardbreaks">
+
+one\
+two
+
+</div>
+
+after block
+
+<div class="sidebar" data-options="hardbreaks">
+
+one\
+two
+
+</div>
+
+after block
+
+<div data-options="hardbreaks">
+
+one\
+two
+
+</div>
+
+after block
+
+<div data-wrapper="1" data-options="hardbreaks">
+
+> one\
+> two
+
+</div>
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+| *one\ two* |
+|------------|
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p><code>one</code><br />
+<code>two</code></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+| **one\ two** |
+|--------------|
+
+after block

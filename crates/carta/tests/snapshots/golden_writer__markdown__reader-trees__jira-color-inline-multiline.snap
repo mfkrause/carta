@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[a\
+b]{color="red"} keeps the span inline when the close is not alone.
+
+A [bare hex]{color="#123456"} span stays inline too.

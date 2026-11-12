@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="second target">
+  <title>Section Title<anchor xml:id="first target" /></title>
+  <para>
+    Body under the section.
+  </para>
+</section>

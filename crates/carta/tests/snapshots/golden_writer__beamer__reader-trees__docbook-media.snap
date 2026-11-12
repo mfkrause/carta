@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{figure}
+\centering
+\includegraphics[width=4in,height=2in,alt={A plotted curve}]{plot.png}
+\caption{A captioned figure}\label{plot}
+\end{figure}
+
+A standalone block image:
+
+\pandocbounded{\includegraphics[keepaspectratio]{standalone.png}}
+
+An inline \pandocbounded{\includegraphics[keepaspectratio]{icon.png}}
+image.
+\end{frame}

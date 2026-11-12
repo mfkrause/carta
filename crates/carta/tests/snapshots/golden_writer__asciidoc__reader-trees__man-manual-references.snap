@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See link:man:printf(3)[_printf_(3)], then continue.
+
+Small text *Bold text*
+
+link:man:open(2)[_open_(2)]::
+  Open a file.
+
+*Nested style*

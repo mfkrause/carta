@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{noformat}
+col   col
+    indented{noformat}
+{noformat}
+$ carta{noformat}
+a  b {_}emphasized{_} [linked|https://example.com/]
+  second    line
+
+{noformat}
+kept  as    code{noformat}

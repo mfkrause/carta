@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| * Heading            |
+| :PROPERTIES:         |
+| :CUSTOM_ID: _heading |
+| :END:                |
+| - item               |
+|                      |
+| #+begin_example      |
+| code                 |
+| #+end_example        |
+|----------------------|

@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Header
+    1
+    ( "_and" , [] , [] )
+    [ Str "Example"
+    , Space
+    , Str "and"
+    , Space
+    , Str "{missing}"
+    ]
+, Header
+    1
+    ( "_code" , [] , [] )
+    [ Image
+        ( "" , [] , [] ) [ Str "Photo" ] ( "photo.png" , "" )
+    , Space
+    , Math InlineMath "x"
+    , Space
+    , Code ( "" , [] , [] ) "code"
+    ]
+]

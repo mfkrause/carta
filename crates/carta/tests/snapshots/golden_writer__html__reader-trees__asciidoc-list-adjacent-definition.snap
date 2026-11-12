@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ul>
+<li><p>Term</p>
+<dl>
+<dt>* Another</dt>
+<dd>
+<p>Definition</p>
+</dd>
+</dl></li>
+<li><p>Separate</p></li>
+</ul>
+<ul>
+<li><dl>
+<dt>Separate</dt>
+<dd>
+<p>Definition</p>
+</dd>
+</dl></li>
+</ul>

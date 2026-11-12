@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 Forward: {\field{\*\fldinst{HYPERLINK "#second"}}{\fldrslt{\ul
+1.1
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 First\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel3 \b \fs24 Second\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#first"}}{\fldrslt{\ul
+1
+}}}
+, {\field{\*\fldinst{HYPERLINK "#second"}}{\fldrslt{\ul
+1.1
+}}}
+, {\field{\*\fldinst{HYPERLINK "#second"}}{\fldrslt{\ul
+1.1
+}}}
+, {\field{\*\fldinst{HYPERLINK "#second"}}{\fldrslt{\ul
+[second]
+}}}
+, {\field{\*\fldinst{HYPERLINK "#missing"}}{\fldrslt{\ul
+[missing]
+}}}
+.\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Anonymous figure\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Named figure\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See Figure {\field{\*\fldinst{HYPERLINK "#figure"}}{\fldrslt{\ul
+2
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Part\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See Part {\field{\*\fldinst{HYPERLINK "#part"}}{\fldrslt{\ul
+I
+}}}
+.\par}

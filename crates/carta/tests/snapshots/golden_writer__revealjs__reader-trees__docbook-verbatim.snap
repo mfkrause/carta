@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<pre><code>col   col
+    indented</code></pre>
+<pre><code>$ carta</code></pre>
+<div class="line-block">a  b <em>emphasized</em> <a
+href="https://example.com/">linked</a><br />
+  second    line</div>
+<pre><code>kept  as    code</code></pre>
+</section>

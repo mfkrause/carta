@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+\f[B]Forward link\f[R] and file:later.
+.PP
+A named target.
+.PP
+later and \f[I]Missing target\f[R].
+.PP
+and .
+.PP
+a/b and a+b.
+.PP
+.TS
+tab(@);
+l l.
+T{
+Link
+T}@T{
+later
+T}
+.TE
+.PP
+Text with a note.[1]
+.SH NOTES
+.SS [1]
+.PP
+See later.

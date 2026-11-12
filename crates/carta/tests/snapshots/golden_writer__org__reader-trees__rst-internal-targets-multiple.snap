@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Section Title
+:PROPERTIES:
+:CUSTOM_ID: second target
+:END:
+Body under the section.

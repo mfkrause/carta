@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}l@{}}
+\toprule\noalign{}
+\pandocbounded{\includegraphics[keepaspectratio,alt={p}]{x}} \\
+\midrule\noalign{}
+\endhead
+\href{x}{\texttt{l}} \\
+\footnote<\value{beamerpauses}->[frame]{\texttt{note}} \\
+\midrule\noalign{}
+{\texttt{span}} \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}

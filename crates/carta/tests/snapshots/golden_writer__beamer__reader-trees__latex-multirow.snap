@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\multirow{2}{*}{\emph{Name}} & One \\
+& Two \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+\endhead
+\multicolumn{2}{@{}c}{%
+\multirow{2}{*}{\centering\arraybackslash Wide}} & First \\
+& & Second \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\multirow{2}{*}{Upward} & Above \\
+& Below \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}

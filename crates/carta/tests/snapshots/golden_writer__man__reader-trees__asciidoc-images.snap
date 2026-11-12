@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+An [IMAGE: Photo].
+[IMAGE: Photo]
+A caption
+[IMAGE: image]

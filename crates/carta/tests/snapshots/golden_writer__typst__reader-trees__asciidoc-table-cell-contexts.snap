@@ -1,0 +1,102 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([Cell body.
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#emph[First paragraph.]
+
+      = Cell section
+      <_cell_section>
+      Section body.
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([`First` `paragraph.`
+
+      = Cell section
+      <_cell_section_2>
+      Section body.
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+#block[
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([\== Paragraph text
+
+      Next paragraph.
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+]
+
+= Outer
+<_outer>
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([== Inner
+      <_inner>
+      Inner body.
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#emph[Before ~ After]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )

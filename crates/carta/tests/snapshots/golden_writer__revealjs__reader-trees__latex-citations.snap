@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>As shown by <span class="citation" data-cites="knuth1984"></span> and
+<span class="citation" data-cites="lamport1994"></span>, this holds.</p>
+</section>

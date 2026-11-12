@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>A normal reference <span class="citation"
+data-cites="knuth1984">[knuth1984]</span> sits in the sentence.</p>
+<p>Author and year: <span class="citation"
+data-cites="knuth1984">[knuth1984]</span>.</p>
+<p>Year only: <span class="citation"
+data-cites="knuth1984">[knuth1984]</span>.</p>
+<p>Prose form: <span class="citation"
+data-cites="knuth1984">[knuth1984]</span>.</p>
+</section>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}{Section
+Title\protect\phantomsection\label{firstux20target}{}}
+\protect\phantomsection\label{secondux20target}
+Body under the section.
+\end{frame}

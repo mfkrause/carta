@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.IP
+.EX
+col   col
+    indented
+.EE
+.IP
+.EX
+$ carta
+.EE
+.PP
+a\ \ b\ \f[I]emphasized\f[R]\ \c
+.UR https://example.com/
+linked
+.UE \c
+.PD 0
+.P
+.PD
+\ \ second\ \ \ \ line
+.IP
+.EX
+kept  as    code
+.EE

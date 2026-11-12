@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 {\i e}{\super {\i i}{\i \u960 ?}}\u8197 ?+\u8197 ?1\u8196 ?=\u8196 ?0\par}

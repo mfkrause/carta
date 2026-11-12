@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# Introduction
+
+<span id="intro"></span>
+
+See [\[intro\]](#intro){.ref} for context.
+
+<figure>
+<p><img src="plot.png" /></p>
+<figcaption><p>A labelled figure.</p></figcaption>
+</figure>
+
+<span id="fig-plot"></span>
+
+Reference to [\[fig-plot\]](#fig-plot){.ref} as well.
+
+A [](#intro){.ref} written as a call.
+
+A [link to a label](#intro) and a bare [#intro](#intro).
+
+A [Chapter](#intro){.ref} with its own supplement.
+
+A [](#intro){.ref} built from a label call.

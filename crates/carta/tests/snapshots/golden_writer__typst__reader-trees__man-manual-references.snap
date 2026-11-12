@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See #link("man:printf(3)")[#emph[printf]\(3)], then continue.
+
+Small text #strong[Bold text]
+
+/ #link("man:open(2)")[#emph[open]\(2)]: #block[
+Open a file.
+]
+
+#strong[Nested style]

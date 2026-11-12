@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Introduction
+See [[#intro][[intro]]] for context.
+
+#+caption: A labelled figure.
+[[file:plot.png]]
+
+Reference to [[#fig-plot][[fig-plot]]] as well.
+
+A [[#intro][]] written as a call.
+
+A [[#intro][link to a label]] and a bare [[#intro]].
+
+A [[#intro][Chapter]] with its own supplement.
+
+A [[#intro][]] built from a label call.

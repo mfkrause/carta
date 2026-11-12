@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.. container:: example
+
+   ::
+
+      listing body
+
+after
+
+.. container:: sidebar
+
+   ::
+
+      literal body
+
+after
+
+   pass body
+
+after

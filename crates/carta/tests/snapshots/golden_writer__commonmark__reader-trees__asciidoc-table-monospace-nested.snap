@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><p><img src="x" alt="p" /></p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p><a href="x"><code>l</code></a></p></td>
+</tr>
+<tr>
+<td><p><a href="#fn1" class="footnote-ref" id="fnref1"
+role="doc-noteref"><sup>1</sup></a></p></td>
+</tr>
+</tbody><tfoot>
+<tr>
+<td><p><span class="r"><code>span</code></span></p></td>
+</tr>
+</tfoot>
+&#10;</table>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p><code>note</code><a href="#fnref1" class="footnote-back"
+role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>

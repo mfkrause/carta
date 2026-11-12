@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 First chapter\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Text in the chapter.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 A section\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 An equation {\i e}\u8196 ?=\u8196 ?2 stands in the sentence around it.\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Aside\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Set beside the text.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\i y}\u8196 ?=\u8196 ?{\i x}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Deeper still\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The count restarts where the article stands.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Second chapter\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\cf1 [image: plot.png]\cf0}\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 A figure\par}

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+Before kept text after.
+
+\emph{Formatted text}
+
+\includegraphics[width=0.5\linewidth,height=\textheight,keepaspectratio,alt={image}]{image.png}
+\end{frame}

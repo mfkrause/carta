@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\hyperlink{later}{\textbf{Forward link}} and \href{later}{file:later}.
+
+\protect\phantomsection\label{later}{}A named target.
+
+\hyperlink{later}{later} and {\emph{Missing target}}.
+
+\protect\phantomsection\label{a-b}{}and
+\protect\phantomsection\label{a-b-1}{}.
+
+\hyperlink{a-b}{a/b} and \hyperlink{a-b-1}{a+b}.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+Link & \hyperlink{later}{later} \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+
+Text with a note.\footnote<\value{beamerpauses}->[frame]{See
+  \hyperlink{later}{later}.}
+\end{frame}

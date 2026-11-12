@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Before kept text after.
+
+*Formatted text*
+
+![image](image.png){width="50%"}

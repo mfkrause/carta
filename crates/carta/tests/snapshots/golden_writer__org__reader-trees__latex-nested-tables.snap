@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| | Inner | Right | | Outer |
+| |-------+-------| |       |
+| | Next  | Last  | |       |
+| Final             | Tail  |
+
+| | Grouped | | A&B |
+| | Content | |     |

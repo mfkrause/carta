@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+*Ctrl*\+*Shift*\+*F* *\[Cancel\]* *File › Open › Recent*
+
+!./images/icons/heart.png! {anchor:point}
+
+visible

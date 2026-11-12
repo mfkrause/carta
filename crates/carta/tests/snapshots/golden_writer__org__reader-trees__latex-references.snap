@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Forward: [[#second][1.1]].
+
+*** First
+:PROPERTIES:
+:CUSTOM_ID: first
+:END:
+**** Second
+:PROPERTIES:
+:CUSTOM_ID: second
+:END:
+[[#first][1]], [[#second][1.1]], [[#second][1.1]],
+[[#second][[second]]], [[#missing][[missing]]].
+
+#+caption: Anonymous figure
+
+
+#+caption: Named figure
+<<figure>>
+
+
+See Figure [[#figure][2]].
+
+* Part
+:PROPERTIES:
+:CUSTOM_ID: part
+:END:
+See Part [[#part][I]].

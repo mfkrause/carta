@@ -1,0 +1,161 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 TABLES\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx4320\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Name\par}
+\cell}
+{{\pard\intbl \qr \f0 \sa0 \li0 \fi0 Age\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Ada\par}
+\cell}
+{{\pard\intbl \qr \f0 \sa0 \li0 \fi0 36\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Grace Hopper\par}
+\cell}
+{{\pard\intbl \qr \f0 \sa0 \li0 \fi0 85\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A second table without a header rule follows.\par}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \qc \f0 \sa0 \li0 \fi0 Left\par}
+\cell}
+{{\pard\intbl \qc \f0 \sa0 \li0 \fi0 Right\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \qc \f0 \sa0 \li0 \fi0 one\par}
+\cell}
+{{\pard\intbl \qc \f0 \sa0 \li0 \fi0 two\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A table with a multi-line text block follows.\par}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Name\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 A long description\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Left\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Right\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A table with a horizontal span follows.\par}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Wide span\par}
+\cell}
+{\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 End\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 one\par}
+\cell}
+{\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 three\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A table with a vertical span follows.\par}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Name\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 One\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Two\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A table with combined spans follows.\par}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Wide\par}
+\cell}
+{\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 First\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{\cell}
+{\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Second\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#link("http://x.com")[a \ b] keeps the break inside the link label.

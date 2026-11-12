@@ -1,0 +1,88 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="tables" class="slide level1">
+<h1>TABLES</h1>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: right;">Age</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Ada</td>
+<td style="text-align: right;">36</td>
+</tr>
+<tr>
+<td style="text-align: left;">Grace Hopper</td>
+<td style="text-align: right;">85</td>
+</tr>
+</tbody>
+</table>
+<p>A second table without a header rule follows.</p>
+<table>
+<tbody>
+<tr>
+<td style="text-align: center;">Left</td>
+<td style="text-align: center;">Right</td>
+</tr>
+<tr>
+<td style="text-align: center;">one</td>
+<td style="text-align: center;">two</td>
+</tr>
+</tbody>
+</table>
+<p>A table with a multi-line text block follows.</p>
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;">Name</td>
+<td style="text-align: left;">A long description</td>
+</tr>
+<tr>
+<td style="text-align: left;">Left</td>
+<td style="text-align: left;">Right</td>
+</tr>
+</tbody>
+</table>
+<p>A table with a horizontal span follows.</p>
+<table>
+<tbody>
+<tr>
+<td colspan="2" style="text-align: left;">Wide span</td>
+<td style="text-align: left;">End</td>
+</tr>
+<tr>
+<td colspan="2" style="text-align: left;">one</td>
+<td style="text-align: left;">three</td>
+</tr>
+</tbody>
+</table>
+<p>A table with a vertical span follows.</p>
+<table>
+<tbody>
+<tr>
+<td rowspan="2" style="text-align: left;">Name</td>
+<td style="text-align: left;">One</td>
+</tr>
+<tr>
+<td style="text-align: left;">Two</td>
+</tr>
+</tbody>
+</table>
+<p>A table with combined spans follows.</p>
+<table>
+<tbody>
+<tr>
+<td colspan="2" rowspan="2" style="text-align: left;">Wide</td>
+<td style="text-align: left;">First</td>
+</tr>
+<tr>
+<td style="text-align: left;">Second</td>
+</tr>
+</tbody>
+</table>
+</section>

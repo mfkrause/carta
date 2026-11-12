@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Forward: 1.1.
+.SS First
+.SS Second
+1, 1.1, 1.1, [second], [missing].
+Anonymous figure
+Named figure
+.PP
+See Figure 2.
+.SH Part
+See Part I.

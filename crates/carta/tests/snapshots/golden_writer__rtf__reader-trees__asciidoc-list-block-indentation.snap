@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li360 \fi-360 \bullet \tx360\tab Outer\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 \f1 code\sa180\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Term\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 \f1 literal\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab \par}
+{\pard \ql \f0 \sa180 \li360 \fi-360 \bullet \tx360\tab First\par}
+{\pard \ql \f0 \sa180 \li360 \fi-360 \bullet \tx360\tab Second\sa180\par}
+{\pard \ql \f0 \sa180 \li360 \fi-360 \bullet \tx360\tab Parent\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 [.role]\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Text\par}

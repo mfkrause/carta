@@ -1,0 +1,61 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<variablelist>
+  <varlistentry>
+    <term>
+      <literal>-a</literal>
+    </term>
+    <listitem>
+      <para>
+        Output all.
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <literal>-b, --brief</literal>
+    </term>
+    <listitem>
+      <para>
+        Be brief about it.
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <literal>--verbose</literal>
+    </term>
+    <listitem>
+      <para>
+        Talk a great deal.
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <literal>-f FILE</literal>
+    </term>
+    <listitem>
+      <para>
+        Read input from FILE.
+      </para>
+    </listitem>
+  </varlistentry>
+</variablelist>
+<para>
+  The description may also start on the next line:
+</para>
+<variablelist>
+  <varlistentry>
+    <term>
+      <literal>--output=FILE</literal>
+    </term>
+    <listitem>
+      <para>
+        Write output to FILE instead of standard output.
+      </para>
+    </listitem>
+  </varlistentry>
+</variablelist>

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]{FONTS}
+\protect\phantomsection\label{fonts}
+plain \texttt{mono} and \textbf{\texttt{monobold}} and
+\emph{\texttt{monoital}} back.
+
+bracket \texttt{mono} and single \texttt{mono} end.
+\end{frame}

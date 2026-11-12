@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]
+\begin{itemize}
+\item
+  Outer
+
+\begin{verbatim}
+code
+\end{verbatim}
+\end{itemize}
+
+\begin{description}
+\item[Term] ~ 
+\begin{verbatim}
+literal
+\end{verbatim}
+\end{description}
+
+\begin{itemize}
+\item
+\item
+  First
+\item
+  Second
+\end{itemize}
+
+\begin{itemize}
+\item
+  Parent
+\end{itemize}
+
+\begin{verbatim}
+[.role]
+\end{verbatim}
+
+Text
+\end{frame}

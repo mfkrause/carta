@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-A trailing forced break is dropped
-
-Middle\\
-break is kept

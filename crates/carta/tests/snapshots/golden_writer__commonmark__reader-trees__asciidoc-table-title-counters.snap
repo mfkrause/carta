@@ -1,0 +1,123 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="unused-d">1</span>
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-d">1</span></p>
+</div>
+<p><span class="counter" name="used-d">2</span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="used-d">3</span>
+
+<table>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="unused-e">1</span>
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-e">1</span></p>
+</div>
+<p><em><span class="counter" name="used-e">2</span></em></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="used-e">3</span>
+
+<table>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="unused-h">1</span>
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-h">1</span></p>
+</div>
+<p><span class="counter" name="used-h">2</span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="used-h">3</span>
+
+<table>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="unused-m">1</span>
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-m">1</span></p>
+</div>
+<p><span class="counter" name="used-m"><code>2</code></span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="used-m">3</span>
+
+<table>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="unused-s">1</span>
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-s">1</span></p>
+</div>
+<p><strong><span class="counter" name="used-s">2</span></strong></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+<span class="counter" name="used-s">3</span>

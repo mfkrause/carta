@@ -1,0 +1,93 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+::: {.example options="hardbreaks"}
+one\
+two
+:::
+
+after block
+
+::: {.sidebar options="hardbreaks"}
+one\
+two
+:::
+
+after block
+
+::: {options="hardbreaks"}
+one\
+two
+:::
+
+after block
+
+::: {wrapper="1" options="hardbreaks"}
+> one\
+> two
+:::
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+| *one\ two* |
+|------------|
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+<table>
+<thead>
+<tr>
+<th><p><code>one</code><br />
+<code>two</code></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+after block
+
+| **one\ two** |
+|--------------|
+
+after block

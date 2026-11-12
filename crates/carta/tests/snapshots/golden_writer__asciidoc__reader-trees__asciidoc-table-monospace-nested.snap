@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols="",options="header,footer",]
+|===
+|image:x[`p`]
+|link:x[`l`]
+|footnote:[`note`]
+|[.r]#`span`#
+|===

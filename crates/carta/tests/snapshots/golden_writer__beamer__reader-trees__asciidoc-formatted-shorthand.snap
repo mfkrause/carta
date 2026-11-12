@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\protect\phantomsection\label{id}{text} {\textbf{bold}}
+
+\protect\phantomsection\label{x}{text} {text} {text}
+
+prefix {\textbf{strong}} {\emph{italic}} {span} {span}
+
+prefix {\textbf{strong}} \hl{mark}
+\end{frame}

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+link:#later[*Forward link*] and link:later[file:later].
+
+[#later]##A named target.
+
+link:#later[later] and [.spurious-link]#_Missing target_#.
+
+[#a-b]##and [#a-b-1]##.
+
+link:#a-b[a/b] and link:#a-b-1[a{plus}b].
+
+[cols=",",]
+|===
+|Link |link:#later[later]
+|===
+
+Text with a note.footnote:[See link:#later[later].]

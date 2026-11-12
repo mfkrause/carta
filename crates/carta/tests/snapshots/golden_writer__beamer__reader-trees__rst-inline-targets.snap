@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+An \protect\phantomsection\label{inline-target}{inline target} marks a
+spot that other text can point back to.
+
+Here is \protect\phantomsection\label{another-one}{another one} in the
+middle of a sentence.
+\end{frame}

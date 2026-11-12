@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 text {\b bold}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 text text text\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 prefix {\b strong} {\i italic} span span\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 prefix {\b strong} mark\par}

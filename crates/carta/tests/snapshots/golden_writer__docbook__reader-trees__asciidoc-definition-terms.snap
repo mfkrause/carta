@@ -1,0 +1,101 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<variablelist>
+  <varlistentry>
+    <term>
+      {value}
+    </term>
+    <listitem>
+      <para>
+        Definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <emphasis role="strong">{value}</emphasis>
+    </term>
+    <listitem>
+      <para>
+        Strong definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <link linkend="target" role="cross-reference">target</link>
+    </term>
+    <listitem>
+      <para>
+        Link definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <anchor xml:id="term-id" />
+    </term>
+    <listitem>
+      <para>
+        Anchor definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      [heart]
+    </term>
+    <listitem>
+      <para>
+        Icon definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      <footnote>
+        <para>
+          Note {value}
+        </para>
+      </footnote>
+    </term>
+    <listitem>
+      <para>
+        Footnote definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      1
+    </term>
+    <listitem>
+      <para>
+        Count 2
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      User wrapper
+    </term>
+    <listitem>
+      <para>
+        Wrapper definition Cedar Ridge
+      </para>
+    </listitem>
+  </varlistentry>
+</variablelist>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="target">
+  <title>Target</title>
+  <para>
+    See <link linkend="target" role="cross-reference">Target</link> and
+    <link linkend="term-id" role="cross-reference">term-id</link> and
+    <footnote>
+      <para>
+      </para>
+    </footnote>.
+  </para>
+</section>

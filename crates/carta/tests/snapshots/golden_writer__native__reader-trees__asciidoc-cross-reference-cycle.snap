@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Header
+    1
+    ( "self" , [] , [] )
+    [ Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Link
+            ( "" , [ "cross-reference" ] , [] )
+            [ Str "self" ]
+            ( "#self" , "" )
+        ]
+        ( "#self" , "" )
+    ]
+]

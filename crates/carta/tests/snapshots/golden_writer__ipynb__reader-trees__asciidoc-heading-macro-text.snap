@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Alpha <span class=\"counter\" name=\"x\">1</span>\n",
+    "\n",
+    "# Alpha <span class=\"index\" data-term=\"term\">term</span>\n",
+    "\n",
+    "# Alpha <span class=\"index\" data-term=\"foo\">foo</span>\n",
+    "\n",
+    "# Alpha word\n",
+    "\n",
+    "# Alpha <span class=\"menu\">**Tools › Build › Run**</span>\n",
+    "\n",
+    "# Alpha <span class=\"button\">**\\[Save\\]**</span>\n",
+    "\n",
+    "# Alpha <span class=\"kbd\">**Ctrl**</span>+<span class=\"kbd\">**X**</span>\n",
+    "\n",
+    "# Alpha <span id=\"key\"></span>"
+   ],
+   "id": "2a9f925e-ac32-494c-8485-a847c117cb20"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

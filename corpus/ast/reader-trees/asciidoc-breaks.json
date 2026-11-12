@@ -1,0 +1,163 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "HorizontalRule"
+    },
+    {
+      "t": "HorizontalRule"
+    },
+    {
+      "t": "HorizontalRule"
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "page-break"
+          ],
+          [
+            [
+              "wrapper",
+              "1"
+            ]
+          ]
+        ],
+        [
+          {
+            "t": "HorizontalRule"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "page-break"
+          ],
+          [
+            [
+              "options",
+              "always"
+            ],
+            [
+              "wrapper",
+              "1"
+            ]
+          ]
+        ],
+        [
+          {
+            "t": "HorizontalRule"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "hard"
+        },
+        {
+          "t": "LineBreak"
+        },
+        {
+          "t": "Str",
+          "c": "break."
+        }
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [],
+          [
+            [
+              "wrapper",
+              "1"
+            ],
+            [
+              "options",
+              "hardbreaks"
+            ]
+          ]
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "a"
+              },
+              {
+                "t": "LineBreak"
+              },
+              {
+                "t": "Str",
+                "c": "b"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "third"
+        },
+        {
+          "t": "LineBreak"
+        },
+        {
+          "t": "Str",
+          "c": "fourth"
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "first"
+        },
+        {
+          "t": "LineBreak"
+        },
+        {
+          "t": "LineBreak"
+        },
+        {
+          "t": "Str",
+          "c": "second"
+        }
+      ]
+    }
+  ]
+}

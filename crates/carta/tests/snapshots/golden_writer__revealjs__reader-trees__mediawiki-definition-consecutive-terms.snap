@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<dl>
+<dt>first<br />
+second</dt>
+<dd>
+shared definition
+</dd>
+</dl>
+</section>

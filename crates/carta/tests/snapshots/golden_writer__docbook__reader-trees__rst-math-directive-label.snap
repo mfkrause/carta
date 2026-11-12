@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis>e</emphasis><superscript><emphasis>i</emphasis><emphasis>π</emphasis></superscript> + 1 = 0
+</para>

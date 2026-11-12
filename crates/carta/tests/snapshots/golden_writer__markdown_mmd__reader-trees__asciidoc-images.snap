@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+An <img src="photo.png" width="100px" height="200px" alt="Photo" />.
+
+<figure>
+<img src="photo.png" width="100" height="200" alt="Photo" />
+<figcaption>A caption</figcaption>
+</figure>
+
+<div data-wrapper="1" alt="Photo" height="200" width="100" data-markdown="1">
+
+![](photo.png)
+
+</div>

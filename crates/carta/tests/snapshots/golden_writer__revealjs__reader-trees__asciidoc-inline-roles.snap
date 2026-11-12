@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p><span class="foo bar" data-wrapper="1"><strong>x</strong></span> and
+<a href="page" class="b">Hello</a>.</p>
+</section>

@@ -1,0 +1,62 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain
+          [ Image
+              ( "" , [] , [] ) [ Str "movie.mp4" ] ( "movie.mp4" , "" )
+          ]
+      ]
+    ]
+, BulletList
+    [ [ Para [ Str "Outer" ]
+      , BulletList
+          [ [ Figure
+                ( "" , [] , [] )
+                (Caption Nothing [])
+                [ Plain
+                    [ Image ( "" , [] , [] ) [] ( "nested.png" , "" ) ]
+                ]
+            ]
+          ]
+      ]
+    ]
+, DefinitionList
+    [ ( []
+      , [ [ Figure
+              ( "" , [] , [] )
+              (Caption Nothing [])
+              [ Plain [ Image ( "" , [] , [] ) [] ( "same.png" , "" ) ]
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "Named" ] , [ [ Div ( "toc" , [] , [] ) [] ] ] )
+    , ( []
+      , [ [ Figure
+              ( "" , [] , [] )
+              (Caption Nothing [])
+              [ Plain [ Image ( "" , [] , [] ) [] ( "next.png" , "" ) ]
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "Indented" ]
+      , [ [ Plain
+              [ Image
+                  ( "" , [] , [] )
+                  [ Str "sound.mp3" ]
+                  ( "sound.mp3" , "" )
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "A" ] , [ [] ] )
+    , ( [ Str "B" , Space , Str "and" , Space , Str "C" ]
+      , [ [ Para [ Str "D" ] ] ]
+      )
+    , ( [ Str "Bad" ] , [ [] ] )
+    , ( [ Str "include" ] , [ [ Para [ Str "missing[" ] ] ] )
+    ]
+]

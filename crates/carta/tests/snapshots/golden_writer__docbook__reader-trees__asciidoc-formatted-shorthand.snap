@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <anchor xml:id="id" />text <emphasis role="strong">bold</emphasis>
+</para>
+<para>
+  <anchor xml:id="x" />text text text
+</para>
+<para>
+  prefix <emphasis role="strong">strong</emphasis>
+  <emphasis>italic</emphasis> span span
+</para>
+<para>
+  prefix <emphasis role="strong">strong</emphasis> mark
+</para>

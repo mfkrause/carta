@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Before kept text after.\n",
+    "\n",
+    "*Formatted text*\n",
+    "\n",
+    "<img src=\"image.png\" width=\"50%\" alt=\"image\" />"
+   ],
+   "id": "f0c1f1d8-5fc1-487b-880d-1503b074e860"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

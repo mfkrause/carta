@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-[ Header 1 ( "_heading" , [] , [] ) [ Str "Heading" ]
-, Div ( "" , [ "example" ] , [] ) [ Para [ Str "example" ] ]
-, CodeBlock ( "" , [] , [] ) "literal\n"
-, Para [ Str "====" , SoftBreak , Str "unclosed" ]
-]

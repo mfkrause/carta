@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+An
+\includegraphics[width=1.04167in,height=2.08333in,alt={Photo}]{photo.png}.
+
+\begin{figure}
+\centering
+\includegraphics[width=1.04167in,height=2.08333in,alt={Photo}]{photo.png}
+\caption{A caption}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{photo.png}}
+\caption{}
+\end{figure}

@@ -1,0 +1,42 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Plain, <emphasis>emphasized</emphasis>,
+  <emphasis role="strong">strong</emphasis>,
+  <emphasis role="strong">bold</emphasis>,
+  <emphasis role="underline">underlined</emphasis> and
+  <emphasis role="strikethrough">struck</emphasis> runs.
+</para>
+<para>
+  Water is H<subscript>2</subscript>O and the area is
+  r<superscript>2</superscript>.
+</para>
+<para>
+  A <quote>quotation <quote>inside</quote> another</quote> alternates
+  its marks.
+</para>
+<para>
+  Code faces: <literal>literal</literal>, <literal>ls</literal>,
+  <literal>/etc/hosts</literal>, <literal>strlen</literal>,
+  <literal>Widget</literal>, <literal>PATH</literal>,
+  <literal>--verbose</literal>, <literal>done</literal>,
+  <literal>MAX</literal>, <literal>count</literal>,
+  <literal>&lt;br/&gt;</literal>, and <literal>(...)</literal>.
+</para>
+<para>
+  Fill in &lt;name&gt; and maybe [a flag].
+</para>
+<para>
+  A <emphasis>lingua franca</emphasis> and a <emphasis>word</emphasis>.
+</para>
+<para>
+  A bare phrase carries nothing extra.
+</para>
+<para>
+  Press Ctrl+C or pick File &gt; Save.
+</para>
+<para>
+  An <anchor xml:id="spot" />anchored spot.
+</para>

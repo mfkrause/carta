@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{enumerate}
+\tightlist
+\item
+  one
+
+  \begin{itemize}
+  \tightlist
+  \item
+    bullet under number
+
+    \begin{enumerate}
+    \tightlist
+    \item
+      number under bullet
+    \end{enumerate}
+  \end{itemize}
+\item
+  two
+\end{enumerate}
+\end{frame}

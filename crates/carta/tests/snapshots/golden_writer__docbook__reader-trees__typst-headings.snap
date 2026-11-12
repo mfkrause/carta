@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <title>Top level</title>
+  <para>
+    Body under the top heading.
+  </para>
+  <section>
+    <title>Second level</title>
+    <section>
+      <title>Third level</title>
+      <section>
+        <title>Fourth level</title>
+        <section>
+          <title>Fifth level</title>
+          <simplesect>
+            <title>Sixth level</title>
+            <para>
+            </para>
+          </simplesect>
+        </section>
+      </section>
+    </section>
+  </section>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <title>Heading with <emphasis role="strong">strong</emphasis> and
+  <emphasis>emph</emphasis></title>
+  <section>
+    <title>Inline heading text</title>
+    <para>
+    </para>
+  </section>
+</section>

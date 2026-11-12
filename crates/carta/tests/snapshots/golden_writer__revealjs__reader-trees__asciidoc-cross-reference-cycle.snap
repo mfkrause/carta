@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="self" class="title-slide slide level1">
+<h1><a href="#/self" class="cross-reference"><span
+class="cross-reference">self</span></a></h1>
+
+</section>

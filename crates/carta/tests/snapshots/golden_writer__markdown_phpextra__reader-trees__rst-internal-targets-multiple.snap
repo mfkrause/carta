@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# Section Title<span id="first target"></span> {#second target}
+
+Body under the section.

@@ -1,0 +1,61 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+one\\
+two
+
+after block
+
+one\\
+two
+
+after block
+
+one\\
+two
+
+after block
+
+#+begin_quote
+one\\
+two
+#+end_quote
+
+after block
+
+| one\\ |
+| two   |
+|-------|
+
+after block
+
+| one\\ |
+| two   |
+|-------|
+
+after block
+
+| /one\\ |
+| two/   |
+|--------|
+
+after block
+
+| one\\ |
+| two   |
+|-------|
+
+after block
+
+| =one=\\ |
+| =two=   |
+|---------|
+
+after block
+
+| *one\\ |
+| two*   |
+|--------|
+
+after block

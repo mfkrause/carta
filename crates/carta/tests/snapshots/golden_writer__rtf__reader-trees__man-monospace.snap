@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 FONTS\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 plain {\f1 mono} and {\b {\f1 monobold}} and {\i {\f1 monoital}} back.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 bracket {\f1 mono} and single {\f1 mono} end.\par}

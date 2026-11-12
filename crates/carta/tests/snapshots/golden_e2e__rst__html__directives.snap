@@ -1,7 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<p><img src="diagram.png" alt="An architecture diagram" /></p>
-<p><span
-class="math display"><em>E</em> = <em>m</em><em>c</em><sup>2</sup></span></p>

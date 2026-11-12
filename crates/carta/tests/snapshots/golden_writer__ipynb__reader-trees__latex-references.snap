@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Forward: <a href=\"#second\" data-reference-type=\"ref\"\n",
+    "data-reference=\"second\">1.1</a>.\n",
+    "\n",
+    "### First\n",
+    "\n",
+    "#### Second\n",
+    "\n",
+    "<a href=\"#first\" data-reference-type=\"ref\" data-reference=\"first\">1</a>,\n",
+    "<a href=\"#second\" data-reference-type=\"ref+label\"\n",
+    "data-reference=\"second\">1.1</a>, <a href=\"#second\"\n",
+    "data-reference-type=\"ref+Label\" data-reference=\"second\">1.1</a>, <a\n",
+    "href=\"#second\" data-reference-type=\"eqref\"\n",
+    "data-reference=\"second\">\\[second\\]</a>, <a href=\"#missing\"\n",
+    "data-reference-type=\"ref\" data-reference=\"missing\">\\[missing\\]</a>.\n",
+    "\n",
+    "<figure>\n",
+    "\n",
+    "<figcaption>Anonymous figure</figcaption>\n",
+    "</figure>\n",
+    "\n",
+    "<figure id=\"figure\">\n",
+    "\n",
+    "<figcaption>Named figure</figcaption>\n",
+    "</figure>\n",
+    "\n",
+    "See Figure <a href=\"#figure\" data-reference-type=\"ref\"\n",
+    "data-reference=\"figure\">2</a>.\n",
+    "\n",
+    "# Part\n",
+    "\n",
+    "See Part <a href=\"#part\" data-reference-type=\"ref\"\n",
+    "data-reference=\"part\">I</a>."
+   ],
+   "id": "606418a1-ea01-412e-9339-847b7108a4dc"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

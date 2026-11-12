@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 Plain, {\i emphasized}, {\b strong}, {\b bold}, {\ul underlined} and {\strike struck} runs.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Water is H{\sub 2}O and the area is r{\super 2}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A \u8220"quotation \u8216'inside\u8217' another\u8221" alternates its marks.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Code faces: {\f1 literal}, {\f1 ls}, {\f1 /etc/hosts}, {\f1 strlen}, {\f1 Widget}, {\f1 PATH}, {\f1 --verbose}, {\f1 done}, {\f1 MAX}, {\f1 count}, {\f1 <br/>}, and {\f1 (...)}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Fill in <name> and maybe [a flag].\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A {\i lingua franca} and a {\i word}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A bare phrase carries nothing extra.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Press Ctrl+C or pick File > Save.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 An anchored spot.\par}

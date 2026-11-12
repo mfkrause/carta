@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level1">
+
+<p>See <a href="#/section" class="cross-reference">A section</a> and <a
+href="#/missing" class="cross-reference">missing</a>.</p>
+</section>
+<section id="section" class="slide level1">
+<h1>A section</h1>
+<p>An <span id="anchor"></span>anchor.</p>
+<p>See <a href="#/anchor" class="cross-reference">Label</a> and <a
+href="#/section" class="cross-reference">A section</a>.</p>
+</section>

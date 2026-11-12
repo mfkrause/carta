@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-Follow the [alias](https://example.com/page) to its destination.

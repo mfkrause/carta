@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "[**Forward link**](#later) and [file:later](later).\n",
+    "\n",
+    "<span id=\"later\"></span>A named target.\n",
+    "\n",
+    "[later](#later) and\n",
+    "<span class=\"spurious-link\" target=\"missing\">*Missing target*</span>.\n",
+    "\n",
+    "<span id=\"a-b\"></span>and <span id=\"a-b-1\"></span>.\n",
+    "\n",
+    "[a/b](#a-b) and [a+b](#a-b-1).\n",
+    "\n",
+    "|      |                 |\n",
+    "|------|-----------------|\n",
+    "| Link | [later](#later) |\n",
+    "\n",
+    "Text with a note.[1]\n",
+    "\n",
+    "[1] See [later](#later)."
+   ],
+   "id": "6c529042-e222-4863-9c54-4321b46dd17c"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

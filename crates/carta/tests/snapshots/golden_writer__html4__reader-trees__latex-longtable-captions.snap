@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table id="table">
+<caption>Table <em>caption</em></caption>
+<thead>
+<tr>
+<th align="left">Heading</th>
+<th align="left">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Item</td>
+<td align="left">12</td>
+</tr>
+</tbody>
+</table>
+<p>See Table <a href="#table" reference-type="ref"
+reference="table">1</a>.</p>
+<table>
+<caption>First line<br />
+Second line</caption>
+<tbody>
+<tr>
+<td align="left">Content</td>
+</tr>
+</tbody>
+</table>

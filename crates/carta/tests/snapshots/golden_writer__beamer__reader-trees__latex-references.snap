@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+Forward: \hyperlink{second}{1.1}.
+
+\begin{block}{First}
+\protect\phantomsection\label{first}
+\begin{block}{Second}
+\protect\phantomsection\label{second}
+\hyperlink{first}{1}, \hyperlink{second}{1.1}, \hyperlink{second}{1.1},
+\hyperlink{second}{{[}second{]}}, \hyperlink{missing}{{[}missing{]}}.
+
+\begin{figure}
+\centering
+
+\caption{Anonymous figure}
+\end{figure}
+
+\begin{figure}
+\centering
+
+\caption{Named figure}\label{figure}
+\end{figure}
+
+See Figure \hyperlink{figure}{2}.
+\end{block}
+\end{block}
+\end{frame}
+
+\begin{frame}{Part}
+\protect\phantomsection\label{part}
+See Part \hyperlink{part}{I}.
+\end{frame}

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{\[e^{i\pi} + 1 = 0\]}
+\end{frame}

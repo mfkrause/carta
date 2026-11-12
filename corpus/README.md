@@ -13,3 +13,5 @@ corpus/
 ```
 
 The subdirectory is the tag: under `ast/` it is the document feature, under `text/` and `binary/` it is the source format. The filename stem is the case label.
+
+`ast/reader-trees/` holds trees that the readers produce and whose shapes no hand-authored `ast/` case has. Each file is named `<format>-<label>.json` and is the tree of the case `text/<format>/<label>`, so the writers are tested on it without a snapshot for each reader and writer pair.

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+text *bold*
+
+text text text
+
+prefix *strong* /italic/ span span
+
+prefix *strong* mark

@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Document body."
+   ],
+   "id": "body"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {
+  "authors": [
+   {
+    "name": "Ada Lovelace"
+   },
+   {
+    "name": "Alan Turing"
+   }
+  ],
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "mimetype": "text/x-python",
+   "name": "python",
+   "version": "3.11.0"
+  },
+  "toc": {
+   "depth": "3",
+   "enabled": true,
+   "threshold": "6"
+  }
+ }
+}

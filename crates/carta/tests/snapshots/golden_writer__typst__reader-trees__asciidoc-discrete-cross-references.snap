@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+= A
+<x>
+#link(<x>)[x] #link(<x>)[x] #link(<x>)[`x`]
+
+= B
+<y>
+#link(<y>)[B] #link(<y>)[B]
+
+​<z>
+
+#link(<z>)[Inline label]

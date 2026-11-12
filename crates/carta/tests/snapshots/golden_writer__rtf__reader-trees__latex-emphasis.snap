@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 Text with {\i emphasis} and {\b bold} and {\i italic}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A run with {\b bold and {\i nested emphasis} inside} it.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Also {\ul underlined}, {\scaps small caps}, and {\strike struck out}.\par}

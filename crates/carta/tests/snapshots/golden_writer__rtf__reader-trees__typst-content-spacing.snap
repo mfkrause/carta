@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 A {\field{\*\fldinst{HYPERLINK "https://example.com"}}{\fldrslt{\ul
+ linked body 
+}}}
+ keeps the padding of its content.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A box holds  its own spacing  within the line.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 An underlined {\ul  padded body } sits beside plain words.\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 A spaced quotation.\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 \u8212-\u160 ? A. Author \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A footnote body is trimmed {\super\chftn}{\*\footnote\chftn\~\plain\pard {\pard \ql \f0 \sa180 \li0 \fi0 Trimmed on both ends.\par}
+} here.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\cf1 [image: diagram.png]\cf0}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Figure caption.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Loop rounds join with their padding: 1 2 3 .\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\cf1 [image: diagram.png]\cf0}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The binding kept survives its statement.\par}

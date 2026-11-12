@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\f[B]Notice\f[R]
+.PP
+Body text inside the panel.

@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+- [[file:movie.mp4]]
+
+- Outer
+
+  - 
+    [[file:nested.png]]
+
+-  ::
+  [[file:same.png]]
+
+- Named ::
+
+  <<toc>>
+
+-  ::
+  [[file:next.png]]
+
+- Indented :: [[file:sound.mp3]]
+
+- A :: 
+
+- B and C :: D
+
+- Bad :: 
+
+- include :: missing[

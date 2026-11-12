@@ -1,0 +1,51 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Heading
+:PROPERTIES:
+:CUSTOM_ID: _heading
+:asciidoc-heading: heading
+:asciidoc-icon: icon
+:asciidoc-identifier-source: source
+:asciidoc-section: section
+:wrapper: 1
+:END:
+
+<<_nested>>
+Titled
+
+** Nested
+*** Discrete
+:PROPERTIES:
+:asciidoc-heading: discrete
+:asciidoc-section: discrete
+:END:
+[[./images/icons/heart.png]]
+
+[[#spot][]]
+
+** HTML
+:PROPERTIES:
+:c: 1
+:a: 3
+:b: 4
+:asciidoc-heading: html-heading
+:asciidoc-section: html-section
+:wrapper: html
+:END:
+** Data
+:PROPERTIES:
+:z: 1
+:a: 3
+:x: 4
+:END:
+** Prefix
+:PROPERTIES:
+:asciidoc-carta-user-attribute-asciidoc-heading: html-prefix
+:END:
+*** Prefix
+:PROPERTIES:
+:CUSTOM_ID: _prefix
+:asciidoc-carta-user-attribute-asciidoc-heading: prefix
+:END:

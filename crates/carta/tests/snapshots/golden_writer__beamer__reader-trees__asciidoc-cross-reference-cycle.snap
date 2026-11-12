@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\section{\texorpdfstring{\hyperlink{self}{\hyperlink{self}{self}}}{self}}\label{self}

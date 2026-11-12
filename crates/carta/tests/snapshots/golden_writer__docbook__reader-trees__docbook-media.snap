@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<figure>
+  <title>A captioned figure</title>
+  <mediaobject>
+    <imageobject>
+      <imagedata fileref="plot.png" width="4in" depth="2in" />
+    </imageobject>
+    <textobject><phrase>A plotted curve</phrase></textobject>
+  </mediaobject>
+</figure>
+<para>
+  A standalone block image:
+</para>
+<para>
+  <inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="standalone.png" />
+    </imageobject>
+  </inlinemediaobject>
+</para>
+<para>
+  An inline <inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="icon.png" />
+    </imageobject>
+  </inlinemediaobject> image.
+</para>

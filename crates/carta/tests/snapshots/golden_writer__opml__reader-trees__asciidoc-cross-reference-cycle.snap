@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="&lt;a href=&quot;#self&quot; class=&quot;cross-reference&quot;&gt;&lt;span class=&quot;cross-reference&quot;&gt;self&lt;/span&gt;&lt;/a&gt;">
+</outline>

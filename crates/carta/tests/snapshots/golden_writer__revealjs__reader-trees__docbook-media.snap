@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<figure id="plot">
+<img data-src="plot.png" style="width:4in;height:2in"
+alt="A plotted curve" />
+<figcaption>A captioned figure</figcaption>
+</figure>
+<p>A standalone block image:</p>
+<p><img data-src="standalone.png" /></p>
+<p>An inline <img data-src="icon.png" /> image.</p>
+</section>

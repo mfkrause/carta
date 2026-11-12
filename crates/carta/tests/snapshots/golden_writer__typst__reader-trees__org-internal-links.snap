@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#link(<later>)[#strong[Forward link]] and #link("later")[file:later].
+
+​<later>A named target.
+
+#link(<later>)[later] and #emph[Missing target].
+
+​<a-b>and <a-b-1>.
+
+#link(<a-b>)[a/b] and #link(<a-b-1>)[a+b].
+
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (auto,auto,),
+    [Link], [#link(<later>)[later]],
+  )]
+  , kind: table
+  )
+
+Text with a note.#footnote[See #link(<later>)[later].]

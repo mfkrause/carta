@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-Text with an inline reference.
-
-.. raw:: mediawiki
-
-   {{Infobox|name=Test|value=42}}

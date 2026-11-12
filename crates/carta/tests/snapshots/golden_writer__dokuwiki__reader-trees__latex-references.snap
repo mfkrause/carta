@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Forward: [[#second|1.1]].
+
+==== First ====
+
+=== Second ===
+
+[[#first|1]], [[#second|1.1]], [[#second|1.1]], [[#second|[second]]], [[#missing|[missing]]].
+
+Anonymous figure
+
+
+Named figure
+
+
+See Figure [[#figure|2]].
+
+====== Part ======
+
+See Part [[#part|I]].

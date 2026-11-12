@@ -1,0 +1,126 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<itemizedlist spacing="compact">
+  <listitem>
+    <para>
+      <inlinemediaobject>
+        <imageobject>
+          <imagedata fileref="movie.mp4" />
+        </imageobject>
+        <textobject>
+          <phrase>movie.mp4</phrase>
+        </textobject>
+      </inlinemediaobject>
+    </para>
+  </listitem>
+</itemizedlist>
+<itemizedlist>
+  <listitem>
+    <para>
+      Outer
+    </para>
+    <itemizedlist>
+      <listitem>
+        <figure>
+          <title></title>
+          <mediaobject>
+            <imageobject>
+              <imagedata fileref="nested.png" />
+            </imageobject>
+          </mediaobject>
+        </figure>
+      </listitem>
+    </itemizedlist>
+  </listitem>
+</itemizedlist>
+<variablelist>
+  <varlistentry>
+    <term>
+    </term>
+    <listitem>
+      <figure>
+        <title></title>
+        <mediaobject>
+          <imageobject>
+            <imagedata fileref="same.png" />
+          </imageobject>
+        </mediaobject>
+      </figure>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      Named
+    </term>
+    <listitem>
+      <anchor xml:id="toc" />
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+    </term>
+    <listitem>
+      <figure>
+        <title></title>
+        <mediaobject>
+          <imageobject>
+            <imagedata fileref="next.png" />
+          </imageobject>
+        </mediaobject>
+      </figure>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      Indented
+    </term>
+    <listitem>
+      <para>
+        <inlinemediaobject>
+          <imageobject>
+            <imagedata fileref="sound.mp3" />
+          </imageobject>
+          <textobject>
+            <phrase>sound.mp3</phrase>
+          </textobject>
+        </inlinemediaobject>
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      A
+    </term>
+    <listitem>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      B and C
+    </term>
+    <listitem>
+      <para>
+        D
+      </para>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      Bad
+    </term>
+    <listitem>
+    </listitem>
+  </varlistentry>
+  <varlistentry>
+    <term>
+      include
+    </term>
+    <listitem>
+      <para>
+        missing[
+      </para>
+    </listitem>
+  </varlistentry>
+</variablelist>

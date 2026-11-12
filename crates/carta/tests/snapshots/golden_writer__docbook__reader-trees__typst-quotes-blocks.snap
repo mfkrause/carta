@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<blockquote>
+  <para>
+    A block quotation body.
+  </para>
+</blockquote>
+<para>
+  <quote>an inline quotation</quote>
+</para>
+<blockquote>
+  <para>
+    Attributed block quotation.
+  </para>
+  <para>
+    — Someone
+  </para>
+</blockquote>
+<blockquote>
+  <para>
+    A first quoted paragraph.
+  </para>
+  <itemizedlist>
+    <listitem>
+      <para>
+        a quoted item
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        another item
+      </para>
+    </listitem>
+  </itemizedlist>
+</blockquote>

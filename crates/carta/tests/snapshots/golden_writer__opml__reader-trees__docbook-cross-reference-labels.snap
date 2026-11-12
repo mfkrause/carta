@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="A labelled section" _note="Body.">
+</outline>
+<outline text="An unlabelled section" _note="Body.&#10;&#10;  ------&#10;  Cell&#10;  ------&#10;&#10;  : A labelled table {#grid}">
+</outline>

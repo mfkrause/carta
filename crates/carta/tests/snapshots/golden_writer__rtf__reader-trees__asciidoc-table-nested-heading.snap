@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Heading\par}
+{\pard\intbl \ql \f0 \sa180 \li360 \fi-360 \bullet \tx360\tab item\sa180\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \f1 code\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

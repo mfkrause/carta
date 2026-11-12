@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+A claim[fn:1] here.
+
+[fn:1] The source.

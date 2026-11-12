@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="a_b" class="title-slide slide level2">
+<h2>a b</h2>
+
+</section>

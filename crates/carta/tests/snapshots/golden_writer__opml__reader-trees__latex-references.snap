@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="First">
+  <outline text="Second" _note="[1](#first){reference-type=&quot;ref&quot; reference=&quot;first&quot;},&#10;[1.1](#second){reference-type=&quot;ref+label&quot; reference=&quot;second&quot;},&#10;[1.1](#second){reference-type=&quot;ref+Label&quot; reference=&quot;second&quot;},&#10;[\[second\]](#second){reference-type=&quot;eqref&quot; reference=&quot;second&quot;},&#10;[\[missing\]](#missing){reference-type=&quot;ref&quot; reference=&quot;missing&quot;}.&#10;&#10;&lt;figure&gt;&#10;&#10;&lt;figcaption&gt;Anonymous figure&lt;/figcaption&gt;&#10;&lt;/figure&gt;&#10;&#10;&lt;figure id=&quot;figure&quot;&gt;&#10;&#10;&lt;figcaption&gt;Named figure&lt;/figcaption&gt;&#10;&lt;/figure&gt;&#10;&#10;See Figure [2](#figure){reference-type=&quot;ref&quot; reference=&quot;figure&quot;}.">
+  </outline>
+</outline>
+<outline text="Part" _note="See Part [I](#part){reference-type=&quot;ref&quot; reference=&quot;part&quot;}.">
+</outline>

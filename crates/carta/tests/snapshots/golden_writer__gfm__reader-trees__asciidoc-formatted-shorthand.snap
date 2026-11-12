@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="id" class="role" data-options="opt k=v">text</span>
+<span class="r" data-wrapper="1">**bold**</span>
+
+<span id="x" class="mark">text</span>
+<span class="style.role">text</span> <span class="a">text</span>
+
+prefix <span class="" data-wrapper="1">**strong**</span>
+<span class="" data-wrapper="1">*italic*</span>
+<span class="">span</span> <span class="">span</span>
+
+prefix <span data-wrapper="1">**strong**</span>
+<span class="mark">mark</span>

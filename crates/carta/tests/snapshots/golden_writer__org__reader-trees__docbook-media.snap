@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#+caption: A captioned figure
+<<plot>>
+[[file:plot.png]]
+
+A standalone block image:
+
+[[file:standalone.png]]
+
+An inline [[file:icon.png]] image.

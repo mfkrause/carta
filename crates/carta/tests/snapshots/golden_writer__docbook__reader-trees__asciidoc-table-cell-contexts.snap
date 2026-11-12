@@ -1,0 +1,119 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            Cell body.
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            <emphasis>First paragraph.</emphasis>
+          </para>
+          <para>
+            Section body.
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            <literal>First</literal> <literal>paragraph.</literal>
+          </para>
+          <para>
+            Section body.
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            == Paragraph text
+          </para>
+          <para>
+            Next paragraph.
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__outer">
+  <title>Outer</title>
+  <informaltable>
+    <tgroup cols="1">
+      <colspec align="left" />
+      <thead>
+        <row>
+          <entry>
+            <para>
+              Inner body.
+            </para>
+          </entry>
+        </row>
+      </thead>
+      <tbody>
+      </tbody>
+    </tgroup>
+  </informaltable>
+  <informaltable>
+    <tgroup cols="1">
+      <colspec align="left" />
+      <thead>
+        <row>
+          <entry>
+            <para>
+              <emphasis>Before   After</emphasis>
+            </para>
+          </entry>
+        </row>
+      </thead>
+      <tbody>
+      </tbody>
+    </tgroup>
+  </informaltable>
+</section>

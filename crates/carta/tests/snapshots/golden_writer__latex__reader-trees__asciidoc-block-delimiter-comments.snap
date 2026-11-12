@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{verbatim}
+code
+\end{verbatim}
+
+after
+
+\begin{verbatim}
+literal
+\end{verbatim}
+
+after
+
+raw
+
+after
+
+==== example ==== after

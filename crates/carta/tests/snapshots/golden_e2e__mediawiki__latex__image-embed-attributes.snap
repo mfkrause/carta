@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio]{a.png}}
-\caption{a.png}
-\end{figure}

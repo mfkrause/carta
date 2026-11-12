@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p>====</p>
+<p>====</p>
+<p>-- .Title --</p>
+<ul>
+<li><p>Parent</p>
+<p>****</p>
+<p id="id">****</p></li>
+</ul>

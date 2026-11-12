@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.IP
+.EX
+listing body
+.EE
+.PP
+after
+.IP
+.EX
+literal body
+.EE
+.PP
+after
+.RS
+pass body
+.RE
+.PP
+after

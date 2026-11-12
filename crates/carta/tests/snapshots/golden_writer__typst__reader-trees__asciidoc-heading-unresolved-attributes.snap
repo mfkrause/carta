@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+= Example and {missing}
+<_and>
+= #box(image("photo.png", alt: "Photo")) $x$ `code`
+<_code>

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<div class="panel">
+<div class="panelheader">
+<strong>Notice</strong>
+</div>
+<p>Body text inside the panel.</p>
+</div>
+</section>

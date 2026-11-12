@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li0 \fi0 \{value\}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Definition Cedar Ridge\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\b \{value\}}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Strong definition Cedar Ridge\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#target"}}{\fldrslt{\ul
+target
+}}}
+\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Link definition Cedar Ridge\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Anchor definition Cedar Ridge\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 [heart]\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Icon definition Cedar Ridge\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\super\chftn}{\*\footnote\chftn\~\plain\pard {\pard \ql \f0 \sa180 \li0 \fi0 Note \{value\}\par}
+}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Footnote definition Cedar Ridge\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 1\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Count 2\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 User wrapper\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Wrapper definition Cedar Ridge\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Target\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#target"}}{\fldrslt{\ul
+Target
+}}}
+ and {\field{\*\fldinst{HYPERLINK "#term-id"}}{\fldrslt{\ul
+term-id
+}}}
+ and {\super\chftn}{\*\footnote\chftn\~\plain\pard {\pard \ql \f0 \sa180 \li0 \fi0 \par}
+}.\par}

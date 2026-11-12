@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See [A section](#section){.cross-reference} and
+[missing](#missing){.cross-reference}.
+
+# A section {#section}
+
+An []{#anchor}anchor.
+
+See [Label](#anchor){.cross-reference} and [A
+section](#section){.cross-reference}.

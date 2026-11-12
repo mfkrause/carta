@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Text with #emph[emphasis] and #strong[bold] and #emph[italic].
+
+A run with #strong[bold and #emph[nested emphasis] inside] it.
+
+Also #underline[underlined], #smallcaps[small caps], and #strike[struck
+out].

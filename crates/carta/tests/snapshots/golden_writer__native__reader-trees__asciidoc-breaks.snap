@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ HorizontalRule
+, HorizontalRule
+, HorizontalRule
+, Div
+    ( "" , [ "page-break" ] , [ ( "wrapper" , "1" ) ] )
+    [ HorizontalRule ]
+, Div
+    ( ""
+    , [ "page-break" ]
+    , [ ( "options" , "always" ) , ( "wrapper" , "1" ) ]
+    )
+    [ HorizontalRule ]
+, Para
+    [ Str "A" , Space , Str "hard" , LineBreak , Str "break." ]
+, Div
+    ( ""
+    , []
+    , [ ( "wrapper" , "1" ) , ( "options" , "hardbreaks" ) ]
+    )
+    [ Para [ Str "a" , LineBreak , Str "b" ] ]
+, Para [ Str "third" , LineBreak , Str "fourth" ]
+, Para
+    [ Str "first" , LineBreak , LineBreak , Str "second" ]
+]

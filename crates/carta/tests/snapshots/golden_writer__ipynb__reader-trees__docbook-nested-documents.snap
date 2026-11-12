@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# First chapter\n",
+    "\n",
+    "Text in the chapter.\n",
+    "\n",
+    "## A section\n",
+    "\n",
+    "An equation $$e = 2$$ stands in the sentence around it.\n",
+    "\n",
+    "Aside\n",
+    "\n",
+    "Set beside the text.\n",
+    "\n",
+    "$$y = x$$\n",
+    "\n",
+    "## Deeper still\n",
+    "\n",
+    "The count restarts where the article stands.\n",
+    "\n",
+    "# Second chapter\n",
+    "\n",
+    "<figure>\n",
+    "<img src=\"plot.png\" title=\"Stated by the object\"\n",
+    "alt=\"Alternative words\" />\n",
+    "<figcaption>A figure</figcaption>\n",
+    "</figure>"
+   ],
+   "id": "93eec466-2ab1-4f39-a745-cd41fde99406"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

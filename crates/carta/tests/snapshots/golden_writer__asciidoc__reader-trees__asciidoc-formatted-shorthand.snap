@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[#id .role]#text# [.r]#*bold*#
+
+[#x .mark]#text# [.style.role]#text# [.a]#text#
+
+prefix [.]#*strong*# [.]#_italic_# [.]#span# [.]#span#
+
+prefix *strong* [.mark]#mark#

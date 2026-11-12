@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See <a href="#section" class="cross-reference">A section</a> and
+<a href="#missing" class="cross-reference">missing</a>.
+
+# A section
+
+An <span id="anchor"></span>anchor.
+
+See <a href="#anchor" class="cross-reference">Label</a> and
+<a href="#section" class="cross-reference">A section</a>.

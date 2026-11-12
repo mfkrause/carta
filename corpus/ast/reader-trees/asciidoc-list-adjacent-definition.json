@@ -1,0 +1,104 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "BulletList",
+      "c": [
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "Term"
+              }
+            ]
+          },
+          {
+            "t": "DefinitionList",
+            "c": [
+              [
+                [
+                  {
+                    "t": "Str",
+                    "c": "*"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Another"
+                  }
+                ],
+                [
+                  [
+                    {
+                      "t": "Para",
+                      "c": [
+                        {
+                          "t": "Str",
+                          "c": "Definition"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "Separate"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "BulletList",
+      "c": [
+        [
+          {
+            "t": "DefinitionList",
+            "c": [
+              [
+                [
+                  {
+                    "t": "Str",
+                    "c": "Separate"
+                  }
+                ],
+                [
+                  [
+                    {
+                      "t": "Para",
+                      "c": [
+                        {
+                          "t": "Str",
+                          "c": "Definition"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  ]
+}

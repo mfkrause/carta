@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:second target}Section Title{anchor:first target}
+Body under the section.

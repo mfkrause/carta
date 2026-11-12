@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+To a labelled section: [The label the section states](#labelled).
+
+To a labelled section, overridden: [Some other wording](#labelled).
+
+To a labelled table: [The label the table states](#grid).
+
+To an unlabelled section: [An unlabelled section](#plain).
+
+<span id="wording">Some other wording</span>
+
+# A labelled section [labelled]
+
+Body.
+
+# An unlabelled section [plain]
+
+Body.
+
+|      |
+|------|
+| Cell |
+
+A labelled table {#grid}

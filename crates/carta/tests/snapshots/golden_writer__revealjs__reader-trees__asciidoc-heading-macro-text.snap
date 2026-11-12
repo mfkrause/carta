@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="_alpha" class="title-slide slide level1">
+<h1>Alpha <span class="counter" name="x">1</span></h1>
+
+</section>
+
+<section id="_alpha_2" class="title-slide slide level1">
+<h1>Alpha <span class="index" data-term="term">term</span></h1>
+
+</section>
+
+<section id="_alpha_3" class="title-slide slide level1">
+<h1>Alpha <span class="index" data-term="foo">foo</span></h1>
+
+</section>
+
+<section id="_alpha_4" class="title-slide slide level1">
+<h1>Alpha word</h1>
+
+</section>
+
+<section id="_alpha_5" class="title-slide slide level1">
+<h1>Alpha <span
+class="menu"><strong>Tools › Build › Run</strong></span></h1>
+
+</section>
+
+<section id="_alpha_6" class="title-slide slide level1">
+<h1>Alpha <span class="button"><strong>[Save]</strong></span></h1>
+
+</section>
+
+<section id="_alpha_7" class="title-slide slide level1">
+<h1>Alpha
+<kbd><strong>Ctrl</strong></kbd>+<kbd><strong>X</strong></kbd></h1>
+
+</section>
+
+<section id="_alpha_label" class="title-slide slide level1">
+<h1>Alpha <span id="key"></span></h1>
+
+</section>

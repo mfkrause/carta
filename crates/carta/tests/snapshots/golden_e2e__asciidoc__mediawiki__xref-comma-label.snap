@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-[[#spot|Label, with comma]] and [[#spot|Label,role=x]].

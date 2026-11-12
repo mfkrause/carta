@@ -1,0 +1,86 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\section{TABLES}\label{tables}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lr@{}}
+\toprule\noalign{}
+Name & Age \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Ada & 36 \\
+Grace Hopper & 85 \\
+\end{longtable}
+}
+
+A second table without a header rule follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}cc@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Left & Right \\
+one & two \\
+\end{longtable}
+}
+
+A table with a multi-line text block follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Name & A long description \\
+Left & Right \\
+\end{longtable}
+}
+
+A table with a horizontal span follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{2}{@{}l}{%
+Wide span} & End \\
+\multicolumn{2}{@{}l}{%
+one} & three \\
+\end{longtable}
+}
+
+A table with a vertical span follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multirow{2}{*}{Name} & One \\
+& Two \\
+\end{longtable}
+}
+
+A table with combined spans follows.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\multicolumn{2}{@{}l}{%
+\multirow{2}{*}{Wide}} & First \\
+& & Second \\
+\end{longtable}
+}

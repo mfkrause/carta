@@ -1,0 +1,575 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {
+    "icons": {
+      "t": "MetaString",
+      "c": "font"
+    },
+    "value": {
+      "t": "MetaString",
+      "c": "Cedar Ridge"
+    }
+  },
+  "blocks": [
+    {
+      "t": "DefinitionList",
+      "c": [
+        [
+          [
+            {
+              "t": "Str",
+              "c": "{value}"
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Strong",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "{value}"
+                }
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Strong"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Link",
+              "c": [
+                [
+                  "",
+                  [
+                    "cross-reference"
+                  ],
+                  []
+                ],
+                [
+                  {
+                    "t": "Str",
+                    "c": "target"
+                  }
+                ],
+                [
+                  "#target",
+                  ""
+                ]
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Link"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Span",
+              "c": [
+                [
+                  "term-id",
+                  [],
+                  []
+                ],
+                []
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Anchor"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Span",
+              "c": [
+                [
+                  "",
+                  [
+                    "icon"
+                  ],
+                  [
+                    [
+                      "asciidoc-icon",
+                      "user"
+                    ],
+                    [
+                      "name",
+                      "heart"
+                    ]
+                  ]
+                ],
+                [
+                  {
+                    "t": "Str",
+                    "c": "[heart]"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Icon"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Note",
+              "c": [
+                {
+                  "t": "Para",
+                  "c": [
+                    {
+                      "t": "Str",
+                      "c": "Note"
+                    },
+                    {
+                      "t": "Space"
+                    },
+                    {
+                      "t": "Str",
+                      "c": "{value}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Footnote"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Span",
+              "c": [
+                [
+                  "",
+                  [
+                    "counter"
+                  ],
+                  [
+                    [
+                      "name",
+                      "term"
+                    ]
+                  ]
+                ],
+                [
+                  {
+                    "t": "Str",
+                    "c": "1"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Count"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Span",
+                    "c": [
+                      [
+                        "",
+                        [
+                          "counter"
+                        ],
+                        [
+                          [
+                            "name",
+                            "term"
+                          ]
+                        ]
+                      ],
+                      [
+                        {
+                          "t": "Str",
+                          "c": "2"
+                        }
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        ],
+        [
+          [
+            {
+              "t": "Span",
+              "c": [
+                [
+                  "",
+                  [
+                    "role"
+                  ],
+                  []
+                ],
+                [
+                  {
+                    "t": "Str",
+                    "c": "User"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "wrapper"
+                  }
+                ]
+              ]
+            }
+          ],
+          [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "Wrapper"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "definition"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Cedar"
+                  },
+                  {
+                    "t": "Space"
+                  },
+                  {
+                    "t": "Str",
+                    "c": "Ridge"
+                  }
+                ]
+              }
+            ]
+          ]
+        ]
+      ]
+    },
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "target",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "Target"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "See"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Link",
+          "c": [
+            [
+              "",
+              [
+                "cross-reference"
+              ],
+              []
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "Target"
+              }
+            ],
+            [
+              "#target",
+              ""
+            ]
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "and"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Link",
+          "c": [
+            [
+              "",
+              [
+                "cross-reference"
+              ],
+              []
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "term-id"
+              }
+            ],
+            [
+              "#term-id",
+              ""
+            ]
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "and"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Note",
+          "c": [
+            {
+              "t": "Para",
+              "c": []
+            }
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "."
+        }
+      ]
+    }
+  ]
+}

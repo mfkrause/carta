@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Visit
+  <emphasis role="underline"><link xlink:href="http://example.com">our
+  site</link></emphasis> and
+  <emphasis role="strong"><link xlink:href="http://other.com">bold</link></emphasis><link xlink:href="http://other.com">
+  plain</link>.
+</para>

@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+/ Term: #block[
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([first
+
+      second line
+
+      ],),
+    table.hline(),
+    table.hline(),
+    table.footer([next
+
+      ],),
+  )]
+  , kind: table
+  )
+]

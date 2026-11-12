@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Section Title&lt;span id=&quot;first target&quot;&gt;&lt;/span&gt;" _note="Body under the section.">
+</outline>

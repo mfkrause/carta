@@ -1,0 +1,87 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# First"
+   ],
+   "id": "9611fdee-0eaf-48ec-b326-4d22297806a8"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "###### Deeper *heading*"
+   ],
+   "id": "535013f0-a71a-4e5d-9018-844b47a05156"
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "collapsed": false,
+    "language": "python"
+   },
+   "outputs": [
+    {
+     "output_type": "stream",
+     "name": "stdout",
+     "text": [
+      "1\n"
+     ]
+    },
+    {
+     "output_type": "execute_result",
+     "execution_count": 1,
+     "metadata": {},
+     "data": {
+      "text/plain": [
+       "1"
+      ]
+     }
+    },
+    {
+     "output_type": "error",
+     "ename": "ExampleError",
+     "evalue": "text",
+     "traceback": [
+      "line 1\n",
+      "ExampleError: text\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(1)"
+   ],
+   "id": "822f7085-72b3-4188-8c4f-2a3d99afa7e0"
+  },
+  {
+   "cell_type": "raw",
+   "metadata": {
+    "raw_mimetype": "text/latex"
+   },
+   "source": [
+    "\\textbf{raw}"
+   ],
+   "id": "7add06f3-3a7c-4ccf-8ad5-7b617829dd30"
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Final text"
+   ],
+   "id": "929fd71e-c4ab-4d42-960a-5e1d7245ee54"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {
+  "title": "Older notebook"
+ }
+}

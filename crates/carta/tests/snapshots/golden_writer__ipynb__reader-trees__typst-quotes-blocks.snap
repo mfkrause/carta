@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "> A block quotation body.\n",
+    "\n",
+    "“an inline quotation”\n",
+    "\n",
+    "> Attributed block quotation.\n",
+    ">\n",
+    "> — Someone\n",
+    "\n",
+    "------------------------------------------------------------------------\n",
+    "\n",
+    "> A first quoted paragraph.\n",
+    ">\n",
+    "> - a quoted item\n",
+    ">\n",
+    "> - another item"
+   ],
+   "id": "45b41a50-37c6-41c4-83bd-57bd80186268"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+- Outer
+
+      code
+
+Term
+
+:     literal
+
+- 
+
+- First
+
+- Second
+
+<!-- -->
+
+- Parent
+
+<!-- -->
+
+    [.role]
+
+Text

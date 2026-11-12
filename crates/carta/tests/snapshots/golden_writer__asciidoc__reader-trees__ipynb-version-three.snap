@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+== First
+
+======= Deeper _heading_
+
+[source,python]
+----
+print(1)
+----
+
+....
+1
+....
+
+....
+1
+....
+
+....
+line 1
+ExampleError: text
+....
+
+Final text

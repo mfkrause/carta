@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* A
+:PROPERTIES:
+:CUSTOM_ID: x
+:END:
+[[#x][x]] [[#x][x]] [[#x][=x=]]
+
+* B
+:PROPERTIES:
+:CUSTOM_ID: y
+:END:
+[[#y][B]] [[#y][B]]
+
+[[#z][Inline label]]

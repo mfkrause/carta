@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+To a labelled section: link:#labelled[The label the section states].
+
+To a labelled section, overridden: link:#labelled[Some other wording].
+
+To a labelled table: link:#grid[The label the table states].
+
+To an unlabelled section: link:#plain[An unlabelled section].
+
+[#wording]#Some other wording#
+
+[[labelled]]
+== A labelled section
+
+Body.
+
+[[plain]]
+== An unlabelled section
+
+Body.
+
+.A labelled table
+[cols="",]
+|===
+|Cell
+|===

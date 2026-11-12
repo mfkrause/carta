@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.IP \(bu 2
+Term
+.RS 2
+.TP
+* Another
+Definition
+.RE
+.IP \(bu 2
+Separate
+.IP \(bu 2
+.RS 2
+.TP
+Separate
+Definition
+.RE

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 code\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 literal\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 raw\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ==== example ==== after\par}

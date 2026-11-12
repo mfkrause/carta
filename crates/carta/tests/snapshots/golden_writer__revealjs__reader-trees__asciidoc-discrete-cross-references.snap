@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="x" class="slide level1">
+<h1>A</h1>
+<p><a href="#/x" class="cross-reference">x</a> <a href="#/x"
+class="cross-reference">x</a> <a href="#/x"
+class="cross-reference"><code>x</code></a></p>
+</section>
+<section id="y" class="slide level1">
+<h1>B</h1>
+<p><a href="#/y" class="cross-reference">B</a> <a href="#/y"
+class="cross-reference">B</a></p>
+<p><span id="z"></span></p>
+<p><a href="#/z" class="cross-reference">Inline label</a></p>
+</section>

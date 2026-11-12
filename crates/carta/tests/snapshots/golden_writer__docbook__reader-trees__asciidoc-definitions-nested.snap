@@ -1,0 +1,71 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<variablelist>
+  <varlistentry>
+    <term>
+      Operating systems
+    </term>
+    <listitem>
+      <variablelist>
+        <varlistentry>
+          <term>
+            Linux
+          </term>
+          <listitem>
+            <orderedlist>
+              <listitem>
+                <para>
+                  Fedora
+                </para>
+              </listitem>
+              <listitem>
+                <para>
+                  Debian
+                </para>
+              </listitem>
+            </orderedlist>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>
+            BSD
+          </term>
+          <listitem>
+            <orderedlist>
+              <listitem>
+                <para>
+                  FreeBSD
+                </para>
+                <variablelist>
+                  <varlistentry>
+                    <term>
+                      Cloud
+                    </term>
+                    <listitem>
+                      <variablelist spacing="compact">
+                        <varlistentry>
+                          <term>
+                            PaaS
+                          </term>
+                          <listitem>
+                          </listitem>
+                        </varlistentry>
+                      </variablelist>
+                    </listitem>
+                  </varlistentry>
+                </variablelist>
+              </listitem>
+              <listitem>
+                <para>
+                  Service
+                </para>
+              </listitem>
+            </orderedlist>
+          </listitem>
+        </varlistentry>
+      </variablelist>
+    </listitem>
+  </varlistentry>
+</variablelist>

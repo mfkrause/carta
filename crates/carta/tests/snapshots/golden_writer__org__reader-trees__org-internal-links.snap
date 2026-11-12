@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[[#later][*Forward link*]] and [[file:later][file:later]].
+
+A named target.
+
+[[#later][later]] and /Missing target/.
+
+and .
+
+[[#a-b][a/b]] and [[#a-b-1][a+b]].
+
+| Link | [[#later][later]] |
+
+Text with a note.[fn:1]
+
+[fn:1] See [[#later][later]].

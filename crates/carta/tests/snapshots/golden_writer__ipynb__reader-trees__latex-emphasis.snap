@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Text with *emphasis* and **bold** and *italic*.\n",
+    "\n",
+    "A run with **bold and *nested emphasis* inside** it.\n",
+    "\n",
+    "Also <u>underlined</u>, <span class=\"smallcaps\">small caps</span>, and\n",
+    "~~struck out~~."
+   ],
+   "id": "9ca1e4ef-02c5-41f6-a801-d9d769dfce70"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

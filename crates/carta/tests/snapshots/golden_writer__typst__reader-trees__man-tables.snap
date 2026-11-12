@@ -1,0 +1,77 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+= TABLES
+<tables>
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (left,right,),
+    table.header([Name], [Age],),
+    table.hline(),
+    [Ada], [36],
+    [Grace Hopper], [85],
+  )]
+  , kind: table
+  )
+
+A second table without a header rule follows.
+
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (center,center,),
+    [Left], [Right],
+    [one], [two],
+  )]
+  , kind: table
+  )
+
+A table with a multi-line text block follows.
+
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (left,left,),
+    [Name], [A long description],
+    [Left], [Right],
+  )]
+  , kind: table
+  )
+
+A table with a horizontal span follows.
+
+#figure(
+  align(center)[#table(
+    columns: 3,
+    align: (left,auto,left,),
+    table.cell(colspan: 2)[Wide span], [End],
+    table.cell(colspan: 2)[one], [three],
+  )]
+  , kind: table
+  )
+
+A table with a vertical span follows.
+
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (left,left,),
+    table.cell(rowspan: 2)[Name], [One],
+    [Two],
+  )]
+  , kind: table
+  )
+
+A table with combined spans follows.
+
+#figure(
+  align(center)[#table(
+    columns: 3,
+    align: (left,auto,left,),
+    table.cell(rowspan: 2, colspan: 2)[Wide], [First],
+    [Second],
+  )]
+  , kind: table
+  )

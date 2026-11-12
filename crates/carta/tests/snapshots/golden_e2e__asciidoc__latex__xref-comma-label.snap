@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-\hyperref[spot]{Label, with comma} and \hyperref[spot]{Label,role=x}.

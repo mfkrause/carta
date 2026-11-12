@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Plain, \f[I]emphasized\f[R], \f[B]strong\f[R], \f[B]bold\f[R],
+\f[I]underlined\f[R] and [STRIKEOUT:struck] runs.
+.PP
+Water is H~2~O and the area is r^2^.
+.PP
+A \(lqquotation `inside' another\(rq alternates its marks.
+.PP
+Code faces: \f[CR]literal\f[R], \f[CR]ls\f[R], \f[CR]/etc/hosts\f[R],
+\f[CR]strlen\f[R], \f[CR]Widget\f[R], \f[CR]PATH\f[R],
+\f[CR]\-\-verbose\f[R], \f[CR]done\f[R], \f[CR]MAX\f[R],
+\f[CR]count\f[R], \f[CR]<br/>\f[R], and \f[CR](...)\f[R].
+.PP
+Fill in <name> and maybe [a flag].
+.PP
+A \f[I]lingua franca\f[R] and a \f[I]word\f[R].
+.PP
+A bare phrase carries nothing extra.
+.PP
+Press Ctrl+C or pick File > Save.
+.PP
+An anchored spot.

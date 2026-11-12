@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  To a labelled section: <link linkend="labelled">The label the section
+  states</link>.
+</para>
+<para>
+  To a labelled section, overridden: <link linkend="labelled">Some other
+  wording</link>.
+</para>
+<para>
+  To a labelled table: <link linkend="grid">The label the table
+  states</link>.
+</para>
+<para>
+  To an unlabelled section: <link linkend="plain">An unlabelled
+  section</link>.
+</para>
+<para>
+  <anchor xml:id="wording" />Some other wording
+</para>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="labelled">
+  <title>A labelled section</title>
+  <para>
+    Body.
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="plain">
+  <title>An unlabelled section</title>
+  <para>
+    Body.
+  </para>
+  <table>
+    <title>A labelled table</title>
+    <tgroup cols="1">
+      <colspec align="left" />
+      <tbody>
+        <row>
+          <entry>
+            Cell
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </table>
+</section>

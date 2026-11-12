@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.TP
+first
+.PD 0
+.P
+.PD
+second
+shared definition

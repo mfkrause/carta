@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  A claim<footnote>
+    The source.
+  </footnote> here.
+</para>

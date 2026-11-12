@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| Heading | Value |
+|:--------|:------|
+| Item    | 12    |
+
+Table *caption* {#table}
+
+See Table <a href="#table" data-reference-type="ref"
+data-reference="table">1</a>.
+
+|         |
+|:--------|
+| Content |
+
+First line\
+Second line

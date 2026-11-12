@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+/ `-a`: #block[
+Output all.
+]
+/ `-b, --brief`: #block[
+Be brief about it.
+]
+/ `--verbose`: #block[
+Talk a great deal.
+]
+/ `-f FILE`: #block[
+Read input from FILE.
+]
+
+The description may also start on the next line:
+
+/ `--output=FILE`: #block[
+Write output to FILE instead of standard output.
+]

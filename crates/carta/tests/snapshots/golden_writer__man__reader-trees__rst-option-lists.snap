@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.TP
+\f[CR]\-a\f[R]
+Output all.
+.TP
+\f[CR]\-b, \-\-brief\f[R]
+Be brief about it.
+.TP
+\f[CR]\-\-verbose\f[R]
+Talk a great deal.
+.TP
+\f[CR]\-f FILE\f[R]
+Read input from FILE.
+.PP
+The description may also start on the next line:
+.TP
+\f[CR]\-\-output=FILE\f[R]
+Write output to FILE instead of standard output.

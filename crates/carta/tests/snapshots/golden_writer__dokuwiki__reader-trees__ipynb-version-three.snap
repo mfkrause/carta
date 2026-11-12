@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+====== First ======
+
+= Deeper heading =
+
+<code python>
+print(1)
+</code>
+
+<code>
+1
+</code>
+
+
+<code>
+1
+</code>
+
+
+<code>
+line 1
+ExampleError: text
+</code>
+
+
+
+Final text

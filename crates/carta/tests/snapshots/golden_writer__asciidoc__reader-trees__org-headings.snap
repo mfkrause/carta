@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+== First level heading
+
+Body text under the first heading.
+
+[[second-level-heading]]
+=== Second level heading [.tag]#[smallcaps]#work## [.tag]#[smallcaps]#urgent##
+
+==== Third level heading

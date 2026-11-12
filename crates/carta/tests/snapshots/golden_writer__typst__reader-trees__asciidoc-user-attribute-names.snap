@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+= Heading
+<_heading>
+#block[
+#block[
+Titled
+
+]
+
+== Nested
+=== Discrete
+#box(image("./images/icons/heart.png"))
+
+​<spot> #link(<spot>)[]
+
+== HTML
+== Data
+== Prefix
+=== Prefix
+<_prefix>
+
+] <_nested>

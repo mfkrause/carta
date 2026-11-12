@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span class=\"foo bar\" data-wrapper=\"1\">**x**</span> and <a href=\"page\"\n",
+    "class=\"b\">Hello</a>."
+   ],
+   "id": "8f2e77c7-afd5-483a-81e3-0c8fe67e9ef0"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

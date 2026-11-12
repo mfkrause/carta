@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<figure id=\"fig:sample\">\n",
+    "<img src=\"diagram.png\" />\n",
+    "<figcaption>A sample diagram.</figcaption>\n",
+    "</figure>"
+   ],
+   "id": "e8fe1e08-f654-485c-8b13-320861973898"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<code>
+col   col
+    indented
+</code>
+
+<code>
+$ carta
+</code>
+
+a  b //emphasized// [[https://example.com/|linked]]\\
+  second    line
+
+<code>
+kept  as    code
+</code>

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Example and \{missing\}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 {\cf1 [image: photo.png]\cf0} {\i x} {\f1 code}\par}

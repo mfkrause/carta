@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+lw(70.0n).
+T{
+.sp
+Next line
+T}
+T{
+.sp
+Label text
+T}
+T{
+.sp
+remainder
+T}
+T{
+.sp
+before  after
+.sp
+After blank
+T}
+T{
+.sp
+Whitespace id
+T}
+T{
+.sp
+Malformed id
+T}
+T{
+.sp
+Trailing spaces
+T}
+.TE
+.PP
+.TS
+tab(@);
+lw(70.0n).
+T{
+.sp
+1 title
+.sp
+2 body
+T}
+.TE
+.PP
+1 3

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<literallayout>A hard
+break.</literallayout>
+<literallayout>a
+b</literallayout>
+<literallayout>third
+fourth</literallayout>
+<literallayout>first
+
+second</literallayout>

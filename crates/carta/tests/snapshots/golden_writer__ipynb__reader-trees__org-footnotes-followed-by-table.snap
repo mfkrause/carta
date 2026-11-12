@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "See the note[1] below.\n",
+    "\n",
+    "[1] The note body paragraph.\n",
+    "\n",
+    "|          |          |\n",
+    "|----------|----------|\n",
+    "| Column A | Column B |\n",
+    "| 1        | 2        |"
+   ],
+   "id": "0d0286a2-382f-4b0b-9f3a-060be97a7e0e"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

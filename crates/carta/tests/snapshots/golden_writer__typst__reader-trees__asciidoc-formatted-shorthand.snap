@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+​text<id> #strong[bold]
+
+​#highlight[text]<x> text text
+
+prefix #strong[strong] #emph[italic] span span
+
+prefix #strong[strong] #highlight[mark]

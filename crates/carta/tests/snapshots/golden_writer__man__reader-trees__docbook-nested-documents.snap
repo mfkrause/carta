@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH First chapter
+Text in the chapter.
+.SS A section
+An equation
+.RS
+\f[I]e\f[R] = 2
+.RE stands in the sentence around it.
+Aside
+.PP
+Set beside the text.
+.PP
+.RS
+\f[I]y\f[R] = \f[I]x\f[R]
+.RE
+.SS Deeper still
+The count restarts where the article stands.
+.SH Second chapter
+[IMAGE: Alternative words]
+A figure

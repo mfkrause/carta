@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span data-label=\"identity\">$$e^{i\\pi} + 1 = 0$$</span>"
+   ],
+   "id": "21f00a2e-9e34-4600-9481-79bd61a0dd90"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

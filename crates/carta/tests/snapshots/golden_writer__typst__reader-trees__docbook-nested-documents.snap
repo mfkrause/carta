@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+= First chapter
+Text in the chapter.
+
+== A section
+An equation $ e = 2 $ stands in the sentence around it.
+
+#block[
+#block[
+Aside
+]
+
+Set beside the text.
+
+]
+
+#block[
+$ y = x $
+
+]
+
+== Deeper still
+The count restarts where the article stands.
+
+= Second chapter
+#figure(image("plot.png", alt: "Alternative words"),
+  caption: [
+    A figure
+  ]
+)

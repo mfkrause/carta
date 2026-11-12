@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<tbody>
+<tr>
+<td><p id="next">Next line</p></td>
+</tr>
+<tr>
+<td><p id="labeled,label">Label text</p></td>
+</tr>
+<tr>
+<td><p><span id="inline"></span> remainder</p></td>
+</tr>
+<tr>
+<td><p>before <span id="middle"></span> after</p>
+<p id="after-blank">After blank</p></td>
+</tr>
+<tr>
+<td><p><span id="space inside"></span> Whitespace id</p></td>
+</tr>
+<tr>
+<td><p><span id="bad]bracket"></span> Malformed id</p></td>
+</tr>
+</tbody><tfoot>
+<tr>
+<td><p><span id="trailing"></span> Trailing spaces</p></td>
+</tr>
+</tfoot>
+
+</table>
+<table>
+<colgroup>
+<col style="width: 100%" />
+</colgroup>
+<tbody>
+</tbody><tfoot>
+<tr>
+<td><div>
+<div class="title">
+<p><span class="counter" name="ordered">1</span> title</p>
+</div>
+<p><span class="counter" name="ordered">2</span> body</p>
+</div></td>
+</tr>
+</tfoot>
+
+</table>
+<p><span class="counter" name="dangling">1</span> <span class="counter"
+name="ordered">3</span></p>

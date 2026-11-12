@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}{Top level}
+Body under the top heading.
+
+\begin{block}{Second level}
+\begin{block}{Third level}
+\begin{block}{Fourth level}
+\begin{block}{Fifth level}
+\begin{block}{Sixth level}
+\end{block}
+\end{block}
+\end{block}
+\end{block}
+\end{block}
+\end{frame}
+
+\begin{frame}{Heading with \textbf{strong} and \emph{emph}}
+\begin{block}{Inline heading text}
+\end{block}
+\end{frame}

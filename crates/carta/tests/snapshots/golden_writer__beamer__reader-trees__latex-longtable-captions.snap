@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{longtable}[]{@{}ll@{}}
+\caption[Short title]{Table \emph{caption}}\label{table}\tabularnewline
+\toprule\noalign{}
+Heading & Value \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Heading & Value \\
+\midrule\noalign{}
+\endhead
+Item & 12 \\
+\bottomrule\noalign{}
+\end{longtable}
+
+See Table \hyperlink{table}{1}.
+
+\begin{longtable}[]{@{}l@{}}
+\caption{First line\\
+Second line}\tabularnewline
+\toprule\noalign{}
+\endfirsthead
+\endhead
+Content \\
+\bottomrule\noalign{}
+\end{longtable}
+\end{frame}

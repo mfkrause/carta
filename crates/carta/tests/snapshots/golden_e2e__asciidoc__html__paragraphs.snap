@@ -1,6 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<p>A paragraph with two lines and extra spaces.</p>
-<p>New paragraph.</p>

@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+  Cell body.
+  ------------
+
+  --
+  --
+
++---------------------------------+
+| *First paragraph.*              |
+|                                 |
+| # Cell section {#_cell_section} |
+|                                 |
+| Section body.                   |
++=================================+
+
++-----------------------------------+
+| `First` `paragraph.`              |
+|                                   |
+| # Cell section {#_cell_section_2} |
+|                                   |
+| Section body.                     |
++===================================+
+
+::: example
++-------------------+
+| == Paragraph text |
+|                   |
+| Next paragraph.   |
++===================+
+:::
+
+# Outer {#_outer}
+
++--------------------+
+| ## Inner {#_inner} |
+|                    |
+| Inner body.        |
++====================+
+
+  *Before   After*
+  ------------------

@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+[IMAGE: \f[CR]p\f[R]]
+T}
+_
+T{
+.sp
+\f[CR]l\f[R]
+T}
+T{
+.sp
+[1]
+T}
+T{
+.sp
+\f[CR]span\f[R]
+T}
+.TE
+.SH NOTES
+.SS [1]
+.PP
+\f[CR]note\f[R]

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+= Alpha 1
+<_alpha>
+= Alpha term
+<_alpha_2>
+= Alpha foo
+<_alpha_3>
+= Alpha word
+<_alpha_4>
+= Alpha #strong[Tools~›~Build~›~Run]
+<_alpha_5>
+= Alpha #strong[\[Save\]]
+<_alpha_6>
+= Alpha #strong[Ctrl]+#strong[X]
+<_alpha_7>
+= Alpha <key>
+<_alpha_label>

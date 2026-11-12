@@ -1,0 +1,72 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Cell body.\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 {\i First paragraph.}\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Cell section\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Section body.\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 {\f1 First} {\f1 paragraph.}\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Cell section\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Section body.\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 == Paragraph text\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Next paragraph.\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Outer\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Inner\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Inner body.\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 {\i Before \u160 ? After}\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

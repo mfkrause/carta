@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Plain, #emph[emphasized], #strong[strong], #strong[bold],
+#underline[underlined] and #strike[struck] runs.
+
+Water is H#sub[2]O and the area is r#super[2].
+
+A "quotation 'inside' another" alternates its marks.
+
+Code faces: `literal`, `ls`, `/etc/hosts`, `strlen`, `Widget`, `PATH`,
+`--verbose`, `done`, `MAX`, `count`, `<br/>`, and `(...)`.
+
+Fill in \<name\> and maybe \[a flag\].
+
+A #emph[lingua franca] and a #emph[word].
+
+A bare phrase carries nothing extra.
+
+Press Ctrl+C or pick File \> Save.
+
+An <spot>anchored spot.

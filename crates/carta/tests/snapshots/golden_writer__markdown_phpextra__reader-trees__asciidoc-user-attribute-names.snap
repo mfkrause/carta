@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# Heading {#_heading asciidoc-heading="heading" asciidoc-icon="icon" asciidoc-identifier-source="source" asciidoc-section="section" wrapper="1"}
+
+<div id="_nested" data-asciidoc-heading="titled" data-asciidoc-section="titled" data-markdown="1">
+
+<div class="title" data-markdown="1">
+
+Titled
+
+</div>
+
+## Nested
+
+### Discrete {asciidoc-heading="discrete" asciidoc-section="discrete"}
+
+![](./images/icons/heart.png){.icon asciidoc-icon="user" wrapper="1"}
+
+<span id="spot" data-asciidoc-identifier-source="user"></span>
+[](#spot){.cross-reference}
+
+## HTML {c="1" a="3" b="4" asciidoc-heading="html-heading" asciidoc-section="html-section" wrapper="html"}
+
+## Data {z="1" a="3" x="4"}
+
+## Prefix {asciidoc-carta-user-attribute-asciidoc-heading="html-prefix"}
+
+### Prefix {#_prefix asciidoc-carta-user-attribute-asciidoc-heading="prefix"}
+
+</div>

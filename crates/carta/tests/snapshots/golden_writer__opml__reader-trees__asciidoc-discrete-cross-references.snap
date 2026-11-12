@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="A" _note="[x](#x){.cross-reference} [x](#x){.cross-reference}&#10;[`x`](#x){.cross-reference}">
+</outline>
+<outline text="B" _note="[B](#y){.cross-reference} [B](#y){.cross-reference}&#10;&#10;[]{#z}&#10;&#10;[Inline label](#z){.cross-reference}">
+</outline>

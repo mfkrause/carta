@@ -1,0 +1,81 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Next line\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 Label text\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0  remainder\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 before  after\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 After blank\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0  Whitespace id\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0  Malformed id\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0  Trailing spaces\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 1 title\par}
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 2 body\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 1 3\par}

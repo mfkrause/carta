@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<div class="example">
-<p>before +++<br />
-inner</p>
-</div>
-<p>after ====</p>

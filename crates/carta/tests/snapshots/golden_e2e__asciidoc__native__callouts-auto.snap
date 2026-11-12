@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-[ CodeBlock
-    ( "" , [ "rust" ] , [] )
-    "first \9312 \9313\nsecond \9314 \9316"
-]

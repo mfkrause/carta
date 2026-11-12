@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+bq. A block quotation body.
+"an inline quotation"
+
+{quote}
+Attributed block quotation.
+
+— Someone
+{quote}
+----
+{quote}
+A first quoted paragraph.
+
+* a quoted item
+* another item
+{quote}

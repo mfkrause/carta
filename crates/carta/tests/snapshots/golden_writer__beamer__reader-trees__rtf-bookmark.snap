@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+See \protect\phantomsection\label{anchor}{this section} below.
+\end{frame}

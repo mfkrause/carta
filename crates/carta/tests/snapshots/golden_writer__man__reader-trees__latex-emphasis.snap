@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Text with \f[I]emphasis\f[R] and \f[B]bold\f[R] and \f[I]italic\f[R].
+.PP
+A run with \f[B]bold and \f[BI]nested emphasis\f[B] inside\f[R] it.
+.PP
+Also \f[I]underlined\f[R], small caps, and [STRIKEOUT:struck out].

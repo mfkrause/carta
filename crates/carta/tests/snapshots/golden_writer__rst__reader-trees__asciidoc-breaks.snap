@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+--------------
+
+--------------
+
+--------------
+
+.. container:: page-break
+
+   --------------
+
+.. container:: page-break
+
+   --------------
+
+| A hard
+| break.
+
+.. container::
+
+   | a
+   | b
+
+| third
+| fourth
+
+| first
+| second

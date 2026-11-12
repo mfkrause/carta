@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|-
+!
+|-
+| <div id="next" data-wrapper="1">
+Next line
+
+</div>
+|-
+| <div id="labeled,label" data-wrapper="1">
+Label text
+
+</div>
+|-
+| <span id="inline"></span> remainder
+|-
+| before <span id="middle"></span> after
+
+<div id="after-blank" data-wrapper="1">
+After blank
+
+</div>
+|-
+| <span id="space inside"></span> Whitespace id
+|-
+| <span id="bad]bracket"></span> Malformed id
+|-
+! <span id="trailing"></span> Trailing spaces
+|}
+
+{| class="wikitable"
+|-
+!
+|-
+! <div>
+<div class="title">
+<span class="counter" name="ordered">1</span> title
+
+</div>
+
+<span class="counter" name="ordered">2</span> body
+
+</div>
+|}
+
+<span class="counter" name="dangling">1</span> <span class="counter" name="ordered">3</span>

@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.TP
+{value}
+Definition Cedar Ridge
+.TP
+\f[B]{value}\f[R]
+Strong definition Cedar Ridge
+.TP
+target
+Link definition Cedar Ridge
+.TP
+
+Anchor definition Cedar Ridge
+.TP
+[heart]
+Icon definition Cedar Ridge
+.TP
+[1]
+Footnote definition Cedar Ridge
+.TP
+1
+Count 2
+.TP
+User wrapper
+Wrapper definition Cedar Ridge
+.SH Target
+See Target and term\-id and [2].
+.SH NOTES
+.SS [1]
+.PP
+Note {value}
+.SS [2]
+.PP

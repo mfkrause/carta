@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span data-label="identity">$$e^{i\pi} + 1 = 0$$</span>

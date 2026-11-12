@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# Heading
+
+<div id="_nested" data-asciidoc-heading="titled" data-asciidoc-section="titled">
+
+<div class="title">
+
+Titled
+
+</div>
+
+## Nested
+
+### Discrete
+
+<img src="./images/icons/heart.png" class="icon" data-asciidoc-icon="user" data-wrapper="1" />
+
+<span id="spot" data-asciidoc-identifier-source="user"></span> <a
+href="#spot" class="cross-reference"></a>
+
+## HTML
+
+## Data
+
+## Prefix
+
+### Prefix
+
+</div>

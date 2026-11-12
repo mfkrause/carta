@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[[x]]
+== A
+
+link:#x[x] link:#x[x] link:#x[`x`]
+
+[[y]]
+== B
+
+link:#y[B] link:#y[B]
+
+[#z]##
+
+link:#z[Inline label]

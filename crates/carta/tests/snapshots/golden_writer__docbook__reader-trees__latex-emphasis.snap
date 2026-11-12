@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Text with <emphasis>emphasis</emphasis> and
+  <emphasis role="strong">bold</emphasis> and
+  <emphasis>italic</emphasis>.
+</para>
+<para>
+  A run with <emphasis role="strong">bold and <emphasis>nested
+  emphasis</emphasis> inside</emphasis> it.
+</para>
+<para>
+  Also <emphasis role="underline">underlined</emphasis>,
+  <emphasis role="smallcaps">small caps</emphasis>, and
+  <emphasis role="strikethrough">struck out</emphasis>.
+</para>

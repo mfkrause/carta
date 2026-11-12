@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+A https://example.com[linked body] keeps the padding of its content.
+
+A box holds [.box]#its own spacing# within the line.
+
+An underlined [.underline]#padded body# sits beside plain words.
+
+____
+A spaced quotation.
+
+—  A. Author
+____
+
+A footnote body is trimmed footnote:[Trimmed on both ends.] here.
+
+.Figure caption.
+image::diagram.png[diagram]
+
+Loop rounds join with their padding: 1 2 3 .
+
+A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.
+
+image:diagram.png[diagram,width=1000.0]
+
+The binding kept survives its statement.

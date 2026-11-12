@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Alpha 1
+:PROPERTIES:
+:CUSTOM_ID: _alpha
+:END:
+* Alpha term
+:PROPERTIES:
+:CUSTOM_ID: _alpha_2
+:END:
+* Alpha foo
+:PROPERTIES:
+:CUSTOM_ID: _alpha_3
+:END:
+* Alpha word
+:PROPERTIES:
+:CUSTOM_ID: _alpha_4
+:END:
+* Alpha *Tools › Build › Run*
+:PROPERTIES:
+:CUSTOM_ID: _alpha_5
+:END:
+* Alpha *[Save]*
+:PROPERTIES:
+:CUSTOM_ID: _alpha_6
+:END:
+* Alpha *Ctrl*+*X*
+:PROPERTIES:
+:CUSTOM_ID: _alpha_7
+:END:
+* Alpha 
+:PROPERTIES:
+:CUSTOM_ID: _alpha_label
+:END:

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Before kept text after.
+</para>
+<para>
+  <emphasis>Formatted text</emphasis>
+</para>
+<para>
+  <inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="image.png" width="50.0%" />
+    </imageobject>
+    <textobject>
+      <phrase>image</phrase>
+    </textobject>
+  </inlinemediaobject>
+</para>

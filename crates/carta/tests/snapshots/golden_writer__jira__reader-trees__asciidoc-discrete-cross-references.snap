@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:x}A
+[x|#x] [x|#x] [{{x}}|#x]
+
+h1. {anchor:y}B
+[B|#y] [B|#y]
+
+{anchor:z}
+
+[Inline label|#z]

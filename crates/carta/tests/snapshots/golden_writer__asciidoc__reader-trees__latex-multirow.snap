@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols="<,<",]
+|===
+.2+|_Name_ |One
+|Two
+|===
+
+[cols="<,<,<",]
+|===
+2.2+^|Wide |First
+|Second
+|===
+
+[cols="<,<",]
+|===
+.2+|Upward |Above
+|Below
+|===

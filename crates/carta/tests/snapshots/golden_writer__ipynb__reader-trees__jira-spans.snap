@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "An <span id=\"target\"></span> anchor marks a spot.\n",
+    "\n",
+    "Text continues after the anchor span."
+   ],
+   "id": "0ad2135e-7eda-4b1b-947e-b1dd58f5928c"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

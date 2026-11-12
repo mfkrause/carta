@@ -1,6 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<a href="#spot" class="cross-reference">Label, with comma</a> and
-<a href="#spot" class="cross-reference">Label,role=x</a>.

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Text with _emphasis_ and *bold* and _italic_.
+
+A run with *bold and _nested emphasis_ inside* it.
+
+Also [.underline]#underlined#, [smallcaps]#small caps#, and
+[line-through]#struck out#.

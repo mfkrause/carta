@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  A normal reference [knuth1984] sits in the sentence.
+</para>
+<para>
+  Author and year: [knuth1984].
+</para>
+<para>
+  Year only: [knuth1984].
+</para>
+<para>
+  Prose form: [knuth1984].
+</para>

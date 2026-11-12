@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li0 \fi0 Operating systems\par}
+{\pard \ql \f0 \sa0 \li360 \fi0 Linux\par}
+{\pard \ql \f0 \sa180 \li1080 \fi-360 1.\tx360\tab Fedora\par}
+{\pard \ql \f0 \sa180 \li1080 \fi-360 2.\tx360\tab Debian\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi0 BSD\par}
+{\pard \ql \f0 \sa180 \li1080 \fi-360 1.\tx360\tab FreeBSD\par}
+{\pard \ql \f0 \sa0 \li1080 \fi0 Cloud\par}
+{\pard \ql \f0 \sa0 \li1440 \fi0 PaaS\sa180\sa180\par}
+{\pard \ql \f0 \sa180 \li1080 \fi-360 2.\tx360\tab Service\sa180\sa180\sa180\par}

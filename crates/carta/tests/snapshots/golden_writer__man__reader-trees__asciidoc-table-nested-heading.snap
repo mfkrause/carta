@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l.
+T{
+.SH Heading
+.br
+.in +2n
+.ti -2n
+\(bu\~
+item
+.br
+.in -2n
+.br
+.EX
+code
+.EE
+T}
+_
+.TE

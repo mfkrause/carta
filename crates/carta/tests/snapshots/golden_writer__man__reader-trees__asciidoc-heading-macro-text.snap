@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH Alpha 1
+.SH Alpha term
+.SH Alpha foo
+.SH Alpha word
+.SH Alpha \f[B]Tools\ ›\ Build\ ›\ Run\f[R]
+.SH Alpha \f[B][Save]\f[R]
+.SH Alpha \f[B]Ctrl\f[R]+\f[B]X\f[R]
+.SH Alpha

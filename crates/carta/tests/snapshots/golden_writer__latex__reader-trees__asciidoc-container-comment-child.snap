@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{verbatim}
+listing body
+\end{verbatim}
+
+after
+
+\begin{verbatim}
+literal body
+\end{verbatim}
+
+after
+
+\begin{quote}
+pass body
+\end{quote}
+
+after

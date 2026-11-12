@@ -1,0 +1,61 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<table>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\"><table>\n",
+    "<thead>\n",
+    "<tr>\n",
+    "<th style=\"text-align: left;\">Inner</th>\n",
+    "<th style=\"text-align: right;\">Right</th>\n",
+    "</tr>\n",
+    "</thead>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\">Next</td>\n",
+    "<td style=\"text-align: right;\">Last</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table></td>\n",
+    "<td style=\"text-align: left;\">Outer</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\">Final</td>\n",
+    "<td style=\"text-align: left;\">Tail</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table>\n",
+    "\n",
+    "<table>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\"><table>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td style=\"text-align: center;\">Grouped</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td style=\"text-align: center;\">Content</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table></td>\n",
+    "<td style=\"text-align: left;\">A&amp;B</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table>"
+   ],
+   "id": "da65874a-88fb-4fac-a494-b62744c8a108"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

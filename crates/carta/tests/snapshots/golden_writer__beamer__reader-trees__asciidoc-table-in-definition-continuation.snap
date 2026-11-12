@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{description}
+\item[Term]
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 0\tabcolsep) * \real{1.0000}}@{}}
+\toprule\noalign{}
+first
+
+second line \\
+\midrule\noalign{}
+\endhead
+\midrule\noalign{}
+next \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{description}
+\end{frame}

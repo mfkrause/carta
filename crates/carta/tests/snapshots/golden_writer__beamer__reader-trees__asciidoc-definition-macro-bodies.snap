@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{itemize}
+\tightlist
+\item
+  \pandocbounded{\includegraphics[keepaspectratio,alt={movie.mp4}]{movie.mp4}}
+\end{itemize}
+
+\begin{itemize}
+\item
+  Outer
+
+  \begin{itemize}
+  \item
+    \begin{figure}
+    \centering
+    \pandocbounded{\includegraphics[keepaspectratio]{nested.png}}
+    \caption{}
+    \end{figure}
+  \end{itemize}
+\end{itemize}
+
+\begin{description}
+\item[]
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{same.png}}
+\caption{}
+\end{figure}
+\item[Named]
+\protect\phantomsection\label{toc}
+\item[]
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{next.png}}
+\caption{}
+\end{figure}
+\item[Indented]
+\pandocbounded{\includegraphics[keepaspectratio,alt={sound.mp3}]{sound.mp3}}
+\item[A]
+\item[B and C]
+D
+\item[Bad]
+\item[include]
+missing{[}
+\end{description}
+\end{frame}

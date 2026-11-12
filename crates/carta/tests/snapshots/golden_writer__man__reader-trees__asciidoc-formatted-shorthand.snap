@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+text \f[B]bold\f[R]
+.PP
+text text text
+.PP
+prefix \f[B]strong\f[R] \f[I]italic\f[R] span span
+.PP
+prefix \f[B]strong\f[R] mark

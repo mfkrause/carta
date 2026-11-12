@@ -1,0 +1,63 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols="",options="header",]
+|===
+|Cell body.
+|===
+
+[cols="",]
+|===
+|===
+
+[cols="",options="header",]
+|===
+a|
+_First paragraph._
+
+[[_cell_section]]
+== Cell section
+
+Section body.
+
+|===
+
+[cols="",options="header",]
+|===
+a|
+`First` `paragraph.`
+
+[[_cell_section_2]]
+== Cell section
+
+Section body.
+
+|===
+
+[cols="",options="header",]
+|===
+a|
+== Paragraph text
+
+Next paragraph.
+
+|===
+
+[[_outer]]
+== Outer
+
+[cols="",options="header",]
+|===
+a|
+[[_inner]]
+=== Inner
+
+Inner body.
+
+|===
+
+[cols="",options="header",]
+|===
+|_Before   After_
+|===

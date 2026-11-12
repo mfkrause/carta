@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Alpha &lt;span class=&quot;counter&quot; name=&quot;x&quot;&gt;1&lt;/span&gt;">
+</outline>
+<outline text="Alpha &lt;span class=&quot;index&quot; data-term=&quot;term&quot;&gt;term&lt;/span&gt;">
+</outline>
+<outline text="Alpha &lt;span class=&quot;index&quot; data-term=&quot;foo&quot;&gt;foo&lt;/span&gt;">
+</outline>
+<outline text="Alpha word">
+</outline>
+<outline text="Alpha &lt;span class=&quot;menu&quot;&gt;&lt;strong&gt;Tools › Build › Run&lt;/strong&gt;&lt;/span&gt;">
+</outline>
+<outline text="Alpha &lt;span class=&quot;button&quot;&gt;&lt;strong&gt;[Save]&lt;/strong&gt;&lt;/span&gt;">
+</outline>
+<outline text="Alpha &lt;kbd&gt;&lt;strong&gt;Ctrl&lt;/strong&gt;&lt;/kbd&gt;+&lt;kbd&gt;&lt;strong&gt;X&lt;/strong&gt;&lt;/kbd&gt;">
+</outline>
+<outline text="Alpha &lt;span id=&quot;key&quot;&gt;&lt;/span&gt;">
+</outline>

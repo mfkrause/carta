@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#+begin_example
+listing body
+#+end_example
+
+after
+
+#+begin_example
+literal body
+#+end_example
+
+after
+
+#+begin_quote
+pass body
+#+end_quote
+
+after

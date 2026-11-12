@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para [ Str "deep" ]
+, Para
+    [ Emph
+        [ Emph
+            [ Emph
+                [ Emph
+                    [ Emph
+                        [ Emph
+                            [ Emph
+                                [ Emph
+                                    [ Emph
+                                        [ Emph
+                                            [ Emph
+                                                [ Emph
+                                                    [ Emph
+                                                        [ Str "layers" ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+]

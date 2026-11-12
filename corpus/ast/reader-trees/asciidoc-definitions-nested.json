@@ -1,0 +1,173 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "DefinitionList",
+      "c": [
+        [
+          [
+            {
+              "t": "Str",
+              "c": "Operating"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "systems"
+            }
+          ],
+          [
+            [
+              {
+                "t": "DefinitionList",
+                "c": [
+                  [
+                    [
+                      {
+                        "t": "Str",
+                        "c": "Linux"
+                      }
+                    ],
+                    [
+                      [
+                        {
+                          "t": "OrderedList",
+                          "c": [
+                            [
+                              1,
+                              {
+                                "t": "DefaultStyle"
+                              },
+                              {
+                                "t": "DefaultDelim"
+                              }
+                            ],
+                            [
+                              [
+                                {
+                                  "t": "Para",
+                                  "c": [
+                                    {
+                                      "t": "Str",
+                                      "c": "Fedora"
+                                    }
+                                  ]
+                                }
+                              ],
+                              [
+                                {
+                                  "t": "Para",
+                                  "c": [
+                                    {
+                                      "t": "Str",
+                                      "c": "Debian"
+                                    }
+                                  ]
+                                }
+                              ]
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  ],
+                  [
+                    [
+                      {
+                        "t": "Str",
+                        "c": "BSD"
+                      }
+                    ],
+                    [
+                      [
+                        {
+                          "t": "OrderedList",
+                          "c": [
+                            [
+                              1,
+                              {
+                                "t": "DefaultStyle"
+                              },
+                              {
+                                "t": "DefaultDelim"
+                              }
+                            ],
+                            [
+                              [
+                                {
+                                  "t": "Para",
+                                  "c": [
+                                    {
+                                      "t": "Str",
+                                      "c": "FreeBSD"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "t": "DefinitionList",
+                                  "c": [
+                                    [
+                                      [
+                                        {
+                                          "t": "Str",
+                                          "c": "Cloud"
+                                        }
+                                      ],
+                                      [
+                                        [
+                                          {
+                                            "t": "DefinitionList",
+                                            "c": [
+                                              [
+                                                [
+                                                  {
+                                                    "t": "Str",
+                                                    "c": "PaaS"
+                                                  }
+                                                ],
+                                                [
+                                                  []
+                                                ]
+                                              ]
+                                            ]
+                                          }
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                }
+                              ],
+                              [
+                                {
+                                  "t": "Para",
+                                  "c": [
+                                    {
+                                      "t": "Str",
+                                      "c": "Service"
+                                    }
+                                  ]
+                                }
+                              ]
+                            ]
+                          ]
+                        }
+                      ]
+                    ]
+                  ]
+                ]
+              }
+            ]
+          ]
+        ]
+      ]
+    }
+  ]
+}

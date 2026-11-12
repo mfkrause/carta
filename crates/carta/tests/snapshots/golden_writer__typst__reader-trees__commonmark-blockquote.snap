@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#quote(block: true)[
+A block quote.
+
+#quote(block: true)[
+A nested block quote.
+]
+
+Back to the outer level.
+]

@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<itemizedlist>
+  <listitem>
+    <para>
+      Outer
+    </para>
+    <programlisting>
+code
+</programlisting>
+  </listitem>
+</itemizedlist>
+<variablelist>
+  <varlistentry>
+    <term>
+      Term
+    </term>
+    <listitem>
+      <programlisting>
+literal
+</programlisting>
+    </listitem>
+  </varlistentry>
+</variablelist>
+<itemizedlist>
+  <listitem>
+  </listitem>
+  <listitem>
+    <para>
+      First
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      Second
+    </para>
+  </listitem>
+</itemizedlist>
+<itemizedlist>
+  <listitem>
+    <para>
+      Parent
+    </para>
+  </listitem>
+</itemizedlist>
+<programlisting>
+[.role]
+</programlisting>
+<para>
+  Text
+</para>

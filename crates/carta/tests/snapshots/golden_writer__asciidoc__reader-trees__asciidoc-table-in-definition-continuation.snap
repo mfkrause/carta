@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Term::
+  [cols="",options="header,footer",]
+  |===
+  a|
+  first
+
+  second line
+
+  |next
+  |===

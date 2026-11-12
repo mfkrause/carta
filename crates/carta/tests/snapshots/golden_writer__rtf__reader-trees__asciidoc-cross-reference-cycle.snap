@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 {\field{\*\fldinst{HYPERLINK "#self"}}{\fldrslt{\ul
+{\field{\*\fldinst{HYPERLINK "#self"}}{\fldrslt{\ul
+self
+}}}
+
+}}}
+\par}

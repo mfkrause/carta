@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH A
+x x \f[CR]x\f[R]
+.SH B
+B B
+.PP
+.PP
+Inline label

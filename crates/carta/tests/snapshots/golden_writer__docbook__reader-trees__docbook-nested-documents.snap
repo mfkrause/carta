@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <title>First chapter</title>
+  <para>
+    Text in the chapter.
+  </para>
+  <section>
+    <title>A section</title>
+    <para>
+      An equation <emphasis>e</emphasis> = 2 stands in the sentence
+      around it.
+    </para>
+    <para>
+      Aside
+    </para>
+    <para>
+      Set beside the text.
+    </para>
+    <para>
+      <emphasis>y</emphasis> = <emphasis>x</emphasis>
+    </para>
+  </section>
+  <section>
+    <title>Deeper still</title>
+    <para>
+      The count restarts where the article stands.
+    </para>
+  </section>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <title>Second chapter</title>
+  <figure>
+    <title>A figure</title>
+    <mediaobject>
+      <imageobject>
+        <imagedata fileref="plot.png" />
+      </imageobject>
+      <textobject><phrase>Alternative words</phrase></textobject>
+    </mediaobject>
+  </figure>
+</section>

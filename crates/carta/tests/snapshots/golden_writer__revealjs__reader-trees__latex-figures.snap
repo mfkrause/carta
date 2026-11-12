@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<figure id="fig:sample">
+<img data-src="diagram.png" />
+<figcaption>A sample diagram.</figcaption>
+</figure>
+</section>

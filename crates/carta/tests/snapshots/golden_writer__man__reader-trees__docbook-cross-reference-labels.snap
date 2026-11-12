@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+To a labelled section: The label the section states.
+.PP
+To a labelled section, overridden: Some other wording.
+.PP
+To a labelled table: The label the table states.
+.PP
+To an unlabelled section: An unlabelled section.
+.PP
+Some other wording
+.SH A labelled section
+Body.
+.SH An unlabelled section
+Body.
+.PP
+A labelled table
+.TS
+tab(@);
+l.
+T{
+Cell
+T}
+.TE

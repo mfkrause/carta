@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-\protect\phantomsection\label{intro}
-This paragraph carries the target identifier.
-
-Jump back to the \hyperref[intro]{intro} section.

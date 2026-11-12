@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| Cell body. |
+|------------|
+
+| /First paragraph./        |
+|                           |
+| * Cell section            |
+| :PROPERTIES:              |
+| :CUSTOM_ID: _cell_section |
+| :END:                     |
+| Section body.             |
+|---------------------------|
+
+| =First= =paragraph.=        |
+|                             |
+| * Cell section              |
+| :PROPERTIES:                |
+| :CUSTOM_ID: _cell_section_2 |
+| :END:                       |
+| Section body.               |
+|-----------------------------|
+
+| == Paragraph text |
+|                   |
+| Next paragraph.   |
+|-------------------|
+
+* Outer
+:PROPERTIES:
+:CUSTOM_ID: _outer
+:END:
+
+| ** Inner           |
+| :PROPERTIES:       |
+| :CUSTOM_ID: _inner |
+| :END:              |
+| Inner body.        |
+|--------------------|
+
+| /Before   After/ |
+|------------------|

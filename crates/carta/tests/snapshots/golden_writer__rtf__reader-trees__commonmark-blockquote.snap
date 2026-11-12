@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li720 \fi0 A block quote.\par}
+{\pard \ql \f0 \sa180 \li1440 \fi0 A nested block quote.\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 Back to the outer level.\par}

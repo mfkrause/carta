@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+\c
+.UR http://x.com
+a
+.PD 0
+.P
+.PD
+b
+.UE \c
+\ keeps the break inside the link label.

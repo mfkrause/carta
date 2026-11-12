@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-`link <http://x.com>`__ after
-
-`lead <http://y.com>`__\ tail
-
-`bold link <http://z.com>`__ next

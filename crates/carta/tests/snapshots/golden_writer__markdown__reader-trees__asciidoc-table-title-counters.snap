@@ -1,0 +1,88 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+  --
+  --
+
+[1]{.counter name="unused-d"}
+
++-----------------------------+
+| :::: {}                     |
+| ::: title                   |
+| [1]{.counter name="used-d"} |
+| :::                         |
+|                             |
+| [2]{.counter name="used-d"} |
+| ::::                        |
++=============================+
+
+[3]{.counter name="used-d"}
+
+  --
+  --
+
+[1]{.counter name="unused-e"}
+
++-------------------------------+
+| :::: {}                       |
+| ::: title                     |
+| [1]{.counter name="used-e"}   |
+| :::                           |
+|                               |
+| *[2]{.counter name="used-e"}* |
+| ::::                          |
++===============================+
+
+[3]{.counter name="used-e"}
+
+  --
+  --
+
+[1]{.counter name="unused-h"}
+
++-----------------------------+
+| :::: {}                     |
+| ::: title                   |
+| [1]{.counter name="used-h"} |
+| :::                         |
+|                             |
+| [2]{.counter name="used-h"} |
+| ::::                        |
++=============================+
+
+[3]{.counter name="used-h"}
+
+  --
+  --
+
+[1]{.counter name="unused-m"}
+
++-------------------------------+
+| :::: {}                       |
+| ::: title                     |
+| [1]{.counter name="used-m"}   |
+| :::                           |
+|                               |
+| [`2`]{.counter name="used-m"} |
+| ::::                          |
++===============================+
+
+[3]{.counter name="used-m"}
+
+  --
+  --
+
+[1]{.counter name="unused-s"}
+
++---------------------------------+
+| :::: {}                         |
+| ::: title                       |
+| [1]{.counter name="used-s"}     |
+| :::                             |
+|                                 |
+| **[2]{.counter name="used-s"}** |
+| ::::                            |
++=================================+
+
+[3]{.counter name="used-s"}

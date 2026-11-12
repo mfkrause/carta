@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Start middle <anchor xml:id="named" />anchor text end.
+</para>

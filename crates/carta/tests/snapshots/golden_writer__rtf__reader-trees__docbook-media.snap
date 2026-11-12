@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li0 \fi0 {\cf1 [image: plot.png]\cf0}\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 A captioned figure\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A standalone block image:\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\cf1 [image: standalone.png]\cf0}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 An inline {\cf1 [image: icon.png]\cf0} image.\par}

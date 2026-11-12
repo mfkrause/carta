@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[[plot]]
+.A captioned figure
+image::plot.png[A plotted curve,width=4]
+
+A standalone block image:
+
+image:standalone.png[standalone]
+
+An inline image:icon.png[icon] image.

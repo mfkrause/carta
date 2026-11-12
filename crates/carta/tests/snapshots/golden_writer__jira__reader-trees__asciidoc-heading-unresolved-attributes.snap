@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:_and}Example and \{missing\}
+h1. {anchor:_code}!photo.png|alt=Photo! _x_ {{code}}

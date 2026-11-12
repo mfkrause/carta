@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<dl>
+<dt>Operating systems</dt>
+<dd>
+<dl>
+<dt>Linux</dt>
+<dd>
+<ol>
+<li><p>Fedora</p></li>
+<li><p>Debian</p></li>
+</ol>
+</dd>
+<dt>BSD</dt>
+<dd>
+<ol>
+<li><p>FreeBSD</p>
+<dl>
+<dt>Cloud</dt>
+<dd>
+<dl>
+<dt>PaaS</dt>
+<dd>
+
+</dd>
+</dl>
+</dd>
+</dl></li>
+<li><p>Service</p></li>
+</ol>
+</dd>
+</dl>
+</dd>
+</dl>

@@ -1,0 +1,70 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: (100%),
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+    [#block[
+    Next line
+
+    ] <next>
+
+    ],
+    [#block[
+    Label text
+
+    ] #label("labeled,label")
+
+    ],
+    [​<inline> remainder
+
+    ],
+    [before <middle> after
+
+    #block[
+    After blank
+
+    ] <after-blank>
+
+    ],
+    [​#label("space inside") Whitespace id
+
+    ],
+    [​#label("bad]bracket") Malformed id
+
+    ],
+    table.hline(),
+    table.footer([​<trailing> Trailing spaces
+
+      ],),
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: (100%),
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+    table.hline(),
+    table.footer([#block[
+      #block[
+      1 title
+
+      ]
+
+      2 body
+
+      ]
+
+      ],),
+  )]
+  , kind: table
+  )
+
+1 3

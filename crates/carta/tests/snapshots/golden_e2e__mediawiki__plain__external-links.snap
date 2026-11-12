@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-A labeled and 1 and bare http://example.net here.

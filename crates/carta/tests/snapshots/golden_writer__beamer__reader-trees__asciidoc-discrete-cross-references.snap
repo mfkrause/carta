@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]{A}
+\protect\phantomsection\label{x}
+\hyperlink{x}{x} \hyperlink{x}{x} \hyperlink{x}{\texttt{x}}
+\end{frame}
+
+\begin{frame}{B}
+\protect\phantomsection\label{y}
+\hyperlink{y}{B} \hyperlink{y}{B}
+
+\protect\phantomsection\label{z}{}
+
+\hyperlink{z}{Inline label}
+\end{frame}

@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "{value}  \n",
+    "Definition Cedar Ridge\n",
+    "\n",
+    "**{value}**  \n",
+    "Strong definition Cedar Ridge\n",
+    "\n",
+    "<a href=\"#target\" class=\"cross-reference\">target</a>  \n",
+    "Link definition Cedar Ridge\n",
+    "\n",
+    "<span id=\"term-id\"></span>  \n",
+    "Anchor definition Cedar Ridge\n",
+    "\n",
+    "<span class=\"icon\" data-asciidoc-icon=\"user\" name=\"heart\">\\[heart\\]</span>  \n",
+    "Icon definition Cedar Ridge\n",
+    "\n",
+    "[1]  \n",
+    "Footnote definition Cedar Ridge\n",
+    "\n",
+    "<span class=\"counter\" name=\"term\">1</span>  \n",
+    "Count <span class=\"counter\" name=\"term\">2</span>\n",
+    "\n",
+    "<span class=\"role\">User wrapper</span>  \n",
+    "Wrapper definition Cedar Ridge\n",
+    "\n",
+    "# Target\n",
+    "\n",
+    "See <a href=\"#target\" class=\"cross-reference\">Target</a> and <a\n",
+    "href=\"#term-id\" class=\"cross-reference\">term-id</a> and [2].\n",
+    "\n",
+    "[1] Note {value}\n",
+    "\n",
+    "[2] "
+   ],
+   "id": "eb199d05-225d-45a5-a080-c6ce2ab60350"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

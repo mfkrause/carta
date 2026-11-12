@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="example">
+<pre><code>listing body</code></pre>
+</div>
+<p>after</p>
+<div class="sidebar">
+<pre><code>literal body
+</code></pre>
+</div>
+<p>after</p>
+<blockquote>
+pass body
+</blockquote>
+<p>after</p>

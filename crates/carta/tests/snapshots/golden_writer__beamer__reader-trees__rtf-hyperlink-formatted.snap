@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+Visit \ul{\mbox{\href{http://example.com}{our site}}} and
+\textbf{\href{http://other.com}{bold}}\href{http://other.com}{ plain}.
+\end{frame}

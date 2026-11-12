@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<hr />
+<hr />
+<hr />
+<hr class="page-break" />
+<hr class="page-break" options="always" />
+<p>A hard<br />
+break.</p>
+<p options="hardbreaks">a<br />
+b</p>
+<p>third<br />
+fourth</p>
+<p>first<br />
+<br />
+second</p>

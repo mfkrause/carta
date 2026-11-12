@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+An
+#box(image("photo.png", height: 2.08333in, width: 1.04167in, alt: "Photo")).
+
+#figure(image("photo.png", height: 2.08333in, width: 1.04167in, alt: "Photo"),
+  caption: [
+    A caption
+  ]
+)
+
+#block[
+#figure(image("photo.png"),
+  caption: [
+    
+  ]
+)
+
+]

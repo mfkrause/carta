@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-{“k”: 7, “s”: “hello”, “a”: [1, 2]}

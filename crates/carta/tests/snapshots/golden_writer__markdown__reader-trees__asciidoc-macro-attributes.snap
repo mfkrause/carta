@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[**strong**]{.role=red wrapper="1"} and `two`[
+]{.why wrapper="1"}`words`.
+
+[^1]
+
+[^1]: S. Smith.

@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<blockquote>
+<p>A block quotation body.</p>
+</blockquote>
+<p>“an inline quotation”</p>
+<blockquote>
+<p>Attributed block quotation.</p>
+<p>— Someone</p>
+</blockquote>
+</section>
+<section class="slide level6">
+
+<blockquote>
+<p>A first quoted paragraph.</p>
+<ul>
+<li><p>a quoted item</p></li>
+<li><p>another item</p></li>
+</ul>
+</blockquote>
+</section>

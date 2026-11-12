@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span class=\"role=red\" data-wrapper=\"1\">**strong**</span> and\n",
+    "`two`<span class=\"why\" data-wrapper=\"1\"> </span>`words`.\n",
+    "\n",
+    "[1]\n",
+    "\n",
+    "[1] S. Smith."
+   ],
+   "id": "15d48586-8840-4d9c-b3d7-f865a786d220"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

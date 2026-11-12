@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([= Heading
+      <_heading>
+      - item
+
+      ```
+      code
+      ```
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )

@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#horizontalrule
+
+#horizontalrule
+
+#horizontalrule
+
+#block[
+#horizontalrule
+
+]
+
+#block[
+#horizontalrule
+
+]
+
+A hard \ break.
+
+#block[
+a \ b
+
+]
+
+third \ fourth
+
+first \  \ second

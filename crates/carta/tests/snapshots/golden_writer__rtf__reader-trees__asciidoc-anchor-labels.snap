@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0  See {\field{\*\fldinst{HYPERLINK "#point"}}{\fldrslt{\ul
+Reference Text
+}}}
+ and {\field{\*\fldinst{HYPERLINK "#missing"}}{\fldrslt{\ul
+
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Heading\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#other"}}{\fldrslt{\ul
+other
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#multi"}}{\fldrslt{\ul
+multi
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0  See {\field{\*\fldinst{HYPERLINK "#macro"}}{\fldrslt{\ul
+AlphaBeta
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

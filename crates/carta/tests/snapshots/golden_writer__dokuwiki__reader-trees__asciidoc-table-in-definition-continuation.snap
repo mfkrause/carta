@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+  * **Term** <WRAP>
+^first\\ \\ second line^
+|next                  |
+</WRAP>

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+a
+.PD 0
+.P
+.PD
+b keeps the span inline when the close is not alone.
+.PP
+A bare hex span stays inline too.

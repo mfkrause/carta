@@ -1,0 +1,184 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="tables">
+  <title>TABLES</title>
+  <informaltable>
+    <tgroup cols="2">
+      <colspec align="left" />
+      <colspec align="right" />
+      <thead>
+        <row>
+          <entry>
+            Name
+          </entry>
+          <entry>
+            Age
+          </entry>
+        </row>
+      </thead>
+      <tbody>
+        <row>
+          <entry>
+            Ada
+          </entry>
+          <entry>
+            36
+          </entry>
+        </row>
+        <row>
+          <entry>
+            Grace Hopper
+          </entry>
+          <entry>
+            85
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+  <para>
+    A second table without a header rule follows.
+  </para>
+  <informaltable>
+    <tgroup cols="2">
+      <colspec align="center" />
+      <colspec align="center" />
+      <tbody>
+        <row>
+          <entry>
+            Left
+          </entry>
+          <entry>
+            Right
+          </entry>
+        </row>
+        <row>
+          <entry>
+            one
+          </entry>
+          <entry>
+            two
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+  <para>
+    A table with a multi-line text block follows.
+  </para>
+  <informaltable>
+    <tgroup cols="2">
+      <colspec align="left" />
+      <colspec align="left" />
+      <tbody>
+        <row>
+          <entry>
+            Name
+          </entry>
+          <entry>
+            A long description
+          </entry>
+        </row>
+        <row>
+          <entry>
+            Left
+          </entry>
+          <entry>
+            Right
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+  <para>
+    A table with a horizontal span follows.
+  </para>
+  <informaltable>
+    <tgroup cols="3">
+      <colspec align="left" />
+      <colspec align="left" />
+      <colspec align="left" />
+      <tbody>
+        <row>
+          <entry>
+            Wide span
+          </entry>
+          <entry>
+          </entry>
+          <entry>
+            End
+          </entry>
+        </row>
+        <row>
+          <entry>
+            one
+          </entry>
+          <entry>
+          </entry>
+          <entry>
+            three
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+  <para>
+    A table with a vertical span follows.
+  </para>
+  <informaltable>
+    <tgroup cols="2">
+      <colspec align="left" />
+      <colspec align="left" />
+      <tbody>
+        <row>
+          <entry>
+            Name
+          </entry>
+          <entry>
+            One
+          </entry>
+        </row>
+        <row>
+          <entry>
+          </entry>
+          <entry>
+            Two
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+  <para>
+    A table with combined spans follows.
+  </para>
+  <informaltable>
+    <tgroup cols="3">
+      <colspec align="left" />
+      <colspec align="left" />
+      <colspec align="left" />
+      <tbody>
+        <row>
+          <entry>
+            Wide
+          </entry>
+          <entry>
+          </entry>
+          <entry>
+            First
+          </entry>
+        </row>
+        <row>
+          <entry>
+          </entry>
+          <entry>
+          </entry>
+          <entry>
+            Second
+          </entry>
+        </row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+</section>

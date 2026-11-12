@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="_and" class="title-slide slide level1">
+<h1>Example and {missing}</h1>
+
+</section>
+
+<section id="_code" class="title-slide slide level1">
+<h1><img data-src="photo.png" alt="Photo" /> <span
+class="math inline"><em>x</em></span> <code>code</code></h1>
+
+</section>

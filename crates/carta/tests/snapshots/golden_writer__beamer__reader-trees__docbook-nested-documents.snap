@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}{First chapter}
+Text in the chapter.
+
+\begin{block}{A section}
+An equation \[e = 2\] stands in the sentence around it.
+
+Aside
+
+Set beside the text.
+
+\[y = x\]
+\end{block}
+
+\begin{block}{Deeper still}
+The count restarts where the article stands.
+\end{block}
+\end{frame}
+
+\begin{frame}{Second chapter}
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={Alternative words}]{plot.png}}
+\caption{A figure}
+\end{figure}
+\end{frame}

@@ -1,0 +1,55 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ul>
+<li><img src="movie.mp4" alt="movie.mp4" /></li>
+</ul>
+<ul>
+<li><p>Outer</p>
+<ul>
+<li><div class="float">
+<img src="nested.png" />
+</div></li>
+</ul></li>
+</ul>
+<dl>
+<dt></dt>
+<dd>
+<div class="float">
+<img src="same.png" />
+</div>
+</dd>
+<dt>Named</dt>
+<dd>
+<div id="toc">
+
+</div>
+</dd>
+<dt></dt>
+<dd>
+<div class="float">
+<img src="next.png" />
+</div>
+</dd>
+<dt>Indented</dt>
+<dd>
+<img src="sound.mp3" alt="sound.mp3" />
+</dd>
+<dt>A</dt>
+<dd>
+
+</dd>
+<dt>B and C</dt>
+<dd>
+<p>D</p>
+</dd>
+<dt>Bad</dt>
+<dd>
+
+</dd>
+<dt>include</dt>
+<dd>
+<p>missing[</p>
+</dd>
+</dl>

@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          <para>
+            <inlinemediaobject>
+              <imageobject>
+                <imagedata fileref="x" />
+              </imageobject>
+              <textobject>
+                <phrase>p</phrase>
+              </textobject>
+            </inlinemediaobject>
+          </para>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          <para>
+            <link xlink:href="x"><literal>l</literal></link>
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            <footnote>
+              <para>
+                <literal>note</literal>
+              </para>
+            </footnote>
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            <literal>span</literal>
+          </para>
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>

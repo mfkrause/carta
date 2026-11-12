@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[.role=red]#*strong*# and `two`[.why]##`words`.
+
+footnote:[S. Smith.]

@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.. _`_heading`:
+
+Heading
+=======
+
+.. container::
+   :name: _nested
+
+   .. rubric:: Nested
+
+   .. rubric:: Discrete
+
+   |image1|
+
+   .. _spot:
+
+   ` <#spot>`__
+
+   .. rubric:: HTML
+
+   .. rubric:: Data
+
+   .. rubric:: Prefix
+
+   .. rubric:: Prefix
+      :name: _prefix
+
+.. |image1| image:: ./images/icons/heart.png
+   :class: icon

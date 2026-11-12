@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (left,left,),
+    table.cell(rowspan: 2)[#emph[Name]], [One],
+    [Two],
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: 3,
+    align: (left,left,left,),
+    table.cell(rowspan: 2, colspan: 2)[Wide], [First],
+    [Second],
+  )]
+  , kind: table
+  )
+
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (left,left,),
+    table.cell(rowspan: 2)[Upward], [Above],
+    [Below],
+  )]
+  , kind: table
+  )

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[IMAGE: A plotted curve]
+A captioned figure
+.PP
+A standalone block image:
+.PP
+[IMAGE: image]
+.PP
+An inline [IMAGE: image] image.

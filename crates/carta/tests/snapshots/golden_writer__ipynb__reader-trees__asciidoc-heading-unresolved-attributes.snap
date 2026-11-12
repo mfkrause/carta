@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Example and {missing}\n",
+    "\n",
+    "# ![Photo](photo.png) $x$ `code`"
+   ],
+   "id": "c2458c7c-a32c-43f0-8adf-02d03cef8fb0"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

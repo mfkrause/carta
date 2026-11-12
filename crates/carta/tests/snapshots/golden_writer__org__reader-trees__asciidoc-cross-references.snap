@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See [[#section][A section]] and [[#missing][missing]].
+
+* A section
+:PROPERTIES:
+:CUSTOM_ID: section
+:END:
+An anchor.
+
+See [[#anchor][Label]] and [[#section][A section]].

@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<div data-wrapper="1" data-foo="&quot;unclosed">
-
-paragraph
-
-</div>

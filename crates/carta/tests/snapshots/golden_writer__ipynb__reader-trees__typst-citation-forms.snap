@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "A normal reference \\[knuth1984\\] sits in the sentence.\n",
+    "\n",
+    "Author and year: \\[knuth1984\\].\n",
+    "\n",
+    "Year only: \\[knuth1984\\].\n",
+    "\n",
+    "Prose form: \\[knuth1984\\]."
+   ],
+   "id": "746bc1c0-2b44-4c5f-973b-746ffd72ac08"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Forward: <link linkend="second">1.1</link>.
+</para>
+<section xml:id="first">
+  <title>First</title>
+  <section xml:id="second">
+    <title>Second</title>
+    <para>
+      <link linkend="first">1</link>, <link linkend="second">1.1</link>,
+      <link linkend="second">1.1</link>,
+      <link linkend="second">[second]</link>,
+      <link linkend="missing">[missing]</link>.
+    </para>
+    <para>
+      See Figure <link linkend="figure">2</link>.
+    </para>
+  </section>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="part">
+  <title>Part</title>
+  <para>
+    See Part <link linkend="part">I</link>.
+  </para>
+</section>

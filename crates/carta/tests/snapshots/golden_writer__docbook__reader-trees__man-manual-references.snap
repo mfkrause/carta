@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  See
+  <link xlink:href="man:printf(3)"><emphasis>printf</emphasis>(3)</link>,
+  then continue.
+</para>
+<para>
+  Small text <emphasis role="strong">Bold text</emphasis>
+</para>
+<variablelist>
+  <varlistentry>
+    <term>
+      <link xlink:href="man:open(2)"><emphasis>open</emphasis>(2)</link>
+    </term>
+    <listitem>
+      <para>
+        Open a file.
+      </para>
+    </listitem>
+  </varlistentry>
+</variablelist>
+<para>
+  <emphasis role="strong">Nested style</emphasis>
+</para>

@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+- ![movie.mp4](movie.mp4)
+
+<!-- -->
+
+- Outer
+
+  - ![](nested.png)
+
+
+
+: ![](same.png)
+
+Named
+
+: <div id="toc" data-markdown="1">
+
+
+
+  </div>
+
+
+
+: ![](next.png)
+
+Indented
+: ![sound.mp3](sound.mp3)
+
+A
+: 
+
+B and C
+
+: D
+
+Bad
+: 
+
+include
+
+: missing\[

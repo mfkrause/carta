@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>Start middle <span id="named">anchor text</span> end.</p>
+</section>

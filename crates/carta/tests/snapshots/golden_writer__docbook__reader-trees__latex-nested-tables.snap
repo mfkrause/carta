@@ -1,0 +1,85 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <tbody>
+      <row>
+        <entry>
+          <informaltable>
+            <tgroup cols="2">
+              <colspec align="left" />
+              <colspec align="right" />
+              <thead>
+                <row>
+                  <entry>
+                    Inner
+                  </entry>
+                  <entry>
+                    Right
+                  </entry>
+                </row>
+              </thead>
+              <tbody>
+                <row>
+                  <entry>
+                    Next
+                  </entry>
+                  <entry>
+                    Last
+                  </entry>
+                </row>
+              </tbody>
+            </tgroup>
+          </informaltable>
+        </entry>
+        <entry>
+          Outer
+        </entry>
+      </row>
+      <row>
+        <entry>
+          Final
+        </entry>
+        <entry>
+          Tail
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>
+<informaltable>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <tbody>
+      <row>
+        <entry>
+          <informaltable>
+            <tgroup cols="1">
+              <colspec align="center" />
+              <tbody>
+                <row>
+                  <entry>
+                    Grouped
+                  </entry>
+                </row>
+                <row>
+                  <entry>
+                    Content
+                  </entry>
+                </row>
+              </tbody>
+            </tgroup>
+          </informaltable>
+        </entry>
+        <entry>
+          A&amp;B
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>

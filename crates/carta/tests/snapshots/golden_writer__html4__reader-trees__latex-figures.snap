@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="float" id="fig:sample">
+<img src="diagram.png" />
+<div class="figcaption">A sample diagram.</div>
+</div>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>An <span id="target"></span> anchor marks a spot.</p>
+<p>Text continues after the anchor span.</p>
+</section>

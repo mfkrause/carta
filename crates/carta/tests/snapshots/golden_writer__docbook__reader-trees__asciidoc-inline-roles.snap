@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis role="strong">x</emphasis> and
+  <link xlink:href="page" role="b">Hello</link>.
+</para>

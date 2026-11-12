@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "A claim[1] here.\n",
+    "\n",
+    "[1] The source."
+   ],
+   "id": "9672ae28-644e-43f0-9eab-a1bb3a233fb0"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

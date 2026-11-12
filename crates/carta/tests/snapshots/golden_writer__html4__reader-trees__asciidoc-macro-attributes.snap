@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="role=red" wrapper="1"><strong>strong</strong></span> and
+<code class="why">two</code><span class="why" wrapper="1"> </span><code
+class="why">words</code>.</p>
+<p><a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a></p>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>S. Smith.<a href="#fnref1"
+class="footnote-back">↩︎</a></p></li>
+</ol>
+</div>

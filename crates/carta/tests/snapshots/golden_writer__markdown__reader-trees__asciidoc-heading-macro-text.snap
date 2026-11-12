@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# Alpha [1]{.counter name="x"} {#_alpha}
+
+# Alpha [term]{.index term="term"} {#_alpha_2}
+
+# Alpha [foo]{.index term="foo"} {#_alpha_3}
+
+# Alpha word {#_alpha_4}
+
+# Alpha [**Tools › Build › Run**]{.menu} {#_alpha_5}
+
+# Alpha [**\[Save\]**]{.button} {#_alpha_6}
+
+# Alpha [**Ctrl**]{.kbd}+[**X**]{.kbd} {#_alpha_7}
+
+# Alpha []{#key} {#_alpha_label}

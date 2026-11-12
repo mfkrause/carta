@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis role="strong">Ctrl</emphasis>+<emphasis role="strong">Shift</emphasis>+<emphasis role="strong">F</emphasis>
+  <emphasis role="strong">[Cancel]</emphasis>
+  <emphasis role="strong">File › Open › Recent</emphasis>
+</para>
+<para>
+  <inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="./images/icons/heart.png" role="red icon" />
+    </imageobject>
+  </inlinemediaobject> <anchor xml:id="point" />
+</para>
+<para>
+  visible
+</para>

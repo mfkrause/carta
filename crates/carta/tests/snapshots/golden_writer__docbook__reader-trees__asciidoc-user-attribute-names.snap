@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__heading">
+  <title>Heading</title>
+  <anchor xml:id="id__nested" />
+  <para>
+    Titled
+  </para>
+  <section>
+    <title>Nested</title>
+    <section>
+      <title>Discrete</title>
+      <para>
+        <inlinemediaobject>
+          <imageobject>
+            <imagedata fileref="./images/icons/heart.png" role="icon" />
+          </imageobject>
+        </inlinemediaobject>
+      </para>
+      <para>
+        <anchor xml:id="spot" />
+        <xref linkend="spot" role="cross-reference"></xref>
+      </para>
+    </section>
+  </section>
+  <section>
+    <title>HTML</title>
+    <para>
+    </para>
+  </section>
+  <section>
+    <title>Data</title>
+    <para>
+    </para>
+  </section>
+  <section>
+    <title>Prefix</title>
+    <section xml:id="id__prefix">
+      <title>Prefix</title>
+      <para>
+      </para>
+    </section>
+  </section>
+</section>

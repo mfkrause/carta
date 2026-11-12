@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Section Title<span id=\"first target\"></span>\n",
+    "\n",
+    "Body under the section."
+   ],
+   "id": "06a1a428-7ba0-4ee5-8774-e08f18a263e2"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

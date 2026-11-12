@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+deep
+.PP
+\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]layers\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]\f[I]\f[R]

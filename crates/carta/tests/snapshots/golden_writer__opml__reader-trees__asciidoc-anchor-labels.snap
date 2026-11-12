@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Heading" _note="See [other](#other){.cross-reference}.&#10;&#10;::: {#multi,One,Two wrapper=&quot;1&quot;}&#10;See [multi](#multi){.cross-reference}.&#10;:::&#10;&#10;[]{#macro} See [AlphaBeta](#macro){.cross-reference}.&#10;&#10;[]{#bib}">
+</outline>

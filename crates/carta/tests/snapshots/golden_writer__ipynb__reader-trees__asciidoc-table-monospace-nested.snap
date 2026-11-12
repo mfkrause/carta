@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "| ![`p`](x)                     |\n",
+    "|-------------------------------|\n",
+    "| [`l`](x)                      |\n",
+    "| [1]                           |\n",
+    "| <span class=\"r\">`span`</span> |\n",
+    "\n",
+    "[1] `note`"
+   ],
+   "id": "6b04f6a7-1ffa-4c57-b269-b61a49d6fada"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

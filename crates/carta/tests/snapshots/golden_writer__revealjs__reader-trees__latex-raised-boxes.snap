@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>Before kept text after.</p>
+<p><em>Formatted text</em></p>
+<p><img data-src="image.png" style="width:50.0%" alt="image" /></p>
+</section>

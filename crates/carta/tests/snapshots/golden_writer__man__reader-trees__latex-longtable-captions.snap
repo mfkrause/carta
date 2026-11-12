@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Table \f[I]caption\f[R]
+.TS
+tab(@);
+l l.
+T{
+Heading
+T}@T{
+Value
+T}
+_
+T{
+Item
+T}@T{
+12
+T}
+.TE
+.PP
+See Table 1.
+.PP
+First line
+.PD 0
+.P
+.PD
+Second line
+.TS
+tab(@);
+l.
+T{
+Content
+T}
+.TE

@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "| Heading | Value |\n",
+    "|:--------|:------|\n",
+    "| Item    | 12    |\n",
+    "\n",
+    "Table *caption* {#table}\n",
+    "\n",
+    "See Table <a href=\"#table\" data-reference-type=\"ref\"\n",
+    "data-reference=\"table\">1</a>.\n",
+    "\n",
+    "|         |\n",
+    "|:--------|\n",
+    "| Content |\n",
+    "\n",
+    "First line  \n",
+    "Second line"
+   ],
+   "id": "4c547a52-0291-4218-93e6-2b670cb25860"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

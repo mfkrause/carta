@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="First">
+</outline>
+<outline text="Deeper &lt;em&gt;heading&lt;/em&gt;">
+</outline>

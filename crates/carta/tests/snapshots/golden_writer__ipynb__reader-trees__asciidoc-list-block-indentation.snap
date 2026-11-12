@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "- Outer\n",
+    "\n",
+    "      code\n",
+    "\n",
+    "Term  \n",
+    "    literal\n",
+    "\n",
+    "- \n",
+    "\n",
+    "- First\n",
+    "\n",
+    "- Second\n",
+    "\n",
+    "<!-- -->\n",
+    "\n",
+    "- Parent\n",
+    "\n",
+    "<!-- -->\n",
+    "\n",
+    "    [.role]\n",
+    "\n",
+    "Text"
+   ],
+   "id": "d8fe6049-ff56-4a0c-aaa8-787c7980a508"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

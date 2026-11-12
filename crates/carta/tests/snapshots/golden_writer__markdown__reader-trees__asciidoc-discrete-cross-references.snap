@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# A {#x}
+
+[x](#x){.cross-reference} [x](#x){.cross-reference}
+[`x`](#x){.cross-reference}
+
+# B {#y}
+
+[B](#y){.cross-reference} [B](#y){.cross-reference}
+
+[]{#z}
+
+[Inline label](#z){.cross-reference}

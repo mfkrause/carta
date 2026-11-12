@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]
+{\textbf{strong}} and \texttt{two}{ }\texttt{words}.
+
+\footnote<\value{beamerpauses}->[frame]{S. Smith.}
+\end{frame}

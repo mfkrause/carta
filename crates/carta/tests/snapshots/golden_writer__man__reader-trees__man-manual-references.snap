@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+See \f[I]printf\f[R](3), then continue.
+.PP
+Small text \f[B]Bold text\f[R]
+.TP
+\f[I]open\f[R](2)
+Open a file.
+.PP
+\f[B]Nested style\f[R]

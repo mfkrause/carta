@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+An  anchor marks a spot.
+.PP
+Text continues after the anchor span.

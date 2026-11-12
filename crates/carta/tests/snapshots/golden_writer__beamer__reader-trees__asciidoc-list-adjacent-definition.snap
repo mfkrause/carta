@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{itemize}
+\item
+  Term
+
+  \begin{description}
+  \item[* Another]
+  Definition
+  \end{description}
+\item
+  Separate
+\end{itemize}
+
+\begin{itemize}
+\item
+  \begin{description}
+  \item[Separate]
+  Definition
+  \end{description}
+\end{itemize}
+\end{frame}

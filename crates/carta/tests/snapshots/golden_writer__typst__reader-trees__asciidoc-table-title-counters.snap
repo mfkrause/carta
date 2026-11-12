@@ -1,0 +1,173 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+1
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#block[
+      #block[
+      1
+
+      ]
+
+      2
+
+      ]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+3
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+1
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#block[
+      #block[
+      1
+
+      ]
+
+      #emph[2]
+
+      ]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+3
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+1
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#block[
+      #block[
+      1
+
+      ]
+
+      2
+
+      ]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+3
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+1
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#block[
+      #block[
+      1
+
+      ]
+
+      `2`
+
+      ]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+3
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+1
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#block[
+      #block[
+      1
+
+      ]
+
+      #strong[2]
+
+      ]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+3

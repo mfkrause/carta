@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{description}
+\item[\{value\}]
+Definition Cedar Ridge
+\item[\textbf{\{value\}}]
+Strong definition Cedar Ridge
+\item[\hyperlink{target}{target}]
+Link definition Cedar Ridge
+\item[\protect\phantomsection\label{term-id}{}]
+Anchor definition Cedar Ridge
+\item[{{[}heart{]}}]
+Icon definition Cedar Ridge
+\item[\footnote<\value{beamerpauses}->[frame]{Note \{value\}}]
+Footnote definition Cedar Ridge
+\item[{1}]
+Count {2}
+\item[{User wrapper}]
+Wrapper definition Cedar Ridge
+\end{description}
+\end{frame}
+
+\begin{frame}{Target}
+\protect\phantomsection\label{target}
+See \hyperlink{target}{Target} and \hyperlink{term-id}{term-id} and
+\footnote<\value{beamerpauses}->[frame]{}.
+\end{frame}

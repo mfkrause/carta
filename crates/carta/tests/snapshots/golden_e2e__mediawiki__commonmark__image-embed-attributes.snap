@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<figure>
-<img src="a.png" title="a.png" />
-<figcaption>a.png</figcaption>
-</figure>

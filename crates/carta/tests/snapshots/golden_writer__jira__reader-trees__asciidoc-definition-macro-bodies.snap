@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* !movie.mp4|alt=movie.mp4!
+
+* Outer
+** !nested.png!
+
+* **
+!same.png!
+* *Named*
+{anchor:toc}
+* **
+!next.png!
+* *Indented*
+!sound.mp3|alt=sound.mp3!
+* *A*
+* *B and C*
+D
+* *Bad*
+* *include*
+missing\[

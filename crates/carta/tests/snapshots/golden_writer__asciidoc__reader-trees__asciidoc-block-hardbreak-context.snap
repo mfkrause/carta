@@ -1,0 +1,73 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+one +
+two
+
+after block
+
+one +
+two
+
+after block
+
+one +
+two
+
+after block
+
+____
+one +
+two
+____
+
+after block
+
+[cols="",options="header",]
+|===
+|one +
+two
+|===
+
+after block
+
+[cols="",options="header",]
+|===
+|one +
+two
+|===
+
+after block
+
+[cols="",options="header",]
+|===
+|_one +
+two_
+|===
+
+after block
+
+[cols="",options="header",]
+|===
+|one +
+two
+|===
+
+after block
+
+[cols="",options="header",]
+|===
+|`one` +
+`two`
+|===
+
+after block
+
+[cols="",options="header",]
+|===
+|*one +
+two*
+|===
+
+after block

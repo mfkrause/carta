@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-A paragraph with \emph{emphasis}, \textbf{strong emphasis}, and
-\texttt{inline\ code}.
-
-Nested \emph{emphasis with \textbf{strong} inside} and a code span
-\texttt{a\ \textless{}\ b\ \&\&\ c}.

@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH First
+.SS Deeper \f[I]heading\f[R]
+.IP
+.EX
+print(1)
+.EE
+.IP
+.EX
+1
+.EE
+.IP
+.EX
+1
+.EE
+.IP
+.EX
+line 1
+ExampleError: text
+.EE
+.PP
+Final text

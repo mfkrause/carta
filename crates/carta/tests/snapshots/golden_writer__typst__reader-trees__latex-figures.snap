@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(image("diagram.png"),
+  caption: [
+    A sample diagram.
+  ]
+)
+<fig:sample>

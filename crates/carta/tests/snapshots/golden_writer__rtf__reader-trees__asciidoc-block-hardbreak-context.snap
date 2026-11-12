@@ -1,0 +1,78 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 one\line two\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 one\line two\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 one\line two\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 one\line two\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 one\line two\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 one\line two\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 {\i one\line two}\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 one\line two\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 {\f1 one}\line {\f1 two}\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 {\b one\line two}\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after block\par}

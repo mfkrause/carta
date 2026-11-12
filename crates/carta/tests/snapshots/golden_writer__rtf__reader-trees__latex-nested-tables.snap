@@ -1,0 +1,93 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{
+\intbl\itap2
+{
+{{\pard\intbl\itap2 \ql \f0 \sa0 \li0 \fi0 Inner\par}
+\nestcell{\nonesttables\par}}
+{{\pard\intbl\itap2 \qr \f0 \sa0 \li0 \fi0 Right\par}
+\nestcell{\nonesttables\par}}
+}
+{\*\nesttableprops\trowd \trgaph120
+\clbrdrb\brdrs\cellx2040\clbrdrb\brdrs\cellx4080
+\trkeep\nestrow}
+{\nonesttables\par}
+}
+{
+\intbl\itap2
+{
+{{\pard\intbl\itap2 \ql \f0 \sa0 \li0 \fi0 Next\par}
+\nestcell{\nonesttables\par}}
+{{\pard\intbl\itap2 \qr \f0 \sa0 \li0 \fi0 Last\par}
+\nestcell{\nonesttables\par}}
+}
+{\*\nesttableprops\trowd \trgaph120
+\cellx2040\cellx4080
+\trkeep\nestrow}
+{\nonesttables\par}
+}
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Outer\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Final\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Tail\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{
+\intbl\itap2
+{
+{{\pard\intbl\itap2 \qc \f0 \sa0 \li0 \fi0 Grouped\par}
+\nestcell{\nonesttables\par}}
+}
+{\*\nesttableprops\trowd \trgaph120
+\cellx4080
+\trkeep\nestrow}
+{\nonesttables\par}
+}
+{
+\intbl\itap2
+{
+{{\pard\intbl\itap2 \qc \f0 \sa0 \li0 \fi0 Content\par}
+\nestcell{\nonesttables\par}}
+}
+{\*\nesttableprops\trowd \trgaph120
+\cellx4080
+\trkeep\nestrow}
+{\nonesttables\par}
+}
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep
+{\pard\intbl \ql \f0 \sa180 \li0 \fi0 \par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 A&B\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

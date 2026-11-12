@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+  <title>Table <emphasis>caption</emphasis></title>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          Heading
+        </entry>
+        <entry>
+          Value
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          Item
+        </entry>
+        <entry>
+          12
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</table>
+<para>
+  See Table <link linkend="table">1</link>.
+</para>
+<table>
+  <title>First line
+  Second line</title>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <tbody>
+      <row>
+        <entry>
+          Content
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</table>

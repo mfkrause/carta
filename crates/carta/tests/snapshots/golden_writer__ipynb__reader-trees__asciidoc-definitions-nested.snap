@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Operating systems  \n",
+    "Linux  \n",
+    "1.  Fedora\n",
+    "\n",
+    "2.  Debian\n",
+    "\n",
+    "BSD  \n",
+    "1.  FreeBSD\n",
+    "\n",
+    "    Cloud  \n",
+    "    PaaS  \n",
+    "\n",
+    "2.  Service"
+   ],
+   "id": "839e73d0-0cdb-4fc9-a8a2-7d5883f91188"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

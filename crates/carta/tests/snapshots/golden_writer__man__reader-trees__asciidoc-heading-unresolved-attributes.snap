@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH Example and {missing}
+.SH [IMAGE: Photo] \f[I]x\f[R] \f[CR]code\f[R]

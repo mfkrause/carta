@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+^List cell^Quote cell       ^
+|* one    |> q              |
+|h1. plain|a\\ \\ > q\\ \\ b|

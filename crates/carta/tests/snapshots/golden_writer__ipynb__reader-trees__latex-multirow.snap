@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<table>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td rowspan=\"2\" style=\"text-align: left;\"><em>Name</em></td>\n",
+    "<td style=\"text-align: left;\">One</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\">Two</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table>\n",
+    "\n",
+    "<table>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td colspan=\"2\" rowspan=\"2\" style=\"text-align: center;\">Wide</td>\n",
+    "<td style=\"text-align: left;\">First</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\">Second</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table>\n",
+    "\n",
+    "<table>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td rowspan=\"2\" style=\"text-align: left;\">Upward</td>\n",
+    "<td style=\"text-align: left;\">Above</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td style=\"text-align: left;\">Below</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table>"
+   ],
+   "id": "c49b0eec-82cf-4dc7-b661-e7fe78c5abc2"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

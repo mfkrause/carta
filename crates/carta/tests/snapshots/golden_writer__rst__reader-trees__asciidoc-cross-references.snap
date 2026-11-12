@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See `A section <#section>`__ and `missing <#missing>`__.
+
+.. _section:
+
+A section
+=========
+
+.. _anchor:
+
+An anchor.
+
+See `Label <#anchor>`__ and `A section <#section>`__.

@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<blockquote>
+<p>A block quote.</p>
+<blockquote>
+<p>A nested block quote.</p>
+</blockquote>
+<p>Back to the outer level.</p>
+</blockquote>
+</section>

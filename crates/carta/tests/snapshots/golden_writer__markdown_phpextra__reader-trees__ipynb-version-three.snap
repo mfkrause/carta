@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="cell markdown" data-markdown="1">
+
+# First {#first}
+
+</div>
+
+<div class="cell markdown" data-markdown="1">
+
+###### Deeper *heading* {#deeper-heading}
+
+</div>
+
+<div class="cell code" data-execution_count="1" data-collapsed="false" data-language="python" data-markdown="1">
+
+~~~ python
+print(1)
+~~~
+
+<div class="output stream stdout" data-markdown="1">
+
+    1
+
+</div>
+
+<div class="output execute_result" data-execution_count="1" data-markdown="1">
+
+    1
+
+</div>
+
+<div class="output error" data-ename="ExampleError" data-evalue="text" data-markdown="1">
+
+    line 1
+    ExampleError: text
+
+</div>
+
+</div>
+
+<div class="cell raw" data-format="text/latex" data-markdown="1">
+
+
+
+</div>
+
+<div class="cell markdown" data-markdown="1">
+
+Final text
+
+</div>

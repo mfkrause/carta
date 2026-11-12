@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+A claim[1] here.
+.SH NOTES
+.SS [1]
+The source.

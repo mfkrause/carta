@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH Introduction
+.PP
+See [intro] for context.
+.PP
+[IMAGE: image]
+A labelled figure.
+.PP
+.PP
+Reference to [fig\-plot] as well.
+.PP
+A  written as a call.
+.PP
+A link to a label and a bare #intro.
+.PP
+A Chapter with its own supplement.
+.PP
+A  built from a label call.

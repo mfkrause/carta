@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# A
+
+<a href="#x" class="cross-reference">x</a>
+<a href="#x" class="cross-reference">x</a>
+<a href="#x" class="cross-reference"><code>x</code></a>
+
+# B
+
+<a href="#y" class="cross-reference">B</a>
+<a href="#y" class="cross-reference">B</a>
+
+<span id="z"></span>
+
+<a href="#z" class="cross-reference">Inline label</a>

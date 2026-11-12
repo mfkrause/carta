@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<h1 id="_heading">Heading</h1>
+<div id="_nested" asciidoc-heading="titled" asciidoc-section="titled">
+<div class="title">
+<p>Titled</p>
+</div>
+<h2>Nested</h2>
+<h3>Discrete</h3>
+<p><img src="./images/icons/heart.png" class="icon" asciidoc-icon="user"
+wrapper="1" /></p>
+<p><span id="spot" asciidoc-identifier-source="user"></span> <a
+href="#spot" class="cross-reference"></a></p>
+<h2>HTML</h2>
+<h2>Data</h2>
+<h2>Prefix</h2>
+<h3 id="_prefix">Prefix</h3>
+</div>

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+As shown by @knuth1984 and @lamport1994, this holds.

@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+== TABLES
+
+[cols="<,>",options="header",]
+|===
+|Name |Age
+|Ada |36
+|Grace Hopper |85
+|===
+
+A second table without a header rule follows.
+
+[cols="^,^",]
+|===
+|Left |Right
+|one |two
+|===
+
+A table with a multi-line text block follows.
+
+[cols="<,<",]
+|===
+|Name |A long description
+|Left |Right
+|===
+
+A table with a horizontal span follows.
+
+[cols="<,,<",]
+|===
+2+|Wide span |End
+2+|one |three
+|===
+
+A table with a vertical span follows.
+
+[cols="<,<",]
+|===
+.2+|Name |One
+|Two
+|===
+
+A table with combined spans follows.
+
+[cols="<,,<",]
+|===
+2.2+|Wide |First
+|Second
+|===

@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div id="first" class="cell markdown">
+<h1>First</h1>
+</div>
+<div id="deeper-heading" class="cell markdown">
+<p class="heading">Deeper <em>heading</em></p>
+</div>
+<div class="cell code" execution_count="1" collapsed="false"
+language="python">
+<pre class="python"><code>print(1)</code></pre>
+<div class="output stream stdout">
+<pre><code>1
+</code></pre>
+</div>
+<div class="output execute_result" execution_count="1">
+<pre><code>1</code></pre>
+</div>
+<div class="output error" ename="ExampleError" evalue="text">
+<pre><code>line 1
+ExampleError: text
+</code></pre>
+</div>
+</div>
+<div class="cell raw" format="text/latex">
+
+</div>
+<div class="cell markdown">
+<p>Final text</p>
+</div>

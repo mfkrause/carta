@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <>
+</para>
+<para>
+  <emphasis>]]</emphasis>
+</para>
+<para>
+  &lt;&lt; &gt;&gt;
+</para>
+<para>
+  ]
+</para>

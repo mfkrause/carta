@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+A \c
+.UR https://example.com
+linked body
+.UE \c
+\ keeps the padding of its content.
+.PP
+A box holds  its own spacing  within the line.
+.PP
+An underlined \f[I] padded body \f[R] sits beside plain words.
+.RS
+.PP
+A spaced quotation.
+.PP
+\(em\  A. Author
+.RE
+.PP
+A footnote body is trimmed [1] here.
+.PP
+[IMAGE: image]
+Figure caption.
+.PP
+Loop rounds join with their padding: 1 2 3 .
+.PP
+A measurement of 6.0em, a ratio of 50%, and 1.5e\-2 exact.
+.PP
+[IMAGE: image]
+.PP
+The binding kept survives its statement.
+.SH NOTES
+.SS [1]
+.PP
+Trimmed on both ends.

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:first-level-heading}First level heading
+Body text under the first heading.
+
+h2. {anchor:second-level-heading}Second level heading *work* {*}urgent{*}
+h3. {anchor:third-level-heading}Third level heading

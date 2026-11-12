@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+====== First level heading ======
+
+Body text under the first heading.
+
+===== Second level heading work urgent =====
+
+==== Third level heading ====

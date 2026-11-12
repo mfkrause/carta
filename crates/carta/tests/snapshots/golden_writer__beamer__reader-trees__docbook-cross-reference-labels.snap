@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+To a labelled section: \hyperlink{labelled}{The label the section
+states}.
+
+To a labelled section, overridden: \hyperlink{labelled}{Some other
+wording}.
+
+To a labelled table: \hyperlink{grid}{The label the table states}.
+
+To an unlabelled section: \hyperlink{plain}{An unlabelled section}.
+
+\protect\phantomsection\label{wording}{Some other wording}
+\end{frame}
+
+\begin{frame}{A labelled section}
+\protect\phantomsection\label{labelled}
+Body.
+\end{frame}
+
+\begin{frame}{An unlabelled section}
+\protect\phantomsection\label{plain}
+Body.
+
+\begin{longtable}[]{@{}l@{}}
+\caption{A labelled table}\label{grid}\tabularnewline
+\toprule\noalign{}
+\endfirsthead
+\endhead
+Cell \\
+\bottomrule\noalign{}
+\end{longtable}
+\end{frame}

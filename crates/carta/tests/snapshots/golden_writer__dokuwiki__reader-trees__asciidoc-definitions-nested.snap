@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+  * **Operating systems** <WRAP>
+    * **Linux** <WRAP>
+      - Fedora
+      - Debian
+</WRAP>
+    * **BSD** <WRAP>
+      - <WRAP>
+FreeBSD
+        * **Cloud** <WRAP>
+          * **PaaS** 
+</WRAP>
+</WRAP>
+      - Service
+</WRAP>
+</WRAP>

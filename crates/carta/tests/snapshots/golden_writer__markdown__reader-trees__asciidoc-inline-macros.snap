@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[**Ctrl**]{.kbd}+[**Shift**]{.kbd}+[**F**]{.kbd}
+[**\[Cancel\]**]{.button} [**File › Open › Recent**]{.menu}
+
+![](./images/icons/heart.png){.red icon} []{#point}
+
+[visible]{.index term="visible"} []{.index term="hidden,index"}

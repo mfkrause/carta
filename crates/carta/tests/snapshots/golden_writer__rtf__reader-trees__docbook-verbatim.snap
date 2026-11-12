@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 col   col\line
+    indented\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 $ carta\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 a\u160 ?\u160 ?b\u160 ?{\i emphasized}\u160 ?{\field{\*\fldinst{HYPERLINK "https://example.com/"}}{\fldrslt{\ul
+linked
+}}}
+\line \u160 ?\u160 ?second\u160 ?\u160 ?\u160 ?\u160 ?line\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 kept  as    code\par}

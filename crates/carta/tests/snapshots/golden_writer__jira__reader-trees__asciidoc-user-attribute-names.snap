@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:_heading}Heading
+{anchor:_nested}Titled
+
+h2. {anchor:}Nested
+h3. {anchor:}Discrete
+!./images/icons/heart.png|asciidoc-icon=user, wrapper=1!
+
+{anchor:spot} [#spot]
+
+h2. {anchor:}HTML
+h2. {anchor:}Data
+h2. {anchor:}Prefix
+h3. {anchor:_prefix}Prefix

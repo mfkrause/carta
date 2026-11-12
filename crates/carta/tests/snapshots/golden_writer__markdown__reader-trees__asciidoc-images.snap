@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+An ![Photo](photo.png){width="100px" height="200px"}.
+
+![A caption](photo.png){alt="Photo" width="100px" height="200px"}
+
+::: {wrapper="1" alt="Photo" height="200" width="100"}
+![](photo.png)
+:::

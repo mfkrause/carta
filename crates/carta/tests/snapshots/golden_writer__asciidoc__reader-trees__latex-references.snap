@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Forward: link:#second[1.1].
+
+==== First
+
+===== Second
+
+link:#first[1], link:#second[1.1], link:#second[1.1],
+link:#second[++[++second++]++], link:#missing[++[++missing++]++].
+
+[[figure]]
+
+
+See Figure link:#figure[2].
+
+== Part
+
+See Part link:#part[I].

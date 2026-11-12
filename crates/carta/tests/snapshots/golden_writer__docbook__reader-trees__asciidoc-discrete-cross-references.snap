@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="x">
+  <title>A</title>
+  <para>
+    <link linkend="x" role="cross-reference">x</link>
+    <link linkend="x" role="cross-reference">x</link>
+    <link linkend="x" role="cross-reference"><literal>x</literal></link>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="y">
+  <title>B</title>
+  <para>
+    <link linkend="y" role="cross-reference">B</link>
+    <link linkend="y" role="cross-reference">B</link>
+  </para>
+  <para>
+    <anchor xml:id="z" />
+  </para>
+  <para>
+    <link linkend="z" role="cross-reference">Inline label</link>
+  </para>
+</section>

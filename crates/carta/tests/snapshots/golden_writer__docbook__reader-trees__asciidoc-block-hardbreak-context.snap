@@ -1,0 +1,134 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<literallayout>one
+two</literallayout>
+<para>
+  after block
+</para>
+<literallayout>one
+two</literallayout>
+<para>
+  after block
+</para>
+<literallayout>one
+two</literallayout>
+<para>
+  after block
+</para>
+<blockquote>
+<literallayout>one
+two</literallayout>
+</blockquote>
+<para>
+  after block
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+<literallayout>one
+two</literallayout>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  after block
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+<literallayout>one
+two</literallayout>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  after block
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+<literallayout><emphasis>one
+two</emphasis></literallayout>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  after block
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+<literallayout>one
+two</literallayout>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  after block
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+<literallayout><literal>one</literal>
+<literal>two</literal></literallayout>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  after block
+</para>
+<informaltable>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+<literallayout><emphasis role="strong">one
+two</emphasis></literallayout>
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  after block
+</para>

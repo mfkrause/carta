@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{quote}
+A block quote.
+
+bq. A nested block quote.
+Back to the outer level.
+{quote}

@@ -1,0 +1,93 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<div class="example" data-options="hardbreaks">
+<p>one<br />
+two</p>
+</div>
+<p>after block</p>
+<div class="sidebar" data-options="hardbreaks">
+<p>one<br />
+two</p>
+</div>
+<p>after block</p>
+<div data-options="hardbreaks">
+<p>one<br />
+two</p>
+</div>
+<p>after block</p>
+<blockquote data-options="hardbreaks">
+<p>one<br />
+two</p>
+</blockquote>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p><em>one<br />
+two</em></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p>one<br />
+two</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p><code>one</code><br />
+<code>two</code></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+<table>
+<thead>
+<tr>
+<th><p><strong>one<br />
+two</strong></p></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<p>after block</p>
+</section>

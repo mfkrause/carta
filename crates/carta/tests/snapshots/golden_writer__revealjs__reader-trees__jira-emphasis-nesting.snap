@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>Adjacent runs <strong>ab</strong> merge into one strong span.</p>
+<p>Doubled markers <strong><strong>x</strong></strong> nest two strong
+spans.</p>
+<p>Doubled dashes <del><del>x</del></del> nest two strikeout spans.</p>
+</section>

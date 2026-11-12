@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  Adjacent runs <emphasis role="strong">ab</emphasis> merge into one
+  strong span.
+</para>
+<para>
+  Doubled markers
+  <emphasis role="strong"><emphasis role="strong">x</emphasis></emphasis>
+  nest two strong spans.
+</para>
+<para>
+  Doubled dashes
+  <emphasis role="strikethrough"><emphasis role="strikethrough">x</emphasis></emphasis>
+  nest two strikeout spans.
+</para>

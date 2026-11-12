@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-1.  first
-2.  second
-    1.  nested
-3.  third

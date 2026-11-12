@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+See \hyperlink{section}{A section} and \hyperlink{missing}{missing}.
+\end{frame}
+
+\begin{frame}{A section}
+\protect\phantomsection\label{section}
+An \protect\phantomsection\label{anchor}{}anchor.
+
+See \hyperlink{anchor}{Label} and \hyperlink{section}{A section}.
+\end{frame}

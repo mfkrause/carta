@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Outer" _note="+--------------------+&#10;| ## Inner {#_inner} |&#10;|                    |&#10;| Inner body.        |&#10;+====================+&#10;&#10;  *Before   After*&#10;  ------------------">
+</outline>

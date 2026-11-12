@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  deep
+</para>
+<para>
+  <emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis><emphasis>layers</emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis></emphasis>
+</para>

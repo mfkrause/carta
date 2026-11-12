@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.RS
+.PP
+A block quotation body.
+.RE
+.PP
+\(lqan inline quotation\(rq
+.RS
+.PP
+Attributed block quotation.
+.PP
+\(em\ Someone
+.RE
+.PP
+   *   *   *   *   *
+.RS
+.PP
+A first quoted paragraph.
+.IP \(bu 2
+a quoted item
+.IP \(bu 2
+another item
+.RE

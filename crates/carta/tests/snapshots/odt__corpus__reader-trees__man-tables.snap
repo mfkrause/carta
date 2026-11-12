@@ -1,0 +1,213 @@
+---
+source: crates/carta/tests/odt.rs
+expression: output
+---
+<?xml version="1.0" encoding="utf-8" ?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:math="http://www.w3.org/1998/Math/MathML" office:version="1.3">
+<office:font-face-decls>
+<style:font-face style:name="Courier New" style:font-family-generic="modern" style:font-pitch="fixed" svg:font-family="'Courier New'" />
+</office:font-face-decls>
+<office:automatic-styles>
+<style:style style:name="P1" style:family="paragraph" style:parent-style-name="Table_20_Heading">
+<style:paragraph-properties fo:text-align="end" style:justify-single-word="false" />
+</style:style>
+<style:style style:name="P2" style:family="paragraph" style:parent-style-name="Table_20_Contents">
+<style:paragraph-properties fo:text-align="end" style:justify-single-word="false" />
+</style:style>
+<style:style style:name="P3" style:family="paragraph" style:parent-style-name="Table_20_Heading">
+<style:paragraph-properties fo:text-align="center" style:justify-single-word="false" />
+</style:style>
+<style:style style:name="P4" style:family="paragraph" style:parent-style-name="Table_20_Heading">
+<style:paragraph-properties fo:text-align="center" style:justify-single-word="false" />
+</style:style>
+<style:style style:name="P5" style:family="paragraph" style:parent-style-name="Table_20_Contents">
+<style:paragraph-properties fo:text-align="center" style:justify-single-word="false" />
+</style:style>
+<style:style style:name="P6" style:family="paragraph" style:parent-style-name="Table_20_Contents">
+<style:paragraph-properties fo:text-align="center" style:justify-single-word="false" />
+</style:style>
+<style:style style:name="TableHeaderRowCell" style:family="table-cell">
+<style:table-cell-properties fo:border="none" />
+</style:style>
+<style:style style:name="TableRowCell" style:family="table-cell">
+<style:table-cell-properties fo:border="none" />
+</style:style>
+<style:style style:name="Table1" style:family="table">
+<style:table-properties table:align="center" />
+</style:style>
+<style:style style:name="Table1.A" style:family="table-column" />
+<style:style style:name="Table1.B" style:family="table-column" />
+<style:style style:name="Table2" style:family="table">
+<style:table-properties table:align="center" />
+</style:style>
+<style:style style:name="Table2.A" style:family="table-column" />
+<style:style style:name="Table2.B" style:family="table-column" />
+<style:style style:name="Table3" style:family="table">
+<style:table-properties table:align="center" />
+</style:style>
+<style:style style:name="Table3.A" style:family="table-column" />
+<style:style style:name="Table3.B" style:family="table-column" />
+<style:style style:name="Table4" style:family="table">
+<style:table-properties table:align="center" />
+</style:style>
+<style:style style:name="Table4.A" style:family="table-column" />
+<style:style style:name="Table4.B" style:family="table-column" />
+<style:style style:name="Table4.C" style:family="table-column" />
+<style:style style:name="Table5" style:family="table">
+<style:table-properties table:align="center" />
+</style:style>
+<style:style style:name="Table5.A" style:family="table-column" />
+<style:style style:name="Table5.B" style:family="table-column" />
+<style:style style:name="Table6" style:family="table">
+<style:table-properties table:align="center" />
+</style:style>
+<style:style style:name="Table6.A" style:family="table-column" />
+<style:style style:name="Table6.B" style:family="table-column" />
+<style:style style:name="Table6.C" style:family="table-column" />
+<style:style style:name="fr2" style:family="graphic" style:parent-style-name="Formula">
+<style:graphic-properties style:vertical-pos="middle" style:vertical-rel="text" style:horizontal-pos="center" style:horizontal-rel="paragraph-content" style:wrap="none" />
+</style:style>
+<style:style style:name="fr1" style:family="graphic" style:parent-style-name="Formula">
+<style:graphic-properties style:vertical-pos="middle" style:vertical-rel="text" />
+</style:style>
+</office:automatic-styles>
+<office:body>
+<office:text>
+<text:p text:style-name="Title">TBL</text:p>
+<text:h text:style-name="Heading_20_1" text:outline-level="1">
+<text:bookmark-start text:name="tables" />TABLES<text:bookmark-end text:name="tables" />
+</text:h>
+<table:table table:name="Table1" table:style-name="Table1">
+  <table:table-column table:style-name="Table1.A" />
+  <table:table-column table:style-name="Table1.B" />
+  <table:table-header-rows>
+    <table:table-row>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="Table_20_Heading">Name</text:p>
+      </table:table-cell>
+      <table:table-cell table:style-name="TableHeaderRowCell" office:value-type="string">
+        <text:p text:style-name="P1">Age</text:p>
+      </table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Ada</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="P2">36</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Grace Hopper</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="P2">85</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+<text:p text:style-name="First_20_paragraph">A second table without a header rule follows.</text:p>
+<table:table table:name="Table2" table:style-name="Table2">
+  <table:table-column table:style-name="Table2.A" />
+  <table:table-column table:style-name="Table2.B" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="P5">Left</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="P6">Right</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="P5">one</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="P6">two</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+<text:p text:style-name="First_20_paragraph">A table with a multi-line text block follows.</text:p>
+<table:table table:name="Table3" table:style-name="Table3">
+  <table:table-column table:style-name="Table3.A" />
+  <table:table-column table:style-name="Table3.B" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Name</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">A long description</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Left</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Right</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+<text:p text:style-name="First_20_paragraph">A table with a horizontal span follows.</text:p>
+<table:table table:name="Table4" table:style-name="Table4">
+  <table:table-column table:style-name="Table4.A" />
+  <table:table-column table:style-name="Table4.B" />
+  <table:table-column table:style-name="Table4.C" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="2">
+      <text:p text:style-name="Table_20_Contents">Wide span</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">End</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="2">
+      <text:p text:style-name="Table_20_Contents">one</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">three</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+<text:p text:style-name="First_20_paragraph">A table with a vertical span follows.</text:p>
+<table:table table:name="Table5" table:style-name="Table5">
+  <table:table-column table:style-name="Table5.A" />
+  <table:table-column table:style-name="Table5.B" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-rows-spanned="2">
+      <text:p text:style-name="Table_20_Contents">Name</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">One</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Two</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+<text:p text:style-name="First_20_paragraph">A table with combined spans follows.</text:p>
+<table:table table:name="Table6" table:style-name="Table6">
+  <table:table-column table:style-name="Table6.A" />
+  <table:table-column table:style-name="Table6.B" />
+  <table:table-column table:style-name="Table6.C" />
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string" table:number-columns-spanned="2" table:number-rows-spanned="2">
+      <text:p text:style-name="Table_20_Contents">Wide</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">First</text:p>
+    </table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell table:style-name="TableRowCell" office:value-type="string">
+      <text:p text:style-name="Table_20_Contents">Second</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+</office:text>
+</office:body>
+</office:document-content>

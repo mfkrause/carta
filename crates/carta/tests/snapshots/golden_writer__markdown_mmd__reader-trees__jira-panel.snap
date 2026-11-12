@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="panel" data-markdown="1">
+
+<div class="panelheader" data-markdown="1">
+
+**Notice**
+
+</div>
+
+Body text inside the panel.
+
+</div>

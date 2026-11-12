@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.. _x:
+
+A
+=
+
+`x <#x>`__ `x <#x>`__ ```x`` <#x>`__
+
+.. _y:
+
+B
+=
+
+`B <#y>`__ `B <#y>`__
+
+.. _z:
+
+`Inline label <#z>`__

@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+----
+----
+----
+----
+
+----
+
+A hard
+break.
+
+a
+b
+
+third
+fourth
+
+first
+
+second

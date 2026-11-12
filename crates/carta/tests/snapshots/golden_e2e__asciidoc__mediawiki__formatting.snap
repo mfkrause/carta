@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-'''bold ''italic''''' and '''unconstrained'''word.
-
-<code>code</code> '''<code>bold</code>''' <code>words</code> and <span class="red">a span</span>.
-
-<span class="mark">marked</span> <sub>sub</sub> H<sup>2</sup> and “quoted”, “double quoted” and “escaped ` tick”.

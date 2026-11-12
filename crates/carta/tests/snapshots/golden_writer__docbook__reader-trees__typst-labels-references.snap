@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <title>Introduction</title>
+  <para>
+    <anchor xml:id="intro" />
+  </para>
+  <para>
+    See <link linkend="intro" role="ref">[intro]</link> for context.
+  </para>
+  <figure>
+    <title>A labelled figure.</title>
+    <para>
+      <inlinemediaobject>
+        <imageobject>
+          <imagedata fileref="plot.png" />
+        </imageobject>
+      </inlinemediaobject>
+    </para>
+  </figure>
+  <para>
+    <anchor xml:id="fig-plot" />
+  </para>
+  <para>
+    Reference to <link linkend="fig-plot" role="ref">[fig-plot]</link>
+    as well.
+  </para>
+  <para>
+    A <xref linkend="intro" role="ref"></xref> written as a call.
+  </para>
+  <para>
+    A <link linkend="intro">link to a label</link> and a bare
+    <link linkend="intro">#intro</link>.
+  </para>
+  <para>
+    A <link linkend="intro" role="ref">Chapter</link> with its own
+    supplement.
+  </para>
+  <para>
+    A <xref linkend="intro" role="ref"></xref> built from a label call.
+  </para>
+</section>

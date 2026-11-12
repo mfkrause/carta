@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "Operating" , Space , Str "systems" ]
+      , [ [ DefinitionList
+              [ ( [ Str "Linux" ]
+                , [ [ OrderedList
+                        ( 1 , DefaultStyle , DefaultDelim )
+                        [ [ Para [ Str "Fedora" ] ]
+                        , [ Para [ Str "Debian" ] ]
+                        ]
+                    ]
+                  ]
+                )
+              , ( [ Str "BSD" ]
+                , [ [ OrderedList
+                        ( 1 , DefaultStyle , DefaultDelim )
+                        [ [ Para [ Str "FreeBSD" ]
+                          , DefinitionList
+                              [ ( [ Str "Cloud" ]
+                                , [ [ DefinitionList
+                                        [ ( [ Str "PaaS" ] , [ [] ] ) ]
+                                    ]
+                                  ]
+                                )
+                              ]
+                          ]
+                        , [ Para [ Str "Service" ] ]
+                        ]
+                    ]
+                  ]
+                )
+              ]
+          ]
+        ]
+      )
+    ]
+]

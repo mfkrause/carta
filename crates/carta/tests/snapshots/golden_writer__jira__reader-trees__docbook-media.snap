@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+!plot.png|alt=A plotted curve, width=4in, height=2in!
+
+A standalone block image:
+
+!standalone.png!
+
+An inline !icon.png! image.

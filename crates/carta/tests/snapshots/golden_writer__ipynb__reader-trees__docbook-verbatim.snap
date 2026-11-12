@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "    col   col\n",
+    "        indented\n",
+    "\n",
+    "    $ carta\n",
+    "\n",
+    "a  b *emphasized* [linked](https://example.com/)  \n",
+    "  second    line\n",
+    "\n",
+    "    kept  as    code"
+   ],
+   "id": "b4f58112-1e2b-4b4a-af14-dd4a589523c8"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

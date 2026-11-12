@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-See [http://python.org Python] first, then reference [http://python.org Python] again later.

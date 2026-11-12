@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+== First chapter
+
+Text in the chapter.
+
+=== A section
+
+An equation
+
+[latexmath]
+++++
+\[e = 2\]
+++++
+stands in the sentence around it.
+
+Aside
+
+Set beside the text.
+
+[latexmath]
+++++
+\[y = x\]
+++++
+
+=== Deeper still
+
+The count restarts where the article stands.
+
+== Second chapter
+
+.A figure
+image::plot.png[Alternative words,title="Stated by the object"]

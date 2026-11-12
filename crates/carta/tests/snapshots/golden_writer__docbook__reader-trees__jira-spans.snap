@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  An <anchor xml:id="target" /> anchor marks a spot.
+</para>
+<para>
+  Text continues after the anchor span.
+</para>

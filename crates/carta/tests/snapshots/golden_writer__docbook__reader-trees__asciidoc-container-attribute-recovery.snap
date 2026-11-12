@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  ====
+</para>
+<para>
+  ====
+</para>
+<para>
+  -- .Title --
+</para>
+<itemizedlist>
+  <listitem>
+    <para>
+      Parent
+    </para>
+    <para>
+      ****
+    </para>
+    <para xml:id="id">
+      ****
+    </para>
+  </listitem>
+</itemizedlist>

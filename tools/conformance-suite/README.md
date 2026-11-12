@@ -81,6 +81,10 @@ To add a control, first confirm that pandoc's output is wrong (a renderer or val
 or content is lost). Then make sure the offline snapshot tests cover the case, and add its entry
 with the reason.
 
+The reviewed snapshot of an `e2e` case is the writer snapshot of its tree. Before you add a control
+for `e2e/<fmt>-><target>/<label>`, save carta's tree of the case (`carta -f <fmt> -t json`) as
+`corpus/ast/reader-trees/<fmt>-<label>.json` and accept its snapshots.
+
 A dialect writer such as `html4` or `gfm` has no snapshot for a case when an earlier writer of its
 family gives the same output. The suite then compares with the snapshots of those earlier writers.
 
@@ -101,6 +105,8 @@ Add inputs to the shared corpus, not here:
   string (e.g. `commonmark+mark`, `markdown-blank_before_header`). The `extensions` surface
   requires one such directory for every extension the reader honors.
 - a writer node shape → `corpus/ast/<feature>/<label>.json` (a complete Document JSON)
+- a tree shape that only a reader produces → `corpus/ast/reader-trees/<fmt>-<label>.json`, the
+  JSON tree that carta reads from `corpus/text/<fmt>/<label>`
 - a case where pandoc's output is wrong → a control (see [Controls](#controls))
 
 See `corpus/README.md`. The same corpus drives the offline golden snapshots, so a new case is covered by both layers at once.

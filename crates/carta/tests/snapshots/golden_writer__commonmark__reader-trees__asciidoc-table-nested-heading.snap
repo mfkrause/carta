@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><h1 id="_heading">Heading</h1>
+<ul>
+<li><p>item</p></li>
+</ul>
+<pre><code>code</code></pre></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Example and {missing}
+:PROPERTIES:
+:CUSTOM_ID: _and
+:END:
+* [[file:photo.png]] \(x\) =code=
+:PROPERTIES:
+:CUSTOM_ID: _code
+:END:

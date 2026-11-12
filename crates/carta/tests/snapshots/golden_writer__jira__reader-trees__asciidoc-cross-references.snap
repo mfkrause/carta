@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See [A section|#section] and [missing|#missing].
+
+h1. {anchor:section}A section
+An {anchor:anchor}anchor.
+
+See [Label|#anchor] and [A section|#section].

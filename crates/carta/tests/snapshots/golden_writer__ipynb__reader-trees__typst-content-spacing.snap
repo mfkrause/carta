@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "A [ linked body ](https://example.com) keeps the padding of its content.\n",
+    "\n",
+    "A box holds <span class=\"box\"> its own spacing </span> within the line.\n",
+    "\n",
+    "An underlined <u> padded body </u> sits beside plain words.\n",
+    "\n",
+    "> A spaced quotation.\n",
+    ">\n",
+    "> —  A. Author\n",
+    "\n",
+    "A footnote body is trimmed [1] here.\n",
+    "\n",
+    "<figure>\n",
+    "<p><img src=\"diagram.png\" /></p>\n",
+    "<figcaption><p>Figure caption.</p></figcaption>\n",
+    "</figure>\n",
+    "\n",
+    "Loop rounds join with their padding: 1 2 3 .\n",
+    "\n",
+    "A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.\n",
+    "\n",
+    "<img src=\"diagram.png\" width=\"1000.0pt\" />\n",
+    "\n",
+    "The binding kept survives its statement.\n",
+    "\n",
+    "[1] Trimmed on both ends."
+   ],
+   "id": "d0a2f108-838a-4571-818b-62f95bfa9900"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

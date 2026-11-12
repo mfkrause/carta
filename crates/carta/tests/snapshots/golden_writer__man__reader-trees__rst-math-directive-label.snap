@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.RS
+\f[I]e\f[R]^\f[I]i\f[R]\f[I]π\f[R]^ + 1 = 0
+.RE

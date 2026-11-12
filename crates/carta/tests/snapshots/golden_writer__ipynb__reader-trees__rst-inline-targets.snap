@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "An <span id=\"inline-target\">inline target</span> marks a spot that other\n",
+    "text can point back to.\n",
+    "\n",
+    "Here is <span id=\"another-one\">another one</span> in the middle of a\n",
+    "sentence."
+   ],
+   "id": "fae44df9-e156-4b41-89e8-9fb266365254"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

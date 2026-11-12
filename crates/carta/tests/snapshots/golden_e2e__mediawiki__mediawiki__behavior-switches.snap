@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-Lead paragraph after two switches.
-
-A sentence with an inline switch removed.
-
-__NOTOC__ stays literal here.

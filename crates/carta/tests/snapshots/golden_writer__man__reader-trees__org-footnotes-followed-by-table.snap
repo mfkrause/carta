@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+See the note[1] below.
+.SH NOTES
+.SS [1]
+.PP
+The note body paragraph.
+.PP
+.TS
+tab(@);
+l l.
+T{
+Column A
+T}@T{
+Column B
+T}
+T{
+1
+T}@T{
+2
+T}
+.TE

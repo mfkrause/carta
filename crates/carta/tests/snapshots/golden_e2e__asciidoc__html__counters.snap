@@ -1,7 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<p><span class="counter" name="item">1</span> <span class="counter"
-name="item">2</span> <span class="counter" name="other">3</span> <span
-class="counter" name="other">4</span></p>

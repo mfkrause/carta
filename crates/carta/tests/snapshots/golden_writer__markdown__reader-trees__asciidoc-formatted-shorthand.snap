@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[text]{#id .role options="opt k=v"} [**bold**]{.r wrapper="1"}
+
+[text]{#x .mark} [text]{.style.role} [text]{.a}
+
+prefix [**strong**]{wrapper="1"} [*italic*]{wrapper="1"} [span]{}
+[span]{}
+
+prefix [**strong**]{wrapper="1"} [mark]{.mark}

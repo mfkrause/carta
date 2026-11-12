@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH Top level
+Body under the top heading.
+.SS Second level
+.SS Third level
+.SS Fourth level
+.SS Fifth level
+.SS Sixth level
+.SH Heading with \f[B]strong\f[R] and \f[I]emph\f[R]
+.SS Inline heading text

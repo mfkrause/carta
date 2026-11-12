@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="x"></span>
+= A =
+
+[[#x|x]] [[#x|x]] [[#x|<code>x</code>]]
+
+<span id="y"></span>
+= B =
+
+[[#y|B]] [[#y|B]]
+
+<span id="z"></span>
+
+[[#z|Inline label]]

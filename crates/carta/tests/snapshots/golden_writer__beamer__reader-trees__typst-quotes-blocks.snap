@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{quote}
+A block quotation body.
+\end{quote}
+
+``an inline quotation''
+
+\begin{quote}
+Attributed block quotation.
+
+---~Someone
+\end{quote}
+\end{frame}
+
+\begin{frame}
+\begin{quote}
+A first quoted paragraph.
+
+\begin{itemize}
+\item
+  a quoted item
+\item
+  another item
+\end{itemize}
+\end{quote}
+\end{frame}

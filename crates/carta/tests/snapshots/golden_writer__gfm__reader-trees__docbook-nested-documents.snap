@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# First chapter
+
+Text in the chapter.
+
+## A section
+
+An equation ``` math
+e = 2
+``` stands in the sentence around it.
+
+<div class="sidebar">
+
+<div class="title">
+
+Aside
+
+</div>
+
+Set beside the text.
+
+</div>
+
+<div class="informalequation" role="numbered">
+
+``` math
+y = x
+```
+
+</div>
+
+## Deeper still
+
+The count restarts where the article stands.
+
+# Second chapter
+
+<figure>
+<img src="plot.png" title="Stated by the object"
+alt="Alternative words" />
+<figcaption>A figure</figcaption>
+</figure>

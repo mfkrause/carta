@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+deep
+
+\emph{\emph{\emph{\emph{\emph{\emph{\emph{\emph{\emph{\emph{\emph{\emph{\emph{layers}}}}}}}}}}}}}
+\end{frame}

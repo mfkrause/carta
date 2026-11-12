@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+- #box(image("movie.mp4", alt: "movie.mp4"))
+
+- Outer
+
+  - #figure(image("nested.png"),
+      caption: [
+        
+      ]
+    )
+
+/ : #block[
+#figure(image("same.png"),
+  caption: [
+    
+  ]
+)
+]
+/ Named: #block[
+#block[
+] <toc>
+]
+/ : #block[
+#figure(image("next.png"),
+  caption: [
+    
+  ]
+)
+]
+/ Indented: #block[
+#box(image("sound.mp3", alt: "sound.mp3"))
+]
+/ A: #block[
+
+]
+/ B and C: #block[
+D
+]
+/ Bad: #block[
+
+]
+/ include: #block[
+missing\[
+]

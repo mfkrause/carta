@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Before kept text after.
+.PP
+\f[I]Formatted text\f[R]
+.PP
+[IMAGE: image]

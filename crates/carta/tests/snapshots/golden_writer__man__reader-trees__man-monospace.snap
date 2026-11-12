@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH FONTS
+plain \f[CR]mono\f[R] and \f[B]\f[CB]monobold\f[B]\f[R] and
+\f[I]\f[CI]monoital\f[I]\f[R] back.
+.PP
+bracket \f[CR]mono\f[R] and single \f[CR]mono\f[R] end.

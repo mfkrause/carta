@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+  * **{value}** Definition Cedar Ridge
+  * ****{value}**** Strong definition Cedar Ridge
+  * **[[#target|target]]** Link definition Cedar Ridge
+  * **** Anchor definition Cedar Ridge
+  * **[heart]** Icon definition Cedar Ridge
+  * **((Note {value}
+))** Footnote definition Cedar Ridge
+  * **1** Count 2
+  * **User wrapper** Wrapper definition Cedar Ridge
+
+====== Target ======
+
+See [[#target|Target]] and [[#term-id|term-id]] and ((
+)).

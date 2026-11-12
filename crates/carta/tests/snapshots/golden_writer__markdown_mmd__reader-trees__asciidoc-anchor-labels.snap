@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="point"></span> See <a href="#point"
+class="cross-reference">Reference Text</a> and <a href="#missing"
+class="cross-reference"></a>.
+
+# Heading [other,Label]
+
+See <a href="#other" class="cross-reference">other</a>.
+
+<div id="multi,One,Two" data-wrapper="1" data-markdown="1">
+
+See <a href="#multi" class="cross-reference">multi</a>.
+
+</div>
+
+<span id="macro"></span> See <a href="#macro"
+class="cross-reference">AlphaBeta</a>.
+
+<span id="bib"></span>

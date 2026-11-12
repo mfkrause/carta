@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span class=\"kbd\">**Ctrl**</span>+<span class=\"kbd\">**Shift**</span>+<span class=\"kbd\">**F**</span>\n",
+    "<span class=\"button\">**\\[Cancel\\]**</span>\n",
+    "<span class=\"menu\">**File › Open › Recent**</span>\n",
+    "\n",
+    "<img src=\"./images/icons/heart.png\" class=\"red icon\" />\n",
+    "<span id=\"point\"></span>\n",
+    "\n",
+    "<span class=\"index\" data-term=\"visible\">visible</span>\n",
+    "<span class=\"index\" data-term=\"hidden,index\"></span>"
+   ],
+   "id": "767f3c58-88a7-47cc-ac88-8e304ac88f00"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

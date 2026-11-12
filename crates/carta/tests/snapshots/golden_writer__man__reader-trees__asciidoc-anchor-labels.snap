@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+See Reference Text and .
+.SH Heading
+See other.
+.PP
+See multi.
+.PP
+See AlphaBeta.
+.PP

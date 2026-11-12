@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="first">
+  <title>First</title>
+  <para>
+  </para>
+</section>
+<simplesect xml:id="deeper-heading">
+  <title>Deeper <emphasis>heading</emphasis></title>
+  <para>
+  </para>
+</simplesect>
+<programlisting language="python">
+print(1)
+</programlisting>
+<programlisting>
+1
+</programlisting>
+<programlisting>
+1
+</programlisting>
+<programlisting>
+line 1
+ExampleError: text
+</programlisting>
+<para>
+  Final text
+</para>

@@ -1,0 +1,113 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|-
+!
+|}
+
+<span class="counter" name="unused-d">1</span>
+
+{| class="wikitable"
+|-
+! <div>
+<div class="title">
+<span class="counter" name="used-d">1</span>
+
+</div>
+
+<span class="counter" name="used-d">2</span>
+
+</div>
+|}
+
+<span class="counter" name="used-d">3</span>
+
+{| class="wikitable"
+|-
+!
+|}
+
+<span class="counter" name="unused-e">1</span>
+
+{| class="wikitable"
+|-
+! <div>
+<div class="title">
+<span class="counter" name="used-e">1</span>
+
+</div>
+
+''<span class="counter" name="used-e">2</span>''
+
+</div>
+|}
+
+<span class="counter" name="used-e">3</span>
+
+{| class="wikitable"
+|-
+!
+|}
+
+<span class="counter" name="unused-h">1</span>
+
+{| class="wikitable"
+|-
+! <div>
+<div class="title">
+<span class="counter" name="used-h">1</span>
+
+</div>
+
+<span class="counter" name="used-h">2</span>
+
+</div>
+|}
+
+<span class="counter" name="used-h">3</span>
+
+{| class="wikitable"
+|-
+!
+|}
+
+<span class="counter" name="unused-m">1</span>
+
+{| class="wikitable"
+|-
+! <div>
+<div class="title">
+<span class="counter" name="used-m">1</span>
+
+</div>
+
+<span class="counter" name="used-m"><code>2</code></span>
+
+</div>
+|}
+
+<span class="counter" name="used-m">3</span>
+
+{| class="wikitable"
+|-
+!
+|}
+
+<span class="counter" name="unused-s">1</span>
+
+{| class="wikitable"
+|-
+! <div>
+<div class="title">
+<span class="counter" name="used-s">1</span>
+
+</div>
+
+'''<span class="counter" name="used-s">2</span>'''
+
+</div>
+|}
+
+<span class="counter" name="used-s">3</span>

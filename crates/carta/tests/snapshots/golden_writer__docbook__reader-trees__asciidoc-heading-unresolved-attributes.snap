@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__and">
+  <title>Example and {missing}</title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__code">
+  <title><inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="photo.png" />
+    </imageobject>
+    <textobject>
+      <phrase>Photo</phrase>
+    </textobject>
+  </inlinemediaobject> <emphasis>x</emphasis>
+  <literal>code</literal></title>
+  <para>
+  </para>
+</section>

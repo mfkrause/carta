@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-\textbf{ab} \textbf{cd} \emph{ef} \emph{gh}

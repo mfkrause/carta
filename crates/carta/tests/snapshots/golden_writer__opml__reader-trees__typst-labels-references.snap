@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Introduction" _note="[]{#intro}&#10;&#10;See [\[intro\]](#intro){.ref} for context.&#10;&#10;&lt;figure&gt;&#10;&lt;p&gt;&lt;img src=&quot;plot.png&quot; /&gt;&lt;/p&gt;&#10;&lt;figcaption&gt;&lt;p&gt;A labelled figure.&lt;/p&gt;&lt;/figcaption&gt;&#10;&lt;/figure&gt;&#10;&#10;[]{#fig-plot}&#10;&#10;Reference to [\[fig-plot\]](#fig-plot){.ref} as well.&#10;&#10;A [](#intro){.ref} written as a call.&#10;&#10;A [link to a label](#intro) and a bare [#intro](#intro).&#10;&#10;A [Chapter](#intro){.ref} with its own supplement.&#10;&#10;A [](#intro){.ref} built from a label call.">
+</outline>

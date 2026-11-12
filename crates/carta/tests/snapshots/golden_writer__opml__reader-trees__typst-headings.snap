@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Top level" _note="Body under the top heading.">
+  <outline text="Second level">
+    <outline text="Third level">
+      <outline text="Fourth level">
+        <outline text="Fifth level">
+          <outline text="Sixth level">
+          </outline>
+        </outline>
+      </outline>
+    </outline>
+  </outline>
+</outline>
+<outline text="Heading with &lt;strong&gt;strong&lt;/strong&gt; and &lt;em&gt;emph&lt;/em&gt;">
+  <outline text="Inline heading text">
+  </outline>
+</outline>

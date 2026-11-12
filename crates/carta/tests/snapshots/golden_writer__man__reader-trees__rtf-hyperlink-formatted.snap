@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Visit \f[I]\c
+.UR http://example.com
+our site
+.UE \c
+\f[R] and \f[B]\c
+.UR http://other.com
+bold
+.UE \c
+\f[R]\c
+.UR http://other.com
+plain
+.UE \c
+\&.

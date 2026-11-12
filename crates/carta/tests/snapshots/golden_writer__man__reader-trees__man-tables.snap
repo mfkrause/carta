@@ -1,0 +1,113 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH TABLES
+.PP
+.TS
+tab(@);
+l r.
+T{
+Name
+T}@T{
+Age
+T}
+_
+T{
+Ada
+T}@T{
+36
+T}
+T{
+Grace Hopper
+T}@T{
+85
+T}
+.TE
+.PP
+A second table without a header rule follows.
+.PP
+.TS
+tab(@);
+c c.
+T{
+Left
+T}@T{
+Right
+T}
+T{
+one
+T}@T{
+two
+T}
+.TE
+.PP
+A table with a multi\-line text block follows.
+.PP
+.TS
+tab(@);
+l l.
+T{
+Name
+T}@T{
+A long description
+T}
+T{
+Left
+T}@T{
+Right
+T}
+.TE
+.PP
+A table with a horizontal span follows.
+.PP
+.TS
+tab(@);
+l l l.
+T{
+Wide span
+T}@T{
+T}@T{
+End
+T}
+T{
+one
+T}@T{
+T}@T{
+three
+T}
+.TE
+.PP
+A table with a vertical span follows.
+.PP
+.TS
+tab(@);
+l l.
+T{
+Name
+T}@T{
+One
+T}
+T{
+T}@T{
+Two
+T}
+.TE
+.PP
+A table with combined spans follows.
+.PP
+.TS
+tab(@);
+l l l.
+T{
+Wide
+T}@T{
+T}@T{
+First
+T}
+T{
+T}@T{
+T}@T{
+Second
+T}
+.TE

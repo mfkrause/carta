@@ -1,0 +1,83 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="1">
+    <colspec colwidth="100*" align="left" />
+    <tbody>
+      <row>
+        <entry>
+          <para xml:id="next">
+            Next line
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para xml:id="labeled,label">
+            Label text
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            <anchor xml:id="inline" /> remainder
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            before <anchor xml:id="middle" /> after
+          </para>
+          <para xml:id="after-blank">
+            After blank
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            <anchor xml:id="space inside" /> Whitespace id
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            <anchor xml:id="bad]bracket" /> Malformed id
+          </para>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          <para>
+            <anchor xml:id="trailing" /> Trailing spaces
+          </para>
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>
+<informaltable>
+  <tgroup cols="1">
+    <colspec colwidth="100*" align="left" />
+    <tbody>
+      <row>
+        <entry>
+          <para>
+            1 title
+          </para>
+          <para>
+            2 body
+          </para>
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>
+<para>
+  1 3
+</para>

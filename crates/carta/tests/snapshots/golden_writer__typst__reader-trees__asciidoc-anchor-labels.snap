@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+​<point> See #link(<point>)[Reference Text] and #link(<missing>)[].
+
+= Heading
+#label("other,Label")
+See #link(<other>)[other].
+
+#block[
+See #link(<multi>)[multi].
+
+] #label("multi,One,Two")
+
+​<macro> See #link(<macro>)[AlphaBeta].
+
+​<bib>

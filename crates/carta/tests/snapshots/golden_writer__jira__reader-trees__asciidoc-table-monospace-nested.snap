@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+|| !x|alt={{p}}! ||
+| [{{l}}|x] |
+| [1] |
+| {{span}} |
+
+
+\[1] {{note}}

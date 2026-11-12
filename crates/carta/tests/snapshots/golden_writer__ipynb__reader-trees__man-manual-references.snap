@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "See [*printf*(3)](man:printf(3)), then continue.\n",
+    "\n",
+    "Small text **Bold text**\n",
+    "\n",
+    "[*open*(2)](man:open(2))  \n",
+    "Open a file.\n",
+    "\n",
+    "**Nested style**"
+   ],
+   "id": "7f9205df-314f-4ebb-9ac4-9eda4b1c9ada"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

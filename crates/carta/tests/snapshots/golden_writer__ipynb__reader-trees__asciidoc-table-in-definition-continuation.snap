@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Term  \n",
+    "<table>\n",
+    "<thead>\n",
+    "<tr>\n",
+    "<th><p>first</p>\n",
+    "<p>second line</p></th>\n",
+    "</tr>\n",
+    "</thead>\n",
+    "<tbody>\n",
+    "</tbody><tfoot>\n",
+    "<tr>\n",
+    "<td><p>next</p></td>\n",
+    "</tr>\n",
+    "</tfoot>\n",
+    "&#10;</table>"
+   ],
+   "id": "12a4cfd7-26bb-45a4-ace6-aee3b5f333d8"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

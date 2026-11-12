@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+Start middle \protect\phantomsection\label{named}{anchor text} end.
+\end{frame}

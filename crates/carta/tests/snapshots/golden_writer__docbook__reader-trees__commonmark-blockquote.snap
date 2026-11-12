@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<blockquote>
+  <para>
+    A block quote.
+  </para>
+  <blockquote>
+    <para>
+      A nested block quote.
+    </para>
+  </blockquote>
+  <para>
+    Back to the outer level.
+  </para>
+</blockquote>

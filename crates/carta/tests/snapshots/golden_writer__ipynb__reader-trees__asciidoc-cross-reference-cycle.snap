@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# <a href=\"#self\" class=\"cross-reference\"><span class=\"cross-reference\">self</span></a>"
+   ],
+   "id": "be600691-b7ad-4a63-a94d-e8da00de698e"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

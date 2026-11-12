@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 An  anchor marks a spot.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Text continues after the anchor span.\par}

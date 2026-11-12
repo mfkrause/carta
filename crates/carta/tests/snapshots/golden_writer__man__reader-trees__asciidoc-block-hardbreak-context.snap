@@ -1,0 +1,134 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+one
+.PD 0
+.P
+.PD
+two
+.PP
+after block
+.PP
+one
+.PD 0
+.P
+.PD
+two
+.PP
+after block
+.PP
+one
+.PD 0
+.P
+.PD
+two
+.PP
+after block
+.RS
+.PP
+one
+.PD 0
+.P
+.PD
+two
+.RE
+.PP
+after block
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+one
+.PD 0
+.P
+.PD
+two
+T}
+_
+.TE
+.PP
+after block
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+one
+.PD 0
+.P
+.PD
+two
+T}
+_
+.TE
+.PP
+after block
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+\f[I]one
+.PD 0
+.P
+.PD
+two\f[R]
+T}
+_
+.TE
+.PP
+after block
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+one
+.PD 0
+.P
+.PD
+two
+T}
+_
+.TE
+.PP
+after block
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+\f[CR]one\f[R]
+.PD 0
+.P
+.PD
+\f[CR]two\f[R]
+T}
+_
+.TE
+.PP
+after block
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+\f[B]one
+.PD 0
+.P
+.PD
+two\f[R]
+T}
+_
+.TE
+.PP
+after block

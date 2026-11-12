@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 A\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#x"}}{\fldrslt{\ul
+x
+}}}
+ {\field{\*\fldinst{HYPERLINK "#x"}}{\fldrslt{\ul
+x
+}}}
+ {\field{\*\fldinst{HYPERLINK "#x"}}{\fldrslt{\ul
+{\f1 x}
+}}}
+\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 B\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#y"}}{\fldrslt{\ul
+B
+}}}
+ {\field{\*\fldinst{HYPERLINK "#y"}}{\fldrslt{\ul
+B
+}}}
+\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#z"}}{\fldrslt{\ul
+Inline label
+}}}
+\par}

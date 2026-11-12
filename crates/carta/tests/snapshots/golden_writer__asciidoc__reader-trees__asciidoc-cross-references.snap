@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See link:#section[A section] and link:#missing[missing].
+
+[[section]]
+== A section
+
+An [#anchor]##anchor.
+
+See link:#anchor[Label] and link:#section[A section].

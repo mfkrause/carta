@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="first-level-heading">
+  <title>First level heading</title>
+  <para>
+    Body text under the first heading.
+  </para>
+  <section xml:id="second-level-heading">
+    <title>Second level heading
+    <emphasis role="smallcaps">work</emphasis> <emphasis role="smallcaps">urgent</emphasis></title>
+    <section xml:id="third-level-heading">
+      <title>Third level heading</title>
+      <para>
+      </para>
+    </section>
+  </section>
+</section>

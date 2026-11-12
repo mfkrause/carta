@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| Heading | Value |
+|---------+-------|
+| Item    | 12    |
+#+caption: Table /caption/
+
+See Table [[#table][1]].
+
+| Content |
+#+caption: First line\\
+Second line

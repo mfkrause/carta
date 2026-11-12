@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+
+<div class="page-break" data-wrapper="1" data-markdown="1">
+
+------------------------------------------------------------------------
+
+</div>
+
+<div class="page-break" data-options="always" data-wrapper="1" data-markdown="1">
+
+------------------------------------------------------------------------
+
+</div>
+
+A hard  
+break.
+
+<div data-wrapper="1" data-options="hardbreaks" data-markdown="1">
+
+a  
+b
+
+</div>
+
+third  
+fourth
+
+first  
+  
+second

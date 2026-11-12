@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\protect\phantomsection\label{point}{} See \hyperlink{point}{Reference
+Text} and \hyperlink{missing}{}.
+\end{frame}
+
+\begin{frame}{Heading}
+\protect\phantomsection\label{otherux2cLabel}
+See \hyperlink{other}{other}.
+
+\protect\phantomsection\label{multiux2cOneux2cTwo}
+See \hyperlink{multi}{multi}.
+
+\protect\phantomsection\label{macro}{} See \hyperlink{macro}{AlphaBeta}.
+
+\protect\phantomsection\label{bib}{}
+\end{frame}

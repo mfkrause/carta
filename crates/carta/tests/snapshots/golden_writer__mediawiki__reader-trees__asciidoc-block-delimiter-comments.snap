@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<pre>code</pre>
+after
+
+<pre>literal
+</pre>
+after
+
+<span>raw</span>
+after
+
+==== example ==== after

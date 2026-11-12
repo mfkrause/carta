@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "To a labelled section: [The label the section states](#labelled).\n",
+    "\n",
+    "To a labelled section, overridden: [Some other wording](#labelled).\n",
+    "\n",
+    "To a labelled table: [The label the table states](#grid).\n",
+    "\n",
+    "To an unlabelled section: [An unlabelled section](#plain).\n",
+    "\n",
+    "<span id=\"wording\">Some other wording</span>\n",
+    "\n",
+    "# A labelled section\n",
+    "\n",
+    "Body.\n",
+    "\n",
+    "# An unlabelled section\n",
+    "\n",
+    "Body.\n",
+    "\n",
+    "|      |\n",
+    "|------|\n",
+    "| Cell |\n",
+    "\n",
+    "A labelled table {#grid}"
+   ],
+   "id": "bb1c49a2-fb51-4bed-b620-1817299dcaf4"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

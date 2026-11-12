@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li720 \fi0 A block quotation body.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \u8220"an inline quotation\u8221"\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 Attributed block quotation.\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 \u8212-\u160 ?Someone\par}
+{\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 A first quoted paragraph.\par}
+{\pard \ql \f0 \sa180 \li1080 \fi-360 \bullet \tx360\tab a quoted item\par}
+{\pard \ql \f0 \sa180 \li1080 \fi-360 \bullet \tx360\tab another item\sa180\par}

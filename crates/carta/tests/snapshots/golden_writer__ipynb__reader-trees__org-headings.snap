@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# First level heading\n",
+    "\n",
+    "Body text under the first heading.\n",
+    "\n",
+    "## Second level heading <span class=\"tag\" data-tag-name=\"work\"><span class=\"smallcaps\">work</span></span> <span class=\"tag\" data-tag-name=\"urgent\"><span class=\"smallcaps\">urgent</span></span>\n",
+    "\n",
+    "### Third level heading"
+   ],
+   "id": "28e018ed-f1d2-4b22-ad0e-c54279868e0c"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

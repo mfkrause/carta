@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="FONTS" _note="plain `mono` and **`monobold`** and *`monoital`* back.&#10;&#10;bracket `mono` and single `mono` end.">
+</outline>

@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Plain, *emphasized*, **strong**, **bold**, <u>underlined</u> and\n",
+    "~~struck~~ runs.\n",
+    "\n",
+    "Water is H<sub>2</sub>O and the area is r<sup>2</sup>.\n",
+    "\n",
+    "A “quotation ‘inside’ another” alternates its marks.\n",
+    "\n",
+    "Code faces: `literal`, `ls`, `/etc/hosts`, `strlen`, `Widget`, `PATH`,\n",
+    "`--verbose`, `done`, `MAX`, `count`, `<br/>`, and `(...)`.\n",
+    "\n",
+    "Fill in \\<name\\> and maybe \\[a flag\\].\n",
+    "\n",
+    "A *lingua franca* and a *word*.\n",
+    "\n",
+    "A bare phrase carries nothing extra.\n",
+    "\n",
+    "Press <span class=\"keycombo\">Ctrl+C</span> or pick\n",
+    "<span class=\"menuchoice\">File \\> Save</span>.\n",
+    "\n",
+    "An <span id=\"spot\"></span>anchored spot."
+   ],
+   "id": "991dfde5-9b44-46e5-845d-7121bf7a8d46"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

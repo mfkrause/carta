@@ -1,0 +1,56 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 0\tabcolsep) * \real{1.0000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\midrule\noalign{}
+\protect\phantomsection\label{trailing}{} Trailing spaces \\
+\bottomrule\noalign{}
+\endlastfoot
+\begin{minipage}[t]{\linewidth}\raggedright
+\protect\phantomsection\label{next}
+Next line
+\end{minipage} \\
+\begin{minipage}[t]{\linewidth}\raggedright
+\protect\phantomsection\label{labeledux2clabel}
+Label text
+\end{minipage} \\
+\protect\phantomsection\label{inline}{} remainder \\
+\begin{minipage}[t]{\linewidth}\raggedright
+before \protect\phantomsection\label{middle}{} after
+
+\protect\phantomsection\label{after-blank}
+After blank
+\end{minipage} \\
+\protect\phantomsection\label{spaceux20inside}{} Whitespace id \\
+\protect\phantomsection\label{badux5cux255Dbracket}{} Malformed id \\
+\end{longtable}
+}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 0\tabcolsep) * \real{1.0000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\midrule\noalign{}
+\begin{minipage}[t]{\linewidth}\raggedright
+{1} title
+
+{2} body
+\end{minipage} \\
+\bottomrule\noalign{}
+\endlastfoot
+\end{longtable}
+}
+
+{1} {3}

@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level1">
+
+<p>To a labelled section: <a href="#/labelled">The label the section
+states</a>.</p>
+<p>To a labelled section, overridden: <a href="#/labelled">Some other
+wording</a>.</p>
+<p>To a labelled table: <a href="#/grid">The label the table
+states</a>.</p>
+<p>To an unlabelled section: <a href="#/plain">An unlabelled
+section</a>.</p>
+<p><span id="wording">Some other wording</span></p>
+</section>
+<section id="labelled" class="slide level1">
+<h1>A labelled section</h1>
+<p>Body.</p>
+</section>
+<section id="plain" class="slide level1">
+<h1>An unlabelled section</h1>
+<p>Body.</p>
+<table id="grid">
+<caption>A labelled table</caption>
+<tbody>
+<tr>
+<td>Cell</td>
+</tr>
+</tbody>
+</table>
+</section>

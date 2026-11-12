@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\section{A}\label{x}
+
+\hyperref[x]{x} \hyperref[x]{x} \hyperref[x]{\texttt{x}}
+
+\section{B}\label{y}
+
+\hyperref[y]{B} \hyperref[y]{B}
+
+\protect\phantomsection\label{z}{}
+
+\hyperref[z]{Inline label}

@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<tbody>
+<tr>
+<td align="left"><table>
+<thead>
+<tr>
+<th align="left">Inner</th>
+<th align="right">Right</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Next</td>
+<td align="right">Last</td>
+</tr>
+</tbody>
+</table></td>
+<td align="left">Outer</td>
+</tr>
+<tr>
+<td align="left">Final</td>
+<td align="left">Tail</td>
+</tr>
+</tbody>
+</table>
+<table>
+<tbody>
+<tr>
+<td align="left"><table>
+<tbody>
+<tr>
+<td align="center">Grouped</td>
+</tr>
+<tr>
+<td align="center">Content</td>
+</tr>
+</tbody>
+</table></td>
+<td align="left">A&amp;B</td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,51 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#block[
+= First
+<first>
+
+]
+
+#block[
+========= Deeper #emph[heading]
+<deeper-heading>
+
+]
+
+#block[
+```python
+print(1)
+```
+
+#block[
+```
+1
+```
+
+]
+
+#block[
+```
+1
+```
+
+]
+
+#block[
+```
+line 1
+ExampleError: text
+```
+
+]
+]
+
+#block[
+]
+
+#block[
+Final text
+
+]

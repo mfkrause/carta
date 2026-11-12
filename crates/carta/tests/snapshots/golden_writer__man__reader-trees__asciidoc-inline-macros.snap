@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+\f[B]Ctrl\f[R]+\f[B]Shift\f[R]+\f[B]F\f[R] \f[B][Cancel]\f[R]
+\f[B]File\ ›\ Open\ ›\ Recent\f[R]
+.PP
+[IMAGE: image]
+.PP
+visible

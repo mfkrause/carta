@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+\f[B]strong\f[R] and \f[CR]two\f[R] \f[CR]words\f[R].
+.PP
+[1]
+.SH NOTES
+.SS [1]
+.PP
+S. Smith.

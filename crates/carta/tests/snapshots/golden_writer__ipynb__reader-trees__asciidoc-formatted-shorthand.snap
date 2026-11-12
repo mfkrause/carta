@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span id=\"id\" class=\"role\" data-options=\"opt k=v\">text</span>\n",
+    "<span class=\"r\" data-wrapper=\"1\">**bold**</span>\n",
+    "\n",
+    "<span id=\"x\" class=\"mark\">text</span>\n",
+    "<span class=\"style.role\">text</span> <span class=\"a\">text</span>\n",
+    "\n",
+    "prefix <span class=\"\" data-wrapper=\"1\">**strong**</span>\n",
+    "<span class=\"\" data-wrapper=\"1\">*italic*</span>\n",
+    "<span class=\"\">span</span> <span class=\"\">span</span>\n",
+    "\n",
+    "prefix <span data-wrapper=\"1\">**strong**</span>\n",
+    "<span class=\"mark\">mark</span>"
+   ],
+   "id": "53521cff-d3b4-4550-bd1a-56de648fea70"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

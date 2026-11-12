@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Plain, _emphasized_, *strong*, *bold*, +underlined+ and -struck- runs.
+
+Water is H{~}2{~}O and the area is r{^}2{^}.
+
+A "quotation 'inside' another" alternates its marks.
+
+Code faces: {{literal}}, {{ls}}, {{/etc/hosts}}, {{strlen}}, {{Widget}}, {{PATH}}, {{\-\-verbose}}, {{done}}, {{MAX}}, {{count}}, {{<br/>}}, and {{\(...)}}.
+
+Fill in <name> and maybe \[a flag].
+
+A _lingua franca_ and a _word_.
+
+A bare phrase carries nothing extra.
+
+Press Ctrl+C or pick File > Save.
+
+An {anchor:spot}anchored spot.

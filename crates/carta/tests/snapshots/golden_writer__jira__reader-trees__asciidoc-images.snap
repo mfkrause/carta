@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+An !photo.png|alt=Photo, width=100px, height=200px!.
+
+!photo.png|alt=Photo, width=100px, height=200px!
+
+!photo.png!

@@ -1,0 +1,56 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  A <link xlink:href="https://example.com"> linked body </link> keeps
+  the padding of its content.
+</para>
+<para>
+  A box holds its own spacing within the line.
+</para>
+<para>
+  An underlined <emphasis role="underline"> padded body </emphasis> sits
+  beside plain words.
+</para>
+<blockquote>
+  <para>
+    A spaced quotation.
+  </para>
+  <para>
+    —  A. Author
+  </para>
+</blockquote>
+<para>
+  A footnote body is trimmed <footnote>
+    <para>
+      Trimmed on both ends.
+    </para>
+  </footnote> here.
+</para>
+<figure>
+  <title>Figure caption.</title>
+  <para>
+    <inlinemediaobject>
+      <imageobject>
+        <imagedata fileref="diagram.png" />
+      </imageobject>
+    </inlinemediaobject>
+  </para>
+</figure>
+<para>
+  Loop rounds join with their padding: 1 2 3 .
+</para>
+<para>
+  A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.
+</para>
+<para>
+  <inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="diagram.png" width="1000pt" />
+    </imageobject>
+  </inlinemediaobject>
+</para>
+<para>
+  The binding kept survives its statement.
+</para>

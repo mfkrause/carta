@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<itemizedlist>
+  <listitem>
+    <para>
+      Term
+    </para>
+    <variablelist>
+      <varlistentry>
+        <term>
+          * Another
+        </term>
+        <listitem>
+          <para>
+            Definition
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </listitem>
+  <listitem>
+    <para>
+      Separate
+    </para>
+  </listitem>
+</itemizedlist>
+<itemizedlist>
+  <listitem>
+    <variablelist>
+      <varlistentry>
+        <term>
+          Separate
+        </term>
+        <listitem>
+          <para>
+            Definition
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </listitem>
+</itemizedlist>

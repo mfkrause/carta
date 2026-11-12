@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* First
+:PROPERTIES:
+:CUSTOM_ID: first
+:END:
+
+********* Deeper /heading/
+:PROPERTIES:
+:CUSTOM_ID: deeper-heading
+:END:
+
+#+begin_src python
+print(1)
+#+end_src
+
+#+begin_example
+1
+#+end_example
+
+#+begin_example
+1
+#+end_example
+
+#+begin_example
+line 1
+ExampleError: text
+#+end_example
+
+\textbf{raw}
+
+Final text

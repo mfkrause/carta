@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+# Alpha <span class="counter" name="x">1</span> [_alpha]
+
+# Alpha <span class="index" data-term="term">term</span> [_alpha_2]
+
+# Alpha <span class="index" data-term="foo">foo</span> [_alpha_3]
+
+# Alpha word [_alpha_4]
+
+# Alpha <span class="menu">**Tools › Build › Run**</span> [_alpha_5]
+
+# Alpha <span class="button">**\[Save\]**</span> [_alpha_6]
+
+# Alpha <span class="kbd">**Ctrl**</span>+<span class="kbd">**X**</span> [_alpha_7]
+
+# Alpha <span id="key"></span> [_alpha_label]

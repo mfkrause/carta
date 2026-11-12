@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<anchor xml:id="lists" />
+<para>
+  A bullet list opens right after a paragraph line, with no blank
+  between:
+</para>
+<itemizedlist spacing="compact">
+  <listitem>
+    <para>
+      apples
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      pears
+    </para>
+  </listitem>
+</itemizedlist>
+<para>
+  An ordered list interrupts the same way:
+</para>
+<orderedlist spacing="compact">
+  <listitem>
+    <para>
+      second
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      third
+    </para>
+  </listitem>
+</orderedlist>
+<para>
+  A parenthesized or roman marker has a list shape but no enabled style
+  here, so it breaks off as its own plain paragraph rather than folding
+  in:
+</para>
+<para>
+  (5) parenthesized
+</para>
+<para>
+  A decimal marker closed by a single paren stays prose and folds in, so
+  these two lines remain one paragraph: 1) not a list 2) still prose
+</para>

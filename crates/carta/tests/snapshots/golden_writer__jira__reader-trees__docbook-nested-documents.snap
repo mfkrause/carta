@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:}First chapter
+Text in the chapter.
+
+h2. {anchor:}A section
+An equation 
+_e_ = 2
+ stands in the sentence around it.
+
+Aside
+
+Set beside the text.
+
+
+_y_ = {_}x{_}
+
+
+h2. {anchor:}Deeper still
+The count restarts where the article stands.
+
+h1. {anchor:}Second chapter
+!plot.png|title=Stated by the object, alt=Alternative words!

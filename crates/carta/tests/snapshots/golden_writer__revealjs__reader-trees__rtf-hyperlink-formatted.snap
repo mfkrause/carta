@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>Visit <u><a href="http://example.com">our site</a></u> and <strong><a
+href="http://other.com">bold</a></strong><a href="http://other.com">
+plain</a>.</p>
+</section>

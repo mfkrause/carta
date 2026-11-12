@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{anchor:point} See [Reference Text|#point] and [#missing].
+
+h1. {anchor:other,Label}Heading
+See [other|#other].
+
+{anchor:multi,One,Two}See [multi|#multi].
+
+{anchor:macro} See [AlphaBeta|#macro].
+
+{anchor:bib}

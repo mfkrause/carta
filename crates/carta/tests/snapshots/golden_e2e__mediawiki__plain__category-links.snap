@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-Intro paragraph mentions inline.
-
-A paragraph with and a normal link.
-
-Category:Physics sort key

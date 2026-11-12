@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "`-a`  \n",
+    "Output all.\n",
+    "\n",
+    "`-b, --brief`  \n",
+    "Be brief about it.\n",
+    "\n",
+    "`--verbose`  \n",
+    "Talk a great deal.\n",
+    "\n",
+    "`-f FILE`  \n",
+    "Read input from FILE.\n",
+    "\n",
+    "The description may also start on the next line:\n",
+    "\n",
+    "`--output=FILE`  \n",
+    "Write output to FILE instead of standard output."
+   ],
+   "id": "d3fa8687-069c-4594-a04d-d256b3723c40"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

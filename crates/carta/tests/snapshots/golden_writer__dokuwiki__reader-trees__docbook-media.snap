@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{{plot.png?384x192|A plotted curve}}
+A captioned figure
+
+
+A standalone block image:
+
+{{standalone.png}}
+
+An inline {{icon.png}} image.

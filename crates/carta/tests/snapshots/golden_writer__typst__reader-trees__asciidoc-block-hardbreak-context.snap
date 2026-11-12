@@ -1,0 +1,117 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#block[
+one \ two
+
+]
+
+after block
+
+#block[
+one \ two
+
+]
+
+after block
+
+#block[
+one \ two
+
+]
+
+after block
+
+#block[
+#quote(block: true)[
+one \ two
+]
+
+]
+
+after block
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([one \ two
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+after block
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([one \ two
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+after block
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#emph[one \ two]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+after block
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([one \ two
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+after block
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([`one` \ `two`
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+after block
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([#strong[one \ two]
+
+      ],),
+    table.hline(),
+  )]
+  , kind: table
+  )
+
+after block

@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-\section{Name}\label{_name}
-
-\section{Name\_2}\label{_name_2}
-
-\section{Name}\label{_name_2}

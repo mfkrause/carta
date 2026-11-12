@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l.
+T{
+.PP
+.TS
+tab(@);
+l r.
+T{
+Inner
+T}@T{
+Right
+T}
+_
+T{
+Next
+T}@T{
+Last
+T}
+.TE
+T}@T{
+Outer
+T}
+T{
+Final
+T}@T{
+Tail
+T}
+.TE
+.PP
+.TS
+tab(@);
+l l.
+T{
+.PP
+.TS
+tab(@);
+c.
+T{
+Grouped
+T}
+T{
+Content
+T}
+.TE
+T}@T{
+A&B
+T}
+.TE

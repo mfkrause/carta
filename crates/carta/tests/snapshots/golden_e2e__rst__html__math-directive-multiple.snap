@@ -1,7 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<p><span
-class="math display"><em>a</em> = <em>b</em> + <em>c</em></span><span
-class="math display"><em>d</em> = <em>e</em> − <em>f</em></span></p>

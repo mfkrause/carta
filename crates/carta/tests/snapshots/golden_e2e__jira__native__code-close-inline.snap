@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-[ CodeBlock ( "" , [ "java" ] , [] ) "first line\ncontent"
-, Para
-    [ Str "after" , Space , Str "the" , Space , Str "block" ]
-]

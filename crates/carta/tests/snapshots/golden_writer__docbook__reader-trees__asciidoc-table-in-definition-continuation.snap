@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<variablelist>
+  <varlistentry>
+    <term>
+      Term
+    </term>
+    <listitem>
+      <informaltable>
+        <tgroup cols="1">
+          <colspec align="left" />
+          <thead>
+            <row>
+              <entry>
+                <para>
+                  first
+                </para>
+                <para>
+                  second line
+                </para>
+              </entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>
+                <para>
+                  next
+                </para>
+              </entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </informaltable>
+    </listitem>
+  </varlistentry>
+</variablelist>

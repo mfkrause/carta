@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (left,left,),
+    table.header([Heading], [Value],),
+    table.hline(),
+    [Item], [12],
+  )]
+  , caption: [Table #emph[caption]]
+  , kind: table
+  )
+<table>
+
+See Table #link(<table>)[1].
+
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (left,),
+    [Content],
+  )]
+  , caption: [First line \ Second line]
+  , kind: table
+  )

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#section"}}{\fldrslt{\ul
+A section
+}}}
+ and {\field{\*\fldinst{HYPERLINK "#missing"}}{\fldrslt{\ul
+missing
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 A section\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 An anchor.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#anchor"}}{\fldrslt{\ul
+Label
+}}}
+ and {\field{\*\fldinst{HYPERLINK "#section"}}{\fldrslt{\ul
+A section
+}}}
+.\par}

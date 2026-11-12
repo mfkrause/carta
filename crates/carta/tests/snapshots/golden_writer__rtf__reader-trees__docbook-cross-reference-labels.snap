@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 To a labelled section: {\field{\*\fldinst{HYPERLINK "#labelled"}}{\fldrslt{\ul
+The label the section states
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 To a labelled section, overridden: {\field{\*\fldinst{HYPERLINK "#labelled"}}{\fldrslt{\ul
+Some other wording
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 To a labelled table: {\field{\*\fldinst{HYPERLINK "#grid"}}{\fldrslt{\ul
+The label the table states
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 To an unlabelled section: {\field{\*\fldinst{HYPERLINK "#plain"}}{\fldrslt{\ul
+An unlabelled section
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Some other wording\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 A labelled section\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Body.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 An unlabelled section\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Body.\par}
+{
+\trowd \trgaph120
+\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Cell\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 A labelled table\par}

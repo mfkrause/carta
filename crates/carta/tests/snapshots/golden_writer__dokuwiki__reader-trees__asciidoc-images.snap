@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+An {{photo.png?100x200|Photo}}.
+
+{{photo.png?100x200|Photo}}
+A caption
+
+
+{{photo.png}}

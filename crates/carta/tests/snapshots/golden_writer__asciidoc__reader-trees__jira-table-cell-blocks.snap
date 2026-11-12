@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols=",",options="header",]
+|===
+|List cell |Quote cell
+a|
+* one
+
+a|
+____
+q
+____
+
+|h1. plain a|
+a
+
+____
+q
+____
+
+b
+
+|===

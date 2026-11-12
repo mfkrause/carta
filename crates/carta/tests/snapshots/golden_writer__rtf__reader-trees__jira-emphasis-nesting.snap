@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 Adjacent runs {\b ab} merge into one strong span.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Doubled markers {\b {\b x}} nest two strong spans.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Doubled dashes {\strike {\strike x}} nest two strikeout spans.\par}

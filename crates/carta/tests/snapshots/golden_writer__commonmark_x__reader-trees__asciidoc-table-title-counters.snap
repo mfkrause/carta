@@ -1,0 +1,113 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+|     |
+|-----|
+
+[1]{.counter name="unused-d"}
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-d">1</span></p>
+</div>
+<p><span class="counter" name="used-d">2</span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+[3]{.counter name="used-d"}
+
+|     |
+|-----|
+
+[1]{.counter name="unused-e"}
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-e">1</span></p>
+</div>
+<p><em><span class="counter" name="used-e">2</span></em></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+[3]{.counter name="used-e"}
+
+|     |
+|-----|
+
+[1]{.counter name="unused-h"}
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-h">1</span></p>
+</div>
+<p><span class="counter" name="used-h">2</span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+[3]{.counter name="used-h"}
+
+|     |
+|-----|
+
+[1]{.counter name="unused-m"}
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-m">1</span></p>
+</div>
+<p><span class="counter" name="used-m"><code>2</code></span></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+[3]{.counter name="used-m"}
+
+|     |
+|-----|
+
+[1]{.counter name="unused-s"}
+
+<table>
+<thead>
+<tr>
+<th><div>
+<div class="title">
+<p><span class="counter" name="used-s">1</span></p>
+</div>
+<p><strong><span class="counter" name="used-s">2</span></strong></p>
+</div></th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+
+[3]{.counter name="used-s"}

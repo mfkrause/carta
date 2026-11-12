@@ -1,0 +1,76 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+Cell body.
+T}
+_
+.TE
+.PP
+.TS
+tab(@);
+l.
+.TE
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+\f[I]First paragraph.\f[R]
+.SH Cell section
+Section body.
+T}
+_
+.TE
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+\f[CR]First\f[R] \f[CR]paragraph.\f[R]
+.SH Cell section
+Section body.
+T}
+_
+.TE
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+== Paragraph text
+.sp
+Next paragraph.
+T}
+_
+.TE
+.SH Outer
+.PP
+.TS
+tab(@);
+l.
+T{
+.SS Inner
+Inner body.
+T}
+_
+.TE
+.PP
+.TS
+tab(@);
+l.
+T{
+.sp
+\f[I]Before \  After\f[R]
+T}
+_
+.TE

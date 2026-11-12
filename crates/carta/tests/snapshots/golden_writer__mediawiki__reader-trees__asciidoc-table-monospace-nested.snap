@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! [[File:x|<code>p</code>]]
+|-
+| [[x|<code>l</code>]]
+|-
+| <ref><code>note</code></ref>
+|-
+! <span class="r"><code>span</code></span>
+|}
+
+<references />

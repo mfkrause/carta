@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+h1. {anchor:}Top level
+Body under the top heading.
+
+h2. {anchor:}Second level
+h3. {anchor:}Third level
+h4. {anchor:}Fourth level
+h5. {anchor:}Fifth level
+h6. {anchor:}Sixth level
+h1. {anchor:}Heading with *strong* and _emph_
+h2. {anchor:}Inline heading text

@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l.
+T{
+\f[I]Name\f[R]
+T}@T{
+One
+T}
+T{
+T}@T{
+Two
+T}
+.TE
+.PP
+.TS
+tab(@);
+l l l.
+T{
+Wide
+T}@T{
+T}@T{
+First
+T}
+T{
+T}@T{
+T}@T{
+Second
+T}
+.TE
+.PP
+.TS
+tab(@);
+l l.
+T{
+Upward
+T}@T{
+Above
+T}
+T{
+T}@T{
+Below
+T}
+.TE

@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}{Heading}
+\protect\phantomsection\label{_heading}
+\protect\phantomsection\label{_nested}
+Titled
+
+\subsection{Nested}
+
+\subsubsection{Discrete}
+
+\pandocbounded{\includegraphics[keepaspectratio]{./images/icons/heart.png}}
+
+\protect\phantomsection\label{spot}{} \hyperlink{spot}{}
+
+\subsection{HTML}
+
+\subsection{Data}
+
+\subsection{Prefix}
+
+\subsubsection{Prefix}\label{_prefix}
+\end{frame}

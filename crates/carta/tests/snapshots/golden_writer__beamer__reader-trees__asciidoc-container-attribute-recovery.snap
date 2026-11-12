@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+====
+
+====
+
+-\/- .Title -\/-
+
+\begin{itemize}
+\item
+  Parent
+
+  ****
+
+  \protect\phantomsection\label{id}
+  ****
+\end{itemize}
+\end{frame}

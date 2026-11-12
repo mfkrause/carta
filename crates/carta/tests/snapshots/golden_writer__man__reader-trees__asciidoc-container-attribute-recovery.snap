@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+====
+.PP
+====
+.PP
+\-\- .Title \-\-
+.IP \(bu 2
+Parent
+.RS 2
+.PP
+****
+.PP
+****
+.RE

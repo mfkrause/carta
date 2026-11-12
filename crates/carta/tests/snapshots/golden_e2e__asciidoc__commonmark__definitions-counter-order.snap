@@ -1,8 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-<span class="counter" name="x">1</span>  
-
-term <span class="counter" name="y">1</span>  
-body <span class="counter" name="z">1</span>

@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.Table _caption_
+[cols="<,<",options="header",]
+|===
+|Heading |Value
+|Item |12
+|===
+
+See Table link:#table[1].
+
+.First line +
+Second line
+[cols="<",]
+|===
+|Content
+|===

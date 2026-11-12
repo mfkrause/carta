@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span color=\"red\">a  \n",
+    "b</span> keeps the span inline when the close is not alone.\n",
+    "\n",
+    "A <span color=\"#123456\">bare hex</span> span stays inline too."
+   ],
+   "id": "303b2224-cda8-4c41-b302-03399dd38142"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

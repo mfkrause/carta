@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\cf1 [image: movie.mp4]\cf0}\sa180\par}
+{\pard \ql \f0 \sa180 \li360 \fi-360 \bullet \tx360\tab Outer\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab {\cf1 [image: nested.png]\cf0}\sa180\sa180\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 \par}
+{\pard \ql \f0 \sa0 \li360 \fi0 {\cf1 [image: same.png]\cf0}\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Named\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 \par}
+{\pard \ql \f0 \sa0 \li360 \fi0 {\cf1 [image: next.png]\cf0}\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Indented\par}
+{\pard \ql \f0 \sa0 \li360 \fi0 {\cf1 [image: sound.mp3]\cf0}\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 A\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 B and C\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 D\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 Bad\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 include\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 missing[\sa180\par}

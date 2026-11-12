@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<variablelist spacing="compact">
+  <varlistentry>
+    <term>
+      first
+      second
+    </term>
+    <listitem>
+      <para>
+        shared definition
+      </para>
+    </listitem>
+  </varlistentry>
+</variablelist>

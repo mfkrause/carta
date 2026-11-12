@@ -1,0 +1,68 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<table>\n",
+    "<colgroup>\n",
+    "<col style=\"width: 100%\" />\n",
+    "</colgroup>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td><p id=\"next\">Next line</p></td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td><p id=\"labeled,label\">Label text</p></td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td><p><span id=\"inline\"></span> remainder</p></td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td><p>before <span id=\"middle\"></span> after</p>\n",
+    "<p id=\"after-blank\">After blank</p></td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td><p><span id=\"space inside\"></span> Whitespace id</p></td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td><p><span id=\"bad]bracket\"></span> Malformed id</p></td>\n",
+    "</tr>\n",
+    "</tbody><tfoot>\n",
+    "<tr>\n",
+    "<td><p><span id=\"trailing\"></span> Trailing spaces</p></td>\n",
+    "</tr>\n",
+    "</tfoot>\n",
+    "&#10;</table>\n",
+    "\n",
+    "<table>\n",
+    "<colgroup>\n",
+    "<col style=\"width: 100%\" />\n",
+    "</colgroup>\n",
+    "<tbody>\n",
+    "</tbody><tfoot>\n",
+    "<tr>\n",
+    "<td><div>\n",
+    "<div class=\"title\">\n",
+    "<p><span class=\"counter\" name=\"ordered\">1</span> title</p>\n",
+    "</div>\n",
+    "<p><span class=\"counter\" name=\"ordered\">2</span> body</p>\n",
+    "</div></td>\n",
+    "</tr>\n",
+    "</tfoot>\n",
+    "&#10;</table>\n",
+    "\n",
+    "<span class=\"counter\" name=\"dangling\">1</span>\n",
+    "<span class=\"counter\" name=\"ordered\">3</span>"
+   ],
+   "id": "68eed38d-330f-4da7-af0e-055891c93232"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

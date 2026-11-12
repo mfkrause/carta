@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+ See [[#point|Reference Text]] and [[#missing|]].
+
+====== Heading ======
+
+See [[#other|other]].
+
+See [[#multi|multi]].
+
+
+ See [[#macro|AlphaBeta]].

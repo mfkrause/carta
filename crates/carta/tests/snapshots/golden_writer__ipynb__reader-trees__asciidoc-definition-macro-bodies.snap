@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "- ![movie.mp4](movie.mp4)\n",
+    "\n",
+    "<!-- -->\n",
+    "\n",
+    "- Outer\n",
+    "\n",
+    "  - <figure>\n",
+    "    <img src=\"nested.png\" />\n",
+    "    </figure>\n",
+    "\n",
+    "  \n",
+    "<figure>\n",
+    "<img src=\"same.png\" />\n",
+    "</figure>\n",
+    "\n",
+    "Named  \n",
+    "\n",
+    "  \n",
+    "<figure>\n",
+    "<img src=\"next.png\" />\n",
+    "</figure>\n",
+    "\n",
+    "Indented  \n",
+    "![sound.mp3](sound.mp3)\n",
+    "\n",
+    "A  \n",
+    "\n",
+    "B and C  \n",
+    "D\n",
+    "\n",
+    "Bad  \n",
+    "\n",
+    "include  \n",
+    "missing\\["
+   ],
+   "id": "85626ef8-d2e0-4890-afe7-10876c1adf70"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

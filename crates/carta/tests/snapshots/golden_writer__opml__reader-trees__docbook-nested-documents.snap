@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="First chapter" _note="Text in the chapter.">
+  <outline text="A section" _note="An equation $$e = 2$$ stands in the sentence around it.&#10;&#10;:::: sidebar&#10;::: title&#10;Aside&#10;:::&#10;&#10;Set beside the text.&#10;::::&#10;&#10;::: {.informalequation role=&quot;numbered&quot;}&#10;$$y = x$$&#10;:::">
+  </outline>
+  <outline text="Deeper still" _note="The count restarts where the article stands.">
+  </outline>
+</outline>
+<outline text="Second chapter" _note="![A figure](plot.png &quot;Stated by the object&quot;){alt=&quot;Alternative words&quot;}">
+</outline>

@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Forward: [1.1](#second){reference-type="ref" reference="second"}.
+
+### First {#first}
+
+#### Second {#second}
+
+[1](#first){reference-type="ref" reference="first"},
+[1.1](#second){reference-type="ref+label" reference="second"},
+[1.1](#second){reference-type="ref+Label" reference="second"},
+[\[second\]](#second){reference-type="eqref" reference="second"},
+[\[missing\]](#missing){reference-type="ref" reference="missing"}.
+
+<figure>
+
+<figcaption>Anonymous figure</figcaption>
+</figure>
+
+<figure id="figure">
+
+<figcaption>Named figure</figcaption>
+</figure>
+
+See Figure [2](#figure){reference-type="ref" reference="figure"}.
+
+# Part {#part}
+
+See Part [I](#part){reference-type="ref" reference="part"}.

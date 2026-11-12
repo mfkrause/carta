@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="float" id="plot">
+<img src="plot.png" style="width:4in;height:2in"
+alt="A plotted curve" />
+<div class="figcaption">A captioned figure</div>
+</div>
+<p>A standalone block image:</p>
+<p><img src="standalone.png" /></p>
+<p>An inline <img src="icon.png" /> image.</p>

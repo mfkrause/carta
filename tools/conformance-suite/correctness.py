@@ -12,6 +12,7 @@ import sys
 
 
 # (source format, case) -> reason. Covers the reader surface and every e2e target of the case.
+# The tree of each `corpus/text` case here is also in `corpus/ast/reader-trees`.
 READER = {
     ("docbook", "metadata"): "Pandoc joins author name parts without a space.",
     ("docbook", "nested-documents"): "Pandoc joins author name parts without a space.",
@@ -37,65 +38,23 @@ READER = {
     ),
 }
 
+DATA_IMAGE = "Pandoc drops images given as data URIs; carta extracts them to media/."
 DROPPED_TARGET = "Pandoc's RST output drops the inline target, so links to it break."
 
-# (source format, target, case) -> reason.
-E2E = {
-    ("asciidoc", "rst", "anchor-labels"): DROPPED_TARGET,
-    ("asciidoc", "rst", "cross-references"): DROPPED_TARGET,
-    ("asciidoc", "rst", "definition-terms"): DROPPED_TARGET,
-    ("asciidoc", "rst", "discrete-cross-references"): DROPPED_TARGET,
-    ("asciidoc", "rst", "formatted-shorthand"): (
-        "Pandoc's RST output drops inline targets and strong emphasis."
-    ),
-    ("asciidoc", "rst", "heading-macro-text"): (
-        "Pandoc's RST output drops an inline target and keeps a trailing space in a title."
-    ),
-    ("asciidoc", "rst", "inline-macros"): DROPPED_TARGET,
-    ("asciidoc", "rst", "inline-roles"): "Pandoc's RST output drops strong emphasis.",
-    ("asciidoc", "rst", "macro-attributes"): "Pandoc's RST output drops strong emphasis.",
-    ("asciidoc", "rst", "malformed-inline-delimiters"): "Pandoc's RST output drops emphasis.",
-    ("asciidoc", "rst", "table-block-anchors"): "Pandoc's RST output drops targets in cells.",
-    ("asciidoc", "rst", "user-attribute-names"): DROPPED_TARGET,
-    ("asciidoc", "rst", "zero-table-span"): (
-        "Pandoc writes a table without columns as '|  |', a broken RST substitution."
-    ),
-    ("docbook", "rst", "cross-reference-labels"): DROPPED_TARGET,
-    ("docbook", "rst", "inline"): DROPPED_TARGET,
-    ("docbook", "rst", "media"): (
-        "Pandoc writes the figure option without colons, which corrupts the image path."
-    ),
-    ("ipynb", "commonmark", "version-three"): (
-        "Pandoc writes a level-9 heading, which CommonMark reads as text."
-    ),
-    ("ipynb", "mediawiki", "version-three"): (
-        "Pandoc writes a level-9 heading, which MediaWiki does not have."
-    ),
-    ("jira", "rst", "anchor-whitespace"): DROPPED_TARGET,
-    ("jira", "rst", "spans"): DROPPED_TARGET,
-    ("latex", "latex", "nested-tables"): "Pandoc nests a longtable in a cell, which LaTeX rejects.",
-    ("latex", "rst", "figures"): (
-        "Pandoc writes the figure option without colons, which corrupts the image path."
-    ),
-    ("latex", "rst", "longtable-captions"): (
-        "Pandoc breaks a caption over two lines, which ends the table directive early."
-    ),
-    ("rst", "rst", "inline-targets"): DROPPED_TARGET,
-    ("rst", "rst", "internal-targets-multiple"): DROPPED_TARGET,
-    ("rtf", "rst", "bookmark-empty"): DROPPED_TARGET,
-    ("rtf", "rst", "bookmark"): DROPPED_TARGET,
-    ("typst", "rst", "labels-references"): DROPPED_TARGET,
-}
-
-DATA_IMAGE = "Pandoc drops images given as data URIs; carta extracts them to media/."
-
-# (target, feature, case) -> reason.
+# (target, feature, case) -> reason. A `reader-trees` case is the tree that carta reads from the
+# `corpus/text` case of that name, so its entry also covers that e2e conversion.
 WRITER = {
     ("beamer", "image-dimensions", "image-embedded-jpeg"): DATA_IMAGE,
     ("beamer", "image-dimensions", "image-embedded-png"): DATA_IMAGE,
+    ("commonmark", "reader-trees", "ipynb-version-three"): (
+        "Pandoc writes a level-9 heading, which CommonMark reads as text."
+    ),
     ("html4", "table", "table-foot"): "Pandoc puts tfoot after tbody, which HTML 4 forbids.",
     ("latex", "image-dimensions", "image-embedded-jpeg"): DATA_IMAGE,
     ("latex", "image-dimensions", "image-embedded-png"): DATA_IMAGE,
+    ("latex", "reader-trees", "latex-nested-tables"): (
+        "Pandoc nests a longtable in a cell, which LaTeX rejects."
+    ),
     ("man", "common", "list-bullet-in-definition"): (
         "Pandoc does not indent the list under its term."
     ),
@@ -107,8 +66,54 @@ WRITER = {
     ("man", "table", "table-grid-spans"): (
         "Pandoc's table overflows the line, and groff cannot break its lines."
     ),
+    ("mediawiki", "reader-trees", "ipynb-version-three"): (
+        "Pandoc writes a level-9 heading, which MediaWiki does not have."
+    ),
     ("rst", "common", "span"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "common", "span-semantic"): "Pandoc's RST output drops the span's identifier.",
+    ("rst", "reader-trees", "asciidoc-anchor-labels"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-cross-references"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-definition-terms"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-discrete-cross-references"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-formatted-shorthand"): (
+        "Pandoc's RST output drops inline targets and strong emphasis."
+    ),
+    ("rst", "reader-trees", "asciidoc-heading-macro-text"): (
+        "Pandoc's RST output drops an inline target and keeps a trailing space in a title."
+    ),
+    ("rst", "reader-trees", "asciidoc-inline-macros"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-inline-roles"): "Pandoc's RST output drops strong emphasis.",
+    ("rst", "reader-trees", "asciidoc-macro-attributes"): (
+        "Pandoc's RST output drops strong emphasis."
+    ),
+    ("rst", "reader-trees", "asciidoc-malformed-inline-delimiters"): (
+        "Pandoc's RST output drops emphasis."
+    ),
+    ("rst", "reader-trees", "asciidoc-table-block-anchors"): (
+        "Pandoc's RST output drops targets in cells."
+    ),
+    ("rst", "reader-trees", "asciidoc-user-attribute-names"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-zero-table-span"): (
+        "Pandoc writes a table without columns as '|  |', a broken RST substitution."
+    ),
+    ("rst", "reader-trees", "docbook-cross-reference-labels"): DROPPED_TARGET,
+    ("rst", "reader-trees", "docbook-inline"): DROPPED_TARGET,
+    ("rst", "reader-trees", "docbook-media"): (
+        "Pandoc writes the figure option without colons, which corrupts the image path."
+    ),
+    ("rst", "reader-trees", "jira-anchor-whitespace"): DROPPED_TARGET,
+    ("rst", "reader-trees", "jira-spans"): DROPPED_TARGET,
+    ("rst", "reader-trees", "latex-figures"): (
+        "Pandoc writes the figure option without colons, which corrupts the image path."
+    ),
+    ("rst", "reader-trees", "latex-longtable-captions"): (
+        "Pandoc breaks a caption over two lines, which ends the table directive early."
+    ),
+    ("rst", "reader-trees", "rst-inline-targets"): DROPPED_TARGET,
+    ("rst", "reader-trees", "rst-internal-targets-multiple"): DROPPED_TARGET,
+    ("rst", "reader-trees", "rtf-bookmark"): DROPPED_TARGET,
+    ("rst", "reader-trees", "rtf-bookmark-empty"): DROPPED_TARGET,
+    ("rst", "reader-trees", "typst-labels-references"): DROPPED_TARGET,
 }
 
 XHTML11 = "which XHTML 1.1 does not allow"
@@ -187,10 +192,10 @@ def expectation(label):
         stem = Path(filename).stem
         source, _, target = formats.partition("->")
         reason = READER.get((source, stem))
-        if surface == "e2e":
-            reason = E2E.get((source, target, stem), reason)
-            if reason and target != "json":
-                return f"golden_e2e__{source}__{target}__{stem}", reason
+        if surface == "e2e" and target != "json":
+            tree = f"{source}-{stem}"
+            reason = WRITER.get((target, "reader-trees", tree), reason)
+            return (f"golden_writer__{target}__reader-trees__{tree}", reason) if reason else None
         return (f"golden_reader__{source}__{stem}", reason) if reason else None
     if len(parts) == 4 and parts[0] == "writer":
         _, target, feature, filename = parts

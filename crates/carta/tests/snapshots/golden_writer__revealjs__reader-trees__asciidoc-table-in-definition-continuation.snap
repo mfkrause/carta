@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<dl>
+<dt>Term</dt>
+<dd>
+<table>
+<thead>
+<tr>
+<th><p>first</p>
+<p>second line</p></th>
+</tr>
+</thead>
+<tbody>
+</tbody><tfoot>
+<tr>
+<td><p>next</p></td>
+</tr>
+</tfoot>
+
+</table>
+</dd>
+</dl>
+</section>

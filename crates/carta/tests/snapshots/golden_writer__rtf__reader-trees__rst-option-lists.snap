@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li0 \fi0 {\f1 -a}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Output all.\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\f1 -b, --brief}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Be brief about it.\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\f1 --verbose}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Talk a great deal.\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\f1 -f FILE}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Read input from FILE.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The description may also start on the next line:\par}
+{\pard \ql \f0 \sa0 \li0 \fi0 {\f1 --output=FILE}\par}
+{\pard \ql \f0 \sa180 \li360 \fi0 Write output to FILE instead of standard output.\sa180\par}

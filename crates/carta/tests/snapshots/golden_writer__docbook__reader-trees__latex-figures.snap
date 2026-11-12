@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<figure>
+  <title>A sample diagram.</title>
+  <mediaobject>
+    <imageobject>
+      <imagedata fileref="diagram.png" />
+    </imageobject>
+  </mediaobject>
+</figure>

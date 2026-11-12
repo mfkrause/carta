@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+   *   *   *   *   *
+.PP
+   *   *   *   *   *
+.PP
+   *   *   *   *   *
+.PP
+   *   *   *   *   *
+.PP
+   *   *   *   *   *
+.PP
+A hard
+.PD 0
+.P
+.PD
+break.
+.PP
+a
+.PD 0
+.P
+.PD
+b
+.PP
+third
+.PD 0
+.P
+.PD
+fourth
+.PP
+first
+.PD 0
+.P
+.PD
+.PD 0
+.P
+.PD
+second

@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{description}
+\item[Operating systems]
+\begin{description}
+\item[Linux]
+\hfill
+\begin{enumerate}
+\item
+  Fedora
+\item
+  Debian
+\end{enumerate}
+\item[BSD]
+\hfill
+\begin{enumerate}
+\item
+  FreeBSD
+
+  \begin{description}
+  \item[Cloud]
+  \begin{description}
+  \tightlist
+  \item[PaaS]
+  \end{description}
+  \end{description}
+\item
+  Service
+\end{enumerate}
+\end{description}
+\end{description}

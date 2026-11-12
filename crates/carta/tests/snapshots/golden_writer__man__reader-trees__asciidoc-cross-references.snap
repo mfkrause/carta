@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+See A section and missing.
+.SH A section
+An anchor.
+.PP
+See Label and A section.

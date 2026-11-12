@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Introduction\n",
+    "\n",
+    "<span id=\"intro\"></span>\n",
+    "\n",
+    "See <a href=\"#intro\" class=\"ref\">\\[intro\\]</a> for context.\n",
+    "\n",
+    "<figure>\n",
+    "<p><img src=\"plot.png\" /></p>\n",
+    "<figcaption><p>A labelled figure.</p></figcaption>\n",
+    "</figure>\n",
+    "\n",
+    "<span id=\"fig-plot\"></span>\n",
+    "\n",
+    "Reference to <a href=\"#fig-plot\" class=\"ref\">\\[fig-plot\\]</a> as well.\n",
+    "\n",
+    "A <a href=\"#intro\" class=\"ref\"></a> written as a call.\n",
+    "\n",
+    "A [link to a label](#intro) and a bare [#intro](#intro).\n",
+    "\n",
+    "A <a href=\"#intro\" class=\"ref\">Chapter</a> with its own supplement.\n",
+    "\n",
+    "A <a href=\"#intro\" class=\"ref\"></a> built from a label call."
+   ],
+   "id": "1ab52e2e-4050-4a86-b92f-5d82d9b003e0"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

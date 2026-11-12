@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_e2e.rs
-expression: output
----
-\textbar=== \textbar{}{3} x\textbar y \textbar second \textbar===

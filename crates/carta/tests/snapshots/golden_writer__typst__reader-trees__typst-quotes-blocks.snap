@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#quote(block: true)[
+A block quotation body.
+]
+
+"an inline quotation"
+
+#quote(block: true)[
+Attributed block quotation.
+
+\---~Someone
+]
+
+#horizontalrule
+
+#quote(block: true)[
+A first quoted paragraph.
+
+- a quoted item
+
+- another item
+]

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 A bullet list opens right after a paragraph line, with no blank between:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab apples\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab pears\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 An ordered list interrupts the same way:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab second\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab third\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A parenthesized or roman marker has a list shape but no enabled style here, so it breaks off as its own plain paragraph rather than folding in:\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 (5) parenthesized\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A decimal marker closed by a single paren stays prose and folds in, so these two lines remain one paragraph: 1) not a list 2) still prose\par}

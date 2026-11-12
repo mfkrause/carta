@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+====
+
+====
+
+-- .Title --
+
+- Parent
+
+  \*\*\*\*
+
+  <div id="id" data-wrapper="1" data-markdown="1">
+
+  \*\*\*\*
+
+  </div>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\textbf{Notice}
+
+Body text inside the panel.
+\end{frame}

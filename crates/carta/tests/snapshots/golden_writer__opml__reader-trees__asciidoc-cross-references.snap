@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="A section" _note="An []{#anchor}anchor.&#10;&#10;See [Label](#anchor){.cross-reference} and [A&#10;section](#section){.cross-reference}.">
+</outline>

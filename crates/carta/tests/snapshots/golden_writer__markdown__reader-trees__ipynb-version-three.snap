@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+::: {.cell .markdown}
+# First
+:::
+
+::: {.cell .markdown}
+###### Deeper *heading*
+:::
+
+:::: {.cell .code execution_count="1" collapsed="false" language="python"}
+``` python
+print(1)
+```
+
+::: {.output .stream .stdout}
+    1
+:::
+
+::: {.output .execute_result execution_count="1"}
+    1
+:::
+
+::: {.output .error ename="ExampleError" evalue="text"}
+    line 1
+    ExampleError: text
+:::
+::::
+
+::: {.cell .raw format="text/latex"}
+\textbf{raw}
+:::
+
+::: {.cell .markdown}
+Final text
+:::

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 listing body\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 literal body\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after\par}
+{\pard \ql \f0 \sa0 \li720 \fi0 pass body\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 after\par}

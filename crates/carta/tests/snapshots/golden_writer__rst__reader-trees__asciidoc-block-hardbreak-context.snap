@@ -1,0 +1,75 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.. container:: example
+
+   | one
+   | two
+
+after block
+
+.. container:: sidebar
+
+   | one
+   | two
+
+after block
+
+.. container::
+
+   | one
+   | two
+
+after block
+
+.. container::
+
+   ..
+
+      | one
+      | two
+
+after block
+
++-------+
+| | one |
+| | two |
++=======+
+
+after block
+
++-------+
+| | one |
+| | two |
++=======+
+
+after block
+
++------+
+| *one |
+| two* |
++======+
+
+after block
+
++-------+
+| | one |
+| | two |
++=======+
+
+after block
+
++-----------+
+| | ``one`` |
+| | ``two`` |
++===========+
+
+after block
+
++-------+
+| **one |
+| two** |
++=======+
+
+after block

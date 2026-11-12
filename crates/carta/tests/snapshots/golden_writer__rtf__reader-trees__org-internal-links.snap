@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#later"}}{\fldrslt{\ul
+{\b Forward link}
+}}}
+ and {\field{\*\fldinst{HYPERLINK "later"}}{\fldrslt{\ul
+file:later
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A named target.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#later"}}{\fldrslt{\ul
+later
+}}}
+ and {\i Missing target}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 and .\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#a-b"}}{\fldrslt{\ul
+a/b
+}}}
+ and {\field{\*\fldinst{HYPERLINK "#a-b-1"}}{\fldrslt{\ul
+a+b
+}}}
+.\par}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Link\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "#later"}}{\fldrslt{\ul
+later
+}}}
+\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Text with a note.{\super\chftn}{\*\footnote\chftn\~\plain\pard {\pard \ql \f0 \sa180 \li0 \fi0 See {\field{\*\fldinst{HYPERLINK "#later"}}{\fldrslt{\ul
+later
+}}}
+.\par}
+}\par}

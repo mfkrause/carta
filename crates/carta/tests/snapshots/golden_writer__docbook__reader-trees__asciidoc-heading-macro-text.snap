@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha">
+  <title>Alpha 1</title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_2">
+  <title>Alpha term</title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_3">
+  <title>Alpha foo</title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_4">
+  <title>Alpha word</title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_5">
+  <title>Alpha
+  <emphasis role="strong">Tools › Build › Run</emphasis></title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_6">
+  <title>Alpha <emphasis role="strong">[Save]</emphasis></title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_7">
+  <title>Alpha
+  <emphasis role="strong">Ctrl</emphasis>+<emphasis role="strong">X</emphasis></title>
+  <para>
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="id__alpha_label">
+  <title>Alpha <anchor xml:id="key" /></title>
+  <para>
+  </para>
+</section>

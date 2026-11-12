@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+See the note((The note body paragraph.
+
+|Column A|Column B|
+|1       |2       |
+)) below.

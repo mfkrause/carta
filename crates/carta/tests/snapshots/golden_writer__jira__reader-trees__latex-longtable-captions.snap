@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+|| Heading || Value ||
+| Item | 12 |
+
+See Table [1|#table].
+
+| Content |

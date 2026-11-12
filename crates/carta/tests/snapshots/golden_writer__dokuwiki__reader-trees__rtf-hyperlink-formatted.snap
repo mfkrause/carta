@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Visit __[[http://example.com|our site]]__ and **[[http://other.com|bold]]**[[http://other.com| plain]].

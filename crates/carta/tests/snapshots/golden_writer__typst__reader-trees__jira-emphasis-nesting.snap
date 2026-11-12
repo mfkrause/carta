@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+Adjacent runs #strong[ab] merge into one strong span.
+
+Doubled markers #strong[#strong[x]] nest two strong spans.
+
+Doubled dashes #strike[#strike[x]] nest two strikeout spans.
