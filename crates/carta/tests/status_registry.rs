@@ -177,3 +177,17 @@ fn roadmap_entries_are_unconstrained() {
         );
     }
 }
+
+#[test]
+fn no_format_name_is_declared_twice() {
+    let status = status();
+    let mut seen = BTreeSet::new();
+    for format in &status.formats {
+        for name in std::iter::once(&format.name).chain(&format.aliases) {
+            assert!(
+                seen.insert(name.as_str()),
+                "docs/status.toml declares the format name {name:?} twice"
+            );
+        }
+    }
+}
