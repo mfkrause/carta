@@ -6,7 +6,7 @@ use carta_ast::{
     Attr, Block, Caption, Cell, Document, Inline, ListAttributes, MathType, Row, Table, TableBody,
     Target, Text, single_block_inlines, slug, to_plain_text,
 };
-use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
+use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, display_width, fill, fill_hang, fill_offset,
@@ -27,7 +27,7 @@ pub struct AsciidocWriter;
 
 impl Writer for AsciidocWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_document(document, options, false))
+        render_document(document, options, false)
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -49,7 +49,7 @@ pub struct AsciidocLegacyWriter;
 
 impl Writer for AsciidocLegacyWriter {
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_document(document, options, true))
+        render_document(document, options, true)
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -65,15 +65,17 @@ impl Writer for AsciidocLegacyWriter {
     }
 }
 
-fn render_document(document: &Document, options: &WriterOptions, legacy: bool) -> String {
-    let mut state = State {
-        wrap: options.wrap,
-        legacy,
-        ..State::default()
-    };
-    let width = options.columns.unwrap_or(FILL_COLUMN);
-    let body = state.blocks(&document.blocks, width);
-    body.trim_end_matches('\n').to_owned()
+fn render_document(document: &Document, options: &WriterOptions, legacy: bool) -> Result<String> {
+    budget::scope(document, || {
+        let mut state = State {
+            wrap: options.wrap,
+            legacy,
+            ..State::default()
+        };
+        let width = options.columns.unwrap_or(FILL_COLUMN);
+        let body = state.blocks(&document.blocks, width);
+        Ok(body.trim_end_matches('\n').to_owned())
+    })
 }
 
 #[derive(Debug, Default)]
@@ -172,11 +174,13 @@ impl State {
     }
 
     fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
-        // One past AsciiDoc's deepest section: distinct markers, no unbounded allocation.
-        const MAX_SECTION_LEVEL: i64 = 6;
-        let depth = usize::try_from(level.clamp(0, MAX_SECTION_LEVEL))
-            .unwrap_or(0)
+        let depth = usize::try_from(level.max(0))
+            .unwrap_or(usize::MAX)
             .saturating_add(1);
+        budget::charge(depth);
+        if budget::exhausted() {
+            return String::new();
+        }
         let equals = "=".repeat(depth);
         // A section title is a single line: it is never reflowed, whatever the wrap mode.
         let text = self.inline_string(inlines);

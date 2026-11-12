@@ -61,6 +61,19 @@ fn list_items_separate_rules_and_trim_raw_trailing_breaks() {
     );
 }
 
+#[test]
+fn an_absurd_heading_level_exhausts_the_output_budget() {
+    let document = Document {
+        blocks: vec![Block::Header(i64::MAX, Box::default(), vec![s("deep")])],
+        ..Document::default()
+    };
+    assert!(
+        AsciidocWriter
+            .write(&document, &WriterOptions::default())
+            .is_err()
+    );
+}
+
 fn link(label: Vec<Inline>, url: &str) -> Inline {
     Inline::Link(
         Box::default(),
