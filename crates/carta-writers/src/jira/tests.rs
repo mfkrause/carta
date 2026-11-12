@@ -443,6 +443,19 @@ fn empty_definitions_do_not_add_paragraph_breaks() {
 }
 
 #[test]
+fn mail_link_labelled_by_its_address_stands_alone() {
+    let link = Inline::Link(
+        Box::default(),
+        vec![str_inline("me@e.com")],
+        Box::new(Target {
+            url: "mailto:me@e.com".into(),
+            title: String::new().into(),
+        }),
+    );
+    assert_eq!(render(vec![para(vec![link])]), "[mailto:me@e.com]");
+}
+
+#[test]
 fn span_macros_bound_the_emphasis_beside_them() {
     let emphasis = |text: &str| Inline::Emph(vec![str_inline(text)]);
     let anchored = Inline::Span(

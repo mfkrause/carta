@@ -443,9 +443,15 @@ impl State {
         }
     }
 
+    /// A link: the destination alone when the label is empty, repeats it, or is the address of a
+    /// `mailto:` destination; otherwise the label, a bar, and the destination.
     fn link(&mut self, inlines: &[Inline], target: &Target) -> String {
         let label = self.inlines(inlines);
-        if label.is_empty() || to_plain_text(inlines) == target.url {
+        let plain = to_plain_text(inlines);
+        if label.is_empty()
+            || plain == target.url
+            || target.url.strip_prefix("mailto:") == Some(plain.as_str())
+        {
             format!("[{}]", target.url)
         } else {
             format!("[{label}|{}]", target.url)
