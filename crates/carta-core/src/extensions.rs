@@ -434,6 +434,7 @@ pub mod presets {
         Extension::Emoji,
         Extension::Alerts,
         Extension::IntrawordUnderscores,
+        Extension::SpaceInAtxHeader,
     ]);
 
     /// The PHP Markdown Extra dialect (`markdown_phpextra`): the variants that exist and affect

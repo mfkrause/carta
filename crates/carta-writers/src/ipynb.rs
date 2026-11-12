@@ -27,6 +27,7 @@ const CELL_MARKDOWN_EXTENSIONS: Extensions = Extensions::from_list(&[
     Extension::GfmAutoIdentifiers,
     Extension::RawHtml,
     Extension::IntrawordUnderscores,
+    Extension::SpaceInAtxHeader,
 ]);
 
 /// Renders a document to a Jupyter notebook (no trailing newline).

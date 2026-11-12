@@ -462,12 +462,13 @@ impl State {
     /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,
     /// `*`, `[`, `]`, `<`, `>`), the math delimiter `$`, and entity-introducing `&` are always
     /// escaped; `|` only when pipe tables make it a cell separator; `~` and `^` only when subscript
-    /// and superscript have native syntax; and a word-initial `@` only when citations do. A `#` run
-    /// that would open a heading is escaped at the start of a line. An `_` is escaped at a word
-    /// boundary, and everywhere in a `markdown` dialect without `intraword_underscores` (the
-    /// `CommonMark` family never treats an intra-word `_` as emphasis, so it is left literal there).
-    /// A backslash is escaped per the raw-TeX extension. Smart-punctuation glyphs are rewritten to
-    /// ASCII when the `smart` extension is active.
+    /// and superscript have native syntax; and a word-initial `@` only when citations do. A `#`
+    /// that opens the text is escaped, since it could open a heading; where a heading needs a space
+    /// after its marker (`space_in_atx_header`), only text made of `#` alone is at risk. An `_` is
+    /// escaped at a word boundary, and everywhere in a `markdown` dialect without
+    /// `intraword_underscores` (the `CommonMark` family never treats an intra-word `_` as emphasis,
+    /// so it is left literal there). A backslash is escaped per the raw-TeX extension.
+    /// Smart-punctuation glyphs are rewritten to ASCII when the `smart` extension is active.
     pub(super) fn escape_str(&self, text: &str) -> String {
         let downgraded;
         let text = if self.config.has(Extension::Smart) {
@@ -524,7 +525,7 @@ impl State {
             backslash_run = if ch == '\\' { backslash_run + 1 } else { 0 };
             match ch {
                 '=' if literate && word_start => out.push_str("&#61;"),
-                '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
+                '#' if at_start && self.could_open_heading(text) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
                 '`' | '*' | '[' | ']' | '<' | '>' => {
                     out.push('\\');
@@ -567,6 +568,11 @@ impl State {
         out
     }
 
+    /// Whether text that opens with `#` could be read as a heading marker.
+    fn could_open_heading(&self, text: &str) -> bool {
+        !self.config.has(Extension::SpaceInAtxHeader) || text.bytes().all(|byte| byte == b'#')
+    }
+
     /// Escape a backslash. When raw TeX passes through verbatim every backslash is doubled so it is
     /// not mistaken for an escape. Otherwise a backslash is emitted verbatim except where a run of
     /// them ends the text with an odd length: the final one is then doubled so the run pads to an
@@ -582,16 +588,6 @@ impl State {
             out.push('\\');
         }
     }
-}
-
-/// Whether a `#` run at the current position would open an ATX heading: one to six `#` followed by a
-/// space or the end of the run.
-fn starts_heading(text: &str) -> bool {
-    let hashes = text.chars().take_while(|&c| c == '#').count();
-    if hashes == 0 || hashes > 6 {
-        return false;
-    }
-    matches!(text.chars().nth(hashes), None | Some(' '))
 }
 
 /// Replace smart-punctuation glyphs with their ASCII equivalents for a dialect that does not write
