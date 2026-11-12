@@ -12,7 +12,7 @@ An underlined #underline[ padded body ] sits beside plain words.
 #quote(block: true)[
 A spaced quotation.
 
-\---~ A. Author
+---~ A. Author
 ]
 
 A footnote body is trimmed #footnote[Trimmed on both ends.] here.

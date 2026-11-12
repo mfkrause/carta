@@ -11,7 +11,7 @@ A block quotation body.
 #quote(block: true)[
 Attributed block quotation.
 
-\---~Someone
+---~Someone
 ]
 
 #horizontalrule

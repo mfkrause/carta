@@ -18,9 +18,11 @@ pub(super) fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode, smart
 /// Render inline content without wrapping, single-spacing the breakable units (nested markup
 /// context, where the surrounding construct controls layout).
 pub(super) fn inline_run(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
+    let fragments = fragments(items, width, wrap, smart);
+    let escapable = matches!(fragments.first(), Some(Fragment::Text(_)));
     let mut out = String::new();
     let mut pending_space = false;
-    for fragment in fragments(items, width, wrap, smart) {
+    for fragment in fragments {
         match fragment {
             Fragment::Text(text) | Fragment::Atom(text) => {
                 if pending_space {
@@ -35,7 +37,11 @@ pub(super) fn inline_run(items: &[Inline], width: usize, wrap: WrapMode, smart: 
     if pending_space {
         out.push(' ');
     }
-    escape_open_marker(&out)
+    if escapable {
+        escape_open_marker(&out)
+    } else {
+        out
+    }
 }
 
 /// Build the fragment stream for an inline sequence. A leading `(` on the very first text fragment is
@@ -54,12 +60,13 @@ pub(super) fn fragments(
         let next_after_space = matches!(item, Inline::Space | Inline::SoftBreak);
         match item {
             Inline::Str(text) => {
-                out.push(Fragment::Text(escape_text(
-                    text,
-                    after_space,
-                    first_inline,
-                    smart,
-                )));
+                let escaped = escape_text(text, after_space, first_inline, smart);
+                // A dash spelled as a hyphen run opens no list item, so it needs no marker escape.
+                out.push(if smart && text.starts_with(['\u{2013}', '\u{2014}']) {
+                    Fragment::Atom(escaped)
+                } else {
+                    Fragment::Text(escaped)
+                });
                 first_inline = false;
             }
             Inline::Space => out.push(Fragment::Space),
