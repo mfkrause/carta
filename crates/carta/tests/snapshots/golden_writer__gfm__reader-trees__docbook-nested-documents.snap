@@ -8,9 +8,11 @@ Text in the chapter.
 
 ## A section
 
-An equation ``` math
+An equation
+``` math
 e = 2
-``` stands in the sentence around it.
+```
+stands in the sentence around it.
 
 <div class="sidebar">
 

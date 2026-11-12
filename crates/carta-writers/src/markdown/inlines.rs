@@ -162,11 +162,15 @@ impl State {
     /// own source line, set off from the surrounding text by line breaks.
     fn math(&mut self, kind: &MathType, text: &str, out: &mut Vec<Piece>) {
         if self.config.has(Extension::TexMathGfm) {
-            let rendered = match kind {
-                MathType::InlineMath => format!("$`{text}`$"),
-                MathType::DisplayMath => format!("``` math\n{text}\n```"),
-            };
-            out.push(Piece::text(rendered));
+            match kind {
+                MathType::InlineMath => out.push(Piece::text(format!("$`{text}`$"))),
+                MathType::DisplayMath => {
+                    // A code fence only opens and closes on a line of its own.
+                    out.push(Piece::Hard);
+                    out.push(Piece::text(format!("``` math\n{text}\n```")));
+                    out.push(Piece::Hard);
+                }
+            }
             return;
         }
         if self.config.has(Extension::TexMathDollars) {
