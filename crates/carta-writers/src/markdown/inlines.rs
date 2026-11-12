@@ -10,7 +10,7 @@ use crate::markdown_common::{
     push_open_tag, wiki_link,
 };
 
-use super::{State, attr_body, attr_braces, escaped_leading_marker};
+use super::{State, escaped_leading_marker, push_attr_braces};
 
 impl State {
     pub(super) fn inlines_oneline(&mut self, inlines: &[Inline]) -> String {
@@ -131,7 +131,12 @@ impl State {
                 out.push(Piece::text(close.to_string()));
             }
             Inline::Cite(citations, inlines) => self.cite(citations, inlines, out),
-            Inline::Code(_, text) => out.push(Piece::text(code_span(text))),
+            Inline::Code(attr, text) => {
+                out.push(Piece::text(code_span(text)));
+                if !attr_is_empty(attr) && self.config.has(Extension::InlineCodeAttributes) {
+                    push_attr_braces(out, attr);
+                }
+            }
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
@@ -375,7 +380,8 @@ impl State {
     fn wrap_span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
         out.push(Piece::text("["));
         self.extend_pieces(inlines, out);
-        out.push(Piece::text(format!("]{{{}}}", attr_body(attr))));
+        out.push(Piece::text("]"));
+        push_attr_braces(out, attr);
     }
 
     /// An inline rendered as an HTML fragment kept as one literal run: it wraps at the fill column
@@ -415,15 +421,10 @@ impl State {
         }
         out.push(Piece::text("["));
         self.extend_pieces(inlines, out);
-        let attr_suffix = if attr_is_empty(attr) || !self.config.has(Extension::LinkAttributes) {
-            String::new()
-        } else {
-            attr_braces(attr)
-        };
-        out.push(Piece::text(format!(
-            "]({}){attr_suffix}",
-            destination(target)
-        )));
+        out.push(Piece::text(format!("]({})", destination(target))));
+        if !attr_is_empty(attr) && self.config.has(Extension::LinkAttributes) {
+            push_attr_braces(out, attr);
+        }
     }
 
     /// Whether an image carrying `attr` must fall back to an HTML `<img>`: it has attributes the
@@ -460,15 +461,10 @@ impl State {
         if !matches!(inlines, [Inline::Str(text)] if text == target.url) {
             self.extend_pieces(inlines, out);
         }
-        let attr_suffix = if attr_is_empty(attr) || !self.config.has(Extension::LinkAttributes) {
-            String::new()
-        } else {
-            attr_braces(attr)
-        };
-        out.push(Piece::text(format!(
-            "]({}){attr_suffix}",
-            destination(target)
-        )));
+        out.push(Piece::text(format!("]({})", destination(target))));
+        if !attr_is_empty(attr) && self.config.has(Extension::LinkAttributes) {
+            push_attr_braces(out, attr);
+        }
     }
 
     /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,

@@ -994,15 +994,33 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
     out
 }
 
-/// The attribute block of a header, link, image, or code block: `{#id .class key="val"}` with the
-/// leading brace.
+/// The attribute block of a header, table, div, or code block: `{#id .class key="val"}` with the
+/// braces.
 fn attr_braces(attr: &Attr) -> String {
-    format!("{{{}}}", attr_body(attr))
+    format!("{{{}}}", attr_parts(attr).join(" "))
 }
 
-/// The body of an attribute block (without the braces): id, then classes, then key/value pairs,
-/// each separated by a space. Unlike HTML attributes, unknown keys are emitted verbatim.
-fn attr_body(attr: &Attr) -> String {
+/// Append the attribute block that follows inline markup. In running text it may fold between
+/// two attributes, never inside one.
+fn push_attr_braces(out: &mut Vec<Piece>, attr: &Attr) {
+    let parts = attr_parts(attr);
+    let Some(last) = parts.len().checked_sub(1) else {
+        out.push(Piece::text("{}"));
+        return;
+    };
+    for (index, part) in parts.into_iter().enumerate() {
+        if index > 0 {
+            out.push(Piece::Space);
+        }
+        let open = if index == 0 { "{" } else { "" };
+        let close = if index == last { "}" } else { "" };
+        out.push(Piece::text(format!("{open}{part}{close}")));
+    }
+}
+
+/// The parts of an attribute block: id, then classes, then key/value pairs. Unlike HTML attributes,
+/// unknown keys are emitted verbatim.
+fn attr_parts(attr: &Attr) -> Vec<String> {
     let mut parts: Vec<String> = Vec::new();
     if !attr.id.is_empty() {
         parts.push(format!("#{}", attr.id));
@@ -1016,7 +1034,7 @@ fn attr_body(attr: &Attr) -> String {
     for (key, value) in &attr.attributes {
         parts.push(format!("{key}=\"{}\"", value.replace('"', "\\\"")));
     }
-    parts.join(" ")
+    parts
 }
 
 #[cfg(test)]

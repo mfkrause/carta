@@ -2,8 +2,8 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-[**strong**]{.role=red wrapper="1"} and `two`[
-]{.why wrapper="1"}`words`.
+[**strong**]{.role=red wrapper="1"} and `two`{.why}[ ]{.why
+wrapper="1"}`words`{.why}.
 
 [^1]
 

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+![A captioned figure](plot.png){#plot alt="A plotted curve" width="4in"
+height="2in"}
+
+A standalone block image:
+
+![](standalone.png)
+
+An inline ![](icon.png) image.
