@@ -21,12 +21,21 @@ pub(super) fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode, smart
 /// context, where the surrounding construct controls layout).
 pub(super) fn inline_run(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
     let mut out = String::new();
+    let mut pending_space = false;
     for fragment in fragments(items, width, wrap, smart) {
         match fragment {
-            Fragment::Text(text) | Fragment::Atom(text) => out.push_str(&text),
-            Fragment::Space | Fragment::Soft => out.push(' '),
-            Fragment::LineBreak => out.push_str(" \\ "),
+            Fragment::Text(text) | Fragment::Atom(text) => {
+                if pending_space {
+                    out.push(' ');
+                }
+                pending_space = false;
+                out.push_str(&text);
+            }
+            Fragment::Space | Fragment::Soft => pending_space = true,
         }
+    }
+    if pending_space {
+        out.push(' ');
     }
     escape_open_marker(&out)
 }
@@ -57,7 +66,11 @@ pub(super) fn fragments(
             }
             Inline::Space => out.push(Fragment::Space),
             Inline::SoftBreak => out.push(Fragment::Soft),
-            Inline::LineBreak => out.push(Fragment::LineBreak),
+            Inline::LineBreak => out.extend([
+                Fragment::Space,
+                Fragment::Atom("\\".to_owned()),
+                Fragment::Space,
+            ]),
             Inline::Emph(inner) => {
                 extend_wrapped(&mut out, inner, "#emph[", "]", width, wrap, smart);
                 first_inline = false;
@@ -185,11 +198,9 @@ fn block_fragments(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -
     out
 }
 
-/// Splice an inline sequence into `out` wrapped in `open`/`close` delimiters, keeping its internal
-/// spaces as wrap points: the opening fuses to the first word and the closing to the last, so a long
-/// run can break across physical lines with the delimiters staying attached to their boundary words.
-/// Both boundary words remain escapable so a leading line-marker character is still guarded when a
-/// word opens a physical line.
+/// Splice an inline sequence into `out` between `open` and `close` delimiters, keeping its spaces
+/// as wrap points: each delimiter fuses to the word beside it, so a long run can break across
+/// physical lines, and a space just inside a delimiter stays inside it.
 fn extend_wrapped(
     out: &mut Vec<Fragment>,
     items: &[Inline],
@@ -199,35 +210,12 @@ fn extend_wrapped(
     wrap: WrapMode,
     smart: bool,
 ) {
-    let mut inner = fragments(items, width, wrap, smart);
-    let is_textual =
-        |fragment: &Fragment| matches!(fragment, Fragment::Text(_) | Fragment::Atom(_));
-    match inner.iter().position(is_textual) {
-        None => out.push(Fragment::Atom(format!("{open}{close}"))),
-        Some(first) => {
-            let last = inner.iter().rposition(is_textual).unwrap_or(first);
-            if let Some(fragment) = inner.get_mut(first) {
-                prepend_fragment(fragment, open);
-            }
-            if let Some(fragment) = inner.get_mut(last) {
-                append_fragment(fragment, close);
-            }
-            out.append(&mut inner);
-        }
+    if !open.is_empty() {
+        out.push(Fragment::Atom(open.to_owned()));
     }
-}
-
-/// Prepend `prefix` to a textual fragment's text, leaving its variant (and thus its escapability) intact.
-fn prepend_fragment(fragment: &mut Fragment, prefix: &str) {
-    if let Fragment::Text(text) | Fragment::Atom(text) = fragment {
-        *text = format!("{prefix}{text}");
-    }
-}
-
-/// Append `suffix` to a textual fragment's text, leaving its variant (and thus its escapability) intact.
-fn append_fragment(fragment: &mut Fragment, suffix: &str) {
-    if let Fragment::Text(text) | Fragment::Atom(text) = fragment {
-        text.push_str(suffix);
+    out.append(&mut fragments(items, width, wrap, smart));
+    if !close.is_empty() {
+        out.push(Fragment::Atom(close.to_owned()));
     }
 }
 
@@ -324,13 +312,6 @@ fn fill_with(
                 physical_line_start = true;
             }
             Fragment::Space | Fragment::Soft => pending_space = true,
-            Fragment::LineBreak => {
-                out.push_str(" \\ ");
-                column += 3;
-                pending_space = false;
-                at_line_start = false;
-                physical_line_start = false;
-            }
             Fragment::Text(text) | Fragment::Atom(text) => {
                 let escapable = matches!(fragment, Fragment::Text(_));
                 let (word_width, multiline, last_width) =
@@ -437,9 +418,19 @@ fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: 
     if plain == target.url {
         format!("#link({destination})")
     } else {
+        let inner = fragments(items, width, wrap, smart);
+        let is_space = |fragment: Option<&Fragment>| {
+            matches!(fragment, Some(Fragment::Space | Fragment::Soft))
+        };
+        let lead = if is_space(inner.first()) { " " } else { "" };
+        let trail = if inner.len() > 1 && is_space(inner.last()) {
+            " "
+        } else {
+            ""
+        };
         // Unbounded width: the link is one unit for wrapping, yet `Preserve` keeps inner breaks.
-        let label = fill(&fragments(items, width, wrap, smart), usize::MAX, wrap);
-        format!("#link({destination})[{label}]")
+        let label = fill(&inner, usize::MAX, wrap);
+        format!("#link({destination})[{lead}{label}{trail}]")
     }
 }
 

@@ -2,12 +2,12 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-A #link("https://example.com")[linked body] keeps the padding of its
+A #link("https://example.com")[ linked body ] keeps the padding of its
 content.
 
 A box holds its own spacing within the line.
 
-An underlined #underline[padded body] sits beside plain words.
+An underlined #underline[ padded body ] sits beside plain words.
 
 #quote(block: true)[
 A spaced quotation.

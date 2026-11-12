@@ -2,6 +2,6 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-#strong[strong] and `two``words`.
+#strong[strong] and `two` `words`.
 
 #footnote[S. Smith.]

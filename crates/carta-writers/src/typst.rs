@@ -72,8 +72,6 @@ enum Fragment {
     /// A soft line break from the source: a breakable reflow point under `Auto`, a space under
     /// `None`, and a kept physical line break under `Preserve`.
     Soft,
-    /// A forced line break, rendered as ` \ ` and not breaking the physical line.
-    LineBreak,
 }
 
 /// How a rendered block leaves its last line: still open, ended, or followed by a blank line.
@@ -408,11 +406,7 @@ fn escape_term_colons(term: &str) -> String {
 }
 
 fn line_block(lines: &[Vec<Inline>], width: usize, wrap: WrapMode, smart: bool) -> String {
-    let rendered: Vec<String> = lines
-        .iter()
-        .map(|line| inline_run(line, width, wrap, smart))
-        .collect();
-    rendered.join(" \\ ")
+    fill_inlines(&lines.join(&Inline::LineBreak), width, wrap, smart)
 }
 
 fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {

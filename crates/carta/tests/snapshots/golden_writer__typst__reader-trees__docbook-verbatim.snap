@@ -11,7 +11,8 @@ col   col
 $ carta
 ```
 
-a~~b~#emph[emphasized]~#link("https://example.com/")[linked] \ ~~second~~~~line
+a~~b~#emph[emphasized]~#link("https://example.com/")[linked] \
+~~second~~~~line
 
 ```
 kept  as    code

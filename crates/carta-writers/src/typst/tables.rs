@@ -185,7 +185,7 @@ fn leading_run(body: &CellBody) -> (usize, bool) {
             for fragment in fragments {
                 match fragment {
                     Fragment::Text(text) | Fragment::Atom(text) => run += display_width(text),
-                    Fragment::Space | Fragment::Soft | Fragment::LineBreak => return (run, true),
+                    Fragment::Space | Fragment::Soft => return (run, true),
                 }
             }
             (run, *paragraph)

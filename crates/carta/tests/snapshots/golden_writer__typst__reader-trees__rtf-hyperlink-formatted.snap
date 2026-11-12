@@ -3,4 +3,4 @@ source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
 Visit #underline[#link("http://example.com")[our site]] and
-#strong[#link("http://other.com")[bold]]#link("http://other.com")[plain].
+#strong[#link("http://other.com")[bold]]#link("http://other.com")[ plain].
