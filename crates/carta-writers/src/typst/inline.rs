@@ -147,8 +147,13 @@ pub(super) fn fragments(
         }
         after_space = next_after_space;
     }
+    fuse_words(out)
+}
+
+/// Fuse fragments with no space between them into one word, which keeps its first variant.
+fn fuse_words(fragments: Vec<Fragment>) -> Vec<Fragment> {
     let mut grouped = Vec::new();
-    for fragment in out {
+    for fragment in fragments {
         if let (
             Some(Fragment::Text(previous) | Fragment::Atom(previous)),
             Fragment::Text(text) | Fragment::Atom(text),
