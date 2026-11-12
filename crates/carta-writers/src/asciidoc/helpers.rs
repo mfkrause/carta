@@ -7,7 +7,10 @@ use carta_ast::{
     Table, Target, Text,
 };
 
-use crate::common::{attribute_value, clean_prefix_len, is_uri_scheme, split_length_unit};
+use crate::common::{
+    Dimension, attribute_value, clean_prefix_len, dimension_pixels, format_percent_dimension,
+    is_uri_scheme, parse_dimension,
+};
 
 /// The URI scheme of a URL: the lowercase run before the first `:`, when that run is a valid scheme
 /// (a letter followed by letters, digits, `+`, `-`, or `.`).
@@ -24,11 +27,11 @@ pub(super) fn is_autolink_scheme(scheme: &str) -> bool {
         .any(|known| scheme.eq_ignore_ascii_case(known))
 }
 
-/// The `image:`/`image::` argument list: the alt text (the URL's file stem when no alt is given),
-/// the title, and a width/height descriptor.
+/// The `image:`/`image::` argument list: the alt text (the URL without its file extension when no
+/// alt is given), the title, and the width and height.
 pub(super) fn image_args(attr: &Attr, target: &Target, alt: &str) -> String {
     let alt = if alt.is_empty() {
-        image_stem(&target.url)
+        escape_text(without_extension(&target.url))
     } else {
         alt.to_owned()
     };
@@ -36,45 +39,31 @@ pub(super) fn image_args(attr: &Attr, target: &Target, alt: &str) -> String {
     if !target.title.is_empty() {
         parts.push(format!("title=\"{}\"", target.title));
     }
-    if let Some(size) = image_size(attr) {
-        parts.push(size);
+    match attribute_value(attr, "width").and_then(parse_dimension) {
+        Some(Dimension::Percent(percent)) => {
+            parts.push(format!("scaledwidth={}", format_percent_dimension(percent)));
+        }
+        Some(width) => {
+            if let Some(pixels) = dimension_pixels(&width) {
+                parts.push(format!("width={pixels}"));
+            }
+        }
+        None => {}
+    }
+    // A relative height has no counterpart in the format and is dropped.
+    let height = attribute_value(attr, "height").and_then(parse_dimension);
+    if let Some(pixels) = height.as_ref().and_then(dimension_pixels) {
+        parts.push(format!("height={pixels}"));
     }
     parts.join(",")
 }
 
-/// The default alt text for an image with none of its own: the file name of the target URL, minus
-/// any directory and extension.
-fn image_stem(url: &str) -> String {
-    let file = url.rsplit(['/', '\\']).next().unwrap_or(url);
-    let stem = file.rsplit_once('.').map_or(file, |(name, _)| name);
-    stem.to_owned()
-}
-
-/// An image's size descriptor: a percentage width becomes `scaledwidth`, an absolute width or height
-/// becomes `width`/`height` with any unit suffix stripped.
-fn image_size(attr: &Attr) -> Option<String> {
-    if let Some(width) = attribute_value(attr, "width") {
-        if let Some(value) = width
-            .strip_suffix('%')
-            .and_then(|percent| percent.parse::<f64>().ok())
-        {
-            return Some(format!("scaledwidth={}%", format_decimal(value)));
-        }
-        return Some(format!("width={}", split_length_unit(width).0));
-    }
-    if let Some(height) = attribute_value(attr, "height") {
-        return Some(format!("height={}", split_length_unit(height).0));
-    }
-    None
-}
-
-/// Format a number the way the format's scaled-width values appear: an integer keeps a single trailing
-/// zero (`50` -> `50.0`), a fractional value keeps its digits (`50.5`).
-fn format_decimal(value: f64) -> String {
-    if value.fract() == 0.0 {
-        format!("{value:.1}")
-    } else {
-        format!("{value}")
+/// A URL without the extension of its last path segment.
+fn without_extension(url: &str) -> &str {
+    let segment_start = url.rfind('/').map_or(0, |slash| slash + 1);
+    match url.rfind('.') {
+        Some(dot) if dot >= segment_start => url.get(..dot).unwrap_or(url),
+        _ => url,
     }
 }
 

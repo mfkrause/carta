@@ -23,6 +23,6 @@ Loop rounds join with their padding: 1 2 3 .
 
 A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.
 
-image:diagram.png[diagram,width=1000.0]
+image:diagram.png[diagram,width=1333]
 
 The binding kept survives its statement.

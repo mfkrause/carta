@@ -4,7 +4,7 @@ expression: output
 ---
 [[plot]]
 .A captioned figure
-image::plot.png[A plotted curve,width=4]
+image::plot.png[A plotted curve,width=384,height=192]
 
 A standalone block image:
 

@@ -5,6 +5,6 @@ expression: output
 [.kbd]##*Ctrl*##{plus}[.kbd]##*Shift*##{plus}[.kbd]##*F*##
 [.button]#*++[++Cancel++]++*# [.menu]#*File › Open › Recent*#
 
-image:./images/icons/heart.png[heart] [#point]##
+image:./images/icons/heart.png[./images/icons/heart] [#point]##
 
 [.index]#visible# [.index]##

@@ -2,9 +2,9 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-An image:photo.png[Photo,width=100].
+An image:photo.png[Photo,width=100,height=200].
 
 .A caption
-image::photo.png[Photo,width=100]
+image::photo.png[Photo,width=100,height=200]
 
 image::photo.png[photo]
