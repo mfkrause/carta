@@ -64,6 +64,12 @@ WRITER = {
     ("commonmark", "reader-trees", "ipynb-version-three"): (
         "Pandoc writes a level-9 heading, which CommonMark reads as text."
     ),
+    ("commonmark_x", "reader-trees", "ipynb-version-three"): (
+        "Pandoc writes a level-9 heading, which CommonMark reads as text."
+    ),
+    ("gfm", "reader-trees", "ipynb-version-three"): (
+        "Pandoc writes a level-9 heading, which GFM reads as text."
+    ),
     ("html4", "table", "table-foot"): "Pandoc puts tfoot after tbody, which HTML 4 forbids.",
     ("latex", "image-dimensions", "image-embedded-jpeg"): DATA_IMAGE,
     ("latex", "image-dimensions", "image-embedded-png"): DATA_IMAGE,
@@ -80,6 +86,9 @@ WRITER = {
     ("man", "table", "table-empty-cell"): "Pandoc drops a list of empty items from the cell.",
     ("man", "table", "table-grid-spans"): (
         "Pandoc's table overflows the line, and groff cannot break its lines."
+    ),
+    ("markdown_mmd", "reader-trees", "docbook-nested-documents"): (
+        "Pandoc drops the caption of a figure whose image has its own description."
     ),
     ("mediawiki", "reader-trees", "ipynb-version-three"): (
         "Pandoc writes a level-9 heading, which MediaWiki does not have."
