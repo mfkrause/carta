@@ -163,7 +163,7 @@ impl<'a> SlideRenderer<'a> {
             class_words.iter().map(|word| (*word).into()).collect();
         classes.extend(carta_core::sections::without_section_class(attr).cloned());
         let mut tag = String::from("<section");
-        render_id_into(&mut tag, &attr.id);
+        render_id_into(&mut tag, &attr.id, Flavor::Slides);
         render_class_into(&mut tag, &classes);
         render_keyvals_into(&mut tag, &attr.attributes, Flavor::Slides);
         tag.push('>');

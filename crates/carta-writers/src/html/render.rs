@@ -19,8 +19,7 @@ use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 use super::helpers::{
     alignment_style, anchor_prefix, append_trailing_newline, cell_attr, cell_attr_html4, colgroup,
     has_table_head, header_tag, heading_attr_html4, image, is_implicit_figure, list_style_type,
-    ordered_list_type, raw_passthrough, render_attr_into, render_part_attr_into, table_width_style,
-    title_attr,
+    ordered_list_type, raw_passthrough, render_attr_into, table_width_style, title_attr,
 };
 #[cfg(feature = "highlight")]
 use super::helpers::{render_id_into, render_keyvals_into};
@@ -305,7 +304,7 @@ impl State<'_> {
             escape_attr_into(out, class.as_str());
         }
         out.push('"');
-        render_id_into(out, &attr.id);
+        render_id_into(out, &attr.id, self.flavor);
         render_keyvals_into(out, &attr.attributes, self.flavor);
         out.push('>');
 
@@ -334,7 +333,7 @@ impl State<'_> {
         let block_id = if attr.id.is_empty() {
             format!("cb{}", self.code_block_id)
         } else {
-            attr.id.as_str().to_owned()
+            format!("{}{}", anchor_prefix(&attr.id, self.flavor), attr.id)
         };
         let block_id_attr = escape_attr(&block_id);
         let start = if numbered { start_line(attr) } else { 1 };
@@ -560,7 +559,7 @@ impl State<'_> {
 
     fn figure_html5(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
         out.push_str("<figure");
-        render_part_attr_into(out, attr, self.flavor);
+        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
         out.push_str(">\n");
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
@@ -578,7 +577,7 @@ impl State<'_> {
 
     fn figure_html4(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
         out.push_str("<div class=\"float\"");
-        render_part_attr_into(out, attr, self.flavor);
+        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
         out.push_str(">\n");
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
@@ -618,7 +617,7 @@ impl State<'_> {
         out.push_str(&colgroup(&table.col_specs, self.flavor));
         if has_table_head(table) {
             out.push_str("\n<thead");
-            render_part_attr_into(out, &table.head.attr, self.flavor);
+            render_attr_into(out, &table.head.attr, AttrOrder::Standard, self.flavor);
             out.push('>');
             out.push('\n');
             self.rows(out, &table.head.rows, &aligns, true);
@@ -636,7 +635,7 @@ impl State<'_> {
                 out.push('\n');
             }
             out.push_str("<tfoot");
-            render_part_attr_into(out, &table.foot.attr, self.flavor);
+            render_attr_into(out, &table.foot.attr, AttrOrder::Standard, self.flavor);
             out.push('>');
             out.push('\n');
             self.rows(out, &table.foot.rows, &aligns, false);
@@ -653,7 +652,7 @@ impl State<'_> {
 
     fn table_body(&mut self, out: &mut String, body: &TableBody, aligns: &[Alignment]) {
         out.push_str("\n<tbody");
-        render_part_attr_into(out, &body.attr, self.flavor);
+        render_attr_into(out, &body.attr, AttrOrder::Standard, self.flavor);
         out.push('>');
         let mut head_grid = RowSpanGrid::new(aligns.len());
         for row in &body.head {
@@ -698,7 +697,7 @@ impl State<'_> {
         grid: &mut RowSpanGrid,
     ) {
         out.push_str("<tr");
-        render_part_attr_into(out, &row.attr, self.flavor);
+        render_attr_into(out, &row.attr, AttrOrder::Standard, self.flavor);
         out.push('>');
         out.push('\n');
         let head_columns = usize::try_from(head_columns).unwrap_or(0);
@@ -730,7 +729,11 @@ impl State<'_> {
             let _ = write!(out, "{BREAK}rowspan=\"{}\"", cell.row_span);
         }
         if self.flavor.is_html5_family() {
-            out.push_str(&cell_attr(&cell.attr, alignment_style(effective)));
+            out.push_str(&cell_attr(
+                &cell.attr,
+                alignment_style(effective),
+                self.flavor,
+            ));
         } else {
             out.push_str(&cell_attr_html4(&cell.attr, effective, self.flavor));
         }

@@ -241,19 +241,16 @@ fn escape_markup_text(markup: &str) -> String {
         } else {
             reference_length(tail)
         };
-        match kept.and_then(|length| tail.split_at_checked(length)) {
-            Some((markup, after)) => {
-                out.push_str(markup);
-                rest = after;
-            }
-            None => {
-                out.push_str(match tail.as_bytes().first() {
-                    Some(b'<') => "&lt;",
-                    Some(b'>') => "&gt;",
-                    _ => "&amp;",
-                });
-                rest = tail.get(1..).unwrap_or_default();
-            }
+        if let Some((markup, after)) = kept.and_then(|length| tail.split_at_checked(length)) {
+            out.push_str(markup);
+            rest = after;
+        } else {
+            out.push_str(match tail.as_bytes().first() {
+                Some(b'<') => "&lt;",
+                Some(b'>') => "&gt;",
+                _ => "&amp;",
+            });
+            rest = tail.get(1..).unwrap_or_default();
         }
     }
     out.push_str(rest);
@@ -307,24 +304,16 @@ fn reference_length(markup: &str) -> Option<usize> {
 pub(super) fn render_attr_into(out: &mut String, attr: &Attr, order: AttrOrder, flavor: Flavor) {
     match order {
         AttrOrder::Standard => {
-            render_anchor_id_into(out, &attr.id, flavor);
+            render_id_into(out, &attr.id, flavor);
             render_class_into(out, &attr.classes);
             render_keyvals_into(out, &attr.attributes, flavor);
         }
         AttrOrder::Header => {
             render_class_into(out, &attr.classes);
             render_keyvals_into(out, &attr.attributes, flavor);
-            render_anchor_id_into(out, &attr.id, flavor);
+            render_id_into(out, &attr.id, flavor);
         }
     }
-}
-
-/// Render the attributes of a figure or of a table part (head, body, foot, row), whose identifier
-/// stays as written in every dialect.
-pub(super) fn render_part_attr_into(out: &mut String, attr: &Attr, flavor: Flavor) {
-    render_id_into(out, &attr.id);
-    render_class_into(out, &attr.classes);
-    render_keyvals_into(out, &attr.attributes, flavor);
 }
 
 /// The HTML4-valid universal attributes for a heading element. HTML4 admits only the core, i18n,
@@ -363,7 +352,7 @@ fn is_html4_dimension_attribute(key: &str) -> bool {
 /// attribute for the effective alignment, then the cell's own key/value pairs verbatim.
 pub(super) fn cell_attr_html4(attr: &Attr, align: &Alignment, flavor: Flavor) -> String {
     let mut out = String::new();
-    render_id_into(&mut out, &attr.id);
+    render_id_into(&mut out, &attr.id, flavor);
     render_class_into(&mut out, &attr.classes);
     if let Some(word) = alignment_word(align) {
         let _ = write!(out, "{BREAK}align=\"{word}\"");
@@ -376,9 +365,9 @@ pub(super) fn cell_attr_html4(attr: &Attr, align: &Alignment, flavor: Flavor) ->
 /// The alignment prefixes any existing `style` value (at that value's position); with no `style`
 /// attribute present, an alignment-only `style` is emitted as the first key/value pair, after id and
 /// class. With no alignment the attributes render unchanged.
-pub(super) fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
+pub(super) fn cell_attr(attr: &Attr, align_style: Option<&str>, flavor: Flavor) -> String {
     let mut out = String::new();
-    render_id_into(&mut out, &attr.id);
+    render_id_into(&mut out, &attr.id, flavor);
     render_class_into(&mut out, &attr.classes);
     let Some(align_style) = align_style else {
         render_keyvals_into(&mut out, &attr.attributes, Flavor::Html5);
@@ -418,12 +407,8 @@ fn combine_style(align_style: &str, style: &str) -> String {
     format!("{align_style} {trimmed}{suffix}")
 }
 
-pub(super) fn render_id_into(out: &mut String, id: &Text) {
-    render_anchor_id_into(out, id, Flavor::Html5);
-}
-
-/// Render the identifier of an element that a link can target, behind its [`anchor_prefix`].
-fn render_anchor_id_into(out: &mut String, id: &Text, flavor: Flavor) {
+/// Render an element's identifier behind its [`anchor_prefix`].
+pub(super) fn render_id_into(out: &mut String, id: &Text, flavor: Flavor) {
     if id.is_empty() {
         return;
     }
@@ -434,8 +419,8 @@ fn render_anchor_id_into(out: &mut String, id: &Text, flavor: Flavor) {
     out.push('"');
 }
 
-/// The prefix an identifier takes as a link anchor. The HTML 4 and EPUB dialects need an anchor to
-/// start with a letter, so any other identifier gains the [`letter_prefix`].
+/// The prefix an identifier takes, on its element and in the links to it. The HTML 4 and EPUB
+/// dialects need an identifier to start with a letter, so any other gains the [`letter_prefix`].
 pub(super) fn anchor_prefix(id: &str, flavor: Flavor) -> &'static str {
     match flavor {
         Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => letter_prefix(id),
@@ -445,7 +430,11 @@ pub(super) fn anchor_prefix(id: &str, flavor: Flavor) -> &'static str {
 
 /// The prefix that makes `id` start with a letter: empty when it already does.
 pub(crate) fn letter_prefix(id: &str) -> &'static str {
-    if id.chars().next().is_some_and(|first| !first.is_alphabetic()) {
+    if id
+        .chars()
+        .next()
+        .is_some_and(|first| !first.is_alphabetic())
+    {
         "id_"
     } else {
         ""
