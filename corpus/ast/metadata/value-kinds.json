@@ -121,19 +121,19 @@
       "t": "MetaString",
       "c": "en"
     },
-    "publisher": {
+    "series": {
       "t": "MetaMap",
       "c": {
         "name": {
           "t": "MetaString",
-          "c": "Example Press"
+          "c": "Field notes"
         },
-        "city": {
+        "volume": {
           "t": "MetaInlines",
           "c": [
             {
               "t": "Str",
-              "c": "Springfield"
+              "c": "3"
             }
           ]
         }
