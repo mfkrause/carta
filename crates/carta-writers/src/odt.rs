@@ -360,12 +360,42 @@ impl<'a> Builder<'a> {
         {
             self.references = references::collect(&document.blocks);
         }
+        self.register_meta_styles(&document.meta);
         self.title_block(&document.meta);
         self.abstract_block(&document.meta);
         if self.options.toc {
             self.table_of_contents();
         }
         self.render_blocks(&document.blocks, None);
+    }
+
+    /// Registers the automatic text styles the metadata's formatting calls for. Every value counts,
+    /// shown in the body or not, in key order and ahead of the body's own styles.
+    fn register_meta_styles(&mut self, meta: &BTreeMap<Text, MetaValue>) {
+        let mut scratch = Builder::new(self.options);
+        scratch.text_styles = std::mem::take(&mut self.text_styles);
+        for value in meta.values() {
+            scratch.meta_value(value);
+        }
+        self.text_styles = scratch.text_styles;
+    }
+
+    fn meta_value(&mut self, value: &MetaValue) {
+        match value {
+            MetaValue::MetaInlines(inlines) => self.inlines(inlines),
+            MetaValue::MetaBlocks(blocks) => self.render_blocks(blocks, None),
+            MetaValue::MetaList(items) => {
+                for item in items {
+                    self.meta_value(item);
+                }
+            }
+            MetaValue::MetaMap(entries) => {
+                for entry in entries.values() {
+                    self.meta_value(entry);
+                }
+            }
+            MetaValue::MetaString(_) | MetaValue::MetaBool(_) => {}
+        }
     }
 
     fn finish_content(&self) -> String {
