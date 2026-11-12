@@ -302,7 +302,7 @@ fn combine_dimension_style(base: Option<String>, declarations: &[String]) -> Opt
 
 /// Split a CSS length into its leading numeric run (digits, `.`, sign) and the trailing unit. A
 /// value with no unit yields an empty unit; a value with no numeric prefix yields an empty number.
-#[cfg_attr(not(any(feature = "asciidoc", feature = "dokuwiki")), allow(dead_code))]
+#[cfg_attr(not(feature = "dokuwiki"), allow(dead_code))]
 pub(crate) fn split_length_unit(raw: &str) -> (&str, &str) {
     let boundary = raw
         .find(|ch: char| !(ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == '+'))
