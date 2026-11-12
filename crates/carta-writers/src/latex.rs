@@ -7,6 +7,7 @@ use carta_ast::{
     Attr, Block, Caption, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
     to_plain_text,
 };
+use carta_core::sections::section_opening;
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
@@ -110,19 +111,61 @@ impl Dialect {
     }
 }
 
-/// Render a block sequence in a given dialect, returning the body without a trailing newline. Slide
-/// writers render the content of each frame through this entry point, laid out under `wrap`.
-pub(crate) fn render_fragment(
+/// Render the content of a frame or of a division inside one. Each heading opens a `block`
+/// environment that holds the blocks up to the next heading at its level or above; a section
+/// division holds its own blocks. Other blocks render in place.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render_slide_body(
     blocks: &[Block],
     width: usize,
+    enum_depth: usize,
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
-    render_blocks(blocks, width, 0, dialect, wrap, smart, hl)
-        .trim_end_matches('\n')
-        .to_owned()
+    let mut units = Vec::new();
+    let mut rest = blocks;
+    while let Some((block, tail)) = rest.split_first() {
+        rest = tail;
+        let Some(open) = section_opening(block) else {
+            units.push(block_to_string(
+                block, width, enum_depth, dialect, wrap, smart, hl,
+            ));
+            continue;
+        };
+        let body = open.body.unwrap_or_else(|| {
+            let end = tail
+                .iter()
+                .position(|next| section_opening(next).is_some_and(|next| next.level <= open.level))
+                .unwrap_or(tail.len());
+            let (body, after) = tail.split_at(end);
+            rest = after;
+            body
+        });
+        let mut lines = vec![render_titled_open(
+            "\\begin{block}{",
+            open.title,
+            width,
+            dialect,
+            wrap,
+            smart,
+            hl,
+        )];
+        if !open.section.id.is_empty() {
+            lines.push(phantom_label(&open.section.id));
+        }
+        let rendered = carta_core::with_stack(|| {
+            render_slide_body(body, width, enum_depth, dialect, wrap, smart, hl)
+        });
+        if !rendered.is_empty() {
+            lines.push(rendered);
+        }
+        lines.push("\\end{block}".to_owned());
+        units.push(lines.join("\n"));
+    }
+    units.retain(|unit| !unit.is_empty());
+    units.join("\n\n")
 }
 
 /// Render a section heading above a presentation's slide level.
@@ -311,7 +354,7 @@ fn div(
             return columns(attr, blocks, width, enum_depth, dialect, wrap, smart, hl);
         }
         if has_class(attr, "incremental") {
-            return render_blocks(
+            return render_slide_body(
                 blocks,
                 width,
                 enum_depth,
@@ -322,7 +365,7 @@ fn div(
             );
         }
         if has_class(attr, "nonincremental") {
-            return render_blocks(
+            return render_slide_body(
                 blocks,
                 width,
                 enum_depth,
@@ -333,7 +376,11 @@ fn div(
             );
         }
     }
-    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl);
+    let body = if dialect.is_slide() {
+        render_slide_body(blocks, width, enum_depth, dialect, wrap, smart, hl)
+    } else {
+        render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl)
+    };
     if attr.id.is_empty() {
         body
     } else if body.is_empty() {
@@ -417,7 +464,7 @@ fn column(
         "\\begin{{column}}{{{}\\linewidth}}",
         trim_number(fraction)
     ));
-    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl);
+    let body = render_slide_body(blocks, width, enum_depth, dialect, wrap, smart, hl);
     if !body.is_empty() {
         lines.push(body);
     }

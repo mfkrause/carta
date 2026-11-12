@@ -3,14 +3,13 @@
 use std::sync::LazyLock;
 
 use carta_ast::{Attr, Block, Document, Inline};
-use carta_core::sections::section_opening;
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::latex::{
-    Dialect, Hl, anchor, code_highlighting, render_blocks, render_fragment, render_heading,
+    Dialect, Hl, anchor, code_highlighting, render_blocks, render_heading, render_slide_body,
     render_titled_open,
 };
-use crate::slides::{FrameTitle, Heading, Slide, group_headings, segment, slide_level};
+use crate::slides::{FrameTitle, Slide, segment, slide_level};
 
 /// Renders a document to a slide-deck fragment.
 #[derive(Debug, Default, Clone, Copy)]
@@ -28,7 +27,7 @@ impl Writer for BeamerWriter {
         let width = options.columns.unwrap_or(crate::common::FILL_COLUMN);
         let units: Vec<String> = segment(&blocks, level)
             .iter()
-            .map(|slide| render_slide(slide, level, width, options.wrap, smart, hl))
+            .map(|slide| render_slide(slide, width, options.wrap, smart, hl))
             .collect();
         Ok(units.join("\n\n"))
     }
@@ -102,14 +101,7 @@ const FRAME_CLASSES: &[&str] = &[
     "t",
 ];
 
-fn render_slide(
-    slide: &Slide,
-    level: i64,
-    width: usize,
-    wrap: WrapMode,
-    smart: bool,
-    hl: Hl<'_>,
-) -> String {
+fn render_slide(slide: &Slide, width: usize, wrap: WrapMode, smart: bool, hl: Hl<'_>) -> String {
     match slide {
         Slide::Section {
             level,
@@ -123,18 +115,15 @@ fn render_slide(
             };
             render_heading(*level, &attr, title, width, wrap, smart, hl)
         }
-        Slide::Frame { title, body } => {
-            render_frame(title.as_ref(), body, level, width, wrap, smart, hl)
-        }
+        Slide::Frame { title, body } => render_frame(title.as_ref(), body, width, wrap, smart, hl),
     }
 }
 
 /// Render one frame: the `\begin{frame}` line with options and title, an anchor for the title's
-/// identifier, the body grouped into block environments below the slide level, and `\end{frame}`.
+/// identifier, the body with its headings as block environments, and `\end{frame}`.
 fn render_frame(
     title: Option<&FrameTitle>,
     body: &[Block],
-    level: i64,
     width: usize,
     wrap: WrapMode,
     smart: bool,
@@ -160,9 +149,10 @@ fn render_frame(
         }
         None => lines.push(format!("\\begin{{frame}}{options}")),
     }
-    let rendered = render_body(body, level + 1, width, wrap, smart, hl);
+    let rendered = render_slide_body(body, width, 0, Dialect::SLIDE, wrap, smart, hl);
+    let rendered = rendered.trim_end_matches('\n');
     if !rendered.is_empty() {
-        lines.push(rendered);
+        lines.push(rendered.to_owned());
     }
     lines.push("\\end{frame}".to_owned());
     lines.join("\n")
@@ -196,75 +186,6 @@ fn frame_options(title: Option<&FrameTitle>, fragile: bool) -> String {
     } else {
         format!("[{}]", options.join(","))
     }
-}
-
-/// Render a frame body, turning headers at or below `block_level` into nested block environments
-/// and rendering everything else through the LaTeX slide dialect. Each block environment's body is
-/// grouped one level deeper.
-fn render_body(
-    blocks: &[Block],
-    block_level: i64,
-    width: usize,
-    wrap: WrapMode,
-    smart: bool,
-    hl: Hl<'_>,
-) -> String {
-    let Some(group_level) = shallowest_header(blocks) else {
-        return render_fragment(blocks, width, Dialect::SLIDE, wrap, smart, hl);
-    };
-    let group_level = group_level.max(block_level);
-    let units: Vec<String> = group_headings(blocks, group_level)
-        .iter()
-        .map(|heading| match heading {
-            Heading::Loose(run) => render_fragment(run, width, Dialect::SLIDE, wrap, smart, hl),
-            Heading::Section { attr, title, body } => {
-                render_block_env(attr, title, body, group_level, width, wrap, smart, hl)
-            }
-        })
-        .filter(|rendered| !rendered.is_empty())
-        .collect();
-    units.join("\n\n")
-}
-
-/// Render a header below the slide level as a `block` environment: a titled opening, an anchor for
-/// its identifier, the recursively grouped body, and the close.
-#[allow(clippy::too_many_arguments)]
-fn render_block_env(
-    attr: &Attr,
-    title: &[Inline],
-    body: &[Block],
-    group_level: i64,
-    width: usize,
-    wrap: WrapMode,
-    smart: bool,
-    hl: Hl<'_>,
-) -> String {
-    let mut lines = vec![render_titled_open(
-        "\\begin{block}{",
-        title,
-        width,
-        Dialect::SLIDE,
-        wrap,
-        smart,
-        hl,
-    )];
-    if !attr.id.is_empty() {
-        lines.push(anchor(&attr.id));
-    }
-    let rendered = render_body(body, group_level.saturating_add(1), width, wrap, smart, hl);
-    if !rendered.is_empty() {
-        lines.push(rendered);
-    }
-    lines.push("\\end{block}".to_owned());
-    lines.join("\n")
-}
-
-/// The shallowest header level in a block run, or `None` when it holds no headers.
-fn shallowest_header(blocks: &[Block]) -> Option<i64> {
-    blocks
-        .iter()
-        .filter_map(|block| section_opening(block).map(|open| open.level))
-        .min()
 }
 
 /// Whether a block run holds any code, marking its frame fragile. Code may be a code block or an
@@ -456,7 +377,6 @@ mod tests {
 
     #[test]
     fn extreme_header_level_does_not_overflow() {
-        // Check that grouping above the maximum heading level saturates.
         let out = render(vec![
             header(1, "", "Frame"),
             header(i64::MAX, "id", "Deep"),
@@ -515,6 +435,22 @@ mod tests {
         ]);
         assert!(out.contains("\\begin{block}{B}"));
         assert!(out.contains("\\end{block}"));
+    }
+
+    #[test]
+    fn block_environments_nest_by_heading_level() {
+        let out = render(vec![
+            header(1, "", "Frame"),
+            para("a"),
+            header(3, "", "Three"),
+            para("b"),
+            header(2, "", "Two"),
+            Block::Div(Box::default(), vec![header(4, "", "Four"), para("c")]),
+        ]);
+        assert_eq!(
+            out,
+            "\\begin{frame}{Frame}\na\n\n\\begin{block}{Three}\nb\n\\end{block}\n\n\\begin{block}{Two}\n\\begin{block}{Four}\nc\n\\end{block}\n\\end{block}\n\\end{frame}"
+        );
     }
 
     #[test]

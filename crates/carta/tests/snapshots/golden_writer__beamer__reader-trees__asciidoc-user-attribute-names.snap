@@ -7,19 +7,23 @@ expression: output
 \protect\phantomsection\label{_nested}
 Titled
 
-\subsection{Nested}
-
-\subsubsection{Discrete}
-
+\begin{block}{Nested}
+\begin{block}{Discrete}
 \pandocbounded{\includegraphics[keepaspectratio]{./images/icons/heart.png}}
 
 \protect\phantomsection\label{spot}{} \hyperlink{spot}{}
+\end{block}
+\end{block}
 
-\subsection{HTML}
+\begin{block}{HTML}
+\end{block}
 
-\subsection{Data}
+\begin{block}{Data}
+\end{block}
 
-\subsection{Prefix}
-
-\subsubsection{Prefix}\label{_prefix}
+\begin{block}{Prefix}
+\begin{block}{Prefix}
+\protect\phantomsection\label{_prefix}
+\end{block}
+\end{block}
 \end{frame}
