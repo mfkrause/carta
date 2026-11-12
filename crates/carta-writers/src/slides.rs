@@ -285,6 +285,28 @@ mod tests {
     }
 
     #[test]
+    fn horizontal_rule_opens_an_empty_frame_unless_a_slide_heading_follows() {
+        let blocks = vec![
+            header(1, "a"),
+            para("x"),
+            Block::HorizontalRule,
+            Block::HorizontalRule,
+            header(1, "b"),
+            para("y"),
+        ];
+        let slides = segment(&blocks, slide_level(&blocks));
+        assert_eq!(slides.len(), 3);
+        assert!(matches!(
+            slides.get(1),
+            Some(Slide::Frame { title: None, body }) if body.is_empty()
+        ));
+        assert!(matches!(
+            slides.get(2),
+            Some(Slide::Frame { title: Some(_), .. })
+        ));
+    }
+
+    #[test]
     fn deep_header_without_title_opens_titleless_frame() {
         let blocks = vec![
             header(3, "c"),
