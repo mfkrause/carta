@@ -454,6 +454,40 @@ mod tests {
     }
 
     #[test]
+    fn table_footnotes_follow_the_table_and_count_from_the_first_mark() {
+        use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
+        let cell = |text: &str| Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content: vec![Block::Plain(vec![
+                Inline::Str(text.into()),
+                Inline::Note(vec![para(&format!("note {text}"))]),
+            ])],
+        };
+        let column = || ColSpec {
+            align: Alignment::AlignDefault,
+            width: ColWidth::ColWidthDefault,
+        };
+        let out = render(vec![Block::Table(Box::new(Table {
+            col_specs: vec![column(), column()],
+            bodies: vec![TableBody {
+                body: vec![Row {
+                    cells: vec![cell("a"), cell("b")],
+                    ..Row::default()
+                }],
+                ..TableBody::default()
+            }],
+            ..Table::default()
+        }))]);
+        assert!(out.contains("a\\footnotemark{} & b\\footnotemark{} \\\\"));
+        assert!(out.contains(
+            "\\end{longtable}\n\\addtocounter{footnote}{-1}\n\\footnotetext{note a}\n\\addtocounter{footnote}{1}\n\\footnotetext{note b}\n}"
+        ));
+    }
+
+    #[test]
     fn recognized_class_becomes_frame_option() {
         let mut attr = Attr {
             id: "six".to_owned().into(),
