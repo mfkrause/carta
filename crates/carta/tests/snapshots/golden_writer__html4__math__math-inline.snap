@@ -1,7 +1,0 @@
----
-source: crates/carta/tests/golden_writer.rs
-expression: output
----
-<p>an equation <span
-class="math inline"><em>a</em><sup>2</sup> + <em>b</em><sup>2</sup> = <em>c</em><sup>2</sup></span>
-inline</p>

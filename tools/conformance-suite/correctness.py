@@ -150,6 +150,35 @@ DOCX = {
 }
 
 
+# Mirrors DIALECT_FAMILIES in crates/carta/tests/golden_writer.rs. A writer has no snapshot for a
+# case when an earlier writer of its family gives the same output.
+DIALECT_FAMILIES = (
+    ("html", "html4"),
+    ("asciidoc", "asciidoc_legacy"),
+    (
+        "commonmark",
+        "markdown",
+        "gfm",
+        "commonmark_x",
+        "markdown_github",
+        "markdown_mmd",
+        "markdown_phpextra",
+        "markdown_strict",
+    ),
+)
+
+
+def reviewed_snapshots(directory, name):
+    """The snapshot of a control, or those of the earlier writers in its dialect family."""
+    snapshot = directory / f"{name}.snap"
+    if snapshot.exists() or not name.startswith("golden_writer__"):
+        return [snapshot]
+    target, _, case = name.removeprefix("golden_writer__").partition("__")
+    family = next((family for family in DIALECT_FAMILIES if target in family), ())
+    earlier = family[: family.index(target)] if family else ()
+    return [directory / f"golden_writer__{dialect}__{case}.snap" for dialect in earlier]
+
+
 def expectation(label):
     """The reviewed snapshot and the reason for a control label, or None."""
     parts = label.split("/")
@@ -188,22 +217,24 @@ def main():
         return 2
     name, reason = expected
     root = Path(__file__).resolve().parents[2]
-    snapshot = root / "crates/carta/tests/snapshots" / f"{name}.snap"
-    body = snapshot.read_bytes().split(b"\n---\n", 1)[1]
     actual = Path(actual_path).read_bytes()
     if mode == "docx":
         actual = actual.replace(b"><", b">\n<")
     if mode == "epub":
         actual = actual.split(b"<body", 1)[1].split(b">\n", 1)[1].split(b"</body>", 1)[0]
-    if mode == "json":
-        matches = json.loads(body) == json.loads(actual)
-    else:
-        matches = body.removesuffix(b"\n") == actual.removesuffix(b"\n")
-    if not matches:
-        print(f"Output also differs from the reviewed snapshot: {snapshot}")
-        return 1
-    print(f"{label}: {reason} Checked {snapshot.name}.")
-    return 0
+    for snapshot in reviewed_snapshots(root / "crates/carta/tests/snapshots", name):
+        if not snapshot.exists():
+            continue
+        body = snapshot.read_bytes().split(b"\n---\n", 1)[1]
+        if mode == "json":
+            matches = json.loads(body) == json.loads(actual)
+        else:
+            matches = body.removesuffix(b"\n") == actual.removesuffix(b"\n")
+        if matches:
+            print(f"{label}: {reason} Checked {snapshot.name}.")
+            return 0
+    print(f"Output also differs from the reviewed snapshot: {name}.snap")
+    return 1
 
 
 if __name__ == "__main__":

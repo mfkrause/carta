@@ -3,15 +3,33 @@
 //! Review changes with `cargo insta review`; do not edit snapshot files directly.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-// The corpus is JSON AST: without the JSON reader there is nothing to render.
-#![cfg(feature = "read-json")]
+// A dialect's snapshots depend on the output of the other writers in its family.
+#![cfg(feature = "full")]
 
 mod common;
+
+use std::collections::BTreeMap;
 
 use carta::{ReaderOptions, WriterOptions};
 use common::corpus_cases;
 
-#[cfg(feature = "write-html")]
+/// Writers that often give the same output for a case. Within one family, each distinct output of a
+/// case is stored once, under the first writer in the list that produces it.
+const DIALECT_FAMILIES: &[&[&str]] = &[
+    &["html", "html4"],
+    &["asciidoc", "asciidoc_legacy"],
+    &[
+        "commonmark",
+        "markdown",
+        "gfm",
+        "commonmark_x",
+        "markdown_github",
+        "markdown_mmd",
+        "markdown_phpextra",
+        "markdown_strict",
+    ],
+];
+
 #[test]
 fn writer_mathml_output_snapshots_html() {
     let mut options = WriterOptions::default();
@@ -32,24 +50,49 @@ fn writer_mathml_output_snapshots_html() {
     }
 }
 
-/// Snapshots every `corpus/ast/*` case as rendered by every compiled writer that has a text form.
+/// Snapshots every `corpus/ast/*` case as rendered by every writer that has a text form. A writer
+/// gets no snapshot for a case when an earlier writer of its family gives the same output.
 #[test]
 fn writer_output_snapshots() {
+    // The JSON writer re-serializes the tree it reads; the codec tests cover that round trip.
     let targets: Vec<&str> = carta::supported_output_formats()
         .into_iter()
-        .filter(|name| carta::writer_for(name).is_ok())
+        .filter(|name| *name != "json" && carta::writer_for(name).is_ok())
         .collect();
     for case in corpus_cases("ast") {
-        for &target in &targets {
-            let output = render(target, &case.input).unwrap_or_else(|error| {
-                panic!(
-                    "convert json -> {target} {}/{}: {error}",
-                    case.group, case.label
-                )
-            });
+        let outputs: BTreeMap<&str, String> = targets
+            .iter()
+            .map(|&target| {
+                let output = render(target, &case.input).unwrap_or_else(|error| {
+                    panic!(
+                        "convert json -> {target} {}/{}: {error}",
+                        case.group, case.label
+                    )
+                });
+                (target, output)
+            })
+            .collect();
+        for (&target, output) in &outputs {
+            if earlier_dialects(target).any(|dialect| outputs.get(dialect) == Some(output)) {
+                continue;
+            }
             insta::assert_snapshot!(format!("{target}__{}__{}", case.group, case.label), output);
         }
     }
+}
+
+/// The writers listed before `target` in its dialect family.
+fn earlier_dialects(target: &str) -> impl Iterator<Item = &'static str> {
+    DIALECT_FAMILIES
+        .iter()
+        .find(|family| family.contains(&target))
+        .into_iter()
+        .flat_map(move |family| {
+            family
+                .iter()
+                .copied()
+                .take_while(move |dialect| *dialect != target)
+        })
 }
 
 /// Render a JSON document to `target`. LaTeX and Beamer refuse embedded images, so their `data:`

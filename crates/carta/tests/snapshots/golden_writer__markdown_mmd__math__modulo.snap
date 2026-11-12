@@ -1,5 +1,0 @@
----
-source: crates/carta/tests/golden_writer.rs
-expression: output
----
-$a \pmod{n}$ $a \mod b$ $a \bmod b$ $a \pod{n}$

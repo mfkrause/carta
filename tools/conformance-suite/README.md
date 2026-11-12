@@ -81,6 +81,9 @@ To add a control, first confirm that pandoc's output is wrong (a renderer or val
 or content is lost). Then make sure the offline snapshot tests cover the case, and add its entry
 with the reason.
 
+A dialect writer such as `html4` or `gfm` has no snapshot for a case when an earlier writer of its
+family gives the same output. The suite then compares with the snapshots of those earlier writers.
+
 ### Command tests
 
 Each command test is a fenced block: a `% pandoc <args>` line, the stdin input, a `^D` separator, then the expected stdout. `commands.sh` parses `(args, input)` with awk and runs the conversion through both binaries.
