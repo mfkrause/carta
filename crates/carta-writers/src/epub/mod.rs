@@ -142,13 +142,8 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         })
         .collect();
 
-    let title_page_doc = title_page(
-        version,
-        &doc_meta,
-        meta.display_title(),
-        &stylesheet_names,
-        options,
-    );
+    let title = meta.display_title();
+    let title_page_doc = title_page(version, &doc_meta, title, &stylesheet_names, options);
     let cover_page_doc =
         render_cover_page(version, &meta, cover.as_ref(), &media, &stylesheet_names);
 
@@ -357,7 +352,7 @@ fn build_chapter_files(sectioned: &[Block], split_level: i64) -> Vec<Chapter> {
 /// Map every element identifier in the document to the chapter file that holds it, so a fragment link
 /// or a contents entry resolves across the split. Where an identifier somehow repeats, the first
 /// file it appears in wins.
-fn map_ids_to_files(chapters: &[Chapter]) -> BTreeMap<String, String> {
+fn map_ids_to_files(chapters: &[Chapter]) -> BTreeMap<String, Anchor> {
     let mut map = BTreeMap::new();
     for chapter in chapters {
         record_ids(&chapter.blocks, &chapter.file, &mut map);
@@ -365,20 +360,29 @@ fn map_ids_to_files(chapters: &[Chapter]) -> BTreeMap<String, String> {
     map
 }
 
+/// Where an identifier lives.
+pub(crate) struct Anchor {
+    /// The chapter file that holds the element.
+    pub file: String,
+    /// Whether a link names the file even from inside it. A figure or a code element is named by
+    /// its file only from another one.
+    qualified: bool,
+}
+
 /// Rewrite each chapter's internal fragment links (`#id`) to point at the file that holds the target
 /// (`chNNN.xhtml#id`), so a link resolves after the body is split across files. A fragment whose
 /// identifier is defined nowhere is left as authored.
-fn rewrite_internal_links(chapters: &mut [Chapter], id_files: &BTreeMap<String, String>) {
+fn rewrite_internal_links(chapters: &mut [Chapter], id_files: &BTreeMap<String, Anchor>) {
     for chapter in chapters {
+        let file = &chapter.file;
         carta_core::walk::for_each_link_target(&mut chapter.blocks, &mut |target| {
-            let rewritten = target
-                .url
-                .as_str()
-                .strip_prefix('#')
-                .and_then(|id| {
-                    let file = id_files.get(id)?;
-                    Some(format!("{file}#{}{id}", crate::html::letter_prefix(id)))
-                });
+            let rewritten = target.url.as_str().strip_prefix('#').and_then(|id| {
+                let anchor = id_files.get(id)?;
+                (anchor.qualified || anchor.file != *file).then(|| {
+                    let prefix = crate::html::letter_prefix(id);
+                    format!("{}#{prefix}{id}", anchor.file)
+                })
+            });
             if let Some(url) = rewritten {
                 target.url = url.into();
             }
@@ -699,7 +703,7 @@ fn safe_filename(name: &str) -> String {
 /// Record which file every identifier in `blocks` lands in (section wrappers, explicit divisions,
 /// headings, code and figures, and inline spans, links, images and code), descending through all
 /// nested content so the map covers every possible link target.
-fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) {
+fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, Anchor>) {
     for block in blocks {
         match block {
             Block::Div(attr, children) => {
@@ -730,16 +734,19 @@ fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) 
                     }
                 }
             }
-            Block::CodeBlock(attr, _) => record_id(&attr.id, file, map),
+            Block::CodeBlock(attr, _) => record_local_id(&attr.id, file, map),
             Block::Figure(attr, caption, inner) => {
-                record_id(&attr.id, file, map);
+                record_local_id(&attr.id, file, map);
                 if let Some(short) = &caption.short {
                     record_inline_ids(short, file, map);
                 }
                 record_ids(&caption.long, file, map);
                 record_ids(inner, file, map);
             }
-            Block::Table(table) => record_ids(&table_blocks(table), file, map),
+            Block::Table(table) => {
+                record_id(&table.attr.id, file, map);
+                record_ids(&table_blocks(table), file, map);
+            }
             Block::RawBlock(..) | Block::HorizontalRule => {}
         }
     }
@@ -747,7 +754,7 @@ fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) 
 
 /// Record the identifiers carried by the inline nodes that can bear one (spans, links, images and
 /// code), descending through every nested inline sequence.
-fn record_inline_ids(inlines: &[Inline], file: &str, map: &mut BTreeMap<String, String>) {
+fn record_inline_ids(inlines: &[Inline], file: &str, map: &mut BTreeMap<String, Anchor>) {
     for inline in inlines {
         match inline {
             Inline::Span(attr, children)
@@ -756,7 +763,7 @@ fn record_inline_ids(inlines: &[Inline], file: &str, map: &mut BTreeMap<String, 
                 record_id(&attr.id, file, map);
                 record_inline_ids(children, file, map);
             }
-            Inline::Code(attr, _) => record_id(&attr.id, file, map),
+            Inline::Code(attr, _) => record_local_id(&attr.id, file, map),
             Inline::Emph(children)
             | Inline::Underline(children)
             | Inline::Strong(children)
@@ -778,9 +785,26 @@ fn record_inline_ids(inlines: &[Inline], file: &str, map: &mut BTreeMap<String, 
 }
 
 /// Record one identifier against `file`, keeping the first file a repeated identifier appears in.
-fn record_id(id: &carta_ast::Text, file: &str, map: &mut BTreeMap<String, String>) {
+fn record_id(id: &carta_ast::Text, file: &str, map: &mut BTreeMap<String, Anchor>) {
+    record_anchor(id, file, true, map);
+}
+
+/// Record the identifier of a figure or a code element, which a link in the same file names bare.
+fn record_local_id(id: &carta_ast::Text, file: &str, map: &mut BTreeMap<String, Anchor>) {
+    record_anchor(id, file, false, map);
+}
+
+fn record_anchor(
+    id: &carta_ast::Text,
+    file: &str,
+    qualified: bool,
+    map: &mut BTreeMap<String, Anchor>,
+) {
     if !id.is_empty() {
-        map.entry(id.to_string()).or_insert_with(|| file.to_owned());
+        map.entry(id.to_string()).or_insert_with(|| Anchor {
+            file: file.to_owned(),
+            qualified,
+        });
     }
 }
 

@@ -2,9 +2,9 @@
 //! primary in EPUB 3) and the NCX (`toc.ncx`, primary in EPUB 2). Both are derived from the same
 //! tree of section entries collected from the document's section hierarchy.
 
-use super::Version;
 use super::metadata::{BookMeta, UNTITLED};
 use super::pages::{BodyKind, inline_plain, xhtml_page};
+use super::{Anchor, Version};
 use crate::html::{letter_prefix, render_epub_inlines};
 use carta_ast::{Attr, Block, Inline, Text};
 use carta_core::container::xml::{Element, escape_attribute, escape_text};
@@ -31,7 +31,7 @@ pub(crate) struct TocEntry {
 /// subsection promoted to its own chapter still nests under its parent while linking to its own file.
 pub(crate) fn collect_toc(
     sections: &[Block],
-    file_of: &BTreeMap<String, String>,
+    file_of: &BTreeMap<String, Anchor>,
     toc_depth: usize,
 ) -> Vec<TocEntry> {
     collect(sections, file_of, toc_depth)
@@ -40,7 +40,7 @@ pub(crate) fn collect_toc(
 /// The section entries directly within `blocks`, each carrying its own nested subsections.
 fn collect(
     blocks: &[Block],
-    file_of: &BTreeMap<String, String>,
+    file_of: &BTreeMap<String, Anchor>,
     toc_depth: usize,
 ) -> Vec<TocEntry> {
     let mut out = Vec::new();
@@ -63,7 +63,10 @@ fn collect(
         if level > toc_depth {
             continue;
         }
-        let file = file_of.get(attr.id.as_str()).cloned().unwrap_or_default();
+        let file = file_of
+            .get(attr.id.as_str())
+            .map(|anchor| anchor.file.clone())
+            .unwrap_or_default();
         out.push(TocEntry {
             title: header_inlines(children),
             file,
