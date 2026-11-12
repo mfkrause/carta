@@ -388,12 +388,7 @@ impl State {
                         .saturating_sub(left)
                         .saturating_sub(2 * CELL_PADDING)
                         .max(0);
-                    cells.push_str(&self.table_cell(
-                        &cell.content,
-                        &cell.align,
-                        column_align,
-                        width,
-                    ));
+                    cells.push_str(&self.table_cell(&cell.content, column_align, width));
                 }
                 GridSlot::Covered => {
                     let _ = writeln!(cells, "{{{}}}", self.cell_end());
@@ -423,23 +418,17 @@ impl State {
         }
     }
 
-    /// Render one cell's content in table mode, at the surrounding left indent and the cell's
-    /// effective alignment: the cell's own alignment, or the column's when the cell defers. The cell
-    /// keeps the ambient indent so a table nested under a block quote or list stays indented with it,
-    /// and content nested inside the cell deepens from there.
+    /// Render one cell's content in table mode, at the surrounding left indent and its column's
+    /// alignment. The cell keeps the ambient indent so a table nested under a block quote or list
+    /// stays indented with it, and content nested inside the cell deepens from there.
     fn table_cell(
         &mut self,
         content: &[Block],
-        cell_align: &Alignment,
         column_align: Option<&Alignment>,
         width: i64,
     ) -> String {
-        let effective = match cell_align {
-            Alignment::AlignDefault => column_align.unwrap_or(&Alignment::AlignDefault),
-            explicit => explicit,
-        };
         let saved = (self.align, self.available_width);
-        self.align = align_word(effective);
+        self.align = align_word(column_align.unwrap_or(&Alignment::AlignDefault));
         self.available_width = width;
         let body = self.blocks(content);
         (self.align, self.available_width) = saved;
