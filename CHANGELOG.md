@@ -5,6 +5,123 @@ All notable changes to carta are documented in this file.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.15](https://github.com/mfkrause/carta/compare/v0.0.14...v0.0.15) - 2026-11-13
+
+### Added
+
+- *(asciidoc)* write sidebar divs as sidebar blocks and a leading title div as the block title
+- *(epub)* show the abstract on the title page
+
+### Fixed
+
+- *(odt)* register the text styles of metadata formatting ahead of the body
+- *(odt)* keep tight paragraphs of notes, styled divs and uncaptioned figures in the body styles
+- *(odt)* end styled spans at line breaks and merge breaking spaces across unstyled inlines
+- *(odt)* anchor empty spans as point bookmarks and start every anchor name with a letter
+- *(jira)* write image alternative text without markup
+- *(jira)* write colored spans as color macros and bound text by span macros
+- *(jira)* render divisions and figures with attributes as panels
+- *(jira)* lay out blocks, list items and table cells by their context
+- *(dokuwiki)* lay out blocks, quotes and list items by their context
+- *(dokuwiki)* write headings past level six without markers
+- *(dokuwiki)* pad table columns to the whole text of a nested table
+- *(rtf)* align a table cell by its column
+- *(rst)* use a grid table for a span over a column without cells
+- *(man)* break lines in a table cell without a paragraph macro
+- *(rst)* keep markup separators inside link text
+- *(man)* set a figure caption as blocks after the content
+- *(man)* escape a space that opens a line
+- *(man)* write no line for an empty definition term
+- *(beamer)* set the footnote texts of a table after the table
+- *(latex)* fill a footnote's text apart from the words around it
+- *(beamer)* set headings inside a division as block environments
+- *(beamer)* brace a definition term that holds an internal link
+- *(latex)* omit the blank line of a figure without content
+- *(latex)* shape a multirow cell by its column alignment
+- *(epub)* write navigation labels as canonical XML with links as spans
+- *(revealjs)* defer loading of video and audio sources
+- *(slides)* open a frame at each horizontal rule
+- *(html)* start HTML 4 and EPUB anchors with a letter
+- *(html)* let a citation span break before its class
+- *(markdown)* write inline code attributes and fold attribute blocks between attributes
+- *(markdown)* write a figure with an identifier as an image paragraph
+- *(markdown)* keep deep heading levels and lengthen a fence per nested div
+- *(markdown)* escape a leading list marker in every numbering style
+- *(markdown)* write angle brackets as entities where a backslash cannot escape them
+- *(markdown)* escape ascii quotes, dashes and ellipses under smart punctuation
+- *(markdown)* escape a number sign that opens a word
+- *(markdown)* lay out definition lists by their first definition and keep term line breaks
+- *(markdown)* set a rule or definition list that opens a container on its own lines
+- *(gfm)* put a display math fence on lines of its own
+- *(commonmark)* keep the blank lines of an html figure
+- *(grid)* join the alignment marks of columns no row splits
+- *(ipynb)* drop trailing whitespace from a markdown cell
+- *(markdown)* leave an image description empty when it repeats the address
+- *(markdown)* write a table as html when a nested inline holds a line break
+- *(markdown)* move edge spaces out of emphasis and merge nested emphasis
+- *(markdown)* fold html fallback tags at the fill column
+- *(opml)* wrap headers inside a note division in section divisions
+- *(opml)* fill an outline title to the default column
+- *(org)* set a citation suffix off from its key
+- *(org)* write notebook code cells as Jupyter source and results
+- *(org)* write heading tags flush right after the title
+- *(org)* lay out empty and set-off bodies of notes, figures and divs
+- *(org)* space list and definition items by their own content
+- *(org)* attach a table to a preceding heading or plain block
+- *(org)* render an empty bare span as a link target
+- *(asciidoc)* write display math inside an unstyled span as a block
+- *(asciidoc)* separate the cells of a nested table with exclamation marks
+- *(asciidoc)* guard a paragraph that opens like a list item or an attribute line
+- *(asciidoc)* keep code blocks at column zero inside definitions
+- *(asciidoc)* alternate the term marker of nested definition lists
+- *(asciidoc)* give every heading level its own marker run under the output budget
+- *(asciidoc)* put a figure id after its caption and drop the blank line under an empty anchored block
+- *(asciidoc)* write image width and height in pixels and keep the path in the default alt text
+- *(asciidoc)* use unconstrained span marks inside words and keep padding in spans and links
+- *(typst)* leave a line-opening dash spelled as hyphens unescaped
+- *(typst)* carry a cell's own alignment
+- *(typst)* normalize image lengths and drop values that are not dimensions
+- *(typst)* write numbered cross-references as label references
+- *(typst)* render citation modes and suffixes
+- *(typst)* keep inline spaces where they sit and let hard breaks wrap
+- *(typst)* space blocks by how each one ends its last line
+- *(docx)* render nested blocks and runs under the formatting they inherit
+- *(docx)* write boolean metadata values capitalized
+- *(jira)* bound text by break inlines and keep newlines inside text as content
+- *(jira)* write a mail link labelled by its address as the bare destination
+- *(jira)* treat a line break as a markup boundary when escaping text
+- *(dokuwiki)* keep the separator of empty link labels and image captions
+- *(dokuwiki)* keep the address of a mail link labelled by a phrase
+- *(man)* label an image whose text only names its target as an image
+- *(epub)* drop the dimensions of an image that its description replaces
+- *(epub)* resolve links to tables across files and keep in-file links to figures and code bare
+- *(html)* give the identifier of every HTML 4 and EPUB element a leading letter
+- *(epub)* escape the text around raw HTML tags in a page
+- *(commonmark)* keep the first attribute of a div tag on the tag line
+- *(markdown)* escape the spaces inside a superscript or subscript
+- *(markdown)* keep the space after the label of an empty footnote
+- *(org)* write source block attributes as header arguments
+
+### Other
+
+- *(epub)* list the control cases in a constant
+- *(conformance)* add a docx control for doubled paragraph alignment in nested tables
+- *(golden)* drop snapshots that now repeat an earlier dialect and refresh the opml note case
+- *(conformance)* let an EPUB control cover every page and the table of contents
+- *(test)* format the EPUB control list
+- *(conformance)* add EPUB controls for the reader trees
+- *(golden)* replace end-to-end snapshots with reader trees in the writer corpus
+- *(corpus)* make the upper-case list cases real lists and add default-style and metadata cases
+- *(golden)* store repeated dialect output once and drop the json target
+- *(golden)* discover corpus cases at run time
+- *(docs)* read status and benchmark data on the site and drop the docs generator
+- *(beamer)* cover the footnote counter of a table with several footnotes
+- *(slides)* cover a rule that opens an empty slide
+- *(org)* apply rustfmt
+- *(writers)* gate the length splitter on its only remaining user
+- *(typst)* cover citation forms that call cite
+- *(typst)* split word fusing out of fragment building
+
 ## [0.0.14](https://github.com/mfkrause/carta/compare/v0.0.13...v0.0.14) - 2026-11-09
 
 ### Added
