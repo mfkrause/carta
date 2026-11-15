@@ -25,7 +25,13 @@ struct SimpleCell {
 }
 
 impl State {
+    /// A grid pads every line to the table width, so a table nested in a cell is paid for once per
+    /// line of the enclosing table. The rendering is charged against the write's output ceiling and
+    /// abandoned once that ceiling is passed.
     pub(super) fn table(&mut self, table: &Table, width: usize) -> String {
+        if budget::exhausted() {
+            return String::new();
+        }
         let native = self.config.has(Extension::SimpleTables)
             || self.config.has(Extension::MultilineTables)
             || self.config.has(Extension::GridTables);
@@ -50,11 +56,16 @@ impl State {
             TableForm::Multiline => self.multiline_table(table, self.width),
             TableForm::Grid => self.grid_table(table, self.width),
         };
-        match self.table_caption(table, form, width) {
+        if budget::exhausted() {
+            return String::new();
+        }
+        let rendered = match self.table_caption(table, form, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{body}\n\n{caption}"),
             None => body,
-        }
+        };
+        budget::charge(rendered.len());
+        rendered
     }
 
     /// Render a table as a raw HTML block, for a dialect whose extension set gives it no native

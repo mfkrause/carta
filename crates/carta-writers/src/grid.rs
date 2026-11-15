@@ -3,7 +3,7 @@
 //! drawn as merged rectangles, and optional alignment colons.
 
 use carta_ast::{Alignment, ColSpec, ColWidth, Row};
-use carta_core::WrapMode;
+use carta_core::{WrapMode, budget};
 
 use crate::common::display_width;
 
@@ -62,6 +62,10 @@ struct Layout {
 
 /// Render the table as grid lines joined by `\n`, with no trailing newline. An empty table
 /// (no columns or no rows) renders as an empty string.
+///
+/// Every line spans the full table width, so one wide cell widens every line. The grid is sized
+/// before it is built: one that the write's output ceiling cannot afford renders as an empty
+/// string and fails the write.
 pub(crate) fn render(table: &GridTable) -> String {
     let columns = table.col_widths.len();
     let row_count = table.head.len() + table.body.len() + table.foot.len();
@@ -70,6 +74,11 @@ pub(crate) fn render(table: &GridTable) -> String {
     }
 
     let layout = place(table, columns);
+    let line_width = table.col_widths.iter().sum::<usize>() + columns + 1;
+    let line_count = layout.row_heights.iter().sum::<usize>() + row_count + 1;
+    if !budget::affords(line_count.saturating_mul(line_width + 1)) {
+        return String::new();
+    }
     let mut lines = Vec::new();
     for row in 0..layout.sections.len() {
         lines.push(separator(table, &layout, row));

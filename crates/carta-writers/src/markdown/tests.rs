@@ -79,6 +79,49 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
         .expect("write");
 }
 
+// A heading level is a number, so a few bytes of document buy a marker run of any length. A grid
+// pads every line of the table to that run.
+#[test]
+fn a_grid_widened_by_a_deep_heading_is_refused_past_the_output_ceiling() {
+    use super::MarkdownWriter;
+    use carta_ast::{
+        Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Table, TableBody,
+    };
+    use carta_core::{Error, Writer, WriterOptions};
+
+    let cell = |content| Cell {
+        attr: Attr::default(),
+        align: Alignment::AlignDefault,
+        row_span: 1,
+        col_span: 1,
+        content,
+    };
+    let row = |content| Row {
+        attr: Attr::default(),
+        cells: vec![cell(content)],
+    };
+    let mut rows = vec![row(vec![Block::Header(50_000, Box::default(), Vec::new())])];
+    rows.extend((0..200).map(|_| row(vec![Block::Para(vec![Inline::Str("cell".into())])])));
+    let doc = Document {
+        blocks: vec![Block::Table(Box::new(Table {
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignDefault,
+                width: ColWidth::ColWidthDefault,
+            }],
+            bodies: vec![TableBody {
+                body: rows,
+                ..TableBody::default()
+            }],
+            ..Table::default()
+        }))],
+        ..Document::default()
+    };
+    assert!(matches!(
+        MarkdownWriter.write(&doc, &WriterOptions::default()),
+        Err(Error::OutputTooLarge)
+    ));
+}
+
 #[test]
 fn table_measurement_stays_within_the_fill_column() {
     use super::MarkdownWriter;

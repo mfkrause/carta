@@ -2,6 +2,7 @@
 //!
 //! [`scope`] sets a document-sized ceiling. Writers call [`charge`] and check [`exhausted`].
 //! Check before and after rendering content that multiplies: nested rendering can exhaust the limit.
+//! A rendering whose size is known before it is built is put to [`affords`] first.
 //! Exceeding the ceiling returns [`Error::OutputTooLarge`].
 
 use std::cell::Cell;
@@ -78,13 +79,32 @@ pub fn exhausted() -> bool {
     STATE.get().is_some_and(|state| state.spent > state.limit)
 }
 
+/// Whether `bytes` more output fits under the active ceiling, asked before building a rendering
+/// whose size is already known. A rendering that does not fit passes the ceiling without being
+/// built, so the write fails. One that fits is not charged. Always `true` outside a [`scope`].
+#[must_use]
+pub fn affords(bytes: usize) -> bool {
+    let fits = STATE
+        .get()
+        .is_none_or(|state| state.spent.saturating_add(bytes) <= state.limit);
+    if !fits {
+        charge(bytes);
+    }
+    fits
+}
+
 /// Runs `work` and then refunds whatever it charged, for a rendering that is measured and thrown
 /// away rather than emitted. The ceiling still applies while `work` runs, so a throwaway rendering
 /// is bounded like any other; it just does not count against the output that is kept.
+///
+/// A measurement that passes the ceiling is not refunded: the rendering that is kept charges the
+/// same content again, so the write has failed already and the ceiling stays passed.
 pub fn refunded<T>(work: impl FnOnce() -> T) -> T {
     let before = STATE.get();
     let measured = work();
-    STATE.set(before);
+    if !exhausted() {
+        STATE.set(before);
+    }
     measured
 }
 
@@ -297,7 +317,7 @@ fn push_attr<'a>(attr: &'a Attr, pending: &mut Vec<Node<'a>>) {
 mod tests {
     use carta_ast::{Alignment, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Text};
 
-    use super::{charge, exhausted, scope};
+    use super::{affords, charge, exhausted, refunded, scope};
     use crate::Error;
 
     fn document(blocks: Vec<Block>) -> Document {
@@ -373,6 +393,52 @@ mod tests {
             Ok(())
         });
         assert!(!exhausted());
+    }
+
+    #[test]
+    fn a_measurement_within_the_ceiling_is_refunded() {
+        let document = document(vec![Block::Plain(vec![Inline::Str(Text::from("x"))])]);
+        let rendered = scope(&document, || {
+            for _ in 0..8 {
+                refunded(|| charge(1 << 20));
+            }
+            Ok(())
+        });
+        assert!(rendered.is_ok());
+    }
+
+    #[test]
+    fn a_measurement_past_the_ceiling_fails_the_write() {
+        let document = document(vec![Block::Plain(vec![Inline::Str(Text::from("x"))])]);
+        let rendered: Result<(), Error> = scope(&document, || {
+            refunded(|| charge(usize::MAX));
+            assert!(exhausted());
+            Ok(())
+        });
+        assert!(matches!(rendered, Err(Error::OutputTooLarge)));
+    }
+
+    #[test]
+    fn a_rendering_that_fits_is_afforded_without_a_charge() {
+        let document = document(vec![Block::Plain(vec![Inline::Str(Text::from("x"))])]);
+        let rendered = scope(&document, || {
+            for _ in 0..8 {
+                assert!(affords(1 << 20));
+            }
+            Ok(())
+        });
+        assert!(rendered.is_ok());
+    }
+
+    #[test]
+    fn a_rendering_that_does_not_fit_fails_the_write() {
+        let document = document(vec![Block::Plain(vec![Inline::Str(Text::from("x"))])]);
+        let rendered: Result<(), Error> = scope(&document, || {
+            charge(1 << 20);
+            assert!(!affords(1 << 20));
+            Ok(())
+        });
+        assert!(matches!(rendered, Err(Error::OutputTooLarge)));
     }
 
     #[test]
