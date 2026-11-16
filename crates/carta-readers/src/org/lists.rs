@@ -27,7 +27,7 @@ pub(super) struct MarkerInfo {
     kind: Marker,
 }
 
-pub(super) fn list_marker(line: &str) -> Option<MarkerInfo> {
+pub(super) fn list_marker(line: &str, ext: Extensions) -> Option<MarkerInfo> {
     let indent = line.len() - line.trim_start().len();
     let rest = line.get(indent..)?;
     let bytes = rest.as_bytes();
@@ -49,7 +49,7 @@ pub(super) fn list_marker(line: &str) -> Option<MarkerInfo> {
         ListNumberStyle::Decimal
     } else if let Some(&letter) = bytes
         .first()
-        .filter(|c| c.is_ascii_alphabetic())
+        .filter(|c| c.is_ascii_alphabetic() && ext.contains(Extension::FancyLists))
         .filter(|_| bytes.get(1).is_some_and(|&c| c == b'.' || c == b')'))
     {
         j = 1;
@@ -85,7 +85,7 @@ pub(super) fn parse_list(
     ids: &mut IdRegistry,
     meta: &mut BTreeMap<Text, MetaValue>,
 ) -> (Option<Block>, usize) {
-    let Some(first) = list_marker(lines.get(start).copied().unwrap_or("")) else {
+    let Some(first) = list_marker(lines.get(start).copied().unwrap_or(""), ext) else {
         return (None, 1);
     };
     let base_indent = first.indent;
@@ -102,7 +102,7 @@ pub(super) fn parse_list(
             i += 1;
             continue;
         }
-        if let Some(marker) = list_marker(line)
+        if let Some(marker) = list_marker(line, ext)
             && marker.indent == base_indent
             && same_series(first_kind, marker.kind)
         {
@@ -121,7 +121,7 @@ pub(super) fn parse_list(
                     continue;
                 }
                 let next_indent = next.len() - next.trim_start().len();
-                let is_sibling = list_marker(next).is_some_and(|m| m.indent == base_indent);
+                let is_sibling = list_marker(next, ext).is_some_and(|m| m.indent == base_indent);
                 if next_indent > base_indent && !is_sibling {
                     if pending_blank {
                         loose = true;

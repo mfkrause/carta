@@ -252,6 +252,18 @@ fn src_block_becomes_code_block() {
 }
 
 #[test]
+fn a_letter_marks_a_list_item_only_with_fancy_lists() {
+    assert_eq!(shape("x\nc) y"), "x / c) _ y");
+    let mut options = ReaderOptions::default();
+    options.extensions = Extensions::from_list(&[Extension::FancyLists]);
+    let document = OrgReader.read("c) y", &options).unwrap();
+    assert!(matches!(
+        document.blocks.first(),
+        Some(Block::OrderedList(..))
+    ));
+}
+
+#[test]
 fn bullet_and_ordered_lists() {
     assert!(
         matches!(blocks("- a\n- b").first(), Some(Block::BulletList(items)) if items.len() == 2)

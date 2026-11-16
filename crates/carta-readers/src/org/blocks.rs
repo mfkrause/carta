@@ -120,7 +120,7 @@ pub(super) fn parse_blocks(
             i += consumed;
             continue;
         }
-        if list_marker(line).is_some() {
+        if list_marker(line, ext).is_some() {
             let (block, consumed) = parse_list(lines, i, ext, notes, ids, meta);
             i += consumed;
             if let Some(block) = block {
@@ -132,7 +132,7 @@ pub(super) fn parse_blocks(
         let start = i;
         i += 1;
         while let Some(&l) = lines.get(i) {
-            if l.trim().is_empty() || opens_block(l) {
+            if l.trim().is_empty() || opens_block(l, ext) {
                 break;
             }
             i += 1;
@@ -151,7 +151,7 @@ pub(super) fn parse_blocks(
 }
 
 /// Whether a line begins a block that interrupts an open paragraph.
-fn opens_block(line: &str) -> bool {
+fn opens_block(line: &str, ext: Extensions) -> bool {
     headline_level(line).is_some()
         || greater_block_open(line).is_some()
         || keyword_line(line).is_some()
@@ -160,7 +160,7 @@ fn opens_block(line: &str) -> bool {
         || is_fixed_width(line)
         || drawer_open(line).is_some()
         || is_table_line(line)
-        || list_marker(line).is_some()
+        || list_marker(line, ext).is_some()
 }
 
 /// Attaches a pending caption/name to a freshly built block: a caption turns a lone-image paragraph
