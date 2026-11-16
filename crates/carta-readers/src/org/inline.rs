@@ -24,6 +24,8 @@ pub(super) fn parse_inlines(
     let mut brackets = Vec::new();
     let mut braces = Vec::new();
     let mut parentheses = Vec::new();
+    let mut closing_brackets = Vec::new();
+    let mut backslashes = Vec::new();
     let mut newlines = Vec::new();
     for (index, &character) in chars.iter().enumerate() {
         let previous = index
@@ -36,7 +38,7 @@ pub(super) fn parse_inlines(
         }
         if matches!(
             (character, next),
-            (']', Some(']')) | ('$', Some('$')) | ('@', Some('@')) | ('\\', Some(')' | ']'))
+            ('$', Some('$')) | ('@', Some('@')) | ('\\', Some(')' | ']'))
         ) || is_verbatim_marker(character)
             && next.is_some_and(is_emphasis_marker)
             && previous.is_some_and(|character| !character.is_whitespace())
@@ -46,10 +48,12 @@ pub(super) fn parse_inlines(
         match character {
             '[' => brackets.push(index),
             ']' => {
+                closing_brackets.push(index);
                 if let Some(open) = brackets.pop() {
                     groups.insert(open, index);
                 }
             }
+            '\\' => backslashes.push(index),
             '{' => braces.push(index),
             '}' => {
                 if let Some(open) = braces.pop() {
@@ -76,6 +80,8 @@ pub(super) fn parse_inlines(
         notes,
         closes: &closes,
         groups: &groups,
+        closing_brackets: &closing_brackets,
+        backslashes: &backslashes,
         newlines: &newlines,
     };
     Inlines::new(text, 0, chars.len(), None).parse()
@@ -141,7 +147,16 @@ struct Text<'a> {
     notes: &'a BTreeMap<String, Vec<Block>>,
     closes: &'a BTreeMap<(char, Option<char>), Vec<usize>>,
     groups: &'a BTreeMap<usize, usize>,
+    closing_brackets: &'a [usize],
+    backslashes: &'a [usize],
     newlines: &'a [usize],
+}
+
+/// The first of the ascending `positions` at or after `from`.
+fn first_from(positions: &[usize], from: usize) -> Option<usize> {
+    positions
+        .get(positions.partition_point(|&position| position < from))
+        .copied()
 }
 
 /// A scan position with what the scan remembers of the characters before it.
@@ -217,6 +232,8 @@ struct Inlines<'a> {
     end: usize,
     /// Markup may open after any character from the start of the window.
     loose: bool,
+    /// A line break in the window reads as a space.
+    joined: bool,
     /// The characters around the window that its border rules see. A window is otherwise read
     /// as if nothing lay outside it.
     borders: (Option<char>, Option<char>),
@@ -247,6 +264,7 @@ impl<'a> Inlines<'a> {
             start,
             end,
             loose: false,
+            joined: false,
             borders: (None, None),
             enclosing,
             out: Vec::new(),
@@ -404,13 +422,8 @@ impl<'a> Inlines<'a> {
                 };
                 Some((Piece::Word { end }, after))
             }
-            ' ' | '\t' => {
-                let mut end = i;
-                while matches!(self.at(end), Some(' ' | '\t')) {
-                    end += 1;
-                }
-                Some((Piece::Space, to(end, false)))
-            }
+            ' ' | '\t' => Some((Piece::Space, to(self.space_end(i), false))),
+            '\n' if self.joined => Some((Piece::Space, to(self.space_end(i), false))),
             '\n' => {
                 let after = Cursor {
                     lines: false,
@@ -470,6 +483,18 @@ impl<'a> Inlines<'a> {
             };
             (Piece::Char(c), after)
         })
+    }
+
+    /// The end of the run of spaces at `i`, which takes in line breaks where they read as spaces.
+    fn space_end(&self, i: usize) -> usize {
+        let mut end = i;
+        while self
+            .at(end)
+            .is_some_and(|c| matches!(c, ' ' | '\t') || c == '\n' && self.joined)
+        {
+            end += 1;
+        }
+        end
     }
 
     /// Add the piece scanned at `i` to the output, reading the content nested in it.
@@ -816,17 +841,44 @@ impl<'a> Inlines<'a> {
         None
     }
 
-    /// A link needs a target, and a description when it has the brackets of one.
+    /// Recognizes a bracketed link: a target without brackets or a line break, then possibly a
+    /// description. The description runs to the first closing bracket and holds no backslash. It
+    /// holds at most one line break and does not end with it. Only a link with a description may
+    /// have an empty target.
     fn scan_link(&self, i: usize) -> Option<(Piece, usize)> {
-        let inner_start = i + 2;
-        let close = self.next_close(inner_start, ']', Some(']'))?;
-        let inner = self.text.chars.get(inner_start..close).unwrap_or(&[]);
-        let split = inner.windows(2).position(|pair| pair == [']', '[']);
-        let description = split.map(|offset| inner_start + offset + 2);
-        if split == Some(0) || inner.is_empty() || description == Some(close) {
+        let start = i + 2;
+        let mut target_end = start;
+        while self
+            .at(target_end)
+            .is_some_and(|c| !matches!(c, '[' | ']' | '\n'))
+        {
+            target_end += 1;
+        }
+        if self.at(target_end) != Some(']') {
             return None;
         }
-        Some((Piece::Link { description, close }, close + 2))
+        if self.at(target_end + 1) == Some(']') {
+            let piece = Piece::Link {
+                description: None,
+                close: target_end,
+            };
+            return (target_end > start).then_some((piece, target_end + 2));
+        }
+        if self.at(target_end + 1) != Some('[') {
+            return None;
+        }
+        let description = target_end + 2;
+        let close = first_from(self.text.closing_brackets, description)?;
+        let valid = close > description
+            && self.at(close + 1) == Some(']')
+            && self.at(close - 1) != Some('\n')
+            && first_from(self.text.backslashes, description).is_none_or(|at| at > close)
+            && self.within_lines(description, close, 1);
+        let piece = Piece::Link {
+            description: Some(description),
+            close,
+        };
+        valid.then_some((piece, close + 2))
     }
 
     /// Build the link whose target starts at `start` and whose brackets close at `close`.
@@ -846,7 +898,7 @@ impl<'a> Inlines<'a> {
             .iter()
             .collect();
         let target = process_target(&target_raw);
-        let internal = is_internal_target(&target_raw);
+        let internal = !target_raw.is_empty() && is_internal_target(&target_raw);
         if !internal && description.is_none() && is_image_target(&target) {
             return image(&target, Vec::new());
         }
@@ -859,6 +911,7 @@ impl<'a> Inlines<'a> {
             Some(description) => {
                 let mut label = self.nested(description, close, enclosing);
                 label.loose = true;
+                label.joined = true;
                 label.parse()
             }
             None => vec![Inline::Str(target_raw.into())],

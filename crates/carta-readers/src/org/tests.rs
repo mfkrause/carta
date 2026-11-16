@@ -211,6 +211,23 @@ fn a_script_is_a_group_a_lone_star_or_signed_alphanumerics() {
 }
 
 #[test]
+fn a_link_description_runs_to_the_first_closing_bracket() {
+    for (input, expected) in [
+        ("[[http://x.y][b[c]]", "L[b[c]"),
+        ("[[http://x.y][b]c]]", "[[ L[http://x.y] ][b]c]]"),
+        ("[[http://x.y][b\\ c]]", "[[ L[http://x.y] ][b\\ _ c]]"),
+        ("[[a]b]]", "[[a]b]]"),
+        // A line break in a description reads as a space. A second one ends the link.
+        ("[[http://x.y][b\nc]]", "L[b _ c]"),
+        ("[[http://x.y][*b\nc*]]", "L[S[b _ c]]"),
+        ("[[http://x.y][b\nc\nd]]", "[[ L[http://x.y] ][b / c / d]]"),
+        ("[[http://x\n.y][b]]", "[[ L[http://x] / .y][b]]"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
 fn an_inline_footnote_sees_the_characters_around_its_text() {
     for (input, expected) in [
         ("a [fn::x *b* c]", "a _ N[x _ S[b] _ c]"),
