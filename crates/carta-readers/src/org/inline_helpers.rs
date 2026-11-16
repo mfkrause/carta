@@ -2,10 +2,6 @@
 
 use carta_ast::{Attr, Inline};
 
-pub(super) fn collect_str(chars: &[char]) -> String {
-    chars.iter().collect()
-}
-
 /// Tokenizes text into `Str` words separated by `Space`, used for the literal fallback rendering of a
 /// citation.
 pub(super) fn plain_words(text: &str) -> Vec<Inline> {

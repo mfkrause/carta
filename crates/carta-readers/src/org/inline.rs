@@ -4,13 +4,13 @@ use std::collections::BTreeMap;
 use std::mem;
 
 use carta_ast::{Attr, Block, Format, Inline, MathType, QuoteType};
-use carta_core::{Extension, Extensions};
+use carta_core::{Extension, Extensions, with_stack};
 
 use super::citations::parse_citation_items;
 use super::entities::entity;
 use super::inline_helpers::{
-    collect_str, image, is_image_target, is_internal_target, is_uri, is_url_boundary, link,
-    plain_words, post_ok, pre_ok, process_target, verbatim_code, wrap_markup,
+    image, is_image_target, is_internal_target, is_uri, is_url_boundary, link, plain_words,
+    post_ok, pre_ok, process_target, verbatim_code, wrap_markup,
 };
 
 pub(super) fn parse_inlines(
@@ -25,14 +25,12 @@ pub(super) fn parse_inlines(
     let mut braces = Vec::new();
     let mut newlines = Vec::new();
     for (index, &character) in chars.iter().enumerate() {
-        let previous = index.checked_sub(1).and_then(|index| chars.get(index));
+        let previous = index
+            .checked_sub(1)
+            .and_then(|index| chars.get(index))
+            .copied();
         let next = chars.get(index + 1).copied();
-        if matches!(character, '<' | '>')
-            || previous.is_some_and(|character| !character.is_whitespace())
-                && (matches!(character, '*' | '/' | '+' | '_' | '=' | '~' | '\'' | '"')
-                    && post_ok(next)
-                    || character == '$' && !next.is_some_and(char::is_alphanumeric))
-        {
+        if closes_alone(character, previous, next) {
             closes.entry((character, None)).or_default().push(index);
         }
         if matches!(
@@ -61,35 +59,69 @@ pub(super) fn parse_inlines(
             _ => {}
         }
     }
-    let mut scanner = Inlines {
+    Inlines {
         chars: &chars,
         ext,
         notes,
         out: Vec::new(),
         word: String::new(),
-        closes,
-        groups,
-        newlines,
-    };
-    scanner.run();
-    scanner.finish()
+        closes: &closes,
+        groups: &groups,
+        newlines: &newlines,
+        start: 0,
+        end: chars.len(),
+    }
+    .parse()
 }
 
+/// Whether `character` closes a span by itself between these neighbors.
+fn closes_alone(character: char, previous: Option<char>, next: Option<char>) -> bool {
+    matches!(character, '<' | '>')
+        || previous.is_some_and(|character| !character.is_whitespace())
+            && (matches!(character, '*' | '/' | '+' | '_' | '=' | '~' | '\'' | '"')
+                && post_ok(next)
+                || character == '$' && !next.is_some_and(char::is_alphanumeric))
+}
+
+/// A scanner over the window `start..end` of an inline run. Nested content is a narrower window
+/// over the same characters and position tables, read as if nothing lay outside it.
 struct Inlines<'a> {
     chars: &'a [char],
     ext: Extensions,
     notes: &'a BTreeMap<String, Vec<Block>>,
     out: Vec<Inline>,
     word: String,
-    closes: BTreeMap<(char, Option<char>), Vec<usize>>,
-    groups: BTreeMap<usize, usize>,
-    newlines: Vec<usize>,
+    closes: &'a BTreeMap<(char, Option<char>), Vec<usize>>,
+    groups: &'a BTreeMap<usize, usize>,
+    newlines: &'a [usize],
+    start: usize,
+    end: usize,
 }
 
 impl Inlines<'_> {
-    fn finish(mut self) -> Vec<Inline> {
-        self.flush();
-        self.out
+    fn parse(mut self) -> Vec<Inline> {
+        with_stack(|| {
+            self.run();
+            self.flush();
+            self.out
+        })
+    }
+
+    /// Parse the window `start..end` as inline content of its own.
+    fn nested(&self, start: usize, end: usize) -> Vec<Inline> {
+        Inlines {
+            chars: self.chars,
+            ext: self.ext,
+            notes: self.notes,
+            out: Vec::new(),
+            word: String::new(),
+            closes: self.closes,
+            groups: self.groups,
+            newlines: self.newlines,
+            start,
+            end,
+        }
+        .parse()
     }
 
     fn flush(&mut self) {
@@ -104,14 +136,43 @@ impl Inlines<'_> {
     }
 
     fn at(&self, i: usize) -> Option<char> {
-        self.chars.get(i).copied()
+        if i < self.end {
+            self.chars.get(i).copied()
+        } else {
+            None
+        }
     }
 
+    fn before(&self, i: usize) -> Option<char> {
+        if i > self.start { self.at(i - 1) } else { None }
+    }
+
+    /// The first closing delimiter at or after `from`, which lies past the window's first
+    /// character. The tables record each character between its neighbors in the whole run, so the
+    /// window's last character, which has no successor here, is judged apart.
     fn next_close(&self, from: usize, first: char, second: Option<char>) -> Option<usize> {
-        let positions = self.closes.get(&(first, second))?;
-        positions
-            .get(positions.partition_point(|&position| position < from))
+        let last = self.end.checked_sub(1)?;
+        let indexed = self.closes.get(&(first, second)).and_then(|positions| {
+            positions
+                .get(positions.partition_point(|&position| position < from))
+                .copied()
+        });
+        if let Some(position) = indexed.filter(|&position| position < last) {
+            return Some(position);
+        }
+        (second.is_none()
+            && from <= last
+            && self.at(last) == Some(first)
+            && closes_alone(first, self.before(last), None))
+        .then_some(last)
+    }
+
+    /// The closing bracket or brace paired with the one at `open`, when the window holds it.
+    fn group_end(&self, open: usize) -> Option<usize> {
+        self.groups
+            .get(&open)
             .copied()
+            .filter(|&close| close < self.end)
     }
 
     fn within_lines(&self, from: usize, to: usize, count: usize) -> bool {
@@ -123,9 +184,9 @@ impl Inlines<'_> {
 
     #[allow(clippy::too_many_lines)]
     fn run(&mut self) {
-        let mut i = 0;
+        let mut i = self.start;
         while let Some(c) = self.at(i) {
-            let prev = if i == 0 { None } else { self.at(i - 1) };
+            let prev = self.before(i);
 
             if is_url_boundary(prev)
                 && let Some((url, end)) = self.scan_bare_url(i)
@@ -151,8 +212,7 @@ impl Inlines<'_> {
                 '\\' => i = self.scan_backslash(i),
                 '*' | '/' | '+' => {
                     if let Some(end) = self.scan_emphasis(i, c, prev) {
-                        let inner = self.chars.get(i + 1..end).unwrap_or(&[]);
-                        let content = parse_inlines(&collect_str(inner), self.ext, self.notes);
+                        let content = self.nested(i + 1, end);
                         self.push_inline(wrap_markup(c, content));
                         i = end + 1;
                     } else {
@@ -162,8 +222,7 @@ impl Inlines<'_> {
                 }
                 '_' => {
                     if let Some(end) = self.scan_emphasis(i, '_', prev) {
-                        let inner = self.chars.get(i + 1..end).unwrap_or(&[]);
-                        let content = parse_inlines(&collect_str(inner), self.ext, self.notes);
+                        let content = self.nested(i + 1, end);
                         self.push_inline(Inline::Underline(content));
                         i = end + 1;
                     } else if let Some((inline, end)) = self.scan_subsup(i, prev, false) {
@@ -293,9 +352,8 @@ impl Inlines<'_> {
         let content;
         let end;
         if self.at(i + 1) == Some('{') {
-            let close = *self.groups.get(&(i + 1))?;
-            let inner = self.chars.get(i + 2..close).unwrap_or(&[]);
-            content = parse_inlines(&collect_str(inner), self.ext, self.notes);
+            let close = self.group_end(i + 1)?;
+            content = self.nested(i + 2, close);
             end = close + 1;
         } else {
             let (text, stop) = self.scan_bare_script(i + 1)?;
@@ -417,26 +475,18 @@ impl Inlines<'_> {
     fn scan_link(&self, i: usize) -> Option<(Inline, usize)> {
         let inner_start = i + 2;
         let close = self.next_close(inner_start, ']', Some(']'))?;
-        let inner: String = self
-            .chars
-            .get(inner_start..close)
-            .unwrap_or(&[])
-            .iter()
-            .collect();
-        let (target_raw, desc_raw) = match inner.find("][") {
-            Some(idx) => (
-                inner.get(..idx).unwrap_or(""),
-                Some(inner.get(idx + 2..).unwrap_or("")),
-            ),
-            None => (inner.as_str(), None),
-        };
-        if target_raw.is_empty() || desc_raw.is_some_and(str::is_empty) {
+        let inner = self.chars.get(inner_start..close).unwrap_or(&[]);
+        let split = inner.windows(2).position(|pair| pair == [']', '[']);
+        let description = split.map(|offset| inner_start + offset + 2);
+        let target_raw: String = inner.iter().take(split.unwrap_or(inner.len())).collect();
+        let target_raw = target_raw.as_str();
+        if target_raw.is_empty() || description == Some(close) {
             return None;
         }
         let target = process_target(target_raw);
         let end = close + 2;
         let internal = is_internal_target(target_raw);
-        if !internal && desc_raw.is_none() && is_image_target(&target) {
+        if !internal && description.is_none() && is_image_target(&target) {
             return Some((image(&target, Vec::new()), end));
         }
         let target = if internal {
@@ -444,33 +494,37 @@ impl Inlines<'_> {
         } else {
             target
         };
-        let label = match desc_raw {
-            Some(description) => parse_inlines(description, self.ext, self.notes),
+        let label = match description {
+            Some(start) => self.nested(start, close),
             None => vec![Inline::Str(target_raw.into())],
         };
         Some((link(&target, label), end))
     }
 
     fn scan_footnote(&self, i: usize) -> Option<(Inline, usize)> {
-        let close = *self.groups.get(&i)?;
-        let inner: String = self.chars.get(i + 1..close).unwrap_or(&[]).iter().collect();
-        let body = inner.strip_prefix("fn:")?;
+        let close = self.group_end(i)?;
+        let body_start = i + "[fn:".len();
+        let body = self.chars.get(body_start..close)?;
         let end = close + 1;
-        if let Some((label, text)) = body.split_once(':') {
-            let note = vec![Block::Para(parse_inlines(
-                text.trim(),
-                self.ext,
-                self.notes,
-            ))];
-            let _ = label;
+        if let Some(colon) = body.iter().position(|&character| character == ':') {
+            let mut start = body_start + colon + 1;
+            let mut stop = close;
+            while start < stop && self.at(start).is_some_and(char::is_whitespace) {
+                start += 1;
+            }
+            while stop > start && self.at(stop - 1).is_some_and(char::is_whitespace) {
+                stop -= 1;
+            }
+            let note = vec![Block::Para(self.nested(start, stop))];
             return Some((Inline::Note(note), end));
         }
-        let blocks = self.notes.get(body).cloned().unwrap_or_default();
+        let label: String = body.iter().collect();
+        let blocks = self.notes.get(&label).cloned().unwrap_or_default();
         Some((Inline::Note(blocks), end))
     }
 
     fn scan_citation(&self, i: usize) -> Option<(Inline, usize)> {
-        let close = *self.groups.get(&i)?;
+        let close = self.group_end(i)?;
         let inner: String = self.chars.get(i + 1..close).unwrap_or(&[]).iter().collect();
         let raw: String = self.chars.get(i..close + 1).unwrap_or(&[]).iter().collect();
         let rest = inner.strip_prefix("cite")?;
@@ -607,8 +661,7 @@ impl Inlines<'_> {
         if let Some(end) = self.next_close(i + 1, close, None)
             && self.within_lines(i + 1, end, 0)
         {
-            let inner = self.chars.get(i + 1..end).unwrap_or(&[]);
-            let content = parse_inlines(&collect_str(inner), self.ext, self.notes);
+            let content = self.nested(i + 1, end);
             return (Some(Inline::Quoted(kind, content)), end + 1);
         }
         (None, i + 1)

@@ -30,6 +30,27 @@ fn paragraph_with_emphasis() {
 }
 
 #[test]
+fn emphasis_nested_far_past_the_native_stack_parses() {
+    let depth = 20_000;
+    let input = format!("{}core{}", "*/".repeat(depth), "/*".repeat(depth));
+    let mut blocks = blocks(&input);
+    let Some(Block::Para(inlines)) = blocks.first_mut() else {
+        panic!("expected paragraph, got {blocks:?}");
+    };
+    let mut inlines = std::mem::take(inlines);
+    let mut levels = 0;
+    loop {
+        let [Inline::Strong(inner) | Inline::Emph(inner)] = inlines.as_mut_slice() else {
+            break;
+        };
+        inlines = std::mem::take(inner);
+        levels += 1;
+    }
+    assert_eq!(levels, 2 * depth);
+    assert_eq!(inlines, vec![Inline::Str("core".into())]);
+}
+
+#[test]
 fn emphasis_after_unmatched_openers_still_parses() {
     let lead = "/a ".repeat(1000);
     let input = format!("{lead}then *bold*.");
