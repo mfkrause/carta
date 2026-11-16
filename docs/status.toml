@@ -305,9 +305,6 @@ write = "usable"
 read-feature = "read-org"
 write-feature = "write-org"
 read-gaps = [
-  "Sub- and superscripts open after any non-space character, and a bare script takes dots and commas; pandoc opens them only after a word and ends a bare script at the first punctuation mark.",
-  "Emphasis that opens inside the first word of a document stays literal (`foo*bar*`); pandoc reads it as emphasis there.",
-  "A line break inside a link description stays a soft break; pandoc turns it into a space.",
 ]
 write-gaps = [
 ]
