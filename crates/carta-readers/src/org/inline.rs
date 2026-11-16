@@ -511,6 +511,14 @@ impl<'a> Inlines<'a> {
             Piece::Char(character) => self.word.push(character),
             Piece::Word { end } => self.word.extend(self.text.chars.get(i..end).unwrap_or(&[])),
             Piece::Str(text) => self.word.push_str(text),
+            Piece::Leaf(Inline::LineBreak) => {
+                self.flush();
+                // A hard line break takes the place of the spaces before it.
+                if self.out.last() == Some(&Inline::Space) {
+                    self.out.pop();
+                }
+                self.out.push(Inline::LineBreak);
+            }
             Piece::Leaf(inline) => self.push_inline(inline),
             Piece::Span { close } => {
                 let Some(marker) = self.at(i) else {

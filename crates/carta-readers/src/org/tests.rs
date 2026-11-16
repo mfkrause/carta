@@ -228,6 +228,11 @@ fn a_link_description_runs_to_the_first_closing_bracket() {
 }
 
 #[test]
+fn a_hard_line_break_takes_the_place_of_the_spaces_before_it() {
+    assert_eq!(shape("a \\\\\nb"), "a // b");
+}
+
+#[test]
 fn an_inline_footnote_sees_the_characters_around_its_text() {
     for (input, expected) in [
         ("a [fn::x *b* c]", "a _ N[x _ S[b] _ c]"),
