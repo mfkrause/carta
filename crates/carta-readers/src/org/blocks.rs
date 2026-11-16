@@ -14,7 +14,7 @@ use super::drawers::{
     property_drawer,
 };
 use super::greater::{greater_block_open, parse_greater_block};
-use super::inline::parse_inlines;
+use super::inline::{parse_inlines, parse_opening_inlines};
 use super::keyword::{handle_keyword, keyword_line};
 use super::lists::{list_marker, parse_list};
 use super::tables::{build_table, collect_table, is_table_line};
@@ -32,13 +32,25 @@ impl Affiliated {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 pub(super) fn parse_blocks(
     lines: &[&str],
     ext: Extensions,
     notes: &BTreeMap<String, Vec<Block>>,
     ids: &mut IdRegistry,
     meta: &mut BTreeMap<Text, MetaValue>,
+) -> Vec<Block> {
+    parse_blocks_from(lines, ext, notes, ids, meta, false)
+}
+
+/// Parse the blocks of `lines`. With `opening`, the first line is the first line of the document.
+#[allow(clippy::too_many_lines)]
+pub(super) fn parse_blocks_from(
+    lines: &[&str],
+    ext: Extensions,
+    notes: &BTreeMap<String, Vec<Block>>,
+    ids: &mut IdRegistry,
+    meta: &mut BTreeMap<Text, MetaValue>,
+    opening: bool,
 ) -> Vec<Block> {
     let mut out = Vec::new();
     let mut pending = Affiliated::default();
@@ -144,8 +156,14 @@ pub(super) fn parse_blocks(
             .map(|l| l.trim())
             .collect::<Vec<_>>()
             .join("\n");
-        let para = Block::Para(parse_inlines(&text, ext, notes));
-        out.push(apply_affiliated(para, &mut pending));
+        // A paragraph that opens the document at the margin reads its first word more freely.
+        let opens_document = opening && start == 0 && !line.starts_with([' ', '\t']);
+        let inlines = if opens_document {
+            parse_opening_inlines(&text, ext, notes)
+        } else {
+            parse_inlines(&text, ext, notes)
+        };
+        out.push(apply_affiliated(Block::Para(inlines), &mut pending));
     }
     out
 }

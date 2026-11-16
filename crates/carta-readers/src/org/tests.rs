@@ -169,6 +169,20 @@ fn markup_opens_after_any_character_once_a_description_or_braced_script_ends() {
 }
 
 #[test]
+fn the_first_word_of_a_document_takes_markup_after_any_character() {
+    for (input, index, expected) in [
+        ("foo*bar* x*y*", 0, "foo S[bar] _ x*y*"),
+        ("foo.bar*baz*", 0, "foo.bar S[baz]"),
+        ("foo-bar*baz*", 0, "foo-bar*baz*"),
+        (" foo*bar*", 0, "foo*bar*"),
+        ("foo\n\nfoo*bar*", 1, "foo*bar*"),
+        ("# note\nfoo*bar*", 0, "foo*bar*"),
+    ] {
+        assert_eq!(opening_shape(input, index), expected, "{input}");
+    }
+}
+
+#[test]
 fn a_script_attaches_to_plain_text() {
     for (input, expected) in [
         ("a_b", "a Sub[b]"),

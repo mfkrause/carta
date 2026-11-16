@@ -9,7 +9,7 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::transliterate::fold_to_ascii;
 
-use blocks::{headline_level, is_comment, parse_blocks};
+use blocks::{headline_level, is_comment, parse_blocks, parse_blocks_from};
 use drawers::property_drawer;
 
 mod blocks;
@@ -74,7 +74,11 @@ impl Reader for OrgReader {
 
         let mut ids = new_id_registry();
         let mut meta = BTreeMap::new();
-        let blocks = parse_blocks(&body_lines, ext, &notes, &mut ids, &mut meta);
+        let opening = match (lines.first(), body_lines.first()) {
+            (Some(first), Some(body)) => std::ptr::eq(first.as_ptr(), body.as_ptr()),
+            _ => false,
+        };
+        let blocks = parse_blocks_from(&body_lines, ext, &notes, &mut ids, &mut meta, opening);
         meta.extend(property_meta);
 
         let mut document = Document {

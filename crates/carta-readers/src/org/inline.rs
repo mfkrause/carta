@@ -18,6 +18,25 @@ pub(super) fn parse_inlines(
     ext: Extensions,
     notes: &BTreeMap<String, Vec<Block>>,
 ) -> Vec<Inline> {
+    parse(text, ext, notes, false)
+}
+
+/// Parse the text that opens a document. Markup may open after any character there, up to the
+/// first character that markup may follow.
+pub(super) fn parse_opening_inlines(
+    text: &str,
+    ext: Extensions,
+    notes: &BTreeMap<String, Vec<Block>>,
+) -> Vec<Inline> {
+    parse(text, ext, notes, true)
+}
+
+fn parse(
+    text: &str,
+    ext: Extensions,
+    notes: &BTreeMap<String, Vec<Block>>,
+    loose: bool,
+) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut closes: BTreeMap<(char, Option<char>), Vec<usize>> = BTreeMap::new();
     let mut groups = BTreeMap::new();
@@ -84,7 +103,9 @@ pub(super) fn parse_inlines(
         backslashes: &backslashes,
         newlines: &newlines,
     };
-    Inlines::new(text, 0, chars.len(), None).parse()
+    let mut inlines = Inlines::new(text, 0, chars.len(), None);
+    inlines.loose = loose;
+    inlines.parse()
 }
 
 /// Whether `character` closes a span by itself between these neighbors.
