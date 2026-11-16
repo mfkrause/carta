@@ -29,6 +29,156 @@ fn paragraph_with_emphasis() {
     }
 }
 
+/// The inlines of the first paragraph in a compact notation: `S`trong, `E`mph, stri`K`eout,
+/// `U`nderline, `C`ode, `L`ink, `N`ote, `Sub`/`Sup`, `_` for a space and `/` for a soft break.
+fn shape(input: &str) -> String {
+    fn inlines(inlines: &[Inline]) -> String {
+        let parts: Vec<String> = inlines.iter().map(inline).collect();
+        parts.join(" ")
+    }
+    fn inline(node: &Inline) -> String {
+        match node {
+            Inline::Str(text) => text.to_string(),
+            Inline::Space => "_".to_owned(),
+            Inline::SoftBreak => "/".to_owned(),
+            Inline::Strong(content) => format!("S[{}]", inlines(content)),
+            Inline::Emph(content) => format!("E[{}]", inlines(content)),
+            Inline::Strikeout(content) => format!("K[{}]", inlines(content)),
+            Inline::Underline(content) => format!("U[{}]", inlines(content)),
+            Inline::Subscript(content) => format!("Sub[{}]", inlines(content)),
+            Inline::Superscript(content) => format!("Sup[{}]", inlines(content)),
+            Inline::Code(_, text) => format!("C[{text}]"),
+            Inline::Link(_, content, _) => format!("L[{}]", inlines(content)),
+            Inline::Note(blocks) => match blocks.first() {
+                Some(Block::Para(content)) => format!("N[{}]", inlines(content)),
+                _ => "N[]".to_owned(),
+            },
+            other => format!("{other:?}"),
+        }
+    }
+    match blocks(input).first() {
+        Some(Block::Para(content)) => inlines(content),
+        other => panic!("expected paragraph, got {other:?}"),
+    }
+}
+
+#[test]
+fn emphasis_reads_its_content_before_it_looks_for_its_close() {
+    for (input, expected) in [
+        ("*a *b* c*", "S[a _ S[b] _ c]"),
+        ("*a /b *c* d/ e*", "S[a _ E[b _ S[c] _ d] _ e]"),
+        // The inner span takes the only closing marker, so the outer one stays text.
+        ("*a *b c*", "*a _ S[b _ c]"),
+        ("*a =b* c= d*", "S[a _ C[b* c] _ d]"),
+        ("*a [[http://x.y][b* c]] d*", "S[a _ L[b* _ c] _ d]"),
+        ("*a^{b* c} d*", "S[a Sup[b* _ c] _ d]"),
+        ("_a_b_", "U[a Sub[b]]"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn a_marker_opens_emphasis_only_where_markup_may_open() {
+    for (input, expected) in [
+        ("*a*b*", "S[a*b]"),
+        ("x *a*", "x _ S[a]"),
+        ("x (*a*)", "x _ ( S[a] )"),
+        ("x [*a*]", "x _ [*a*]"),
+        ("x a*b*", "x _ a*b*"),
+        // Directly after an opening marker.
+        ("**a**", "S[S[a]]"),
+        ("*/*/a/*/*", "S[E[S[E[a]]]]"),
+        ("* a*", "* _ a*"),
+    ] {
+        assert_eq!(
+            shape(&format!("x {input}")),
+            format!("x _ {expected}"),
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn a_closing_marker_precedes_punctuation_or_the_enclosing_marker() {
+    for (input, expected) in [
+        ("*a*.", "S[a] ."),
+        ("*a*b", "*a*b"),
+        ("*a *", "*a _ *"),
+        // The enclosing marker is the one directly around the span, not any further out.
+        ("**a***", "S[S[a] *]"),
+        ("*//a/*", "S[E[/a]]"),
+        ("*a /b/* c*", "S[a _ E[b]] _ c*"),
+        ("*a [[http://x.y][/b/*]]*", "S[a _ L[E[b] *]]"),
+        ("*a ~b~* c*", "S[a _ C[b]] _ c*"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn emphasis_whose_first_character_would_close_it_stays_text() {
+    for (input, expected) in [
+        ("a ** b*", "a _ ** _ b*"),
+        ("a == b=", "a _ == _ b="),
+        ("***", "S[*]"),
+        ("******", "S[****]"),
+        ("****a****", "S[***a***]"),
+        ("*a ** b*", "S[a _ *] _ b*"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn emphasis_holds_one_line_break_counted_from_the_last_opening_marker() {
+    for (input, expected) in [
+        ("*a\nb*", "S[a / b]"),
+        ("*a\nb\nc*", "*a / b / c*"),
+        ("*a /b\nc/ d\ne*", "*a _ E[b / c] _ d / e*"),
+        ("*a\n/b/ c\nd*", "S[a / E[b] _ c / d]"),
+        // Verbatim text counts its own line break.
+        ("=a\nb\nc=", "=a / b / c="),
+        ("*a =b\nc= d\ne*", "S[a _ C[b c] _ d / e]"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn markup_opens_after_any_character_once_a_description_or_braced_script_ends() {
+    for (input, expected) in [
+        ("[[http://x.y][b]]x*c*", "L[b] x S[c]"),
+        ("a^{b}x*c*", "a Sup[b] x S[c]"),
+        ("a^{b}x y*c*", "a Sup[b] x _ y*c*"),
+        ("a^{b}x-y*c*", "a Sup[b] x-y*c*"),
+        ("[[http://x.y][a*b*]]", "L[a S[b]]"),
+        ("[[http://x.y]]x*c*", "L[http://x.y] x*c*"),
+        // A subscript binds to the word before it ahead of an underline.
+        ("a^{b}x_c_", "a Sup[b] x Sub[c] _"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn an_inline_footnote_sees_the_characters_around_its_text() {
+    for (input, expected) in [
+        ("a [fn::x *b* c]", "a _ N[x _ S[b] _ c]"),
+        ("a [fn::x *b*]", "a _ N[x _ *b*]"),
+        ("a [fn::*b* c]", "a _ N[*b* _ c]"),
+        ("*a [fn::x /b/*]*", "S[a _ N[x _ E[b] *]]"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn unclosed_markers_of_every_kind_parse_in_linear_time() {
+    let input = "*a /b +c _d =e ~f ".repeat(2_000);
+    assert!(shape(&input).starts_with("*a _ /b _ +c _ _d _ =e _ ~f"));
+}
+
 #[test]
 fn emphasis_nested_far_past_the_native_stack_parses() {
     let depth = 20_000;

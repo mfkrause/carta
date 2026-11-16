@@ -19,6 +19,7 @@ pub(super) fn wrap_markup(marker: char, content: Vec<Inline>) -> Inline {
     match marker {
         '*' => Inline::Strong(content),
         '+' => Inline::Strikeout(content),
+        '_' => Inline::Underline(content),
         _ => Inline::Emph(content),
     }
 }
