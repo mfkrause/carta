@@ -380,6 +380,7 @@ fn fill_pieces<S: Sink>(
     let mut next_group = 0;
     let mut index = 0;
     let indents = scope_indents(scopes, pieces.len());
+    let boundaries = scope_boundaries(pieces, scopes);
     let mut word_indent = 0;
     while index < pieces.len() {
         if let Some(&(start, end)) = groups.get(next_group) {
@@ -420,7 +421,7 @@ fn fill_pieces<S: Sink>(
         match pieces.get(index) {
             Some(Piece::Text(text)) => {
                 if !word.is_empty()
-                    && let Some(trailing) = scope_boundary(pieces, scopes, index)
+                    && let Some(trailing) = boundaries.get(index).copied().flatten()
                 {
                     place_word(
                         sink,
@@ -744,33 +745,59 @@ fn place_word<S: Sink>(
     };
 }
 
-/// Whether an indentation scope starts or ends at `index`, where the gathered word is placed apart
-/// from the scope's content. The value is the width of the text that directly follows a starting
-/// scope: that text stays on the line of the word before the scope.
-fn scope_boundary(pieces: &[Piece], scopes: &[IndentScope], index: usize) -> Option<usize> {
-    let Some(scope) = scopes.iter().find(|scope| scope.start == index) else {
-        return scopes.iter().any(|scope| scope.end == index).then_some(0);
-    };
-    let mut width = 0;
-    let mut after = scope.end;
-    loop {
-        if let Some(next) = scopes
-            .iter()
-            .find(|scope| scope.start == after && scope.end > after)
-        {
-            after = next.end;
-            continue;
-        }
-        let Some(Piece::Text(text)) = pieces.get(after) else {
-            return Some(width);
-        };
-        let line = text.split('\n').next().unwrap_or_default();
-        width += display_width(line);
-        if line.len() < text.len() {
-            return Some(width);
-        }
-        after += 1;
+/// For each piece, whether an indentation scope starts or ends there, where the gathered word is
+/// placed apart from the scope's content. The value is the width of the text that directly follows
+/// a starting scope: that text stays on the line of the word before the scope.
+fn scope_boundaries(pieces: &[Piece], scopes: &[IndentScope]) -> Vec<Option<usize>> {
+    if scopes.is_empty() {
+        return Vec::new();
     }
+    let count = pieces.len();
+    // The end of the first scope that starts at each piece, and of the first that also covers it.
+    let mut opening: Vec<Option<usize>> = vec![None; count + 1];
+    let mut spanning: Vec<Option<usize>> = vec![None; count + 1];
+    let mut closing = vec![false; count + 1];
+    for scope in scopes {
+        if let Some(slot @ None) = opening.get_mut(scope.start) {
+            *slot = Some(scope.end);
+        }
+        if scope.end > scope.start
+            && let Some(slot @ None) = spanning.get_mut(scope.start)
+        {
+            *slot = Some(scope.end);
+        }
+        if let Some(slot) = closing.get_mut(scope.end) {
+            *slot = true;
+        }
+    }
+    // The width of the text from each piece up to its first line break or non-text piece. A
+    // scope that opens there is stepped over, so the run resumes where the scope ends.
+    let mut following = vec![0usize; count + 1];
+    for index in (0..count).rev() {
+        let after = |index: usize| following.get(index).copied().unwrap_or(0);
+        let width = match (spanning.get(index).copied().flatten(), pieces.get(index)) {
+            (Some(end), _) => after(end),
+            (None, Some(Piece::Text(text))) => {
+                let line = text.split('\n').next().unwrap_or_default();
+                let width = display_width(line);
+                if line.len() < text.len() {
+                    width
+                } else {
+                    width + after(index + 1)
+                }
+            }
+            (None, _) => 0,
+        };
+        if let Some(slot) = following.get_mut(index) {
+            *slot = width;
+        }
+    }
+    (0..count)
+        .map(|index| match opening.get(index).copied().flatten() {
+            Some(end) => Some(following.get(end).copied().unwrap_or(0)),
+            None => closing.get(index).copied().unwrap_or(false).then_some(0),
+        })
+        .collect()
 }
 
 /// A gathered word's first-line width, whether it spans more than one line, and its last-line width.
