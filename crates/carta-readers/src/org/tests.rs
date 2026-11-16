@@ -29,9 +29,15 @@ fn paragraph_with_emphasis() {
     }
 }
 
-/// The inlines of the first paragraph in a compact notation: `S`trong, `E`mph, stri`K`eout,
-/// `U`nderline, `C`ode, `L`ink, `N`ote, `Sub`/`Sup`, `_` for a space and `/` for a soft break.
+/// The inlines of `input` as a paragraph that follows another, in a compact notation: `S`trong,
+/// `E`mph, stri`K`eout, `U`nderline, `C`ode, `L`ink, `N`ote, `Sub`/`Sup`, `_` for a space, `/` for
+/// a soft break and `//` for a hard one.
 fn shape(input: &str) -> String {
+    opening_shape(&format!("lead\n\n{input}"), 1)
+}
+
+/// The inlines of the paragraph at `index` in the document `input`, in the notation of [`shape`].
+fn opening_shape(input: &str, index: usize) -> String {
     fn inlines(inlines: &[Inline]) -> String {
         let parts: Vec<String> = inlines.iter().map(inline).collect();
         parts.join(" ")
@@ -41,6 +47,7 @@ fn shape(input: &str) -> String {
             Inline::Str(text) => text.to_string(),
             Inline::Space => "_".to_owned(),
             Inline::SoftBreak => "/".to_owned(),
+            Inline::LineBreak => "//".to_owned(),
             Inline::Strong(content) => format!("S[{}]", inlines(content)),
             Inline::Emph(content) => format!("E[{}]", inlines(content)),
             Inline::Strikeout(content) => format!("K[{}]", inlines(content)),
@@ -56,7 +63,7 @@ fn shape(input: &str) -> String {
             other => format!("{other:?}"),
         }
     }
-    match blocks(input).first() {
+    match blocks(input).get(index) {
         Some(Block::Para(content)) => inlines(content),
         other => panic!("expected paragraph, got {other:?}"),
     }
@@ -156,6 +163,48 @@ fn markup_opens_after_any_character_once_a_description_or_braced_script_ends() {
         ("[[http://x.y]]x*c*", "L[http://x.y] x*c*"),
         // A subscript binds to the word before it ahead of an underline.
         ("a^{b}x_c_", "a Sup[b] x Sub[c] _"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn a_script_attaches_to_plain_text() {
+    for (input, expected) in [
+        ("a_b", "a Sub[b]"),
+        ("a!_b", "a! Sub[b]"),
+        ("a)_b", "a)_b"),
+        ("*a*_b", "*a*_b"),
+        ("x _b", "x _ _b"),
+        // Not to the script before it.
+        ("a_b_c", "a Sub[b] _c"),
+        ("a^{b}_c", "a Sup[b] _c"),
+        ("x_ay_b", "x Sub[ay] _b"),
+        ("x_{a}y_b", "x Sub[a] y Sub[b]"),
+    ] {
+        assert_eq!(shape(input), expected, "{input}");
+    }
+}
+
+#[test]
+fn a_script_is_a_group_a_lone_star_or_signed_alphanumerics() {
+    for (input, expected) in [
+        ("a_1.5", "a Sub[1] .5"),
+        ("a_i,j", "a Sub[i] ,j"),
+        ("10^-3", "10 Sup[-3]"),
+        ("a^+", "a^+"),
+        ("a_*b*", "a Sub[*] b*"),
+        ("a_{i,j}", "a Sub[i,j]"),
+        ("a_{b{c}d}", "a Sub[b{c}d]"),
+        // A parenthesized script keeps its parentheses and holds no line break.
+        ("a_(b c)", "a Sub[(b _ c)]"),
+        ("a_(b(c)d)e", "a Sub[(b(c)d)] e"),
+        ("a_(b", "a_(b"),
+        ("a_(b\nc)", "a_(b / c)"),
+        ("a_(*b*)", "a Sub[( S[b] )]"),
+        ("a_(x*c*)", "a Sub[(x*c*)]"),
+        ("a_{x*c*}", "a Sub[x S[c]]"),
+        ("a_(b)x*c*", "a Sub[(b)] x S[c]"),
     ] {
         assert_eq!(shape(input), expected, "{input}");
     }

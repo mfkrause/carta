@@ -23,6 +23,7 @@ pub(super) fn parse_inlines(
     let mut groups = BTreeMap::new();
     let mut brackets = Vec::new();
     let mut braces = Vec::new();
+    let mut parentheses = Vec::new();
     let mut newlines = Vec::new();
     for (index, &character) in chars.iter().enumerate() {
         let previous = index
@@ -55,8 +56,15 @@ pub(super) fn parse_inlines(
                     groups.insert(open, index);
                 }
             }
+            '(' => parentheses.push(index),
+            ')' => {
+                if let Some(open) = parentheses.pop() {
+                    groups.insert(open, index);
+                }
+            }
             '\n' => {
                 braces.clear();
+                parentheses.clear();
                 newlines.push(index);
             }
             _ => {}
@@ -89,6 +97,42 @@ fn is_verbatim_marker(character: char) -> bool {
     matches!(character, '=' | '~')
 }
 
+/// Whether `character` is plain text wherever it stands: not a space and not a character that
+/// markup is written with.
+fn is_word_character(character: char) -> bool {
+    !matches!(
+        character,
+        ' ' | '\t'
+            | '\n'
+            | '"'
+            | '$'
+            | '\''
+            | '('
+            | ')'
+            | '*'
+            | '+'
+            | ','
+            | '-'
+            | '.'
+            | '/'
+            | ':'
+            | ';'
+            | '<'
+            | '='
+            | '>'
+            | '@'
+            | '['
+            | '\\'
+            | ']'
+            | '^'
+            | '_'
+            | '{'
+            | '|'
+            | '}'
+            | '~'
+    )
+}
+
 /// One inline run: its characters, the positions its scanners look up, and the reader settings.
 #[derive(Clone, Copy)]
 struct Text<'a> {
@@ -102,6 +146,7 @@ struct Text<'a> {
 
 /// A scan position with what the scan remembers of the characters before it.
 #[derive(Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 struct Cursor {
     at: usize,
     /// The position directly follows the marker that opened the span being read.
@@ -111,6 +156,8 @@ struct Cursor {
     loose: bool,
     /// The emphasis being read may still hold a line break.
     lines: bool,
+    /// The position directly follows plain text, which a sub- or superscript attaches to.
+    word: bool,
 }
 
 /// What one scan step found.
@@ -130,10 +177,13 @@ enum Piece {
     Span {
         close: usize,
     },
-    /// A braced sub- or superscript whose brace closes at `close`.
+    /// A sub- or superscript whose content is the window `start..stop`, in braces or with its
+    /// parentheses.
     Script {
         sup: bool,
-        close: usize,
+        start: usize,
+        stop: usize,
+        braced: bool,
     },
     /// A bracketed link that closes at `close`, with the start of its description when it has one.
     Link {
@@ -186,9 +236,9 @@ struct Inlines<'a> {
 type SpanClose = (usize, Option<bool>);
 
 /// A walk through the content of a span toward its close: the position, whether markup may open
-/// after any character, whether a line break may still follow, the marker of the span, and the
-/// marker of the emphasis enclosing it.
-type Walk = (usize, bool, bool, char, Option<char>);
+/// after any character, whether a line break may still follow, whether plain text comes directly
+/// before, the marker of the span, and the marker of the emphasis enclosing it.
+type Walk = (usize, bool, bool, bool, char, Option<char>);
 
 impl<'a> Inlines<'a> {
     fn new(text: Text<'a>, start: usize, end: usize, enclosing: Option<char>) -> Self {
@@ -212,6 +262,7 @@ impl<'a> Inlines<'a> {
             opened: false,
             loose: self.loose,
             lines: true,
+            word: false,
         };
         self.content(cursor, self.end, self.enclosing)
     }
@@ -330,6 +381,7 @@ impl<'a> Inlines<'a> {
             opened: false,
             loose,
             lines: cursor.lines,
+            word: false,
         };
 
         if is_url_boundary(prev)
@@ -346,7 +398,11 @@ impl<'a> Inlines<'a> {
                 while self.at(end).is_some_and(char::is_alphanumeric) {
                     end += 1;
                 }
-                Some((Piece::Word { end }, to(end, cursor.loose)))
+                let after = Cursor {
+                    word: true,
+                    ..to(end, cursor.loose)
+                };
+                Some((Piece::Word { end }, after))
             }
             ' ' | '\t' => {
                 let mut end = i;
@@ -367,15 +423,12 @@ impl<'a> Inlines<'a> {
                 let loose = cursor.loose && !matches!(piece, Piece::Leaf(Inline::LineBreak));
                 Some((piece, to(end, loose)))
             }
-            '*' | '/' | '+' | '=' | '~' => self.scan_span(cursor, may_open(), enclosing),
-            // A subscript binds to the word before it ahead of an underline.
-            '_' if prev.is_some_and(char::is_alphanumeric) => self
-                .scan_subsup(cursor, prev, false)
+            // A subscript binds to the text before it ahead of an underline.
+            '_' if cursor.word => self
+                .scan_subsup(cursor, false)
                 .or_else(|| self.scan_span(cursor, may_open(), enclosing)),
-            '_' => self
-                .scan_span(cursor, may_open(), enclosing)
-                .or_else(|| self.scan_subsup(cursor, prev, false)),
-            '^' => self.scan_subsup(cursor, prev, true),
+            '*' | '/' | '+' | '_' | '=' | '~' => self.scan_span(cursor, may_open(), enclosing),
+            '^' if cursor.word => self.scan_subsup(cursor, true),
             '[' => self.scan_bracket(i).map(|(piece, end)| {
                 let described = matches!(
                     piece,
@@ -411,8 +464,11 @@ impl<'a> Inlines<'a> {
             _ => None,
         };
         found.unwrap_or_else(|| {
-            let loose = cursor.loose && !pre_ok(Some(c));
-            (Piece::Char(c), to(i + 1, loose))
+            let after = Cursor {
+                word: is_word_character(c),
+                ..to(i + 1, cursor.loose && !pre_ok(Some(c)))
+            };
+            (Piece::Char(c), after)
         })
     }
 
@@ -443,14 +499,20 @@ impl<'a> Inlines<'a> {
                         opened: true,
                         loose: false,
                         lines: true,
+                        word: false,
                     };
                     wrap_markup(marker, self.content(first, close, Some(marker)))
                 };
                 self.push_inline(inline);
             }
-            Piece::Script { sup, close } => {
-                let mut group = self.nested(i + 2, close, enclosing);
-                group.loose = true;
+            Piece::Script {
+                sup,
+                start,
+                stop,
+                braced,
+            } => {
+                let mut group = self.nested(start, stop, enclosing);
+                group.loose = braced;
                 let content = group.parse();
                 self.push_inline(if sup {
                     Inline::Superscript(content)
@@ -517,6 +579,7 @@ impl<'a> Inlines<'a> {
             loose: false,
             // Verbatim text counts its own line break.
             lines: lines.unwrap_or(cursor.lines),
+            word: false,
         };
         Some((Piece::Span { close }, after))
     }
@@ -546,6 +609,7 @@ impl<'a> Inlines<'a> {
             opened: true,
             loose: false,
             lines: true,
+            word: false,
         };
         let character = self.at(first)?;
         let (_, next) = self.scan(cursor, character, Some(marker));
@@ -567,7 +631,14 @@ impl<'a> Inlines<'a> {
         let mut marks = Vec::new();
         let mut steps = 0usize;
         let found = loop {
-            let key = (cursor.at, cursor.loose, cursor.lines, marker, enclosing);
+            let key = (
+                cursor.at,
+                cursor.loose,
+                cursor.lines,
+                cursor.word,
+                marker,
+                enclosing,
+            );
             if let Some(&known) = self.closers.get(&key) {
                 break known;
             }
@@ -608,67 +679,61 @@ impl<'a> Inlines<'a> {
 
     // Sub/superscript
 
-    /// Recognizes a subscript (`_`) or superscript (`^`) at `i`. Requires a preceding non-space base
-    /// and accepts either a `{…}` group or a bare token ending in an alphanumeric.
-    fn scan_subsup(
-        &self,
-        cursor: Cursor,
-        prev: Option<char>,
-        sup: bool,
-    ) -> Option<(Piece, Cursor)> {
-        let i = cursor.at;
-        // Base must be non-space and not `_`: `a__b` is a literal double underscore, not a subscript.
-        if prev.is_none_or(|c| c.is_whitespace() || c == '_') {
-            return None;
-        }
+    /// Recognizes a subscript (`_`) or superscript (`^`) at `cursor`, which directly follows plain
+    /// text. The script is a braced group, a parenthesized group that keeps its parentheses, a
+    /// lone `*`, or alphanumerics after an optional sign.
+    fn scan_subsup(&self, cursor: Cursor, sup: bool) -> Option<(Piece, Cursor)> {
+        let first = cursor.at + 1;
         let to = |at: usize, loose: bool| Cursor {
             at,
             opened: false,
             loose,
             lines: cursor.lines,
+            word: false,
         };
-        if self.at(i + 1) == Some('{') {
-            let close = self.group_end(i + 1)?;
-            return Some((Piece::Script { sup, close }, to(close + 1, true)));
-        }
-        let (text, stop) = self.scan_bare_script(i + 1)?;
-        let content = vec![Inline::Str(text.into())];
-        let inline = if sup {
-            Inline::Superscript(content)
-        } else {
-            Inline::Subscript(content)
+        let group = |start: usize, stop: usize, braced: bool| Piece::Script {
+            sup,
+            start,
+            stop,
+            braced,
         };
-        Some((Piece::Leaf(inline), to(stop, cursor.loose)))
-    }
-
-    /// Scans a bare sub/superscript token: an optional sign then alphanumerics, dots, and commas,
-    /// which must end in an alphanumeric.
-    fn scan_bare_script(&self, start: usize) -> Option<(String, usize)> {
-        let mut j = start;
-        if matches!(self.at(j), Some('-' | '+')) {
-            j += 1;
+        match self.at(first)? {
+            '{' => {
+                let close = self.group_end(first)?;
+                Some((group(first + 1, close, true), to(close + 1, true)))
+            }
+            '(' => {
+                let close = self.group_end(first)?;
+                Some((group(first, close + 1, false), to(close + 1, true)))
+            }
+            character => {
+                let mut stop = first + usize::from(matches!(character, '+' | '-'));
+                let digits = stop;
+                while self.at(stop).is_some_and(char::is_alphanumeric) {
+                    stop += 1;
+                }
+                if stop == digits {
+                    if character != '*' {
+                        return None;
+                    }
+                    stop = first + 1;
+                }
+                let text: String = self
+                    .text
+                    .chars
+                    .get(first..stop)
+                    .unwrap_or(&[])
+                    .iter()
+                    .collect();
+                let content = vec![Inline::Str(text.into())];
+                let inline = if sup {
+                    Inline::Superscript(content)
+                } else {
+                    Inline::Subscript(content)
+                };
+                Some((Piece::Leaf(inline), to(stop, cursor.loose)))
+            }
         }
-        let body_start = j;
-        while matches!(self.at(j), Some(c) if c.is_alphanumeric() || matches!(c, '.' | ',' | '\\'))
-        {
-            j += 1;
-        }
-        // Trim trailing non-alphanumerics; require at least one alphanumeric in the body.
-        let mut last = j;
-        while last > body_start && !self.at(last - 1).is_some_and(char::is_alphanumeric) {
-            last -= 1;
-        }
-        if last <= body_start {
-            return None;
-        }
-        let text: String = self
-            .text
-            .chars
-            .get(start..last)
-            .unwrap_or(&[])
-            .iter()
-            .collect();
-        Some((text, last))
     }
 
     // Backslash: line break, math, entities
