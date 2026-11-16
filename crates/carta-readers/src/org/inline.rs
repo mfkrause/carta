@@ -941,6 +941,10 @@ impl<'a> Inlines<'a> {
                 while stop > start && self.at(stop - 1).is_some_and(char::is_whitespace) {
                     stop -= 1;
                 }
+                // An inline footnote has text, if only spaces.
+                if body_start + colon + 1 == close {
+                    return None;
+                }
                 Piece::Note { start, stop }
             }
             None => Piece::NoteReference {

@@ -239,6 +239,8 @@ fn an_inline_footnote_sees_the_characters_around_its_text() {
         ("a [fn::x *b*]", "a _ N[x _ *b*]"),
         ("a [fn::*b* c]", "a _ N[*b* _ c]"),
         ("*a [fn::x /b/*]*", "S[a _ N[x _ E[b] *]]"),
+        ("a [fn::] b", "a _ [fn::] _ b"),
+        ("a [fn:: ] b", "a _ N[] _ b"),
     ] {
         assert_eq!(shape(input), expected, "{input}");
     }
