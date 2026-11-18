@@ -191,7 +191,14 @@ fn the_sandbox_reads_what_the_command_line_names_but_not_what_metadata_names() {
     let packaged = Some(vec!["p{}".to_owned(), "cover".to_owned()]);
 
     assert_eq!(epub_assets(&directory, &[], named), packaged);
-    assert_eq!(epub_assets(&directory, &["--sandbox"], named), None);
+    for asset in ["cover-image: cover.png", "css: style.css"] {
+        let named = format!("---\ntitle: T\n{asset}\n---\n\nText.\n");
+        assert_eq!(
+            epub_assets(&directory, &["--sandbox"], &named),
+            None,
+            "{asset}"
+        );
+    }
     assert_eq!(epub_assets(&directory, &flags, plain), packaged);
     let sandboxed_flags = [&["--sandbox"], &flags[..]].concat();
     assert_eq!(epub_assets(&directory, &sandboxed_flags, plain), packaged);
