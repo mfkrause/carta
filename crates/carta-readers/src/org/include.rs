@@ -254,7 +254,7 @@ impl BlockTracker {
         let Some((name, depth)) = &mut self.open else {
             self.open = opened
                 .filter(|name| {
-                    ["src", "example", "export", "comment"]
+                    ["src", "example", "export", "comment", "verse"]
                         .iter()
                         .any(|verbatim| name.eq_ignore_ascii_case(verbatim))
                 })
