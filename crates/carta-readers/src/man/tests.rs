@@ -1118,6 +1118,23 @@ fn a_sourced_file_whose_last_line_is_open_runs_on_into_the_next_line() {
 }
 
 #[test]
+fn a_source_request_in_a_macro_definition_runs_when_the_macro_is_called() {
+    // The sourced file holds the line that ends a definition.
+    let files = [("part.man", "sourced\n..\nexposed\n")];
+    let define = ".de MM\n.so part.man\nbody\n..\nbefore\n";
+    for (call, text) in [
+        ("", "before after"),
+        (".MM\n", "before sourced exposed body after"),
+    ] {
+        let blocks = read_with_files("copy", &format!("{define}{call}after\n"), &files);
+        let [Block::Para(inlines)] = blocks.as_slice() else {
+            panic!("expected one paragraph: {blocks:?}");
+        };
+        assert_eq!(to_plain_text(inlines), text);
+    }
+}
+
+#[test]
 fn an_empty_sourced_file_adds_no_line() {
     let blocks = read_with_files(
         "empty",

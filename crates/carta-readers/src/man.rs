@@ -393,7 +393,12 @@ impl Parser {
     fn collect_macro_definition(&mut self, end: &str) -> Vec<String> {
         let mut body = Vec::new();
         while let Some(line) = self.peek().map(str::to_owned) {
-            self.advance();
+            // A definition stores its requests: a `.so` in it is read when the macro is called.
+            self.drop_line();
+            if line == INCLUDE_END {
+                self.including.pop();
+                continue;
+            }
             let is_end =
                 !is_comment(&line) && control_parts(&line).is_some_and(|(name, _)| name == end);
             if is_end {
@@ -401,6 +406,7 @@ impl Parser {
             }
             body.push(reduce_copy_mode(&line));
         }
+        self.splice_includes();
         body
     }
 
@@ -637,7 +643,7 @@ impl Parser {
                     }
                 }
                 "de" | "de1" => {
-                    self.advance();
+                    self.drop_line();
                     let args = split_args(rest);
                     let end = args.get(1).map_or(".", String::as_str).to_owned();
                     let body = self.collect_macro_definition(&end);
