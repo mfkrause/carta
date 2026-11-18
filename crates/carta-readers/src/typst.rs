@@ -3313,8 +3313,9 @@ impl Parser {
         if reference.is_empty() {
             return None;
         }
-        let path = self.locate(reference);
-        let path = self.host.canonicalize(&path).unwrap_or(path);
+        let located = self.locate(reference);
+        let canonical = self.host.canonicalize(&located);
+        let path = canonical.unwrap_or_else(|_| located.clone());
         if self.source_file() == Some(&path) || !self.open.insert(path.clone()) {
             return None;
         }
@@ -3337,7 +3338,9 @@ impl Parser {
         let start = self.source.len();
         self.source.extend(source);
         let end = self.source.len();
-        let base = path
+        // The directory as the reference names it, so the paths made from it do not depend on
+        // where the files are on this machine.
+        let base = located
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .map(Path::to_path_buf);
