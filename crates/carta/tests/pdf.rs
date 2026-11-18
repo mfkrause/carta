@@ -225,6 +225,23 @@ fn missing_images_use_alt_text_and_warn() {
 }
 
 #[test]
+fn the_sandbox_confines_the_engine_to_the_staging_directory() {
+    let compiler = Compiler::new();
+    let root = |arguments: &[&str]| {
+        assert!(compiler.run(arguments, "Text.", "").status.success());
+        let captured = compiler.read("arguments");
+        let mut lines = captured.lines().skip_while(|line| *line != "--root");
+        lines.nth(1).unwrap().to_owned()
+    };
+    assert_eq!(root(&["-t", "pdf"]), "/");
+    let staging = root(&["-t", "pdf", "--sandbox"]);
+    assert!(
+        std::path::Path::new(&staging).starts_with(std::env::temp_dir().canonicalize().unwrap()),
+        "{staging}"
+    );
+}
+
+#[test]
 fn pdf_filters_receive_typst_as_the_target() {
     let compiler = Compiler::new();
     let filter = compiler.directory.path().join("filter");

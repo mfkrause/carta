@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use carta_ast::{Document, Inline};
-use carta_core::{BytesWriter, Error, Output, PdfEngine, Result, WriterOptions, media, walk};
+use carta_core::{
+    BytesWriter, Error, HostAccess, Output, PdfEngine, Result, WriterOptions, media, walk,
+};
 
 pub(crate) struct PdfWriter;
 
@@ -15,10 +17,14 @@ impl BytesWriter for PdfWriter {
         let directory = tempfile::tempdir()?;
         let directory_path = directory.path().canonicalize()?;
         let working_directory = std::env::current_dir()?.canonicalize()?;
-        let root = working_directory
-            .ancestors()
-            .last()
-            .unwrap_or(&working_directory);
+        let root = match options.host {
+            // The staging directory holds every image, so the engine needs to read nothing else.
+            HostAccess::Sandboxed => directory_path.as_path(),
+            HostAccess::Local | HostAccess::Networked(_) => working_directory
+                .ancestors()
+                .last()
+                .unwrap_or(&working_directory),
+        };
         let mut document = document.clone();
         crate::standalone::merge_metadata(&mut document, options);
         stage_images(&mut document, options, &directory_path, root)?;
