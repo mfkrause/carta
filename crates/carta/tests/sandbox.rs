@@ -112,6 +112,7 @@ fn convert(directory: &Path, arguments: &[&str], source: &str) -> String {
     let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
         .args(arguments)
         .current_dir(directory)
+        .env_remove("TEXINPUTS")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
