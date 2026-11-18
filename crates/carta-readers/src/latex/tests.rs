@@ -1070,6 +1070,18 @@ fn a_listing_command_quotes_the_named_file() {
     assert_eq!(classes, ["python", "rust", ""]);
 }
 
+#[test]
+fn a_listing_command_ends_the_paragraph_before_it() {
+    let blocks = read_with_files(
+        "listing-break",
+        &[
+            ("main.tex", "Prose\n\\inputminted{rust}{code.rs}\nmore\n"),
+            ("code.rs", "code\n"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["Prose", "code\n", "more"]);
+}
+
 #[cfg(feature = "commonmark")]
 #[test]
 fn a_macro_expander_reads_no_file() {

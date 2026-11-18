@@ -187,6 +187,9 @@ impl Parser {
             if self.in_float && word == "caption" {
                 return true;
             }
+            if self.files.is_some() && matches!(word.as_str(), "lstinputlisting" | "inputminted") {
+                return true;
+            }
             return matches!(word.as_str(), "item" | "par");
         }
         false
