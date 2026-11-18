@@ -678,3 +678,14 @@ fn file_links_preserve_urls_and_absolute_paths() {
         assert_eq!(destinations, [expected], "{source}");
     }
 }
+
+#[test]
+fn a_verbatim_block_drops_the_comma_guarding_a_headline_or_keyword() {
+    assert_eq!(
+        blocks("#+begin_example\n,* star\n  ,#+key\n,,* two\n,plain\n#+end_example\n"),
+        vec![Block::CodeBlock(
+            Box::default(),
+            "* star\n  #+key\n,* two\n,plain\n".into()
+        )]
+    );
+}
