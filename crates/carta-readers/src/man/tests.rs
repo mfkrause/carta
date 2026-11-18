@@ -1155,6 +1155,25 @@ fn a_source_request_in_a_link_label_keeps_the_link() {
 }
 
 #[test]
+fn a_sourced_file_past_the_expansion_limit_takes_nothing_from_the_input_or_the_limit() {
+    // The filler leaves room for one more line.
+    let filler = "x\n".repeat(99_999);
+    let blocks = read_with_files(
+        "limit",
+        ".nf\n.so filler.man\n.so two.man\nkept\n.so one.man\n.fi\n",
+        &[
+            ("filler.man", &filler),
+            ("two.man", "a\nb"),
+            ("one.man", "one\n"),
+        ],
+    );
+    let [Block::CodeBlock(_, text)] = blocks.as_slice() else {
+        panic!("expected one code block");
+    };
+    assert!(text.ends_with("x\nkept\none"));
+}
+
+#[test]
 fn an_empty_sourced_file_adds_no_line() {
     let blocks = read_with_files(
         "empty",

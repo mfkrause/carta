@@ -316,6 +316,9 @@ impl Parser {
     /// The logical lines of the file a `.so` request names, found along the resource path. `None`
     /// when the file cannot be read, is already being included, or the expansion budget is spent.
     fn included_lines(&mut self, name: &str) -> Option<Vec<String>> {
+        if self.expansion_budget.exhausted() {
+            return None;
+        }
         let found = self.host.read_from(&self.resource_path, Path::new(name));
         let (path, text) = found.ok()?;
         if self.including.contains(&path) || self.source() == Some(&path) {
@@ -335,19 +338,24 @@ impl Parser {
         let closed = closed.count();
         let next = self.pending.get(closed).or(self.lines.get(self.pos));
         // A last line with no newline, or one that is continued, runs on into that line.
-        if ended.is_none()
-            && let (Some(last), Some(next)) = (lines.last_mut(), next)
-        {
-            last.push_str(next);
+        let run_on = next.filter(|_| ended.is_none() && !lines.is_empty());
+        let run_on = run_on.cloned();
+        // The file is charged as a whole or not at all, before the input gives up a line to it.
+        let mut budget = self.expansion_budget;
+        let last = lines.len().saturating_sub(1);
+        for (index, line) in lines.iter().enumerate() {
+            if budget.exhausted() {
+                return None;
+            }
+            let joined = run_on.as_ref().filter(|_| index == last);
+            budget.debit(line.len() + joined.map_or(0, String::len));
+        }
+        self.expansion_budget = budget;
+        if let (Some(last), Some(next)) = (lines.last_mut(), run_on) {
+            last.push_str(&next);
             if self.pending.remove(closed).is_none() {
                 self.pos += 1;
             }
-        }
-        for line in &lines {
-            if self.expansion_budget.exhausted() {
-                return None;
-            }
-            self.expansion_budget.debit(line.len());
         }
         self.including.push(path);
         Some(lines)
