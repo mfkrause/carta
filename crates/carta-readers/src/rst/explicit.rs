@@ -43,9 +43,13 @@ impl Parser<'_> {
 
         match name {
             "raw" => {
+                let text = match options.iter().find(|(key, _)| key == "file") {
+                    Some((_, file)) => self.includes.quote(file, &[]).join("\n"),
+                    None => content.join("\n"),
+                };
                 out.push(Block::RawBlock(
                     Format(argument.trim().into()),
-                    content.join("\n").into(),
+                    text.trim_end_matches('\n').into(),
                 ));
             }
             "code" | "code-block" | "sourcecode" => {

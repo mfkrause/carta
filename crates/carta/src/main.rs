@@ -542,6 +542,7 @@ fn host_access(cli: &Cli) -> HostAccess {
 fn reader_options(cli: &Cli, columns: Option<usize>, host: HostAccess) -> ReaderOptions {
     let mut options = ReaderOptions::default();
     options.host = host;
+    options.resource_path = resource_search_path(cli);
     options.columns = columns.unwrap_or(72);
     options.tab_stop = reader_tab_stop(cli, options.tab_stop);
     options

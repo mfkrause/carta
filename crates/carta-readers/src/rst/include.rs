@@ -1,4 +1,4 @@
-//! The `include` directive: file lookup, line selection, and literal inclusion.
+//! Files a document pulls in: the `include` directive and the `file` and `url` options.
 
 use carta_ast::{Attr, Block};
 use carta_core::{Error, HostAccess, ReaderOptions};
@@ -15,6 +15,8 @@ pub(super) struct Includes<'a> {
     work: &'a Cell<Option<usize>>,
     /// The directory the document's own includes resolve against.
     directory: Option<PathBuf>,
+    /// The directories searched for a data file; empty searches the working directory.
+    resource_path: Vec<PathBuf>,
     /// Canonical paths of the document's own source files.
     sources: Vec<PathBuf>,
     /// The files being included, outermost first.
@@ -47,6 +49,7 @@ impl<'a> Includes<'a> {
             host: options.host,
             work,
             directory: options.source_dir.clone(),
+            resource_path: options.resource_path.clone(),
             sources: options
                 .source_paths
                 .values()
@@ -116,6 +119,48 @@ impl<'a> Includes<'a> {
         };
         let canonical = self.host.canonicalize(&path).ok()?;
         Some((path, canonical))
+    }
+
+    /// The text a directive's `file` option (searched along the resource path) or `url` option
+    /// names. `Ok(None)` when it has neither.
+    ///
+    /// # Errors
+    /// A file or URL that cannot be read.
+    pub(super) fn external(&self, options: &[(String, String)]) -> Result<Option<Rc<str>>, Error> {
+        let named = |name: &str, error: io::Error| {
+            Error::Io(io::Error::new(error.kind(), format!("{name}: {error}")))
+        };
+        let text = if let Some(file) = option(options, "file") {
+            self.resource(Path::new(file))
+                .map_err(|error| named(file, error))?
+        } else if let Some(url) = option(options, "url") {
+            let item = self.host.fetch(url).map_err(|error| named(url, error))?;
+            let text: Rc<str> = String::from_utf8(item.bytes)
+                .map_err(|error| named(url, io::Error::new(io::ErrorKind::InvalidData, error)))?
+                .into();
+            self.grant(&text);
+            text
+        } else {
+            return Ok(None);
+        };
+        Ok(Some(if self.spend(&text) { text } else { "".into() }))
+    }
+
+    fn resource(&self, name: &Path) -> io::Result<Rc<str>> {
+        let working_directory = [PathBuf::new()];
+        let directories = if self.resource_path.is_empty() {
+            &working_directory[..]
+        } else {
+            &self.resource_path
+        };
+        let mut found = Err(io::ErrorKind::NotFound.into());
+        for directory in directories {
+            found = self.host.canonicalize(&directory.join(name));
+            if found.is_ok() {
+                break;
+            }
+        }
+        self.text(&found?)
     }
 
     fn lines(&self, canonical: &Path, options: &[(String, String)]) -> Option<Vec<String>> {

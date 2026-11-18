@@ -149,6 +149,57 @@ fn an_include_loop_fails_the_read() {
 }
 
 #[test]
+fn a_csv_table_reads_its_rows_along_the_resource_path() {
+    let sources = Sources::new(&[
+        ("data/rows.csv", "from,file\n"),
+        (
+            "main.rst",
+            ".. csv-table::\n   :file: rows.csv\n\n   from,content\n",
+        ),
+    ]);
+    let read = |resource_path: Vec<std::path::PathBuf>| {
+        let mut options = ReaderOptions::default();
+        options.resource_path = resource_path;
+        RstReader.read(sources.text("main.rst"), &options)
+    };
+    let document = read(vec![sources.0.clone(), sources.0.join("data")]).unwrap();
+    let Some(Block::Table(table)) = document.blocks.first() else {
+        panic!("expected a table: {:?}", document.blocks);
+    };
+    let cells: Vec<&Block> = table
+        .bodies
+        .iter()
+        .flat_map(|body| &body.body)
+        .flat_map(|row| &row.cells)
+        .flat_map(|cell| &cell.content)
+        .collect();
+    assert_eq!(
+        cells,
+        [
+            &Block::Plain(vec![Inline::Str("from".into())]),
+            &Block::Plain(vec![Inline::Str("file".into())])
+        ]
+    );
+    assert!(read(vec![sources.0.clone()]).is_err());
+}
+
+#[test]
+fn a_raw_directive_reads_its_text_beside_the_including_file() {
+    let sources = Sources::new(&[
+        ("main.rst", ".. include:: sub/part.rst\n"),
+        ("sub/part.rst", ".. raw:: html\n   :file: raw.html\n"),
+        ("sub/raw.html", "<b>raw</b>\n\n"),
+    ]);
+    assert_eq!(
+        sources.read("main.rst").unwrap(),
+        vec![Block::RawBlock(
+            carta_ast::Format("html".into()),
+            "<b>raw</b>".into()
+        )]
+    );
+}
+
+#[test]
 fn a_literal_include_quotes_the_file_as_a_code_block() {
     let sources = Sources::new(&[
         (
