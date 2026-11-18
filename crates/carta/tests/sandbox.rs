@@ -25,6 +25,11 @@ const CASES: &[Case] = &[
         source: ".. include:: canary.txt\n",
     },
     Case {
+        format: "rst",
+        target: &["-t", "plain"],
+        source: ".. include:: canary.txt\n   :literal:\n",
+    },
+    Case {
         format: "asciidoc",
         target: &["-t", "plain"],
         source: "include::canary.txt[]\n",

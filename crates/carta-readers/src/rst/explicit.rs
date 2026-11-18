@@ -1,12 +1,13 @@
 //! Directive and explicit-markup construction during block parsing.
 
-use super::definitions::{RoleDef, included_blocks};
+use super::definitions::RoleDef;
 use super::directives::{
     blank_separated, capitalize, class_div, class_list, code_attr, common_options,
     directive_content, figure_attr, image_classes, image_parts, options_div, split_directive,
     to_plain,
 };
-use super::markers::{Explicit, classify_explicit, explicit_body, explicit_extent};
+use super::include::{is_literal, literal_block};
+use super::markers::{Explicit, classify_explicit, directive_body, explicit_extent};
 use super::{DEFAULT_ROLE, PENDING_CLASS, Parser, indent_of, line_at};
 use carta_ast::{Attr, Block, Caption, ColWidth, Format, Inline, MathType, Target};
 
@@ -37,16 +38,7 @@ impl Parser<'_> {
         end: usize,
         out: &mut Vec<Block>,
     ) {
-        let first = line_at(lines, start).trim_start();
-        let after = first
-            .strip_prefix("..")
-            .unwrap_or(first)
-            .trim_start()
-            .strip_prefix(name)
-            .and_then(|r| r.strip_prefix("::"))
-            .unwrap_or("");
-        let prefix_len = line_at(lines, start).len() - after.len();
-        let body = explicit_body(lines, start, end, prefix_len);
+        let body = directive_body(name, lines, start, end);
         let (argument, options, content) = split_directive(&body);
 
         match name {
@@ -189,19 +181,7 @@ impl Parser<'_> {
                     selected.to_string()
                 };
             }
-            "include" => {
-                if let Some(blocks) = included_blocks(
-                    argument.trim(),
-                    self.ext,
-                    self.columns,
-                    self.tab_stop,
-                    self.work,
-                    self.includes,
-                    self.host,
-                ) {
-                    out.extend(blocks);
-                }
-            }
+            "include" => self.include(&argument, &options, out),
             _ => {
                 let mut blocks = Vec::new();
                 if !argument.trim().is_empty() {
@@ -210,6 +190,21 @@ impl Parser<'_> {
                 blocks.extend(self.blocks(&content));
                 out.push(options_div(name, &options, blocks));
             }
+        }
+    }
+
+    /// An `include` directive: the named file's lines parse in place, sharing this parser's
+    /// state, or are quoted as a code block under `literal` or `code`.
+    fn include(&mut self, argument: &str, options: &[(String, String)], out: &mut Vec<Block>) {
+        if is_literal(options) {
+            let lines = self.includes.quote(argument, options);
+            out.push(literal_block(options, &lines));
+            return;
+        }
+        match self.includes.open(argument, options) {
+            Ok(Some(included)) => out.extend(self.blocks(&included.lines)),
+            Ok(None) => {}
+            Err(error) => self.failure = Some(error),
         }
     }
 

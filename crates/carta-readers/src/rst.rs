@@ -3,15 +3,15 @@
 use crate::heading_ids::IdRegistry;
 use crate::tabs::expand_tabs;
 use carta_ast::Document;
-use carta_core::{Error, Extensions, HostAccess, Reader, ReaderOptions, Result};
-use std::cell::{Cell, RefCell};
+use carta_core::{Error, Extensions, Reader, ReaderOptions, Result};
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
 
 mod block;
 mod definitions;
 mod directives;
 mod explicit;
+mod include;
 mod inline;
 mod inline_helpers;
 mod markers;
@@ -21,6 +21,7 @@ mod tables;
 mod tests;
 
 use self::definitions::{Definitions, RoleDef, collect_definitions};
+use self::include::Includes;
 
 /// Parses reStructuredText into the document model.
 ///
@@ -32,17 +33,16 @@ pub struct RstReader;
 impl Reader for RstReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let lines = preprocess(input, options.tab_stop);
-        let defs = collect_definitions(&lines);
         let work = Cell::new(Some(
             (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         ));
-        let includes = RefCell::new(BTreeMap::new());
+        let includes = Includes::new(options, &work);
+        let defs = collect_definitions(&lines, &includes);
         let mut parser = Parser {
             defs: &defs,
             work: &work,
             ext: options.extensions,
             columns: options.columns.max(1),
-            tab_stop: options.tab_stop,
             heading_styles: Vec::new(),
             ids: IdRegistry::default(),
             auto_footnote: 0,
@@ -51,7 +51,7 @@ impl Reader for RstReader {
             custom_roles: BTreeMap::new(),
             default_role: DEFAULT_ROLE.to_string(),
             includes: &includes,
-            host: options.host,
+            failure: None,
             active_substitutions: BTreeSet::new(),
             active_footnotes: BTreeSet::new(),
             deferred: BTreeMap::new(),
@@ -59,6 +59,9 @@ impl Reader for RstReader {
         let mut blocks = parser.blocks(&lines);
         if let Some(div) = parser.citation_block() {
             blocks.push(div);
+        }
+        if let Some(failure) = parser.failure.take() {
+            return Err(failure);
         }
         if work.get().is_none() {
             return Err(Error::OutputTooLarge);
@@ -192,7 +195,6 @@ struct Parser<'a> {
     work: &'a Cell<Option<usize>>,
     ext: Extensions,
     columns: usize,
-    tab_stop: usize,
     heading_styles: Vec<(char, bool)>,
     ids: IdRegistry,
     auto_footnote: usize,
@@ -202,8 +204,9 @@ struct Parser<'a> {
     custom_roles: BTreeMap<String, RoleDef>,
     /// The role applied to interpreted text with no explicit role.
     default_role: String,
-    includes: &'a Includes,
-    host: HostAccess,
+    includes: &'a Includes<'a>,
+    /// The error that fails the whole read, such as an include loop.
+    failure: Option<Error>,
     /// Substitution names being expanded; cyclic references stay unresolved.
     active_substitutions: BTreeSet<String>,
     /// Named footnotes being expanded; cyclic references stay unresolved.
@@ -215,13 +218,6 @@ struct Parser<'a> {
     /// during tree construction.
     deferred: BTreeMap<String, String>,
 }
-
-enum IncludeState {
-    Active,
-    Finished,
-}
-
-type Includes = RefCell<BTreeMap<PathBuf, IncludeState>>;
 
 impl Parser<'_> {
     fn spend(&self, amount: usize) -> bool {

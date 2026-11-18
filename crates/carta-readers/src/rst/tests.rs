@@ -23,23 +23,169 @@ fn with_auto_ids() -> Extensions {
     extensions
 }
 
+/// A scratch directory of source files, removed when dropped.
+struct Sources(std::path::PathBuf, Vec<(String, String)>);
+
+impl Sources {
+    fn new(files: &[(&str, &str)]) -> Self {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let directory = std::env::temp_dir().join(format!(
+            "carta-rst-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        for (name, text) in files {
+            let path = directory.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        let files = files
+            .iter()
+            .map(|(name, text)| ((*name).to_owned(), (*text).to_owned()))
+            .collect();
+        Self(directory, files)
+    }
+
+    fn text(&self, name: &str) -> &str {
+        let file = self.1.iter().find(|(file, _)| file == name);
+        &file.unwrap().1
+    }
+
+    /// Reads the file `name` as the document, the way the command line hands it over.
+    fn read(&self, name: &str) -> carta_core::Result<Vec<Block>> {
+        let path = self.0.join(name);
+        let mut options = ReaderOptions::default();
+        options.extensions = with_auto_ids();
+        options.source_dir = path.parent().map(std::path::Path::to_path_buf);
+        options.source_paths.insert(0, path);
+        Ok(RstReader.read(self.text(name), &options)?.blocks)
+    }
+}
+
+impl Drop for Sources {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 #[test]
-fn tab_stops_apply_to_literal_blocks_and_included_files() {
+fn tab_stops_apply_to_the_document_but_not_to_included_files() {
     let input = "::\n\n  a\tb\n";
-    let path = std::env::temp_dir().join(format!("carta_rst_tab_stop_{}.rst", std::process::id()));
-    std::fs::write(&path, input).unwrap();
-    let include = format!(".. include:: {}\n", path.display());
+    let sources = Sources::new(&[("literal.rst", input)]);
+    let include = format!(".. include:: {}\n", sources.0.join("literal.rst").display());
     for (width, text) in [(0, "a\tb"), (3, "a   b"), (4, "a b"), (8, "a     b")] {
         let mut options = ReaderOptions::default();
         options.tab_stop = width;
-        for source in [input, include.as_str()] {
+        for (source, text) in [(input, text), (include.as_str(), "a\tb")] {
             assert_eq!(
                 RstReader.read(source, &options).unwrap().blocks,
                 vec![Block::CodeBlock(Box::default(), text.into())]
             );
         }
     }
-    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn an_included_file_shares_the_document_state() {
+    let sources = Sources::new(&[
+        (
+            "main.rst",
+            "Top\n===\n\n|name| first.\n\n.. include:: part.rst\n\nTop\n===\n",
+        ),
+        (
+            "part.rst",
+            ".. |name| replace:: Substituted\n\nInner\n-----\n",
+        ),
+    ]);
+    let blocks = sources.read("main.rst").unwrap();
+    let headers: Vec<(i64, &str)> = blocks
+        .iter()
+        .filter_map(|block| match block {
+            Block::Header(level, attr, _) => Some((*level, attr.id.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(headers, [(1, "top"), (2, "inner"), (1, "top-1")]);
+    assert!(matches!(
+        blocks.get(1),
+        Some(Block::Para(inlines)) if inlines.first() == Some(&Inline::Str("Substituted".into()))
+    ));
+}
+
+#[test]
+fn a_nested_include_resolves_against_the_including_file() {
+    let sources = Sources::new(&[
+        ("main.rst", ".. include:: sub/middle.rst\n"),
+        ("sub/middle.rst", ".. include:: leaf.rst\n"),
+        ("sub/leaf.rst", "Leaf.\n"),
+        ("leaf.rst", "Wrong leaf.\n"),
+    ]);
+    assert_eq!(
+        sources.read("main.rst").unwrap(),
+        vec![Block::Para(vec![Inline::Str("Leaf.".into())])]
+    );
+}
+
+#[test]
+fn an_include_loop_fails_the_read() {
+    let sources = Sources::new(&[
+        ("main.rst", ".. include:: main.rst\n"),
+        ("first.rst", ".. include:: second.rst\n"),
+        ("second.rst", ".. include:: first.rst\n"),
+        (
+            "twice.rst",
+            ".. include:: leaf.rst\n\n.. include:: leaf.rst\n",
+        ),
+        ("quoted.rst", ".. include:: quoted.rst\n   :literal:\n"),
+        ("leaf.rst", "Leaf.\n"),
+    ]);
+    assert!(sources.read("main.rst").is_err());
+    assert!(sources.read("first.rst").is_err());
+    assert_eq!(sources.read("twice.rst").unwrap().len(), 2);
+    assert!(matches!(
+        sources.read("quoted.rst").unwrap().as_slice(),
+        [Block::CodeBlock(..)]
+    ));
+}
+
+#[test]
+fn a_literal_include_quotes_the_file_as_a_code_block() {
+    let sources = Sources::new(&[
+        (
+            "main.rst",
+            ".. include:: code.py\n   :code: python\n   :number-lines: 5\n   :class: extra\n   \
+             :name: listing\n   :end-line: 1\n\n.. include:: missing.txt\n   :literal:\n",
+        ),
+        ("code.py", "first = 1\r\nsecond = 2\r\n"),
+    ]);
+    let attr = |id: &str, classes: &[&str], attributes: &[(&str, &str)]| {
+        Box::new(Attr {
+            id: id.into(),
+            classes: classes.iter().map(|class| (*class).into()).collect(),
+            attributes: attributes
+                .iter()
+                .map(|(key, value)| ((*key).into(), (*value).into()))
+                .collect(),
+        })
+    };
+    assert_eq!(
+        sources.read("main.rst").unwrap(),
+        vec![
+            Block::CodeBlock(
+                attr(
+                    "listing",
+                    &["python", "numberLines", "extra"],
+                    &[
+                        ("code", "python\n\n"),
+                        ("end-line", "1\n\n"),
+                        ("startFrom", "5\n\n")
+                    ]
+                ),
+                "first = 1\n".into()
+            ),
+            Block::CodeBlock(attr("", &[""], &[("literal", "")]), "".into()),
+        ]
+    );
 }
 
 #[test]
