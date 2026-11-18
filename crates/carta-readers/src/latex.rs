@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use carta_ast::{Block, Document, MetaValue};
-use carta_core::walk::for_each_block;
+use carta_core::walk::{for_each_block, for_each_document_block};
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::IdRegistry;
@@ -73,7 +73,7 @@ impl Reader for LatexReader {
                 format.0 = "latex".into();
             }
         });
-        let base_level = raise_sections(&mut document.blocks);
+        let base_level = raise_sections(&mut document);
         references::resolve(&mut document, base_level);
         Ok(document)
     }
@@ -93,18 +93,19 @@ fn split_document(input: &str) -> (Option<&str>, &str) {
     }
 }
 
-/// Raises the headings so the highest sectioning command the document uses becomes level one:
-/// not at all after a `\part`, one level after a `\chapter`, and otherwise two. Returns the level
-/// offset of the sectioning commands, which is the intrinsic level of that highest command.
-fn raise_sections(blocks: &mut [Block]) -> i32 {
+/// Raises the headings so the highest sectioning command the document body uses becomes level
+/// one: not at all after a `\part`, one level after a `\chapter`, and otherwise two. Headings in
+/// metadata move with them. Returns the level offset of the sectioning commands, which is the
+/// intrinsic level of that highest command.
+fn raise_sections(document: &mut Document) -> i32 {
     let mut highest = PARSED_SECTION_LEVEL;
-    for_each_block(blocks, &mut |block| {
+    for_each_block(&mut document.blocks, &mut |block| {
         if let Block::Header(level, _, _) = block {
             highest = highest.min(*level);
         }
     });
     let raise = highest - 1;
-    for_each_block(blocks, &mut |block| {
+    for_each_document_block(document, &mut |block| {
         if let Block::Header(level, _, _) = block {
             *level -= raise;
         }

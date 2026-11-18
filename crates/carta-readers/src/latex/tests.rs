@@ -1016,6 +1016,19 @@ fn a_chapter_from_an_included_file_sets_the_heading_levels() {
 }
 
 #[test]
+fn a_heading_in_metadata_moves_with_the_body_headings() {
+    let source = "\\begin{abstract}\\section{Summary}\\end{abstract}\\section{Details}";
+    let mut document = LatexReader.read(source, &ReaderOptions::default()).unwrap();
+    let mut levels = Vec::new();
+    carta_core::walk::for_each_document_block(&mut document, &mut |block| {
+        if let Block::Header(level, _, _) = block {
+            levels.push(*level);
+        }
+    });
+    assert_eq!(levels, [1, 1]);
+}
+
+#[test]
 fn a_macro_named_input_replaces_the_file_command() {
     let blocks = read_with_files(
         "macro",
