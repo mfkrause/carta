@@ -154,6 +154,10 @@ impl<'a> Includes<'a> {
         let named = |name: &str, error: io::Error| {
             Error::Io(io::Error::new(error.kind(), format!("{name}: {error}")))
         };
+        let named_source = option(options, "file").or_else(|| option(options, "url"));
+        if named_source.is_some() && self.spent() {
+            return Ok(Some("".into()));
+        }
         let text = if let Some(file) = option(options, "file") {
             self.resource(Path::new(file))
                 .map_err(|error| named(file, error))?
@@ -176,6 +180,9 @@ impl<'a> Includes<'a> {
     }
 
     fn lines(&self, canonical: &Path, options: &[(String, String)]) -> Option<Vec<String>> {
+        if self.spent() {
+            return None;
+        }
         let text = self.text(canonical).ok()?;
         if !self.spend(&text) {
             return None;
@@ -204,6 +211,11 @@ impl<'a> Includes<'a> {
         self.grant(&text);
         texts.insert(canonical.to_path_buf(), Rc::clone(&text));
         text
+    }
+
+    /// Whether the work budget is spent: the read fails then, so nothing more is read.
+    fn spent(&self) -> bool {
+        self.work.get().is_none()
     }
 
     /// Extends the work budget for a text seen for the first time.

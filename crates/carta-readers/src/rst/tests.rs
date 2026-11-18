@@ -158,6 +158,19 @@ fn includes_nested_past_the_limit_fail_the_read() {
 }
 
 #[test]
+fn nothing_more_is_read_once_the_work_budget_is_spent() {
+    // Each use of the file costs more than its include line adds to the budget.
+    let mut main = ".. include:: part.rst\n\n".repeat(600);
+    main.push_str(".. csv-table::\n   :file: missing.csv\n");
+    let part = "word ".repeat(800);
+    let sources = Sources::new(&[("main.rst", &main), ("part.rst", &part)]);
+    assert!(matches!(
+        sources.read("main.rst"),
+        Err(carta_core::Error::OutputTooLarge)
+    ));
+}
+
+#[test]
 fn an_include_loop_fails_the_read() {
     let sources = Sources::new(&[
         ("main.rst", ".. include:: main.rst\n"),

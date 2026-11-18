@@ -38,6 +38,9 @@ impl Reader for RstReader {
         ));
         let includes = Includes::new(input, options, &work);
         let defs = collect_definitions(&lines, &includes);
+        if work.get().is_none() {
+            return Err(Error::OutputTooLarge);
+        }
         let mut parser = Parser {
             defs: &defs,
             work: &work,
