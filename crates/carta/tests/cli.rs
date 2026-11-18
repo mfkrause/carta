@@ -2496,6 +2496,7 @@ const INCLUDES: &[(&str, &str, &str, bool)] = &[
     ("rst", "rst", ".. include:: NAME", true),
     ("man", "man", ".so NAME", false),
     ("latex", "tex", "\\input{NAME}", false),
+    ("typst", "typ", "#include \"NAME\"", true),
 ];
 
 #[cfg(feature = "full")]
