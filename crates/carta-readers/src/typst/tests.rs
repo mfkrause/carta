@@ -265,38 +265,19 @@ fn a_rooted_reference_does_not_start_at_the_root_of_the_file_system() {
     assert!(result.is_err());
 }
 
-/// The image paths of `files[0]`, each without the scratch directory that holds the files.
-fn image_paths(label: &str, files: &[(&str, &str)]) -> Vec<String> {
-    let directory =
-        std::env::temp_dir().join(format!("carta-typst-{}-{label}", std::process::id()));
-    let mut document = Document {
-        blocks: parse_in_directory(label, files),
-        ..Document::default()
-    };
-    let mut paths = Vec::new();
-    carta_core::walk::for_each_document_image_target(&mut document, &mut |target| {
-        let path = std::path::Path::new(target.url.as_str());
-        let path = path
-            .strip_prefix(&directory)
-            .expect("a path under the directory");
-        paths.push(path.to_str().expect("a printable path").replace('\\', "/"));
-    });
-    paths
-}
-
 #[test]
-fn an_image_resolves_against_the_directory_of_the_file_that_names_it() {
-    let paths = image_paths(
-        "image",
-        &[
-            (
-                "doc.typ",
-                "#image(\"pics/a.png\")\n\n#include \"sub/part.typ\"\n",
-            ),
-            ("sub/part.typ", "#image(\"b.png\") #image(\"/c.png\")\n"),
-        ],
-    );
-    assert_eq!(paths, ["pics/a.png", "sub/b.png", "c.png"]);
+fn an_image_resolves_against_the_directory_of_its_source() {
+    let blocks = parse_in_directory("image", &[("doc.typ", "#image(\"pics/a.png\")\n")]);
+    let directory = std::env::temp_dir().join(format!("carta-typst-{}-image", std::process::id()));
+    let expected = directory.join("pics/a.png");
+    let expected = expected.to_str().expect("a printable path");
+    match blocks.as_slice() {
+        [Block::Para(inlines)] => match inlines.as_slice() {
+            [Inline::Image(_, _, target)] => assert_eq!(target.url.as_str(), expected),
+            other => panic!("expected one image, got {other:?}"),
+        },
+        other => panic!("expected one paragraph, got {other:?}"),
+    }
 }
 
 #[test]

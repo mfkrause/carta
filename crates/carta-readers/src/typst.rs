@@ -3321,9 +3321,8 @@ impl Parser {
         if reference.is_empty() {
             return None;
         }
-        let located = self.locate(reference);
-        let canonical = self.host.canonicalize(&located);
-        let path = canonical.unwrap_or_else(|_| located.clone());
+        let path = self.locate(reference);
+        let path = self.host.canonicalize(&path).unwrap_or(path);
         if self.source_file() == Some(&path) || !self.open.insert(path.clone()) {
             return None;
         }
@@ -3346,9 +3345,7 @@ impl Parser {
         let start = self.source.len();
         self.source.extend(source);
         let end = self.source.len();
-        // The directory as the reference names it, so the paths made from it do not depend on
-        // where the files are on this machine.
-        let base = located
+        let base = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .map(Path::to_path_buf);
@@ -4721,15 +4718,7 @@ impl Parser {
                     .unwrap_or_default(),
             )]),
             "link" => link_call(args),
-            "image" => {
-                let reference = positional_text(&args);
-                let path = if reference.is_empty() {
-                    reference
-                } else {
-                    self.locate(&reference).to_string_lossy().into_owned()
-                };
-                Value::Inlines(vec![image(&args, &path)])
-            }
+            "image" => Value::Inlines(vec![image(&args, self.base())]),
             "raw" => raw_call(&args),
             "label" => Value::Label(positional_text(&args)),
             "regex" => Value::Regex(positional_text(&args)),
@@ -6084,8 +6073,19 @@ fn link_call(mut args: Vec<Arg>) -> Value {
     )])
 }
 
-/// An image at `path`, with the description and the size that the arguments give.
-fn image(args: &[Arg], path: &str) -> Inline {
+/// Place a file reference under the directory its source was named in. A reference that names an
+/// absolute location, and one made from a source with no directory, stands on its own.
+fn under_base(base: Option<&Path>, reference: &str) -> String {
+    let Some(base) = base.filter(|_| !reference.is_empty()) else {
+        return reference.to_string();
+    };
+    base.join(reference)
+        .to_str()
+        .map_or_else(|| reference.to_string(), str::to_string)
+}
+
+fn image(args: &[Arg], base: Option<&Path>) -> Inline {
+    let path = under_base(base, &positional_text(args));
     let alt = named(args, "alt")
         .map(|value| value.clone().into_inlines())
         .unwrap_or_default();
@@ -6100,7 +6100,7 @@ fn image(args: &[Arg], path: &str) -> Inline {
         }),
         alt,
         Box::new(Target {
-            url: path.into(),
+            url: path.as_str().into(),
             title: Text::default(),
         }),
     )
