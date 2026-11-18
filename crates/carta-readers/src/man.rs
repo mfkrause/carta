@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{Attr, Block, Document, Inline, MetaValue, slug, slug_gfm, to_plain_text};
 use carta_core::{Extensions, HostAccess, Reader, ReaderOptions, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
@@ -299,19 +299,11 @@ impl Parser {
     /// The logical lines of the file a `.so` request names, found along the resource path. `None`
     /// when the file cannot be read, is already being included, or the expansion budget is spent.
     fn included_lines(&mut self, name: &str) -> Option<Vec<String>> {
-        let working_directory = [PathBuf::new()];
-        let directories = if self.resource_path.is_empty() {
-            &working_directory[..]
-        } else {
-            &self.resource_path
-        };
-        let path = directories
-            .iter()
-            .find_map(|directory| self.host.canonicalize(&directory.join(name)).ok())?;
+        let found = self.host.read_from(&self.resource_path, Path::new(name));
+        let (path, text) = found.ok()?;
         if self.including.contains(&path) {
             return None;
         }
-        let text = self.host.read_to_string(&path).ok()?;
         let ended = text
             .strip_suffix('\n')
             .map(|body| body.strip_suffix('\r').unwrap_or(body))

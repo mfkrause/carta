@@ -49,16 +49,8 @@ impl Parser {
     /// when the file cannot be read or the budget is spent.
     fn read_file(&self, name: &str) -> Option<(PathBuf, String)> {
         let files = self.files.as_ref()?;
-        let working_directory = [PathBuf::new()];
-        let directories = if files.search_path.is_empty() {
-            &working_directory[..]
-        } else {
-            &files.search_path
-        };
-        let canonical = directories
-            .iter()
-            .find_map(|directory| files.host.canonicalize(&directory.join(name)).ok())?;
-        let text = files.host.read_to_string(&canonical).ok()?;
+        let found = files.host.read_from(&files.search_path, Path::new(name));
+        let (canonical, text) = found.ok()?;
         let budget = &self.expansions;
         if files.read.borrow_mut().insert(canonical.clone()) {
             let grant = text.len().saturating_mul(64);

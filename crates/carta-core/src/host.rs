@@ -51,6 +51,32 @@ impl HostAccess {
         std::fs::read_to_string(path)
     }
 
+    /// Reads as UTF-8 text the first file named `name` that one of `directories` holds, and gives
+    /// its canonical path. A name that cannot be read in one directory is looked for in the next.
+    /// An empty list is the working directory.
+    ///
+    /// # Errors
+    /// The error of the last directory tried, or [`io::ErrorKind::NotFound`] in the sandbox.
+    pub fn read_from(self, directories: &[PathBuf], name: &Path) -> io::Result<(PathBuf, String)> {
+        let working_directory = [PathBuf::new()];
+        let directories = if directories.is_empty() {
+            &working_directory[..]
+        } else {
+            directories
+        };
+        let mut found = Err(sandboxed());
+        for directory in directories {
+            found = self.canonicalize(&directory.join(name)).and_then(|path| {
+                let text = self.read_to_string(&path)?;
+                Ok((path, text))
+            });
+            if found.is_ok() {
+                break;
+            }
+        }
+        found
+    }
+
     /// Resolves `path` to its canonical absolute form, which exists only for a file that does.
     ///
     /// # Errors
@@ -100,9 +126,22 @@ mod tests {
             HostAccess::Sandboxed.read(&path).map(drop),
             HostAccess::Sandboxed.read_to_string(&path).map(drop),
             HostAccess::Sandboxed.canonicalize(&path).map(drop),
+            HostAccess::Sandboxed.read_from(&[], &path).map(drop),
         ] {
             assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
         }
+    }
+
+    #[test]
+    fn a_search_passes_a_name_that_cannot_be_read() {
+        let root = std::env::temp_dir().join(format!("carta-host-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("first/name")).unwrap();
+        std::fs::create_dir_all(root.join("second")).unwrap();
+        std::fs::write(root.join("second/name"), "text").unwrap();
+        let directories = [root.join("first"), root.join("second")];
+        let found = HostAccess::Local.read_from(&directories, Path::new("name"));
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(found.unwrap().1, "text");
     }
 
     #[test]

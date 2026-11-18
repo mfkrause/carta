@@ -167,20 +167,8 @@ impl<'a> Includes<'a> {
     }
 
     fn resource(&self, name: &Path) -> io::Result<Rc<str>> {
-        let working_directory = [PathBuf::new()];
-        let directories = if self.resource_path.is_empty() {
-            &working_directory[..]
-        } else {
-            &self.resource_path
-        };
-        let mut found = Err(io::ErrorKind::NotFound.into());
-        for directory in directories {
-            found = self.host.canonicalize(&directory.join(name));
-            if found.is_ok() {
-                break;
-            }
-        }
-        self.text(&found?)
+        let (canonical, text) = self.host.read_from(&self.resource_path, name)?;
+        Ok(self.keep(&canonical, &text))
     }
 
     fn lines(&self, canonical: &Path, options: &[(String, String)]) -> Option<Vec<String>> {
@@ -198,17 +186,19 @@ impl<'a> Includes<'a> {
         if let Some(text) = self.texts.borrow().get(canonical) {
             return Ok(Rc::clone(text));
         }
-        let text: Rc<str> = self
-            .host
-            .read_to_string(canonical)?
-            .replace("\r\n", "\n")
-            .replace('\r', "\n")
-            .into();
+        Ok(self.keep(canonical, &self.host.read_to_string(canonical)?))
+    }
+
+    /// Keeps the first text read for a file, with its line endings normalized.
+    fn keep(&self, canonical: &Path, text: &str) -> Rc<str> {
+        let mut texts = self.texts.borrow_mut();
+        if let Some(kept) = texts.get(canonical) {
+            return Rc::clone(kept);
+        }
+        let text: Rc<str> = text.replace("\r\n", "\n").replace('\r', "\n").into();
         self.grant(&text);
-        self.texts
-            .borrow_mut()
-            .insert(canonical.to_path_buf(), Rc::clone(&text));
-        Ok(text)
+        texts.insert(canonical.to_path_buf(), Rc::clone(&text));
+        text
     }
 
     /// Extends the work budget for a text seen for the first time.
