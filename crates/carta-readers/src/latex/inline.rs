@@ -188,7 +188,9 @@ impl Parser {
                 return true;
             }
             let listing = matches!(word.as_str(), "lstinputlisting" | "inputminted");
-            if listing && self.files.is_some() && !self.macros.contains_key(&word) {
+            let redefined =
+                self.ext.contains(Extension::LatexMacros) && self.macros.contains_key(&word);
+            if listing && self.files.is_some() && !redefined {
                 return true;
             }
             return matches!(word.as_str(), "item" | "par");
