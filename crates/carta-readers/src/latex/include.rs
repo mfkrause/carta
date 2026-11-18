@@ -1,6 +1,6 @@
 //! Files a LaTeX document pulls in: `\input`, `\include`, `\subfile`, local packages, and listings.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -10,6 +10,7 @@ use carta_core::{HostAccess, ReaderOptions};
 
 use super::tables::parse_key_values;
 use super::{Expansion, Frame, Macro, MacroCall, Parser, split_document};
+use crate::tabs::expand_tabs;
 
 /// Where the files a document names are found, and which have been read.
 pub(super) struct Files {
@@ -18,6 +19,10 @@ pub(super) struct Files {
     search_path: Vec<PathBuf>,
     /// Canonical paths read so far; each extends the expansion budget once.
     read: RefCell<BTreeSet<PathBuf>>,
+    /// The document's own files: the character each starts on and its canonical path, if any.
+    sources: Vec<(usize, Option<PathBuf>)>,
+    /// The source file that holds the position being read.
+    current: Cell<usize>,
 }
 
 /// The expansion in progress while `canonical` is being read, so a file cannot include itself.
@@ -30,19 +35,48 @@ fn input_call(canonical: &Path) -> MacroCall {
 }
 
 impl Parser {
-    /// Lets the document read the files it names; its own sources count as being read already.
-    pub(super) fn read_files(&mut self, options: &ReaderOptions) {
-        let mut active = self.expansions.active.borrow_mut();
-        for path in options.source_paths.values() {
-            if let Ok(canonical) = options.host.canonicalize(path) {
-                active.insert(input_call(&canonical));
-            }
-        }
+    /// Lets the document `input` read the files it names. A source file of the document counts
+    /// as being read already while the position being read lies in it.
+    pub(super) fn read_files(&mut self, input: &str, options: &ReaderOptions) {
+        let mut character = 0;
+        let sources = options.source_files(input).into_iter().map(|file| {
+            let first = character;
+            character += expand_tabs(file.text, options.tab_stop).chars().count();
+            let path = file
+                .path
+                .and_then(|path| options.host.canonicalize(path).ok());
+            (first, path)
+        });
         self.files = Some(Rc::new(Files {
             host: options.host,
             search_path: options.resource_path.clone(),
             read: RefCell::new(BTreeSet::new()),
+            sources: sources.collect(),
+            current: Cell::new(0),
         }));
+    }
+
+    /// Notes which source file holds the position being read. Only the parser of the document's
+    /// own text knows that position; any other parser keeps the file its maker noted.
+    pub(super) fn enter_source_file(&self) {
+        let (Some(files), Some(offset)) = (&self.files, self.document_offset) else {
+            return;
+        };
+        let position = offset + self.frames.first().map_or(0, |frame| frame.pos);
+        let holds = |(first, _): &(usize, Option<PathBuf>)| *first <= position;
+        files
+            .current
+            .set(files.sources.iter().rposition(holds).unwrap_or(0));
+    }
+
+    /// Whether `canonical` is the source file that holds the position being read.
+    fn in_source_file(&self, canonical: &Path) -> bool {
+        self.enter_source_file();
+        let current = self
+            .files
+            .as_ref()
+            .and_then(|files| files.sources.get(files.current.get()));
+        current.is_some_and(|(_, path)| path.as_deref() == Some(canonical))
     }
 
     /// The canonical path and text of the file `name`, charged to the expansion budget. `None`
@@ -94,7 +128,9 @@ impl Parser {
             return true;
         };
         let call = input_call(&canonical);
-        if !self.expansions.active.borrow_mut().insert(call.clone()) {
+        if self.in_source_file(&canonical)
+            || !self.expansions.active.borrow_mut().insert(call.clone())
+        {
             return true;
         }
         let expansion = Rc::new(Expansion {

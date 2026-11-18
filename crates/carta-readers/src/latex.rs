@@ -34,23 +34,25 @@ pub struct LatexReader;
 
 impl Reader for LatexReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let input = expand_tabs(input, options.tab_stop);
+        let expanded = expand_tabs(input, options.tab_stop);
         let ext = options.extensions;
-        let (preamble, body) = split_document(&input);
+        let (preamble, body) = split_document(&expanded);
 
         let base_level = base_section_level(body);
 
-        let mut parser = Parser::new(input.len(), ext, base_level);
-        parser.read_files(options);
+        let mut parser = Parser::new(expanded.len(), ext, base_level);
+        parser.read_files(input, options);
 
         let mut blocks = if let Some(preamble) = preamble {
             parser.set_source(preamble);
+            parser.document_offset = Some(0);
             parser.parse_blocks(&Stop::Begin("document"))
         } else {
             Vec::new()
         };
 
         parser.set_source(body);
+        parser.document_offset = Some(preamble.map_or(0, |preamble| preamble.chars().count()));
         blocks.extend(parser.parse_blocks(&Stop::Env("document")));
 
         let mut document = Document {
@@ -241,6 +243,9 @@ struct Parser {
     tex_comments: bool,
     /// Access to the files the document names. `None` for a parser that only expands macros.
     files: Option<Rc<include::Files>>,
+    /// Where the bottom frame starts in the document, counted in characters. `None` for a parser
+    /// of text that is not the document's own.
+    document_offset: Option<usize>,
 }
 
 /// Where an inline run ends.
@@ -279,6 +284,7 @@ impl Parser {
             recording: None,
             tex_comments: true,
             files: None,
+            document_offset: None,
         }
     }
 

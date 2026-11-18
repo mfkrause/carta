@@ -758,6 +758,7 @@ impl Parser {
     }
 
     fn child_frame(&self, frame: Frame, in_figure: bool) -> Parser {
+        self.enter_source_file();
         Parser {
             frames: vec![frame],
             ext: self.ext,
@@ -773,6 +774,7 @@ impl Parser {
             recording: None,
             tex_comments: self.tex_comments,
             files: self.files.clone(),
+            document_offset: None,
         }
     }
 
