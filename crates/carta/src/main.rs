@@ -512,7 +512,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         Output::Text(html) if embed_resources && cli.extract_media.is_none() => {
             let search_path = resource_search_path(cli);
             Output::Text(inline_resources(&html, |reference| {
-                resolve_embed(reference, &embed_bag, &search_path, host)
+                resolve_embed(reference, &embed_bag, &search_path, &cli.css, host)
             }))
         }
         output => output,

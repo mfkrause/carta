@@ -197,6 +197,32 @@ fn the_sandbox_reads_what_the_command_line_names_but_not_what_metadata_names() {
 }
 
 #[test]
+fn the_sandbox_embeds_the_stylesheet_the_command_line_names_but_not_the_one_the_document_names() {
+    let directory = directory("sandbox-css");
+    fs::write(directory.join("flag.css"), "p{color:red}").unwrap();
+    fs::write(directory.join("document.css"), CANARY).unwrap();
+    let source = "---\ntitle: T\n---\n\n<link rel=\"stylesheet\" href=\"document.css\">\n";
+    let arguments = [
+        "-f",
+        "markdown",
+        "-t",
+        "html",
+        "--standalone",
+        "--embed-resources",
+        "--css",
+        "flag.css",
+    ];
+    let output = convert(&directory, &arguments, source);
+    assert!(output.contains("p{color:red}") && output.contains(CANARY));
+    let output = convert(
+        &directory,
+        &[&arguments[..], &["--sandbox"]].concat(),
+        source,
+    );
+    assert!(output.contains("p{color:red}") && !output.contains(CANARY));
+}
+
+#[test]
 fn a_document_reaches_no_url_in_the_sandbox() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();

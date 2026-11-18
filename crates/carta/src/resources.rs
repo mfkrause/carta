@@ -142,12 +142,13 @@ fn metadata_names(document: &Document, key: &str) -> Vec<String> {
 /// Resolve a reference the self-contained HTML pass encounters into its bytes and MIME type, in order:
 /// a resource the reader carried in the bag, then a resource retrieved over HTTP(S), then a local
 /// file found along `search_path`. A reference that resolves nowhere is left external (the pass
-/// keeps it as written).
+/// keeps it as written). One of the caller's own `stylesheets` is read even in the sandbox.
 #[cfg(feature = "write-html")]
 pub(super) fn resolve_embed(
     reference: &str,
     bag: &MediaBag,
     search_path: &[PathBuf],
+    stylesheets: &[PathBuf],
     host: HostAccess,
 ) -> Option<Resource> {
     if let Some(item) = bag.get(reference) {
@@ -162,6 +163,11 @@ pub(super) fn resolve_embed(
             mime: item.mime,
         });
     }
+    let own = stylesheets.iter().any(|path| path.as_os_str() == reference);
+    let host = match host {
+        HostAccess::Sandboxed if own => HostAccess::Local,
+        host => host,
+    };
     let bytes = resolve_resource(reference, search_path, host)?;
     Some(Resource {
         bytes,
