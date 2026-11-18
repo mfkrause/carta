@@ -69,14 +69,14 @@ impl Drop for Sources {
 }
 
 #[test]
-fn tab_stops_apply_to_the_document_but_not_to_included_files() {
+fn tab_stops_apply_to_the_document_and_to_included_files() {
     let input = "::\n\n  a\tb\n";
     let sources = Sources::new(&[("literal.rst", input)]);
     let include = format!(".. include:: {}\n", sources.0.join("literal.rst").display());
     for (width, text) in [(0, "a\tb"), (3, "a   b"), (4, "a b"), (8, "a     b")] {
         let mut options = ReaderOptions::default();
         options.tab_stop = width;
-        for (source, text) in [(input, text), (include.as_str(), "a\tb")] {
+        for source in [input, include.as_str()] {
             assert_eq!(
                 RstReader.read(source, &options).unwrap().blocks,
                 vec![Block::CodeBlock(Box::default(), text.into())]

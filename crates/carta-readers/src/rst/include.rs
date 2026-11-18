@@ -1,5 +1,6 @@
 //! Files a document pulls in: the `include` directive and the `file` and `url` options.
 
+use crate::tabs::expand_tabs;
 use carta_ast::{Attr, Block};
 use carta_core::{Error, HostAccess, ReaderOptions};
 use std::cell::{Cell, RefCell};
@@ -11,6 +12,8 @@ use std::rc::Rc;
 /// The files `include` directives pull in, shared by the definition pass and the block pass.
 pub(super) struct Includes<'a> {
     host: HostAccess,
+    /// The column grid a tab in an included file advances to; zero keeps tabs.
+    tab_stop: usize,
     /// Remaining expanded text work; each inclusion spends the length of its file.
     work: &'a Cell<Option<usize>>,
     /// The document's own source files, each with the document line it starts on.
@@ -64,6 +67,7 @@ impl<'a> Includes<'a> {
         });
         Self {
             host: options.host,
+            tab_stop: options.tab_stop,
             work,
             files: files.collect(),
             current: Cell::new(0),
@@ -176,7 +180,8 @@ impl<'a> Includes<'a> {
         if !self.spend(&text) {
             return None;
         }
-        let lines: Vec<String> = text.lines().map(str::to_owned).collect();
+        let expand = |line| expand_tabs(line, self.tab_stop).into_owned();
+        let lines: Vec<String> = text.lines().map(expand).collect();
         Some(select(&lines, options).to_vec())
     }
 
