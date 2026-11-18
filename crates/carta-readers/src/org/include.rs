@@ -87,27 +87,8 @@ impl Expander {
             || PathBuf::from(include.file),
             |directory| directory.join(include.file),
         );
-        let Ok(canonical) = self.host.canonicalize(&path) else {
-            return Ok(());
-        };
-        let markup = matches!(include.kind, Kind::Markup);
-        if markup && self.chain.contains(&canonical) {
-            return Err(Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("include file loop at {}", include.file),
-            )));
-        }
-        let Ok(text) = self.host.read_to_string(&canonical) else {
-            return Ok(());
-        };
-        if self.known.insert(canonical.clone()) {
-            self.work = self.work.saturating_add(text.len().saturating_mul(64));
-        }
-        self.work = self
-            .work
-            .checked_sub(text.len().max(1))
-            .ok_or(Error::OutputTooLarge)?;
-        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        let file = self.read(&path)?;
+        let text = file.as_ref().map_or("", |(_, text)| text.as_str());
         let lines: Vec<&str> = text.lines().collect();
         let lines = include.lines.select(&lines);
         let indent = include.indent;
@@ -122,8 +103,17 @@ impl Expander {
             Kind::Export(Some(format)) => wrap(&format!("#+begin_export {format}"), "#+end_export"),
             Kind::Export(None) => {}
             Kind::Markup => {
+                let Some((canonical, _)) = &file else {
+                    return Ok(());
+                };
+                if self.chain.contains(canonical) {
+                    return Err(Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("include file loop at {}", include.file),
+                    )));
+                }
                 let mut included = Vec::new();
-                self.chain.push(canonical);
+                self.chain.push(canonical.clone());
                 self.closing = false;
                 let expanded = self.expand(lines, path.parent(), &mut included);
                 self.chain.pop();
@@ -142,6 +132,26 @@ impl Expander {
             }
         }
         Ok(())
+    }
+
+    /// The canonical path and text of a file, with its line endings normalized and its length
+    /// charged to the work budget. `Ok(None)` when the file cannot be read.
+    fn read(&mut self, path: &Path) -> Result<Option<(PathBuf, String)>> {
+        let Ok(canonical) = self.host.canonicalize(path) else {
+            return Ok(None);
+        };
+        let Ok(text) = self.host.read_to_string(&canonical) else {
+            return Ok(None);
+        };
+        if self.known.insert(canonical.clone()) {
+            self.work = self.work.saturating_add(text.len().saturating_mul(64));
+        }
+        self.work = self
+            .work
+            .checked_sub(text.len().max(1))
+            .ok_or(Error::OutputTooLarge)?;
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        Ok(Some((canonical, text)))
     }
 }
 

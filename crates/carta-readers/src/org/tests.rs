@@ -754,7 +754,7 @@ fn an_include_quotes_a_file_as_a_verbatim_block() {
 }
 
 #[test]
-fn an_include_loop_fails_the_read_and_a_missing_file_adds_nothing() {
+fn an_include_loop_fails_the_read_and_a_missing_file_has_no_content() {
     let read = |main: &str| {
         read_with_files(
             "loop",
@@ -768,8 +768,8 @@ fn an_include_loop_fails_the_read_and_a_missing_file_adds_nothing() {
     assert!(read("#+INCLUDE: \"main.org\"\n").is_err());
     assert_eq!(read("#+INCLUDE: \"main.org\" example\n").unwrap().len(), 1);
     assert_eq!(
-        read("#+INCLUDE: \"missing.org\"\ntext\n").unwrap(),
-        [paragraph("text")]
+        read("#+INCLUDE: \"missing.org\"\n#+INCLUDE: \"missing.org\" example\n").unwrap(),
+        [Block::CodeBlock(Box::default(), "".into())]
     );
 }
 
