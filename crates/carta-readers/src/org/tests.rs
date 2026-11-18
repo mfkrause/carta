@@ -725,6 +725,23 @@ fn an_include_splices_markup_as_blocks_of_its_own() {
 }
 
 #[test]
+fn the_headlines_of_an_included_file_go_below_the_headline_above_the_include() {
+    let include = "#+INCLUDE: \"part.org\"\n";
+    let main =
+        format!("{include}* Parent\n{include}{include}#+INCLUDE: \"part.org\" :minlevel 1\n");
+    let blocks = read_with_files(
+        "levels",
+        &[("main.org", &main), ("part.org", "** Deep\n*** Deeper\n")],
+    )
+    .unwrap();
+    let levels = blocks.iter().map(|block| match block {
+        Block::Header(level, _, _) => *level,
+        other => panic!("unexpected block: {other:?}"),
+    });
+    assert_eq!(levels.collect::<Vec<_>>(), [2, 3, 1, 2, 3, 2, 3, 1, 2]);
+}
+
+#[test]
 fn an_include_quotes_a_file_as_a_verbatim_block() {
     let text = "* not a headline\n#+end_src\n,* guarded\n";
     let blocks = read_with_files(

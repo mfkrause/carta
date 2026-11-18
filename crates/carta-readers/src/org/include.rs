@@ -13,8 +13,9 @@ use super::{collect_footnotes, is_footnote_label_char, normalize};
 
 /// Normalizes the line endings of `input` and replaces every `#+INCLUDE: "file"` line with the
 /// content of the file it names. A plain include splices the file's own markup, nested includes
-/// resolved; `src`, `example`, and `export` wrap the file in the block of that kind. A file that
-/// cannot be read contributes nothing.
+/// resolved, with its headlines below the headline that the include is under; `src`, `example`,
+/// and `export` wrap the file in the block of that kind. A file that cannot be read contributes
+/// nothing.
 ///
 /// # Errors
 /// A file that includes itself, directly or through other files, includes nested too deep, and an
@@ -35,8 +36,8 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         work: (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         closing: false,
     };
-    // A verbatim block that one source file opens can end in the next one.
-    let mut blocks = BlockTracker::default();
+    // The source files are one text: a block or a section of one continues in the next.
+    let mut context = Context::default();
     let mut output = String::new();
     for file in options.source_files(input) {
         let path = file
@@ -46,7 +47,7 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         let text = normalize(file.text);
         let lines: Vec<&str> = text.split('\n').collect();
         let mut out = Vec::new();
-        expander.expand(&lines, file.directory, &mut blocks, &mut out)?;
+        expander.expand(&lines, file.directory, &mut context, &mut out)?;
         output.push_str(&out.join("\n"));
     }
     Ok(Cow::Owned(output))
@@ -66,19 +67,31 @@ struct Expander {
     local_labels: BTreeSet<String>,
 }
 
+/// What the lines of a text that were read establish for the lines that follow.
+#[derive(Default)]
+struct Context {
+    /// The verbatim block that is open.
+    blocks: BlockTracker,
+    /// The level of the text's own headline that the next line is below.
+    level: Option<usize>,
+}
+
 impl Expander {
     fn expand(
         &mut self,
         lines: &[&str],
         directory: Option<&Path>,
-        blocks: &mut BlockTracker,
+        context: &mut Context,
         out: &mut Vec<String>,
     ) -> Result<()> {
         for line in lines {
-            let verbatim = blocks.holds(line);
+            let verbatim = context.blocks.holds(line);
             if let Some(include) = Include::parse(line).filter(|_| !verbatim) {
-                self.include(&include, directory, out)?;
+                self.include(&include, directory, context, out)?;
             } else {
+                if !verbatim {
+                    context.level = headline_level(line).or(context.level);
+                }
                 self.separate(line, out);
                 out.push((*line).to_owned());
             }
@@ -97,6 +110,7 @@ impl Expander {
         &mut self,
         include: &Include<'_>,
         directory: Option<&Path>,
+        context: &mut Context,
         out: &mut Vec<String>,
     ) -> Result<()> {
         let path = directory.map_or_else(
@@ -132,11 +146,14 @@ impl Expander {
                 let mut included = Vec::new();
                 self.chain.push(canonical.clone());
                 self.closing = false;
-                let mut blocks = BlockTracker::default();
-                let expanded = self.expand(lines, path.parent(), &mut blocks, &mut included);
+                let mut inner = Context::default();
+                let expanded = self.expand(lines, path.parent(), &mut inner, &mut included);
                 self.chain.pop();
                 expanded?;
-                shift_headlines(&mut included, include.minimum_level, &mut self.work)?;
+                // The headlines of the file become children of the headline above the include.
+                let below = context.level.map(|level| level + 1);
+                let minimum_level = include.minimum_level.or(below);
+                shift_headlines(&mut included, minimum_level, &mut self.work)?;
                 if include.indent.is_empty() {
                     self.localize_footnotes(&mut included)?;
                 }
