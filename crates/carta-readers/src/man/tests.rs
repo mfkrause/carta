@@ -1135,6 +1135,22 @@ fn a_source_request_in_a_macro_definition_runs_when_the_macro_is_called() {
 }
 
 #[test]
+fn a_source_request_in_a_link_label_keeps_the_link() {
+    let blocks = read_with_files(
+        "label",
+        ".UR http://example.com\ntext\n.so label.man\n.UE\n",
+        &[("label.man", "more\n")],
+    );
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert!(matches!(
+        inlines.as_slice(),
+        [Inline::Link(_, label, _)] if to_plain_text(label) == "textmore"
+    ));
+}
+
+#[test]
 fn an_empty_sourced_file_adds_no_line() {
     let blocks = read_with_files(
         "empty",
