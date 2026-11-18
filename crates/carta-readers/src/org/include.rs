@@ -231,7 +231,7 @@ impl Expander {
     fn rebase_links(&mut self, lines: &mut [String], directory: &str) -> Result<()> {
         let mut blocks = BlockTracker::default();
         for line in lines {
-            if blocks.holds(line) || !line.contains("[[") {
+            if blocks.holds(line) || next_link(line).is_none() {
                 continue;
             }
             let rebased = outside_code(line, |text| rebase_links(text, directory));
@@ -436,14 +436,22 @@ fn code_end(line: &str, inner: usize, marker: char) -> Option<usize> {
     })
 }
 
-/// Puts `directory` before the relative file target of each bracket link in `text`.
+/// Where the target of the next bracket link or angle file link in `text` starts, and the
+/// character that ends it.
+fn next_link(text: &str) -> Option<(usize, char)> {
+    let bracket = text.find("[[").map(|at| (at + "[[".len(), ']'));
+    let angle = text.find("<file:").map(|at| (at + "<".len(), '>'));
+    [bracket, angle].into_iter().flatten().min()
+}
+
+/// Puts `directory` before the relative file target of each link in `text`.
 fn rebase_links(text: &str, directory: &str) -> String {
     let mut rebased = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(start) = rest.find("[[") {
-        let (before, link) = rest.split_at(start + "[[".len());
+    while let Some((start, close)) = next_link(rest) {
+        let (before, link) = rest.split_at(start);
         rebased.push_str(before);
-        let (target, after) = link.split_at(link.find(']').unwrap_or(link.len()));
+        let (target, after) = link.split_at(link.find(close).unwrap_or(link.len()));
         let (scheme, path) = match target.strip_prefix("file:") {
             Some(path) => ("file:", path),
             None => ("", target),
@@ -610,11 +618,10 @@ mod tests {
 
     #[test]
     fn a_relative_file_target_moves_below_the_directory_of_its_file() {
-        let links = "[[file:a.png]] [[./b.png][b]] [[file:../up.png]] [[file:n.org::*H]]";
-        let rebased =
-            "[[file:sub/a.png]] [[./sub/b.png][b]] [[file:up.png]] [[file:sub/n.org::*H]]";
+        let links = "[[file:a.png]] [[./b.png][b]] [[file:../up.png]] <file:n.org::*H>";
+        let rebased = "[[file:sub/a.png]] [[./sub/b.png][b]] [[file:up.png]] <file:sub/n.org::*H>";
         assert_eq!(rebase_links(links, "sub"), rebased);
-        let fixed = "[[file:/a.png]] [[file:~/a.png]] [[https://a.org]] [[a.png]] [[#a]]";
+        let fixed = "[[file:/a.png]] [[file:~/a.png]] [[https://a.org]] [[a.png]] <./a.png>";
         assert_eq!(rebase_links(fixed, "sub"), fixed);
     }
 
