@@ -30,6 +30,9 @@ pub enum HostAccess {
 }
 
 impl HostAccess {
+    /// How many files deep the includes of a document may nest before a reader fails the read.
+    pub const NESTING_LIMIT: usize = 128;
+
     /// Reads the file at `path`.
     ///
     /// # Errors

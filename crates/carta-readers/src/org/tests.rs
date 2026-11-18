@@ -774,6 +774,24 @@ fn an_include_loop_fails_the_read_and_a_missing_file_has_no_content() {
 }
 
 #[test]
+fn includes_nested_past_the_limit_fail_the_read() {
+    let chain = |length: usize| {
+        let name = |index: usize| format!("{index}.org");
+        let mut files: Vec<(String, String)> = (0..length)
+            .map(|index| (name(index), format!("#+INCLUDE: \"{}\"\n", name(index + 1))))
+            .collect();
+        files.push((name(length), "end\n".to_owned()));
+        let files: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(name, text)| (name.as_str(), text.as_str()))
+            .collect();
+        read_with_files("nesting", &files)
+    };
+    assert_eq!(chain(100).unwrap(), [paragraph("end")]);
+    assert!(chain(200).is_err());
+}
+
+#[test]
 fn an_include_indent_out_of_proportion_to_the_input_fails_the_read() {
     let main = format!("{}#+INCLUDE: \"lines.txt\" example\n", " ".repeat(2000));
     let lines = "x\n".repeat(2000);

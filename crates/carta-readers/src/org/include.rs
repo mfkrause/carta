@@ -17,8 +17,8 @@ use super::normalize;
 /// cannot be read contributes nothing.
 ///
 /// # Errors
-/// A file that includes itself, directly or through other files, and an expansion out of all
-/// proportion to the input.
+/// A file that includes itself, directly or through other files, includes nested too deep, and an
+/// expansion out of all proportion to the input.
 pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<'a, str>> {
     let normalized = normalize(input);
     if !normalized
@@ -34,7 +34,7 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         work: (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         closing: false,
     };
-    let mut expanded = String::new();
+    let mut output = String::new();
     for file in options.source_files(input) {
         let path = file
             .path
@@ -44,9 +44,9 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         let lines: Vec<&str> = text.split('\n').collect();
         let mut out = Vec::new();
         expander.expand(&lines, file.directory, &mut out)?;
-        expanded.push_str(&out.join("\n"));
+        output.push_str(&out.join("\n"));
     }
-    Ok(Cow::Owned(expanded))
+    Ok(Cow::Owned(output))
 }
 
 struct Expander {
@@ -119,10 +119,10 @@ impl Expander {
                     return Ok(());
                 };
                 if self.chain.contains(canonical) {
-                    return Err(Error::Io(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!("include file loop at {}", include.file),
-                    )));
+                    return Err(invalid(format!("include file loop at {}", include.file)));
+                }
+                if self.chain.len() > HostAccess::NESTING_LIMIT {
+                    return Err(invalid("include nesting limit exceeded".to_owned()));
                 }
                 let mut included = Vec::new();
                 self.chain.push(canonical.clone());
@@ -286,6 +286,13 @@ impl BlockTracker {
         }
         true
     }
+}
+
+fn invalid(message: String) -> Error {
+    Error::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        message,
+    ))
 }
 
 /// Charges `bytes` of generated text to the remaining `work`.

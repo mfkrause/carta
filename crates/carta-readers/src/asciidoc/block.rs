@@ -932,7 +932,7 @@ impl Parser {
     }
 
     fn included_document(&mut self, source: &str, path: &std::path::Path) -> Vec<Block> {
-        if self.include_depth >= 128 {
+        if self.include_depth >= carta_core::HostAccess::NESTING_LIMIT {
             self.fatal_error(carta_core::Error::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "include nesting limit exceeded",
