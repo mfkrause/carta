@@ -35,6 +35,8 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         work: (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         closing: false,
     };
+    // A verbatim block that one source file opens can end in the next one.
+    let mut blocks = BlockTracker::default();
     let mut output = String::new();
     for file in options.source_files(input) {
         let path = file
@@ -44,7 +46,7 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         let text = normalize(file.text);
         let lines: Vec<&str> = text.split('\n').collect();
         let mut out = Vec::new();
-        expander.expand(&lines, file.directory, &mut out)?;
+        expander.expand(&lines, file.directory, &mut blocks, &mut out)?;
         output.push_str(&out.join("\n"));
     }
     Ok(Cow::Owned(output))
@@ -69,9 +71,9 @@ impl Expander {
         &mut self,
         lines: &[&str],
         directory: Option<&Path>,
+        blocks: &mut BlockTracker,
         out: &mut Vec<String>,
     ) -> Result<()> {
-        let mut blocks = BlockTracker::default();
         for line in lines {
             let verbatim = blocks.holds(line);
             if let Some(include) = Include::parse(line).filter(|_| !verbatim) {
@@ -130,7 +132,8 @@ impl Expander {
                 let mut included = Vec::new();
                 self.chain.push(canonical.clone());
                 self.closing = false;
-                let expanded = self.expand(lines, path.parent(), &mut included);
+                let mut blocks = BlockTracker::default();
+                let expanded = self.expand(lines, path.parent(), &mut blocks, &mut included);
                 self.chain.pop();
                 expanded?;
                 shift_headlines(&mut included, include.minimum_level, &mut self.work)?;
