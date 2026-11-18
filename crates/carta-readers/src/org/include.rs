@@ -91,17 +91,18 @@ impl Expander {
         let text = file.as_ref().map_or("", |(_, text)| text.as_str());
         let lines: Vec<&str> = text.lines().collect();
         let lines = include.lines.select(&lines);
-        let indent = include.indent;
-        let mut wrap = |open: &str, close: &str| {
-            out.push(format!("{indent}{open}"));
-            out.extend(lines.iter().map(|line| format!("{indent}{}", escape(line))));
-            out.push(format!("{indent}{close}"));
+        let block = |open: &str, close: &str| {
+            let body = lines.iter().map(|line| escape(line).into_owned());
+            let open = std::iter::once(open.to_owned());
+            open.chain(body).chain([close.to_owned()]).collect()
         };
-        match include.kind {
-            Kind::Source(language) => wrap(&format!("#+begin_src {language}"), "#+end_src"),
-            Kind::Example => wrap("#+begin_example", "#+end_example"),
-            Kind::Export(Some(format)) => wrap(&format!("#+begin_export {format}"), "#+end_export"),
-            Kind::Export(None) => {}
+        let produced: Vec<String> = match include.kind {
+            Kind::Source(language) => block(&format!("#+begin_src {language}"), "#+end_src"),
+            Kind::Example => block("#+begin_example", "#+end_example"),
+            Kind::Export(Some(format)) => {
+                block(&format!("#+begin_export {format}"), "#+end_export")
+            }
+            Kind::Export(None) => Vec::new(),
             Kind::Markup => {
                 let Some((canonical, _)) = &file else {
                     return Ok(());
@@ -121,16 +122,19 @@ impl Expander {
                 shift_headlines(&mut included, include.minimum_level, &mut self.work)?;
                 self.closing = out.last().is_some_and(|line| !line.trim().is_empty());
                 self.separate(included.first().map_or("", String::as_str), out);
-                out.extend(included.into_iter().map(|line| {
-                    if line.is_empty() {
-                        line
-                    } else {
-                        format!("{indent}{line}")
-                    }
-                }));
                 self.closing = true;
+                included
             }
-        }
+        };
+        let indent = include.indent;
+        spend(&mut self.work, indent.len().saturating_mul(produced.len()))?;
+        out.extend(produced.into_iter().map(|line| {
+            if line.is_empty() {
+                line
+            } else {
+                format!("{indent}{line}")
+            }
+        }));
         Ok(())
     }
 

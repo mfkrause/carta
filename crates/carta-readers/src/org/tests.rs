@@ -774,6 +774,14 @@ fn an_include_loop_fails_the_read_and_a_missing_file_has_no_content() {
 }
 
 #[test]
+fn an_include_indent_out_of_proportion_to_the_input_fails_the_read() {
+    let main = format!("{}#+INCLUDE: \"lines.txt\" example\n", " ".repeat(2000));
+    let lines = "x\n".repeat(2000);
+    let result = read_with_files("indent", &[("main.org", &main), ("lines.txt", &lines)]);
+    assert!(matches!(result, Err(carta_core::Error::OutputTooLarge)));
+}
+
+#[test]
 fn a_verbatim_block_drops_the_comma_guarding_a_headline_or_keyword() {
     assert_eq!(
         blocks("#+begin_example\n,* star\n  ,#+key\n,,* two\n,plain\n#+end_example\n"),
