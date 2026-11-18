@@ -231,7 +231,7 @@ impl Expander {
     fn rebase_links(&mut self, lines: &mut [String], directory: &str) -> Result<()> {
         let mut blocks = BlockTracker::default();
         for line in lines {
-            if blocks.holds(line) || next_link(line).is_none() {
+            if blocks.holds(line) || !(line.contains("[[") || line.contains("<file:")) {
                 continue;
             }
             let rebased = outside_code(line, |text| rebase_links(text, directory));
@@ -401,6 +401,18 @@ impl BlockTracker {
 
 /// Applies `rewrite` to the parts of `line` that are not inline code or verbatim text.
 fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
+    // Where code can end, for each marker: after text and before a break.
+    let ends = |marker: char| -> Vec<usize> {
+        let closes = |(at, _): &(usize, &str)| {
+            let before = line.get(..*at).and_then(|text| text.chars().next_back());
+            let after = line.get(*at + marker.len_utf8()..);
+            before.is_some_and(|before| !before.is_whitespace())
+                && post_ok(after.and_then(|text| text.chars().next()))
+        };
+        let ends = line.match_indices(marker).filter(closes);
+        ends.map(|(at, _)| at).collect()
+    };
+    let (tildes, equals) = (ends('~'), ends('='));
     let mut rewritten = String::with_capacity(line.len());
     let mut text = 0;
     let mut characters = line.char_indices().peekable();
@@ -412,9 +424,11 @@ fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
             && characters
                 .peek()
                 .is_some_and(|(_, next)| !next.is_whitespace());
-        let close = opens.then(|| code_end(line, inner, marker)).flatten();
         previous = Some(marker);
-        if let Some(close) = close {
+        let ends = if marker == '~' { &tildes } else { &equals };
+        // The first end that leaves text between the two markers.
+        let end = opens.then(|| ends.get(ends.partition_point(|at| *at <= inner)));
+        if let Some(close) = end.flatten().map(|at| at + marker.len_utf8()) {
             rewritten.push_str(&rewrite(line.get(text..open).unwrap_or("")));
             rewritten.push_str(line.get(open..close).unwrap_or(""));
             text = close;
@@ -424,32 +438,21 @@ fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
     rewritten + &rewrite(line.get(text..).unwrap_or(""))
 }
 
-/// The end of the code that the marker before `inner` opens: past the next such marker that
-/// follows text and stands before a break. `None` when nothing closes it.
-fn code_end(line: &str, inner: usize, marker: char) -> Option<usize> {
-    let content = line.get(inner..)?;
-    content.match_indices(marker).find_map(|(at, _)| {
-        let end = inner + at + marker.len_utf8();
-        let before = content.get(..at)?.chars().next_back()?;
-        let closes = !before.is_whitespace() && post_ok(line.get(end..)?.chars().next());
-        closes.then_some(end)
-    })
-}
-
-/// Where the target of the next bracket link or angle file link in `text` starts, and the
-/// character that ends it.
-fn next_link(text: &str) -> Option<(usize, char)> {
-    let bracket = text.find("[[").map(|at| (at + "[[".len(), ']'));
-    let angle = text.find("<file:").map(|at| (at + "<".len(), '>'));
-    [bracket, angle].into_iter().flatten().min()
-}
-
-/// Puts `directory` before the relative file target of each link in `text`.
+/// Puts `directory` before the relative file target of each bracket link and of each angle link
+/// to a file in `text`.
 fn rebase_links(text: &str, directory: &str) -> String {
+    let brackets = rebase_targets(text, "[[", ']', directory);
+    rebase_targets(&brackets, "<file:", '>', directory)
+}
+
+/// Rebases the target of each link that starts with `opener` and ends at `close`.
+fn rebase_targets(text: &str, opener: &str, close: char, directory: &str) -> String {
+    // The scheme in the opener of an angle link is part of the target.
+    let lead = opener.trim_end_matches("file:").len();
     let mut rebased = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some((start, close)) = next_link(rest) {
-        let (before, link) = rest.split_at(start);
+    while let Some(start) = rest.find(opener) {
+        let (before, link) = rest.split_at(start + lead);
         rebased.push_str(before);
         let (target, after) = link.split_at(link.find(close).unwrap_or(link.len()));
         let (scheme, path) = match target.strip_prefix("file:") {
@@ -618,18 +621,21 @@ mod tests {
 
     #[test]
     fn a_relative_file_target_moves_below_the_directory_of_its_file() {
+        let rebase = |links| rebase_links(links, "sub");
         let links = "[[file:a.png]] [[./b.png][b]] [[file:../up.png]] <file:n.org::*H>";
         let rebased = "[[file:sub/a.png]] [[./sub/b.png][b]] [[file:up.png]] <file:sub/n.org::*H>";
-        assert_eq!(rebase_links(links, "sub"), rebased);
+        assert_eq!(rebase(links), rebased);
         let fixed = "[[file:/a.png]] [[file:~/a.png]] [[https://a.org]] [[a.png]] <./a.png>";
-        assert_eq!(rebase_links(fixed, "sub"), fixed);
+        assert_eq!(rebase(fixed), fixed);
     }
 
     #[test]
-    fn inline_code_is_not_rewritten() {
-        let upper = |line| outside_code(line, str::to_uppercase);
+    fn inline_code_is_not_rewritten_and_is_found_in_linear_time() {
+        let upper = |line: &str| outside_code(line, str::to_uppercase);
         assert_eq!(upper("a ~b~ c =d e= f"), "A ~b~ C =d e= F");
         assert_eq!(upper("a~b~ c = d= ~e"), "A~B~ C = D= ~E");
+        let unclosed = "~a ".repeat(200_000);
+        assert_eq!(upper(&unclosed), unclosed.to_uppercase());
     }
 
     #[test]
