@@ -127,6 +127,22 @@ fn a_nested_include_resolves_against_the_including_file() {
 }
 
 #[test]
+fn includes_nested_past_the_limit_fail_the_read() {
+    let name = |index: usize| format!("{index}.rst");
+    let mut files: Vec<(String, String)> = (0..200)
+        .map(|index| (name(index), format!(".. include:: {}\n", name(index + 1))))
+        .collect();
+    files.push((name(200), "End.\n".to_owned()));
+    let files: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect();
+    let sources = Sources::new(&files);
+    assert_eq!(sources.read(&name(100)).unwrap().len(), 1);
+    assert!(sources.read(&name(0)).is_err());
+}
+
+#[test]
 fn an_include_loop_fails_the_read() {
     let sources = Sources::new(&[
         ("main.rst", ".. include:: main.rst\n"),

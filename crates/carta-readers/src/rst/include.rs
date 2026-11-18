@@ -87,7 +87,7 @@ impl<'a> Includes<'a> {
     /// the file cannot be read.
     ///
     /// # Errors
-    /// A file that includes itself, directly or through other files.
+    /// A file that includes itself, directly or through other files, and includes nested too deep.
     pub(super) fn open(
         &'a self,
         argument: &str,
@@ -100,6 +100,9 @@ impl<'a> Includes<'a> {
         let mut active = self.source().into_iter().chain(chain.iter());
         if active.any(|active| active.canonical.as_ref() == Some(&canonical)) {
             return Err(invalid(format!("include file loop at {}", argument.trim())));
+        }
+        if chain.len() >= HostAccess::NESTING_LIMIT {
+            return Err(invalid("include nesting limit exceeded".to_owned()));
         }
         drop(chain);
         let Some(lines) = self.lines(&canonical, options) else {

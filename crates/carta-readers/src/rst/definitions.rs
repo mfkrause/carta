@@ -109,7 +109,7 @@ fn collect_into<'a>(
                 }
                 let (argument, options, _) =
                     split_directive(&directive_body("include", lines, i, end));
-                // A loop is reported where the block pass meets the directive.
+                // A loop or too deep a nesting is reported where the block pass meets the directive.
                 if !is_literal(&options)
                     && let Ok(Some(included)) = includes.open(&argument, &options)
                 {
