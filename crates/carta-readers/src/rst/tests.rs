@@ -127,6 +127,13 @@ fn a_nested_include_resolves_against_the_including_file() {
 }
 
 #[test]
+fn a_comma_at_the_end_of_csv_data_ends_an_empty_field() {
+    use super::directives::parse_csv;
+    assert_eq!(parse_csv("a,"), [["a", ""]]);
+    assert_eq!(parse_csv("a,"), parse_csv("a,\n"));
+}
+
+#[test]
 fn a_directive_name_in_any_case_keeps_its_argument() {
     assert_eq!(
         parse(".. Image:: picture.png\n"),
