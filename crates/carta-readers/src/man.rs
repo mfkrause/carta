@@ -330,13 +330,18 @@ impl Parser {
         } else {
             logical_lines(ended.unwrap_or(&text))
         };
-        let next = self.peek().filter(|next| *next != INCLUDE_END);
-        // A last line with no newline, or one that is continued, runs on into the line after the request.
+        // The line after the request lies past the ends of the files that the request closes.
+        let closed = self.pending.iter().take_while(|line| *line == INCLUDE_END);
+        let closed = closed.count();
+        let next = self.pending.get(closed).or(self.lines.get(self.pos));
+        // A last line with no newline, or one that is continued, runs on into that line.
         if ended.is_none()
             && let (Some(last), Some(next)) = (lines.last_mut(), next)
         {
             last.push_str(next);
-            self.drop_line();
+            if self.pending.remove(closed).is_none() {
+                self.pos += 1;
+            }
         }
         for line in &lines {
             if self.expansion_budget.exhausted() {

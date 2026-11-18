@@ -1107,8 +1107,8 @@ fn a_sourced_file_whose_last_line_is_open_runs_on_into_the_next_line() {
     for open in ["open", "open\\\n"] {
         let blocks = read_with_files(
             "open",
-            "before\n.so open.man\n.B after\n",
-            &[("open.man", open)],
+            "before\n.so outer.man\n.B after\n",
+            &[("outer.man", ".so open.man\n"), ("open.man", open)],
         );
         let [Block::Para(inlines)] = blocks.as_slice() else {
             panic!("expected one paragraph: {blocks:?}");
