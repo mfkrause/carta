@@ -749,14 +749,6 @@ impl Parser {
                         control_word = false;
                         continue;
                     }
-                    if self.files.is_some()
-                        && matches!(name.as_str(), "usepackage" | "RequirePackage")
-                    {
-                        self.consume_control_word();
-                        self.load_packages();
-                        control_word = false;
-                        continue;
-                    }
                     if definitions
                         && matches!(name.as_str(), "begin" | "end" | "begingroup" | "endgroup")
                     {

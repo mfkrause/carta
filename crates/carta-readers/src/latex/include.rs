@@ -100,7 +100,8 @@ impl Parser {
     }
 
     /// Pushes the text of the file an `\input`, `\include`, or `\subfile` names before the
-    /// remaining input. A file that cannot be read, or is being read already, adds nothing.
+    /// remaining input, and loads the packages a `\usepackage` or `\RequirePackage` names. A file
+    /// that cannot be read, or is being read already, adds nothing.
     pub(super) fn expand_input(&mut self) -> bool {
         if self.files.is_none() {
             return false;
@@ -112,6 +113,11 @@ impl Parser {
         let Some(command) = self.peek_control_word() else {
             return false;
         };
+        if matches!(command.as_str(), "usepackage" | "RequirePackage") {
+            self.consume_control_word();
+            self.load_packages();
+            return true;
+        }
         if !matches!(command.as_str(), "input" | "include" | "subfile") {
             return false;
         }
@@ -152,7 +158,7 @@ impl Parser {
     /// Reads the argument of a `\usepackage` or `\RequirePackage` and adopts the macros that each
     /// named package found beside the document defines, and those of the packages it loads in
     /// turn. Nothing else of a package is kept. A package that is being read is not read again.
-    pub(super) fn load_packages(&mut self) {
+    fn load_packages(&mut self) {
         while self.read_optional_raw().is_some() {}
         let names = self.read_group_raw().unwrap_or_default();
         for name in names.split(',') {

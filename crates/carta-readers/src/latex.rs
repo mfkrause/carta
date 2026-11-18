@@ -536,11 +536,6 @@ impl Parser {
             | "DeclareRobustCommand"
             | "def"
             | "let" => Some(self.parse_macro_definition(&name)),
-            "usepackage" | "RequirePackage" if self.files.is_some() => {
-                self.consume_control_word();
-                self.load_packages();
-                Some(Vec::new())
-            }
             "lstinputlisting" | "inputminted" if self.files.is_some() => {
                 Some(vec![self.parse_listing_file(&name)])
             }
