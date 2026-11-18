@@ -845,7 +845,7 @@ pub(crate) struct MacroExpander(Parser);
 impl MacroExpander {
     pub(crate) fn new(source_len: usize, mut extensions: carta_core::Extensions) -> Self {
         extensions.insert(Extension::LatexMacros);
-        Self(Parser::new(source_len, extensions, 1))
+        Self(Parser::new(source_len, extensions))
     }
 
     pub(crate) fn has_definitions(&self) -> bool {
@@ -853,7 +853,7 @@ impl MacroExpander {
     }
 
     pub(crate) fn probe(&self) -> Self {
-        let mut parser = Parser::new(0, self.0.ext, self.0.base_level);
+        let mut parser = Parser::new(0, self.0.ext);
         parser.macros = Rc::clone(&self.0.macros);
         parser.expansions.calls.set(self.0.expansions.calls.get());
         parser

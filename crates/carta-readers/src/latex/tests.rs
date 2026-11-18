@@ -1000,6 +1000,22 @@ fn an_input_reads_the_named_file_in_place() {
 }
 
 #[test]
+fn a_chapter_from_an_included_file_sets_the_heading_levels() {
+    let blocks = read_with_files(
+        "levels",
+        &[
+            ("main.tex", "\\section{Section}\n\n\\input{chapter}\n"),
+            ("chapter.tex", "\\chapter{Chapter}\n"),
+        ],
+    );
+    let levels = blocks.iter().map(|block| match block {
+        Block::Header(level, _, _) => *level,
+        other => panic!("unexpected block: {other:?}"),
+    });
+    assert_eq!(levels.collect::<Vec<_>>(), [2, 1]);
+}
+
+#[test]
 fn a_macro_named_input_replaces_the_file_command() {
     let blocks = read_with_files(
         "macro",

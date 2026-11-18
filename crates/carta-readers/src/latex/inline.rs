@@ -769,7 +769,6 @@ impl Parser {
             meta: BTreeMap::new(),
             macros: Rc::clone(&self.macros),
             ids: IdRegistry::default(),
-            base_level: self.base_level,
             in_figure,
             in_float: false,
             expansions: Rc::clone(&self.expansions),
