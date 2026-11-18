@@ -4031,16 +4031,26 @@ impl Parser {
     fn disjunction(&mut self) -> Value {
         let mut value = self.conjunction();
         while self.eat_keyword("or") {
-            let right = self.conjunction();
+            let right = self.right_operand(value.is_truthy(), Self::conjunction);
             value = Value::Bool(value.is_truthy() || right.is_truthy());
         }
+        value
+    }
+
+    /// Reads the right operand of `and` or `or`. When the left operand has `decided` the result,
+    /// a file that the right operand cannot read does not fail the parse.
+    fn right_operand(&mut self, decided: bool, operand: fn(&mut Self) -> Value) -> Value {
+        let earlier = self.failure.take();
+        let value = operand(self);
+        let raised = self.failure.take().filter(|_| !decided);
+        self.failure = earlier.or(raised);
         value
     }
 
     fn conjunction(&mut self) -> Value {
         let mut value = self.comparison();
         while self.eat_keyword("and") {
-            let right = self.comparison();
+            let right = self.right_operand(!value.is_truthy(), Self::comparison);
             value = Value::Bool(value.is_truthy() && right.is_truthy());
         }
         value

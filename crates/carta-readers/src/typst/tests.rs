@@ -237,6 +237,22 @@ fn a_referenced_file_that_cannot_be_read_fails_the_parse() {
     }
 }
 
+#[test]
+fn a_file_read_in_an_operand_that_is_not_needed_does_not_fail_the_parse() {
+    for source in [
+        "#if true or read(\"missing.txt\") == \"x\" [kept]\n",
+        "#if false and read(\"missing.txt\") == \"x\" [dropped] else [kept]\n",
+    ] {
+        let blocks = parse_in_directory("operand", &[("doc.typ", source)]);
+        assert_eq!(
+            blocks,
+            parse_in_directory("operand", &[("doc.typ", "kept\n")])
+        );
+    }
+    let needed = "#if false or read(\"missing.txt\") == \"x\" [kept]\n";
+    assert!(read_in_directory("operand", &[("doc.typ", needed)]).is_err());
+}
+
 // An absolute path starts with a slash only on Unix.
 #[cfg(unix)]
 #[test]
