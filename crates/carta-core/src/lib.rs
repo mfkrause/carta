@@ -182,9 +182,10 @@ impl ReaderOptions {
                 .get(start)
                 .map(std::path::PathBuf::as_path)
         };
+        let directory = self.source_dirs.get(&0).or(self.source_dir.as_ref());
         let whole = SourceFile {
             text: input,
-            directory: self.source_dir.as_deref(),
+            directory: directory.map(std::path::PathBuf::as_path),
             path: self.source_paths.keys().next().and_then(path),
         };
         if self.source_dirs.len() < 2 || !self.source_dirs.contains_key(&0) {
