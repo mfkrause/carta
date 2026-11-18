@@ -1103,6 +1103,19 @@ fn a_source_request_reads_the_named_file_in_place() {
 }
 
 #[test]
+fn a_sourced_file_without_a_final_newline_runs_on_into_the_next_line() {
+    let blocks = read_with_files(
+        "open",
+        "before\n.so open.man\n.B after\n",
+        &[("open.man", "open")],
+    );
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert_eq!(to_plain_text(inlines), "before open.B after");
+}
+
+#[test]
 fn a_file_that_sources_itself_is_read_once() {
     let blocks = read_with_files(
         "cycle",

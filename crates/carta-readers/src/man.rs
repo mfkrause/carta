@@ -309,8 +309,13 @@ impl Parser {
         }
         let text = self.host.read_to_string(&path).ok()?;
         let mut lines = logical_lines(&text);
+        let next = self.peek().filter(|next| *next != INCLUDE_END);
         if text.ends_with('\n') {
             lines.pop();
+        } else if let (Some(last), Some(next)) = (lines.last_mut(), next) {
+            // Without a final newline, the file's last line runs on into the line after the request.
+            last.push_str(next);
+            self.drop_line();
         }
         for line in &lines {
             if self.expansion_budget.exhausted() {
