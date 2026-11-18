@@ -3270,14 +3270,19 @@ impl Parser {
         }
     }
 
-    /// The file a reference names: beside the current file, or under the working directory when
-    /// the reference starts at the project root with a slash.
-    fn locate(&self, reference: &str) -> PathBuf {
+    /// The file a reference names: beside the current file, or under the project root when the
+    /// reference starts with a slash. The root is the directory of the document's own source
+    /// file.
+    fn locate(&mut self, reference: &str) -> PathBuf {
         let rooted = reference.trim_start_matches('/');
-        match self.base() {
-            Some(base) if rooted.len() == reference.len() => base.join(reference),
-            _ => PathBuf::from(rooted),
-        }
+        let directory = if rooted.len() == reference.len() {
+            self.base()
+        } else {
+            let own = self.own_position();
+            let root = self.directories.range(..=own).next_back();
+            root.and_then(|(_, directory)| directory.as_deref())
+        };
+        directory.map_or_else(|| PathBuf::from(rooted), |directory| directory.join(rooted))
     }
 
     /// Read a referenced file as text. A file that cannot be read fails the whole parse.
@@ -3292,19 +3297,22 @@ impl Parser {
             .ok()
     }
 
-    /// The document's own source file that holds the code being read, or that referred to the
-    /// file that holds it.
-    fn source_file(&mut self) -> Option<&PathBuf> {
+    /// The place in the document's own text that holds the code being read, or that referred to
+    /// the file that holds it.
+    fn own_position(&mut self) -> usize {
         let position = self.pos.saturating_sub(1);
         let own = self.directories.range(..=position).next_back();
         if own.is_some_and(|(start, _)| self.sources.contains_key(start)) {
             self.referring = position;
         }
-        self.sources
-            .range(..=self.referring)
-            .next_back()?
-            .1
-            .as_ref()
+        self.referring
+    }
+
+    /// The document's own source file that holds the code being read, or that referred to the
+    /// file that holds it.
+    fn source_file(&mut self) -> Option<&PathBuf> {
+        let own = self.own_position();
+        self.sources.range(..=own).next_back()?.1.as_ref()
     }
 
     /// Append a referenced file's characters to the arena. A file already being parsed further up
@@ -4713,7 +4721,15 @@ impl Parser {
                     .unwrap_or_default(),
             )]),
             "link" => link_call(args),
-            "image" => Value::Inlines(vec![image(&args, self.base())]),
+            "image" => {
+                let reference = positional_text(&args);
+                let path = if reference.is_empty() {
+                    reference
+                } else {
+                    self.locate(&reference).to_string_lossy().into_owned()
+                };
+                Value::Inlines(vec![image(&args, &path)])
+            }
             "raw" => raw_call(&args),
             "label" => Value::Label(positional_text(&args)),
             "regex" => Value::Regex(positional_text(&args)),
@@ -6068,19 +6084,8 @@ fn link_call(mut args: Vec<Arg>) -> Value {
     )])
 }
 
-/// Place a file reference under the directory its source was named in. A reference that names an
-/// absolute location, and one made from a source with no directory, stands on its own.
-fn under_base(base: Option<&Path>, reference: &str) -> String {
-    let Some(base) = base.filter(|_| !reference.is_empty()) else {
-        return reference.to_string();
-    };
-    base.join(reference)
-        .to_str()
-        .map_or_else(|| reference.to_string(), str::to_string)
-}
-
-fn image(args: &[Arg], base: Option<&Path>) -> Inline {
-    let path = under_base(base, &positional_text(args));
+/// An image at `path`, with the description and the size that the arguments give.
+fn image(args: &[Arg], path: &str) -> Inline {
     let alt = named(args, "alt")
         .map(|value| value.clone().into_inlines())
         .unwrap_or_default();
@@ -6095,7 +6100,7 @@ fn image(args: &[Arg], base: Option<&Path>) -> Inline {
         }),
         alt,
         Box::new(Target {
-            url: path.as_str().into(),
+            url: path.into(),
             title: Text::default(),
         }),
     )

@@ -256,7 +256,7 @@ fn a_file_read_in_an_operand_that_is_not_needed_does_not_fail_the_parse() {
 // An absolute path starts with a slash only on Unix.
 #[cfg(unix)]
 #[test]
-fn a_rooted_reference_does_not_leave_the_working_directory() {
+fn a_rooted_reference_does_not_start_at_the_root_of_the_file_system() {
     let outside = std::env::temp_dir().join(format!("carta-typst-{}-outside", std::process::id()));
     std::fs::write(&outside, "outside").expect("file is writable");
     let source = format!("#read(\"{}\")\n", outside.display());
@@ -293,10 +293,34 @@ fn an_image_resolves_against_the_directory_of_the_file_that_names_it() {
                 "doc.typ",
                 "#image(\"pics/a.png\")\n\n#include \"sub/part.typ\"\n",
             ),
-            ("sub/part.typ", "#image(\"b.png\")\n"),
+            ("sub/part.typ", "#image(\"b.png\") #image(\"/c.png\")\n"),
         ],
     );
-    assert_eq!(paths, ["pics/a.png", "sub/b.png"]);
+    assert_eq!(paths, ["pics/a.png", "sub/b.png", "c.png"]);
+}
+
+#[test]
+fn a_rooted_reference_starts_at_the_directory_of_the_document() {
+    let blocks = parse_in_directory(
+        "root",
+        &[
+            ("doc.typ", "#include \"sub/part.typ\"\n"),
+            (
+                "sub/part.typ",
+                "#read(\"/title.txt\") #read(\"title.txt\")\n",
+            ),
+            ("title.txt", "root"),
+            ("sub/title.txt", "beside"),
+        ],
+    );
+    assert_eq!(
+        blocks,
+        vec![Block::Para(vec![
+            text("root"),
+            Inline::Space,
+            text("beside")
+        ])]
+    );
 }
 
 #[test]
