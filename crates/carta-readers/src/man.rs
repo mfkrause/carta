@@ -325,7 +325,11 @@ impl Parser {
             .strip_suffix('\n')
             .map(|body| body.strip_suffix('\r').unwrap_or(body))
             .filter(|body| !continues(body));
-        let mut lines = logical_lines(ended.unwrap_or(&text));
+        let mut lines = if text.is_empty() {
+            Vec::new()
+        } else {
+            logical_lines(ended.unwrap_or(&text))
+        };
         let next = self.peek().filter(|next| *next != INCLUDE_END);
         // A last line with no newline, or one that is continued, runs on into the line after the request.
         if ended.is_none()

@@ -1118,6 +1118,19 @@ fn a_sourced_file_whose_last_line_is_open_runs_on_into_the_next_line() {
 }
 
 #[test]
+fn an_empty_sourced_file_adds_no_line() {
+    let blocks = read_with_files(
+        "empty",
+        "before\n.so outer.man\nafter\n",
+        &[("outer.man", "middle\n.so empty.man\n"), ("empty.man", "")],
+    );
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert_eq!(to_plain_text(inlines), "before middle after");
+}
+
+#[test]
 fn a_file_that_sources_itself_is_read_once() {
     let blocks = read_with_files(
         "cycle",
