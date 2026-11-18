@@ -1049,15 +1049,16 @@ fn a_local_package_supplies_only_its_macros() {
         &[
             (
                 "main.tex",
-                "\\usepackage[option]{local,absent}\nA \\word{} B\n",
+                "\\usepackage[option]{local,absent}\nA \\word{} B \\inner\n",
             ),
             (
                 "local.sty",
-                "\\ProvidesPackage{local}\nstray text\n\\newcommand{\\word}{defined}\n",
+                "\\ProvidesPackage{local}\n\\RequirePackage{inner,local}\nstray text\n\\newcommand{\\word}{defined}\n",
             ),
+            ("inner.sty", "\\newcommand{\\inner}{nested}\n"),
         ],
     );
-    assert_eq!(plain(&blocks), ["A defined B"]);
+    assert_eq!(plain(&blocks), ["A defined B nested"]);
 }
 
 #[test]

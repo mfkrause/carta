@@ -150,16 +150,23 @@ impl Parser {
     }
 
     /// Reads the argument of a `\usepackage` or `\RequirePackage` and adopts the macros that each
-    /// named package found beside the document defines. Nothing else of a package is kept.
+    /// named package found beside the document defines, and those of the packages it loads in
+    /// turn. Nothing else of a package is kept. A package that is being read is not read again.
     pub(super) fn load_packages(&mut self) {
         while self.read_optional_raw().is_some() {}
         let names = self.read_group_raw().unwrap_or_default();
         for name in names.split(',') {
-            if let Some((_, text)) = self.read_file(&format!("{}.sty", name.trim())) {
-                let mut package = self.child(&text, false);
-                package.expand_source(true);
-                self.macros = package.macros;
+            let Some((canonical, text)) = self.read_file(&format!("{}.sty", name.trim())) else {
+                continue;
+            };
+            let call = input_call(&canonical);
+            if !self.expansions.active.borrow_mut().insert(call.clone()) {
+                continue;
             }
+            let mut package = self.child(&text, false);
+            package.expand_source(true);
+            self.macros = package.macros;
+            self.expansions.active.borrow_mut().remove(&call);
         }
         while self.read_optional_raw().is_some() {}
     }
