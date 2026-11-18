@@ -774,6 +774,38 @@ fn an_include_loop_fails_the_read_and_a_missing_file_has_no_content() {
 }
 
 #[test]
+fn an_included_file_keeps_to_its_own_footnotes() {
+    let blocks = read_with_files(
+        "notes",
+        &[
+            (
+                "main.org",
+                "Root[fn:x] and [fn:y].\n\n#+INCLUDE: \"part.org\"\nAfter.\n\n[fn:x] Root note.\n",
+            ),
+            (
+                "part.org",
+                "Part[fn:x].\n\n[fn:x] Part note.\n\n[fn:y] Shared note.\n",
+            ),
+        ],
+    )
+    .unwrap();
+    assert_eq!(blocks.last(), Some(&paragraph("After.")));
+    let mut document = Document {
+        blocks,
+        ..Document::default()
+    };
+    let mut notes = Vec::new();
+    carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+        if let Inline::Note(blocks) = inline
+            && let Some(Block::Para(inlines)) = blocks.first()
+        {
+            notes.push(carta_ast::to_plain_text(inlines));
+        }
+    });
+    assert_eq!(notes, ["Root note.", "Shared note.", "Part note."]);
+}
+
+#[test]
 fn includes_nested_past_the_limit_fail_the_read() {
     let chain = |length: usize| {
         let name = |index: usize| format!("{index}.org");

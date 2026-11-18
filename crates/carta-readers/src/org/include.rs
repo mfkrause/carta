@@ -1,7 +1,7 @@
 //! `#+INCLUDE:` expansion: the named files are spliced into the text before it is parsed.
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use carta_core::{Error, HostAccess, ReaderOptions, Result};
@@ -9,7 +9,7 @@ use carta_core::{Error, HostAccess, ReaderOptions, Result};
 use super::blocks::headline_level;
 use super::greater::greater_block_open;
 use super::keyword::keyword_line;
-use super::normalize;
+use super::{collect_footnotes, is_footnote_label_char, normalize};
 
 /// Normalizes the line endings of `input` and replaces every `#+INCLUDE: "file"` line with the
 /// content of the file it names. A plain include splices the file's own markup, nested includes
@@ -31,6 +31,7 @@ pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<
         host: options.host,
         chain: Vec::new(),
         known: BTreeSet::new(),
+        local_labels: BTreeSet::new(),
         work: (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         closing: false,
     };
@@ -59,6 +60,8 @@ struct Expander {
     work: usize,
     /// Set after included markup: the next line of text opens a new block.
     closing: bool,
+    /// The footnote labels made for the references inside included files.
+    local_labels: BTreeSet<String>,
 }
 
 impl Expander {
@@ -131,6 +134,9 @@ impl Expander {
                 self.chain.pop();
                 expanded?;
                 shift_headlines(&mut included, include.minimum_level, &mut self.work)?;
+                if include.indent.is_empty() {
+                    self.localize_footnotes(&mut included)?;
+                }
                 self.closing = out.last().is_some_and(|line| !line.trim().is_empty());
                 self.separate(included.first().map_or("", String::as_str), out);
                 self.closing = true;
@@ -146,6 +152,39 @@ impl Expander {
                 format!("{indent}{line}")
             }
         }));
+        Ok(())
+    }
+
+    /// Gives the footnotes that included markup defines labels of their own, so its references
+    /// keep to its own notes when another file uses the same label. The last definition of each
+    /// label is repeated under the label as written, for the references outside the file.
+    fn localize_footnotes(&mut self, lines: &mut Vec<String>) -> Result<()> {
+        let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let (_, definitions) = collect_footnotes(&borrowed);
+        let last: BTreeMap<String, String> = definitions
+            .into_iter()
+            .filter(|(label, _)| !self.local_labels.contains(label))
+            .collect();
+        if last.is_empty() {
+            return Ok(());
+        }
+        let prefix = format!("include-{}-", self.local_labels.len());
+        let relabel = |line: &str| relabel(line, &last, &prefix);
+        let mut blocks = BlockTracker::default();
+        for line in lines.iter_mut() {
+            if !blocks.holds(line) {
+                *line = relabel(line);
+            }
+        }
+        // Two blank lines end a definition, so the text after the include is not part of one.
+        lines.push(String::new());
+        for (label, body) in &last {
+            let definition = format!("[fn:{label}] {}", relabel(body));
+            spend(&mut self.work, definition.len())?;
+            lines.extend(definition.split('\n').map(str::to_owned));
+            self.local_labels.insert(format!("{prefix}{label}"));
+        }
+        lines.extend([String::new(), String::new()]);
         Ok(())
     }
 
@@ -286,6 +325,23 @@ impl BlockTracker {
         }
         true
     }
+}
+
+/// Puts `prefix` before each of `labels` that a footnote reference or definition in `line` names.
+fn relabel(line: &str, labels: &BTreeMap<String, String>, prefix: &str) -> String {
+    let mut relabeled = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find("[fn:") {
+        let (before, after) = rest.split_at(start + "[fn:".len());
+        relabeled.push_str(before);
+        let end = after.find(|character| !is_footnote_label_char(character));
+        let (label, tail) = after.split_at(end.unwrap_or(after.len()));
+        if tail.starts_with(']') && labels.contains_key(label) {
+            relabeled.push_str(prefix);
+        }
+        rest = after;
+    }
+    relabeled + rest
 }
 
 fn invalid(message: String) -> Error {
