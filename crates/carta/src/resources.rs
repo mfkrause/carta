@@ -71,6 +71,57 @@ pub(super) fn gather_local_images(
     }
 }
 
+/// Read the cover image and the stylesheets an EPUB document's metadata names (`cover-image`,
+/// `css`, `stylesheet`). A cover from the command line stays; metadata stylesheets come first.
+///
+/// # Errors
+/// A named file that cannot be read.
+#[cfg(feature = "write-epub")]
+pub(super) fn gather_epub_metadata(
+    document: &Document,
+    epub: &mut carta::EpubOptions,
+    host: HostAccess,
+) -> Result<()> {
+    let read = |name: &str| {
+        host.read(Path::new(name))
+            .map_err(|error| std::io::Error::new(error.kind(), format!("{name}: {error}")))
+    };
+    if epub.cover_image.is_none()
+        && let Some(name) = metadata_names(document, "cover-image").first()
+    {
+        let file_name = Path::new(name).file_name().unwrap_or_default();
+        epub.cover_image = Some((file_name.to_string_lossy().into_owned(), read(name)?));
+    }
+    let mut stylesheets = Vec::new();
+    for key in ["css", "stylesheet"] {
+        for name in metadata_names(document, key) {
+            stylesheets.push(String::from_utf8_lossy(&read(&name)?).into_owned());
+        }
+    }
+    stylesheets.append(&mut epub.stylesheets);
+    epub.stylesheets = stylesheets;
+    Ok(())
+}
+
+/// The file names a metadata entry holds: one for a single value, one per item for a list.
+#[cfg(feature = "write-epub")]
+fn metadata_names(document: &Document, key: &str) -> Vec<String> {
+    use carta::ast::{MetaValue, single_block_inlines, to_plain_text};
+    fn name(value: &MetaValue) -> Option<String> {
+        match value {
+            MetaValue::MetaString(text) => Some(text.to_string()),
+            MetaValue::MetaInlines(inlines) => Some(to_plain_text(inlines)),
+            MetaValue::MetaBlocks(blocks) => Some(to_plain_text(single_block_inlines(blocks))),
+            _ => None,
+        }
+    }
+    match document.meta.get(key) {
+        Some(MetaValue::MetaList(values)) => values.iter().filter_map(name).collect(),
+        Some(value) => name(value).into_iter().collect(),
+        None => Vec::new(),
+    }
+}
+
 /// Resolve a reference the self-contained HTML pass encounters into its bytes and MIME type, in order:
 /// a resource the reader carried in the bag, then a resource retrieved over HTTP(S), then a local
 /// file found along `search_path`. A reference that resolves nowhere is left external (the pass

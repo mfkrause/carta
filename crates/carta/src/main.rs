@@ -489,16 +489,13 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         resources = MediaBag::new();
     }
 
-    // Containers gather tree resources; HTML embedding also reads rendered tags and styles.
-    if embeds_resources(&to_base) {
-        let search_path = resource_search_path(cli);
-        resources::gather_local_images(&mut document, &mut resources, &search_path, host);
-    }
-
-    #[cfg(any(feature = "write-pdf", feature = "write-epub"))]
-    if to_base == "pdf" || to_base.starts_with("epub") {
-        resources::fetch_remote_images(&mut document, &mut resources, host);
-    }
+    gather_resources(
+        cli,
+        &to_base,
+        &mut document,
+        &mut resources,
+        &mut writer_options,
+    )?;
 
     // Inlines against the finished page; the bag lets reader-carried resources resolve without disk I/O.
     #[cfg(feature = "write-html")]
@@ -522,6 +519,36 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     };
 
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// Gather the files and URLs the document names that the target format packs into its output.
+/// HTML embedding happens later, on the rendered page.
+#[cfg_attr(
+    not(any(feature = "write-pdf", feature = "write-epub")),
+    expect(clippy::unnecessary_wraps, reason = "only container formats can fail")
+)]
+fn gather_resources(
+    cli: &Cli,
+    to_base: &str,
+    document: &mut carta::Document,
+    resources: &mut MediaBag,
+    options: &mut WriterOptions,
+) -> Result<()> {
+    let host = options.host;
+    if embeds_resources(to_base) {
+        let search_path = resource_search_path(cli);
+        resources::gather_local_images(document, resources, &search_path, host);
+    }
+    #[cfg(any(feature = "write-pdf", feature = "write-epub"))]
+    if to_base == "pdf" || to_base.starts_with("epub") {
+        resources::fetch_remote_images(document, resources, host);
+    }
+    #[cfg(feature = "write-epub")]
+    if to_base.starts_with("epub") {
+        let epub = Arc::make_mut(&mut options.epub);
+        resources::gather_epub_metadata(document, epub, host)?;
+    }
+    Ok(())
 }
 
 /// What the files and URLs a document names may reach: nothing under `--sandbox`.

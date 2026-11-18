@@ -133,6 +133,44 @@ fn a_document_reaches_no_file_in_the_sandbox() {
     }
 }
 
+/// The cover and stylesheet entries of the EPUB that `arguments` produce; `None` when the
+/// conversion fails.
+fn epub_assets(directory: &Path, arguments: &[&str], source: &str) -> Option<Vec<String>> {
+    let output = directory.join("book.epub");
+    let _ = fs::remove_file(&output);
+    let mut arguments = arguments.to_vec();
+    arguments.extend(["-f", "markdown", "-o", "book.epub"]);
+    convert(directory, &arguments, source);
+    let entries = carta_core::container::zip::read(&fs::read(output).ok()?).unwrap();
+    let mut assets = Vec::new();
+    for entry in entries {
+        if entry.name.ends_with("cover.xhtml") {
+            assets.push("cover".to_owned());
+        } else if entry.name.contains("/styles/") {
+            assets.push(String::from_utf8(entry.data).unwrap());
+        }
+    }
+    Some(assets)
+}
+
+#[test]
+fn the_sandbox_reads_what_the_command_line_names_but_not_what_metadata_names() {
+    let directory = directory("sandbox-epub");
+    let image = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/standalone/rectangle.png");
+    fs::copy(image, directory.join("cover.png")).unwrap();
+    fs::write(directory.join("style.css"), "p{}").unwrap();
+    let named = "---\ntitle: T\ncover-image: cover.png\ncss: style.css\n---\n\nText.\n";
+    let plain = "---\ntitle: T\n---\n\nText.\n";
+    let flags = ["--epub-cover-image", "cover.png", "--css", "style.css"];
+    let packaged = Some(vec!["p{}".to_owned(), "cover".to_owned()]);
+
+    assert_eq!(epub_assets(&directory, &[], named), packaged);
+    assert_eq!(epub_assets(&directory, &["--sandbox"], named), None);
+    assert_eq!(epub_assets(&directory, &flags, plain), packaged);
+    let sandboxed_flags = [&["--sandbox"], &flags[..]].concat();
+    assert_eq!(epub_assets(&directory, &sandboxed_flags, plain), packaged);
+}
+
 #[test]
 fn a_document_reaches_no_url_in_the_sandbox() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
