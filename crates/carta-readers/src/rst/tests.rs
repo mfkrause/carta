@@ -127,6 +127,14 @@ fn a_nested_include_resolves_against_the_including_file() {
 }
 
 #[test]
+fn a_directive_name_in_any_case_keeps_its_argument() {
+    assert_eq!(
+        parse(".. Image:: picture.png\n"),
+        parse(".. image:: picture.png\n")
+    );
+}
+
+#[test]
 fn includes_nested_past_the_limit_fail_the_read() {
     let name = |index: usize| format!("{index}.rst");
     let mut files: Vec<(String, String)> = (0..200)

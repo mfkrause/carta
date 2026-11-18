@@ -412,23 +412,11 @@ pub(super) fn explicit_body(
     body
 }
 
-/// The body of the directive `name` spanning `start..end`: its argument line, option lines, and
-/// content, dedented.
-pub(super) fn directive_body(
-    name: &str,
-    lines: &[String],
-    start: usize,
-    end: usize,
-) -> Vec<String> {
+/// The body of the directive spanning `start..end`: its argument line, option lines, and content,
+/// dedented.
+pub(super) fn directive_body(lines: &[String], start: usize, end: usize) -> Vec<String> {
     let line = line_at(lines, start);
-    let first = line.trim_start();
-    let after = first
-        .strip_prefix("..")
-        .unwrap_or(first)
-        .trim_start()
-        .strip_prefix(name)
-        .and_then(|rest| rest.strip_prefix("::"))
-        .unwrap_or("");
+    let after = line.split_once("::").map_or("", |(_, after)| after);
     explicit_body(lines, start, end, line.len() - after.len())
 }
 

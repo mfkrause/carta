@@ -38,7 +38,7 @@ impl Parser<'_> {
         end: usize,
         out: &mut Vec<Block>,
     ) {
-        let body = directive_body(name, lines, start, end);
+        let body = directive_body(lines, start, end);
         let (argument, options, content) = split_directive(&body);
 
         match name {
