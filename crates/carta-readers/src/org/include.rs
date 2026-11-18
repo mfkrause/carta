@@ -204,11 +204,11 @@ impl Expander {
             return Ok(());
         }
         let prefix = format!("include-{}-", self.local_labels.len());
-        let relabel = |line: &str| outside_code(line, |text| relabel(text, &last, &prefix));
+        let relabel = |line: &str| outside_code(line, |text| Ok(relabel(text, &last, &prefix)));
         let mut blocks = BlockTracker::default();
         for line in lines.iter_mut() {
             if !blocks.holds(line) {
-                *line = relabel(line);
+                *line = relabel(line)?;
             }
         }
         // Two blank lines end a definition, so the text after the include is not part of one.
@@ -218,7 +218,7 @@ impl Expander {
             if defined.contains(label) {
                 continue;
             }
-            let definition = format!("[fn:{label}] {}", relabel(body));
+            let definition = format!("[fn:{label}] {}", relabel(body)?);
             spend(&mut self.work, definition.len())?;
             lines.extend(definition.split('\n').map(str::to_owned));
         }
@@ -234,9 +234,8 @@ impl Expander {
             if blocks.holds(line) || !(line.contains("[[") || line.contains("<file:")) {
                 continue;
             }
-            let rebased = outside_code(line, |text| rebase_links(text, directory));
-            spend(&mut self.work, rebased.len().saturating_sub(line.len()))?;
-            *line = rebased;
+            let work = &mut self.work;
+            *line = outside_code(line, |text| rebase_links(text, directory, work))?;
         }
         Ok(())
     }
@@ -400,7 +399,7 @@ impl BlockTracker {
 }
 
 /// Applies `rewrite` to the parts of `line` that are not inline code or verbatim text.
-fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
+fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> Result<String>) -> Result<String> {
     // Where code can end, for each marker: after text and before a break.
     let ends = |marker: char| -> Vec<usize> {
         let closes = |(at, _): &(usize, &str)| {
@@ -429,24 +428,31 @@ fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
         // The first end that leaves text between the two markers.
         let end = opens.then(|| ends.get(ends.partition_point(|at| *at <= inner)));
         if let Some(close) = end.flatten().map(|at| at + marker.len_utf8()) {
-            rewritten.push_str(&rewrite(line.get(text..open).unwrap_or("")));
+            rewritten.push_str(&rewrite(line.get(text..open).unwrap_or(""))?);
             rewritten.push_str(line.get(open..close).unwrap_or(""));
             text = close;
             while characters.next_if(|(index, _)| *index < close).is_some() {}
         }
     }
-    rewritten + &rewrite(line.get(text..).unwrap_or(""))
+    rewritten.push_str(&rewrite(line.get(text..).unwrap_or(""))?);
+    Ok(rewritten)
 }
 
 /// Puts `directory` before the relative file target of each bracket link and of each angle link
-/// to a file in `text`.
-fn rebase_links(text: &str, directory: &str) -> String {
-    let brackets = rebase_targets(text, "[[", ']', directory);
-    rebase_targets(&brackets, "<file:", '>', directory)
+/// to a file in `text`. The text it adds is charged to `work`.
+fn rebase_links(text: &str, directory: &str, work: &mut usize) -> Result<String> {
+    let brackets = rebase_targets(text, "[[", ']', directory, work)?;
+    rebase_targets(&brackets, "<file:", '>', directory, work)
 }
 
 /// Rebases the target of each link that starts with `opener` and ends at `close`.
-fn rebase_targets(text: &str, opener: &str, close: char, directory: &str) -> String {
+fn rebase_targets(
+    text: &str,
+    opener: &str,
+    close: char,
+    directory: &str,
+    work: &mut usize,
+) -> Result<String> {
     // The scheme in the opener of an angle link is part of the target.
     let lead = opener.trim_end_matches("file:").len();
     let mut rebased = String::with_capacity(text.len());
@@ -473,13 +479,15 @@ fn rebase_targets(text: &str, opener: &str, close: char, directory: &str) -> Str
             } else {
                 ""
             };
+            spend(work, (dot.len() + joined.len()).saturating_sub(path.len()))?;
             rebased.extend([scheme, dot, &joined, search]);
         } else {
             rebased.push_str(target);
         }
         rest = after;
     }
-    rebased + rest
+    rebased.push_str(rest);
+    Ok(rebased)
 }
 
 /// The path `path` under `directory`, with each `.` and `..` part resolved by name.
@@ -621,17 +629,18 @@ mod tests {
 
     #[test]
     fn a_relative_file_target_moves_below_the_directory_of_its_file() {
-        let rebase = |links| rebase_links(links, "sub");
+        let rebase = |links, mut work: usize| rebase_links(links, "sub", &mut work);
         let links = "[[file:a.png]] [[./b.png][b]] [[file:../up.png]] <file:n.org::*H>";
         let rebased = "[[file:sub/a.png]] [[./sub/b.png][b]] [[file:up.png]] <file:sub/n.org::*H>";
-        assert_eq!(rebase(links), rebased);
+        assert_eq!(rebase(links, usize::MAX).unwrap(), rebased);
         let fixed = "[[file:/a.png]] [[file:~/a.png]] [[https://a.org]] [[a.png]] <./a.png>";
-        assert_eq!(rebase(fixed), fixed);
+        assert_eq!(rebase(fixed, usize::MAX).unwrap(), fixed);
+        assert!(rebase("[[file:a.png]]", 3).is_err());
     }
 
     #[test]
     fn inline_code_is_not_rewritten_and_is_found_in_linear_time() {
-        let upper = |line: &str| outside_code(line, str::to_uppercase);
+        let upper = |line: &str| outside_code(line, |text| Ok(text.to_uppercase())).unwrap();
         assert_eq!(upper("a ~b~ c =d e= f"), "A ~b~ C =d e= F");
         assert_eq!(upper("a~b~ c = d= ~e"), "A~B~ C = D= ~E");
         let unclosed = "~a ".repeat(200_000);
