@@ -248,7 +248,19 @@ impl<'a> Include<'a> {
         while let Some(word) = words.next() {
             match word {
                 ":minlevel" => minimum_level = words.next().and_then(|level| level.parse().ok()),
-                ":lines" => lines = LineRange::parse(words.next().unwrap_or("")),
+                ":lines" => {
+                    // A quoted range can hold spaces, which split it into several words.
+                    let mut range = String::new();
+                    for word in words.by_ref() {
+                        range.push_str(word);
+                        if !range.starts_with('"') || range.len() > 1 && range.ends_with('"') {
+                            break;
+                        }
+                    }
+                    if range.starts_with('"') {
+                        lines = LineRange::parse(&range);
+                    }
+                }
                 _ => {}
             }
         }
@@ -274,10 +286,17 @@ impl LineRange {
         end: usize::MAX,
     };
 
-    /// Parses `"A-B"`, where either bound may be absent. Anything else keeps no line.
+    /// Parses `"A-B"`, where either bound may be absent. A lone number keeps no line, and any
+    /// other text keeps them all.
     fn parse(range: &str) -> Self {
-        let Some((start, end)) = range.trim_matches('"').split_once('-') else {
-            return Self { start: 1, end: 1 };
+        let range = range.trim_matches('"');
+        let Some((start, end)) = range.split_once('-') else {
+            let end = if range.parse::<usize>().is_ok() {
+                1
+            } else {
+                usize::MAX
+            };
+            return Self { start: 1, end };
         };
         Self {
             start: start.parse().unwrap_or(1),
@@ -418,6 +437,7 @@ mod tests {
         assert_eq!(select("\"2-\""), "two three");
         assert_eq!(select("\"-2\""), "one");
         assert_eq!(select("\"2\""), "");
+        assert_eq!(select("\"x\""), "one two three");
         assert_eq!(select("\"3-2\""), "");
     }
 
