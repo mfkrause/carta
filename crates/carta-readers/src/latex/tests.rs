@@ -1000,6 +1000,21 @@ fn an_input_reads_the_named_file_in_place() {
 }
 
 #[test]
+fn a_macro_named_input_replaces_the_file_command() {
+    let blocks = read_with_files(
+        "macro",
+        &[
+            (
+                "main.tex",
+                "\\renewcommand{\\input}[1]{macro #1}\n\n\\input{part}\n",
+            ),
+            ("part.tex", "file"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["macro part"]);
+}
+
+#[test]
 fn a_file_that_inputs_itself_is_read_once() {
     let blocks = read_with_files(
         "cycle",

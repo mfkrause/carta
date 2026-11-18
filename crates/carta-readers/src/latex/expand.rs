@@ -410,7 +410,7 @@ impl Parser {
 
     /// Pushes a macro or expansion primitive's replacement before the remaining input.
     pub(super) fn try_expand_macro(&mut self) -> bool {
-        self.expand_input() || self.expand_macro(true)
+        self.expand_macro(true) || self.expand_input()
     }
 
     fn expand_macro(&mut self, track_call: bool) -> bool {
