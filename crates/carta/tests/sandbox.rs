@@ -3,6 +3,7 @@
 #![cfg(all(feature = "cli", feature = "full"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::fmt::Write as _;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -83,7 +84,10 @@ fn convert(directory: &Path, arguments: &[&str], source: &str) -> String {
 
 /// Whether `output` carries a canary file as text, as base64, or as hexadecimal bytes.
 fn leaks(output: &str, image: &[u8]) -> bool {
-    let hexadecimal: String = image.iter().map(|byte| format!("{byte:02x}")).collect();
+    let hexadecimal = image.iter().fold(String::new(), |mut hexadecimal, byte| {
+        let _ = write!(hexadecimal, "{byte:02x}");
+        hexadecimal
+    });
     output.contains(CANARY)
         || output.contains(&carta::media::base64_encode(CANARY.as_bytes()))
         || output.contains(&hexadecimal)
@@ -122,7 +126,14 @@ fn a_document_reaches_no_url_in_the_sandbox() {
     let directory = directory("sandbox-urls");
     let output = convert(
         &directory,
-        &["-f", "markdown", "-t", "html", "--embed-resources", "--sandbox"],
+        &[
+            "-f",
+            "markdown",
+            "-t",
+            "html",
+            "--embed-resources",
+            "--sandbox",
+        ],
         &format!("![image]({url})\n"),
     );
     assert!(output.contains(&url), "{output}");
