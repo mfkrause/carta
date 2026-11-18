@@ -1,18 +1,12 @@
 //! First-pass scan collecting document-global reference definitions.
 
 use super::directives::{image_classes, image_parts, split_directive};
+use super::include::{Includes, is_literal};
 use super::inline_helpers::push_text;
-use super::markers::{Explicit, classify_explicit, explicit_body, explicit_extent};
-use super::{
-    DEFAULT_ROLE, IncludeState, Includes, Parser, escape_uri, indent_of, indirect_referent,
-    is_blank, line_at, normalize_name, preprocess,
-};
-use crate::heading_ids::IdRegistry;
-use carta_ast::{Attr, Block, Inline};
-use carta_core::Extensions;
-use std::cell::Cell;
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use super::markers::{Explicit, classify_explicit, directive_body, explicit_body, explicit_extent};
+use super::{escape_uri, indent_of, indirect_referent, is_blank, line_at, normalize_name};
+use carta_ast::{Attr, Inline};
+use std::collections::BTreeMap;
 
 // definitions (pass one)
 
@@ -62,19 +56,6 @@ impl Substitution {
     }
 }
 
-struct Included<'a> {
-    files: &'a Includes,
-    path: &'a Path,
-}
-
-impl Drop for Included<'_> {
-    fn drop(&mut self) {
-        if let Some(state) = self.files.borrow_mut().get_mut(self.path) {
-            *state = IncludeState::Finished;
-        }
-    }
-}
-
 /// A custom interpreted-text role declared by a `role` directive: an optional base role whose
 /// formatting it inherits, the classes it adds, and the format or language its base needs (a `raw`
 /// base takes a `:format:`, a `code` base a `:language:`).
@@ -97,70 +78,20 @@ pub(super) struct RoleChain {
     pub(super) language: Option<String>,
 }
 
-/// Read and parse an included file, returning its blocks for splicing into the document. Returns
-/// `None` when the file cannot be read.
-pub(super) fn included_blocks(
-    path: &str,
-    ext: Extensions,
-    columns: usize,
-    tab_stop: usize,
-    work: &Cell<Option<usize>>,
-    includes: &Includes,
-) -> Option<Vec<Block>> {
-    let path = std::fs::canonicalize(path).ok()?;
-    if matches!(includes.borrow().get(&path), Some(IncludeState::Active)) {
-        return None;
-    }
-    let content = std::fs::read_to_string(&path).ok()?;
-    let new_source = includes
-        .borrow_mut()
-        .insert(path.clone(), IncludeState::Active)
-        .is_none();
-    let _included = Included {
-        files: includes,
-        path: &path,
-    };
-    if new_source {
-        work.set(
-            work.get()
-                .map(|remaining| remaining.saturating_add(content.len().saturating_mul(64))),
-        );
-    }
-    let remaining = work
-        .get()
-        .and_then(|remaining| remaining.checked_sub(content.len().max(1)));
-    work.set(remaining);
-    remaining?;
-    let lines = preprocess(&content, tab_stop);
-    let defs = collect_definitions(&lines);
-    let mut parser = Parser {
-        defs: &defs,
-        work,
-        ext,
-        columns,
-        tab_stop,
-        heading_styles: Vec::new(),
-        ids: IdRegistry::default(),
-        auto_footnote: 0,
-        symbol_footnote: 0,
-        anonymous: 0,
-        custom_roles: BTreeMap::new(),
-        default_role: DEFAULT_ROLE.to_string(),
-        includes,
-        active_substitutions: BTreeSet::new(),
-        active_footnotes: BTreeSet::new(),
-        deferred: BTreeMap::new(),
-    };
-    let mut blocks = parser.blocks(&lines);
-    if let Some(div) = parser.citation_block() {
-        blocks.push(div);
-    }
-    parser.resolve_deferred(&mut blocks);
-    Some(blocks)
+/// Collects the definitions of a document, following the files it includes for parsing.
+pub(super) fn collect_definitions<'a>(lines: &[String], includes: &'a Includes<'a>) -> Definitions {
+    let mut defs = Definitions::default();
+    collect_into(&mut defs, lines, includes, true);
+    defs
 }
 
-pub(super) fn collect_definitions(lines: &[String]) -> Definitions {
-    let mut defs = Definitions::default();
+/// Collects from `lines`, which are the whole document's when `document` is set.
+fn collect_into<'a>(
+    defs: &mut Definitions,
+    lines: &[String],
+    includes: &'a Includes<'a>,
+    document: bool,
+) {
     let mut i = 0;
     while i < lines.len() {
         let line = line_at(lines, i);
@@ -172,13 +103,25 @@ pub(super) fn collect_definitions(lines: &[String]) -> Definitions {
         let trimmed = line.trim_start();
         if let Some(kind) = classify_explicit(trimmed) {
             let end = explicit_extent(lines, i, indent);
-            record_definition(&mut defs, lines, i, end, indent, kind);
+            if matches!(&kind, Explicit::Directive(name) if name == "include") {
+                if document {
+                    includes.enter_line(i);
+                }
+                let (argument, options, _) = split_directive(&directive_body(lines, i, end));
+                // A loop or too deep a nesting is reported where the block pass meets the directive.
+                if !is_literal(&options)
+                    && let Ok(Some(included)) = includes.open(&argument, &options)
+                {
+                    collect_into(defs, &included.lines, includes, false);
+                }
+            } else {
+                record_definition(defs, lines, i, end, indent, kind);
+            }
             i = end;
         } else {
             i += 1;
         }
     }
-    defs
 }
 
 fn record_definition(

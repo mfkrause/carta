@@ -1,6 +1,6 @@
 #![allow(clippy::indexing_slicing)]
 use super::*;
-use carta_ast::{Inline, QuoteType};
+use carta_ast::{Attr, Inline, QuoteType};
 
 fn doc(input: &str) -> Document {
     let mut options = ReaderOptions::default();
@@ -677,4 +677,203 @@ fn file_links_preserve_urls_and_absolute_paths() {
         });
         assert_eq!(destinations, [expected], "{source}");
     }
+}
+
+/// Reads `files[0]` as the document, with every file written to a scratch directory.
+fn read_with_files(label: &str, files: &[(&str, &str)]) -> carta_core::Result<Vec<Block>> {
+    let directory = std::env::temp_dir().join(format!("carta-org-{}-{label}", std::process::id()));
+    for (name, text) in files {
+        let path = directory.join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+    let (name, input) = files.first().unwrap();
+    let mut options = ReaderOptions::default();
+    options.source_dir = Some(directory.clone());
+    options.source_paths.insert(0, directory.join(name));
+    let document = OrgReader.read(input, &options);
+    std::fs::remove_dir_all(directory).unwrap();
+    Ok(document?.blocks)
+}
+
+fn paragraph(text: &str) -> Block {
+    Block::Para(vec![Inline::Str(text.into())])
+}
+
+#[test]
+fn an_include_splices_markup_as_blocks_of_its_own() {
+    let blocks = read_with_files(
+        "markup",
+        &[
+            (
+                "main.org",
+                "before\n#+INCLUDE: \"sub/part.org\" :minlevel 2\nafter\n",
+            ),
+            (
+                "sub/part.org",
+                "* Head\n#+include: \"leaf.org\" :lines \"2-3\"\n",
+            ),
+            ("sub/leaf.org", "one\ntwo\nthree\n"),
+        ],
+    )
+    .unwrap();
+    assert!(matches!(
+        blocks.as_slice(),
+        [first, Block::Header(2, _, _), second, last]
+            if *first == paragraph("before") && *second == paragraph("two") && *last == paragraph("after")
+    ));
+}
+
+#[test]
+fn the_headlines_of_an_included_file_go_below_the_headline_above_the_include() {
+    let include = "#+INCLUDE: \"part.org\"\n";
+    let main =
+        format!("{include}* Parent\n{include}{include}#+INCLUDE: \"part.org\" :minlevel 1\n");
+    let blocks = read_with_files(
+        "levels",
+        &[("main.org", &main), ("part.org", "** Deep\n*** Deeper\n")],
+    )
+    .unwrap();
+    let levels = blocks.iter().map(|block| match block {
+        Block::Header(level, _, _) => *level,
+        other => panic!("unexpected block: {other:?}"),
+    });
+    assert_eq!(levels.collect::<Vec<_>>(), [2, 3, 1, 2, 3, 2, 3, 1, 2]);
+}
+
+#[test]
+fn a_file_link_of_an_included_file_still_names_the_same_file() {
+    let blocks = read_with_files(
+        "links",
+        &[
+            ("main.org", "#+INCLUDE: \"sub/part.org\"\n"),
+            ("sub/part.org", "[[file:diagram.png]] ~[[file:code.png]]~\n"),
+        ],
+    )
+    .unwrap();
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert!(matches!(
+        inlines.as_slice(),
+        [Inline::Image(_, _, target), Inline::Space, Inline::Code(_, code)]
+            if target.url.as_str() == "sub/diagram.png" && code.as_str() == "[[file:code.png]]"
+    ));
+}
+
+#[test]
+fn an_include_quotes_a_file_as_a_verbatim_block() {
+    let text = "* not a headline\n#+end_src\n,* guarded\n";
+    let blocks = read_with_files(
+        "verbatim",
+        &[
+            (
+                "main.org",
+                "#+INCLUDE: \"file.txt\" src org\n#+INCLUDE: \"file.txt\" export html\n\
+                 #+begin_example\n#+INCLUDE: \"file.txt\"\n#+end_example\n",
+            ),
+            ("file.txt", text),
+        ],
+    )
+    .unwrap();
+    let source = Attr {
+        classes: vec!["org".into()],
+        ..Attr::default()
+    };
+    assert_eq!(
+        blocks,
+        vec![
+            Block::CodeBlock(Box::new(source), text.into()),
+            Block::RawBlock(carta_ast::Format("html".into()), text.into()),
+            Block::CodeBlock(Box::default(), "#+INCLUDE: \"file.txt\"\n".into()),
+        ]
+    );
+}
+
+#[test]
+fn an_include_loop_fails_the_read_and_a_missing_file_has_no_content() {
+    let read = |main: &str| {
+        read_with_files(
+            "loop",
+            &[
+                ("main.org", main),
+                ("back.org", "#+INCLUDE: \"main.org\"\n"),
+            ],
+        )
+    };
+    assert!(read("#+INCLUDE: \"back.org\"\n").is_err());
+    assert!(read("#+INCLUDE: \"main.org\"\n").is_err());
+    assert_eq!(read("#+INCLUDE: \"main.org\" example\n").unwrap().len(), 1);
+    assert_eq!(
+        read("#+INCLUDE: \"missing.org\"\n#+INCLUDE: \"missing.org\" example\n").unwrap(),
+        [Block::CodeBlock(Box::default(), "".into())]
+    );
+}
+
+#[test]
+fn an_included_file_keeps_to_its_own_footnotes() {
+    let include = "#+INCLUDE: \"part.org\"\nAfter.\n";
+    let definition = "[fn:x] Root note.\n";
+    for main in [
+        format!("Root[fn:x] and [fn:y].\n\n{include}\n{definition}"),
+        format!("Root[fn:x] and [fn:y].\n\n{definition}\n\n{include}"),
+    ] {
+        let part = "Part[fn:x].\n\n[fn:x] Part note.\n\n[fn:y] Shared note.\n";
+        let blocks = read_with_files("notes", &[("main.org", &main), ("part.org", part)]).unwrap();
+        assert_eq!(blocks.last(), Some(&paragraph("After.")), "{main}");
+        let mut document = Document {
+            blocks,
+            ..Document::default()
+        };
+        let mut notes = Vec::new();
+        carta_core::walk::for_each_document_inline(&mut document, &mut |inline| {
+            if let Inline::Note(blocks) = inline
+                && let Some(Block::Para(inlines)) = blocks.first()
+            {
+                notes.push(carta_ast::to_plain_text(inlines));
+            }
+        });
+        assert_eq!(
+            notes,
+            ["Root note.", "Shared note.", "Part note."],
+            "{main}"
+        );
+    }
+}
+
+#[test]
+fn includes_nested_past_the_limit_fail_the_read() {
+    let chain = |length: usize| {
+        let name = |index: usize| format!("{index}.org");
+        let mut files: Vec<(String, String)> = (0..length)
+            .map(|index| (name(index), format!("#+INCLUDE: \"{}\"\n", name(index + 1))))
+            .collect();
+        files.push((name(length), "end\n".to_owned()));
+        let files: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(name, text)| (name.as_str(), text.as_str()))
+            .collect();
+        read_with_files("nesting", &files)
+    };
+    assert_eq!(chain(100).unwrap(), [paragraph("end")]);
+    assert!(chain(200).is_err());
+}
+
+#[test]
+fn an_include_indent_out_of_proportion_to_the_input_fails_the_read() {
+    let main = format!("{}#+INCLUDE: \"lines.txt\" example\n", " ".repeat(2000));
+    let lines = "x\n".repeat(2000);
+    let result = read_with_files("indent", &[("main.org", &main), ("lines.txt", &lines)]);
+    assert!(matches!(result, Err(carta_core::Error::OutputTooLarge)));
+}
+
+#[test]
+fn a_verbatim_block_drops_the_comma_guarding_a_headline_or_keyword() {
+    assert_eq!(
+        blocks("#+begin_example\n,* star\n  ,#+key\n,,* two\n,plain\n#+end_example\n"),
+        vec![Block::CodeBlock(
+            Box::default(),
+            "* star\n  #+key\n,* two\n,plain\n".into()
+        )]
+    );
 }

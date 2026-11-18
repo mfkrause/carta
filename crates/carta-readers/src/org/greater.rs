@@ -127,10 +127,23 @@ pub(super) fn parse_greater_block(
 fn verbatim(lines: &[&str]) -> String {
     let mut out = String::new();
     for line in lines {
-        out.push_str(line);
+        push_unescaped(&mut out, line);
         out.push('\n');
     }
     out
+}
+
+/// Appends a verbatim line without the comma that guards a leading `*` or `#+` from being read
+/// as a headline or a keyword. One comma of a run goes.
+fn push_unescaped(out: &mut String, line: &str) {
+    let content = line.trim_start();
+    let guarded = content.trim_start_matches(',');
+    if content.len() > guarded.len() && (guarded.starts_with('*') || guarded.starts_with("#+")) {
+        out.push_str(line.get(..line.len() - content.len()).unwrap_or(""));
+        out.push_str(content.get(1..).unwrap_or(""));
+    } else {
+        out.push_str(line);
+    }
 }
 
 /// Joins verbatim content, first stripping the common leading indentation shared by all non-blank
@@ -145,11 +158,14 @@ fn dedent_verbatim(lines: &[&str]) -> String {
     let mut out = String::new();
     for line in lines {
         let trimmed = line.get(indent..).unwrap_or("");
-        out.push_str(if line.trim().is_empty() {
-            line
-        } else {
-            trimmed
-        });
+        push_unescaped(
+            &mut out,
+            if line.trim().is_empty() {
+                line
+            } else {
+                trimmed
+            },
+        );
         out.push('\n');
     }
     out

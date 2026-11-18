@@ -10,13 +10,18 @@ pub(crate) fn is_number_lines_class(class: &Text) -> bool {
     matches!(class.as_str(), "numberLines" | "number-lines")
 }
 
-/// The first line's number: the `startFrom` key parsed as an integer, or 1 when absent or unparsable.
-pub(crate) fn start_line(attr: &Attr) -> i64 {
-    attr.attributes
+/// The `startFrom` key as an integer, when it is present and a number; space around it is ignored.
+pub(crate) fn start_from(attr: &Attr) -> Option<i64> {
+    let (_, value) = attr
+        .attributes
         .iter()
-        .find(|(key, _)| key.as_str() == "startFrom")
-        .and_then(|(_, value)| value.as_str().parse::<i64>().ok())
-        .unwrap_or(1)
+        .find(|(key, _)| key.as_str() == "startFrom")?;
+    value.as_str().trim().parse().ok()
+}
+
+/// The first line's number: the `startFrom` key, or 1 when absent or not a number.
+pub(crate) fn start_line(attr: &Attr) -> i64 {
+    start_from(attr).unwrap_or(1)
 }
 
 /// Split a code block's text into lines the way the tokenizer does, treating each as a single

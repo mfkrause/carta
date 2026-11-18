@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use carta_ast::{Document, Inline};
-use carta_core::{Reader, ReaderOptions, Result};
+use carta_core::{HostAccess, Reader, ReaderOptions, Result};
 
 mod attributes;
 mod block;
@@ -149,6 +149,7 @@ fn read_source(
         list_boundary: false,
         pending_line: None,
         error: None,
+        host: options.host,
     };
     let normalized = input.trim_start_matches('\u{feff}').replace('\r', "");
     let mut document = parser.document(&crate::tabs::expand_tabs(&normalized, options.tab_stop));
@@ -205,6 +206,7 @@ struct Parser {
     list_boundary: bool,
     pending_line: Option<String>,
     error: Option<ParserError>,
+    host: HostAccess,
 }
 
 pub(super) struct ParserSnapshot {

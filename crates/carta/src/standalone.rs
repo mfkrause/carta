@@ -635,6 +635,10 @@ fn overlay_variables(context: &mut BTreeMap<String, Value>, variables: &[(String
 /// that extension is empty (the including template had none). The including template's own directory
 /// `dir` is consulted first; a shared `datadir` of partials supplies those common to several
 /// templates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the caller's template names its partials"
+)]
 fn resolve_partial(
     dir: Option<&Path>,
     datadir: Option<&Path>,

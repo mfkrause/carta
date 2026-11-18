@@ -1071,3 +1071,127 @@ fn east_asian_line_breaks_is_accepted_and_inert() {
     );
     assert_eq!(base.blocks, with.blocks);
 }
+
+/// Reads `input` with `files` written to a scratch directory that is the resource path.
+fn read_with_files(label: &str, input: &str, files: &[(&str, &str)]) -> Vec<Block> {
+    let directory = std::env::temp_dir().join(format!("carta-man-{}-{label}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    for (name, text) in files {
+        std::fs::write(directory.join(name), text).unwrap();
+    }
+    let mut options = ReaderOptions::default();
+    options.resource_path = vec![directory.clone()];
+    let document = ManReader.read(input, &options);
+    std::fs::remove_dir_all(directory).unwrap();
+    document.unwrap().blocks
+}
+
+#[test]
+fn a_source_request_reads_the_named_file_in_place() {
+    let blocks = read_with_files(
+        "source",
+        ".nf\nfirst\n.so middle.man extra\nlast\n.fi\n",
+        &[("middle.man", ".so inner.man\n"), ("inner.man", "inner\n")],
+    );
+    assert_eq!(
+        blocks,
+        vec![Block::CodeBlock(
+            Box::default(),
+            "first\ninner\nlast".into()
+        )]
+    );
+}
+
+#[test]
+fn a_sourced_file_whose_last_line_is_open_runs_on_into_the_next_line() {
+    for open in ["open", "open\\\n"] {
+        let blocks = read_with_files(
+            "open",
+            "before\n.so outer.man\n.B after\n",
+            &[("outer.man", ".so open.man\n"), ("open.man", open)],
+        );
+        let [Block::Para(inlines)] = blocks.as_slice() else {
+            panic!("expected one paragraph: {blocks:?}");
+        };
+        assert_eq!(to_plain_text(inlines), "before open.B after", "{open:?}");
+    }
+}
+
+#[test]
+fn a_source_request_in_a_macro_definition_runs_when_the_macro_is_called() {
+    // The sourced file holds the line that ends a definition.
+    let files = [("part.man", "sourced\n..\nexposed\n")];
+    let define = ".de MM\n.so part.man\nbody\n..\nbefore\n";
+    for (call, text) in [
+        ("", "before after"),
+        (".MM\n", "before sourced exposed body after"),
+        (
+            ".MM\n.so part.man\n",
+            "before sourced exposed body sourced exposed after",
+        ),
+    ] {
+        let blocks = read_with_files("copy", &format!("{define}{call}after\n"), &files);
+        let [Block::Para(inlines)] = blocks.as_slice() else {
+            panic!("expected one paragraph: {blocks:?}");
+        };
+        assert_eq!(to_plain_text(inlines), text);
+    }
+}
+
+#[test]
+fn a_source_request_in_a_link_label_keeps_the_link() {
+    let blocks = read_with_files(
+        "label",
+        ".UR http://example.com\ntext\n.so label.man\n.UE\n",
+        &[("label.man", "more\n")],
+    );
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert!(matches!(
+        inlines.as_slice(),
+        [Inline::Link(_, label, _)] if to_plain_text(label) == "textmore"
+    ));
+}
+
+#[test]
+fn a_sourced_file_past_the_expansion_limit_takes_nothing_from_the_input_or_the_limit() {
+    // The filler leaves room for one more line.
+    let filler = "x\n".repeat(99_999);
+    let blocks = read_with_files(
+        "limit",
+        ".nf\n.so filler.man\n.so two.man\nkept\n.so one.man\n.fi\n",
+        &[
+            ("filler.man", &filler),
+            ("two.man", "a\nb"),
+            ("one.man", "one\n"),
+        ],
+    );
+    let [Block::CodeBlock(_, text)] = blocks.as_slice() else {
+        panic!("expected one code block");
+    };
+    assert!(text.ends_with("x\nkept\none"));
+}
+
+#[test]
+fn an_empty_sourced_file_adds_no_line() {
+    let blocks = read_with_files(
+        "empty",
+        "before\n.so outer.man\nafter\n",
+        &[("outer.man", "middle\n.so empty.man\n"), ("empty.man", "")],
+    );
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert_eq!(to_plain_text(inlines), "before middle after");
+}
+
+#[test]
+fn a_file_that_sources_itself_is_read_once() {
+    let blocks = read_with_files(
+        "cycle",
+        ".so cycle.man\n",
+        &[("cycle.man", "text\n.so cycle.man\n")],
+    );
+    assert_eq!(blocks, vec![Block::Para(vec![Inline::Str("text".into())])]);
+}

@@ -1,4 +1,6 @@
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! Output-format writers. Each module renders the document model ([`carta_ast::Document`]) into a
 //! target format's text via the [`carta_core::Writer`] trait.
 

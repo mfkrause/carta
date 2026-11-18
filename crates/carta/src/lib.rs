@@ -1,5 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! Document conversion with compile-time reader and writer selection.
 //!
 //! [`convert`] accepts bytes and returns [`Output`]; [`convert_text`] handles text formats.
@@ -9,9 +11,9 @@ pub use carta_ast as ast;
 pub use carta_ast::Document;
 pub use carta_core::{
     AnyReader, AnyWriter, BytesReader, BytesWriter, DocxOptions, EpubOptions, Error, Extension,
-    Extensions, MathMethod, MediaBag, MediaItem, Output, PdfEngine, PdfOptions, Reader,
-    ReaderOptions, Result, TocStyle, TopLevelDivision, WrapMode, Writer, WriterOptions, media,
-    presets, walk,
+    Extensions, Fetcher, HostAccess, MathMethod, MediaBag, MediaItem, Output, PdfEngine,
+    PdfOptions, Reader, ReaderOptions, Result, SourceFile, TocStyle, TopLevelDivision, WrapMode,
+    Writer, WriterOptions, media, presets, walk,
 };
 
 use std::sync::Arc;

@@ -832,6 +832,11 @@ name = "Embed resources / extract media"
 status = "usable"
 
 [[feature]]
+name = "Sandbox (`--sandbox`)"
+status = "usable"
+notes = "Filters and the PDF engine are separate programs that the sandbox does not confine."
+
+[[feature]]
 name = "Filename format inference"
 status = "usable"
 

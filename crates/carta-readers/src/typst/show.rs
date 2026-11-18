@@ -499,7 +499,11 @@ mod tests {
             r#"regex("[0-9]" * 6666))"#,
             r#"heading.where(level: "x" * 6666) body"#,
         ] {
-            let mut parser = Parser::new(source.chars().collect(), None);
+            let mut parser = Parser::new(
+                source.chars().collect(),
+                None,
+                carta_core::HostAccess::default(),
+            );
             let work = parser.work.get();
             assert!(parser.selector().is_none());
             assert_eq!(parser.work.get(), work);
@@ -509,7 +513,11 @@ mod tests {
     #[test]
     fn selectors_allow_spaces_before_the_colon() {
         for source in [r#"regex("x+")   :"#, "heading.where(level: 1)\t:"] {
-            let mut parser = Parser::new(source.chars().collect(), None);
+            let mut parser = Parser::new(
+                source.chars().collect(),
+                None,
+                carta_core::HostAccess::default(),
+            );
             assert!(parser.selector().is_some());
         }
     }

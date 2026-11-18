@@ -940,3 +940,212 @@ fn adversarially_nested_input_does_not_overflow_the_stack() {
     let balanced = format!("{}x{}", "{".repeat(10_000), "}".repeat(10_000));
     let _ = parse(&balanced);
 }
+
+#[test]
+fn an_expansion_at_the_start_of_a_block_returns_to_the_block_loop() {
+    let list = "\\newcommand{\\e}{}\\begin{itemize}\\item one\n\n\\e\\item two\\end{itemize}";
+    assert!(matches!(
+        parse(list).as_slice(),
+        [Block::BulletList(items)] if items.len() == 2
+    ));
+    let _ = parse(&format!("\\newcommand{{\\e}}{{}}{}", "\\e".repeat(100_000)));
+}
+
+/// Reads `files[0]` as the document, with every file written to a scratch directory that is the
+/// search path.
+fn read_with_files(label: &str, files: &[(&str, &str)]) -> Vec<Block> {
+    let directory =
+        std::env::temp_dir().join(format!("carta-latex-{}-{label}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    for (name, text) in files {
+        std::fs::write(directory.join(name), text).unwrap();
+    }
+    let (name, input) = files.first().unwrap();
+    let mut options = ReaderOptions::default();
+    options.extensions = latex_defaults();
+    options.resource_path = vec![directory.clone()];
+    options.source_paths.insert(0, directory.join(name));
+    let document = LatexReader.read(input, &options);
+    std::fs::remove_dir_all(directory).unwrap();
+    document.unwrap().blocks
+}
+
+fn plain(blocks: &[Block]) -> Vec<String> {
+    let text = |block: &Block| match block {
+        Block::Para(inlines) => to_plain_text(inlines),
+        Block::CodeBlock(_, text) => text.to_string(),
+        other => panic!("unexpected block: {other:?}"),
+    };
+    blocks.iter().map(text).collect()
+}
+
+#[test]
+fn an_input_reads_the_named_file_in_place() {
+    let blocks = read_with_files(
+        "input",
+        &[
+            (
+                "main.tex",
+                "\\input macros\n\nA \\input{part} B \\word.\n\n\\subfile{whole}\n\n\\include{missing}\n\n\\input part.tex\nC\n",
+            ),
+            ("macros.tex", "\\newcommand{\\word}{defined}\n"),
+            ("part.tex", "part"),
+            (
+                "whole.tex",
+                "\\documentclass{article}\\title{Not this}\\begin{document}Body.\\end{document}After.",
+            ),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["A part B defined.", "Body.", "part C"]);
+}
+
+#[test]
+fn a_chapter_from_an_included_file_sets_the_heading_levels() {
+    let blocks = read_with_files(
+        "levels",
+        &[
+            ("main.tex", "\\section{Section}\n\n\\input{chapter}\n"),
+            ("chapter.tex", "\\chapter{Chapter}\n"),
+        ],
+    );
+    let levels = blocks.iter().map(|block| match block {
+        Block::Header(level, _, _) => *level,
+        other => panic!("unexpected block: {other:?}"),
+    });
+    assert_eq!(levels.collect::<Vec<_>>(), [2, 1]);
+}
+
+#[test]
+fn a_heading_in_metadata_moves_with_the_body_headings() {
+    let source = "\\begin{abstract}\\section{Summary}\\end{abstract}\\section{Details}";
+    let mut document = LatexReader.read(source, &ReaderOptions::default()).unwrap();
+    let mut levels = Vec::new();
+    carta_core::walk::for_each_document_block(&mut document, &mut |block| {
+        if let Block::Header(level, _, _) = block {
+            levels.push(*level);
+        }
+    });
+    assert_eq!(levels, [1, 1]);
+}
+
+#[test]
+fn a_macro_named_input_replaces_the_file_command() {
+    let blocks = read_with_files(
+        "macro",
+        &[
+            (
+                "main.tex",
+                "\\renewcommand{\\input}[1]{macro #1}\n\n\\input{part}\n",
+            ),
+            ("part.tex", "file"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["macro part"]);
+}
+
+#[test]
+fn a_file_that_inputs_itself_is_read_once() {
+    let blocks = read_with_files(
+        "cycle",
+        &[
+            ("main.tex", "Main. \\input{main} \\input{other}\n"),
+            ("other.tex", "Other. \\input{other} \\input{main}"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["Main. Other."]);
+}
+
+#[test]
+fn a_local_package_supplies_only_its_macros() {
+    let blocks = read_with_files(
+        "package",
+        &[
+            (
+                "main.tex",
+                "\\usepackage[option]{local,absent}\nA \\word{} B \\inner\n",
+            ),
+            (
+                "local.sty",
+                "\\ProvidesPackage{local}\n\\RequirePackage{inner,local}\nstray text\n\\newcommand{\\word}{defined}\n",
+            ),
+            ("inner.sty", "\\newcommand{\\inner}{nested}\n"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["A defined B nested"]);
+}
+
+#[test]
+fn packages_nested_past_the_limit_are_not_read() {
+    let chain = |length: usize| {
+        let name = |index: usize| format!("p{index}.sty");
+        let mut files = vec![(
+            "main.tex".to_owned(),
+            "\\usepackage{p0}\nA \\deep{} B\n".to_owned(),
+        )];
+        files.extend((0..length).map(|index| {
+            let next = format!("\\RequirePackage{{p{}}}\n", index + 1);
+            (name(index), next)
+        }));
+        files.push((name(length), "\\newcommand{\\deep}{deep}\n".to_owned()));
+        let files: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(name, text)| (name.as_str(), text.as_str()))
+            .collect();
+        plain(&read_with_files("packages", &files))
+    };
+    assert_eq!(chain(100), ["A deep B"]);
+    assert_eq!(chain(200), ["A B"]);
+}
+
+#[test]
+fn a_listing_command_quotes_the_named_file() {
+    let blocks = read_with_files(
+        "listing",
+        &[
+            (
+                "main.tex",
+                "\\lstinputlisting[language=Python,firstline=2,lastline=3]{code.py}\n\n\\inputminted{rust}{code.py}\n\n\\lstinputlisting{missing.py}\n",
+            ),
+            ("code.py", "one\ntwo\nthree\nfour\n"),
+        ],
+    );
+    assert_eq!(
+        plain(&blocks),
+        ["two\nthree", "one\ntwo\nthree\nfour\n", ""]
+    );
+    let classes: Vec<String> = blocks
+        .iter()
+        .map(|block| match block {
+            Block::CodeBlock(attr, _) => attr.classes.join(" "),
+            other => panic!("unexpected block: {other:?}"),
+        })
+        .collect();
+    assert_eq!(classes, ["python", "rust", ""]);
+}
+
+#[test]
+fn a_listing_command_ends_the_paragraph_before_it() {
+    let blocks = read_with_files(
+        "listing-break",
+        &[
+            ("main.tex", "Prose\n\\inputminted{rust}{code.rs}\nmore\n"),
+            ("code.rs", "code\n"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["Prose", "code\n", "more"]);
+    let defined =
+        "\\newcommand{\\inputminted}[2]{macro #2}\nProse \\inputminted{rust}{word} more\n";
+    let blocks = read_with_files("listing-macro", &[("main.tex", defined)]);
+    assert_eq!(plain(&blocks), ["Prose macro word more"]);
+}
+
+#[cfg(feature = "commonmark")]
+#[test]
+fn a_macro_expander_reads_no_file() {
+    // The package manifest is a file that exists in the directory the tests run in.
+    let source = "\\input{Cargo.toml}";
+    let manifest = std::path::Path::new("Cargo.toml");
+    assert!(carta_core::HostAccess::Local.read(manifest).is_ok());
+    let expanded = MacroExpander::new(source.len(), latex_defaults()).raw(source);
+    assert_eq!(expanded, source);
+}

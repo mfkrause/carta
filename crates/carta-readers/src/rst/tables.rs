@@ -12,7 +12,8 @@ impl Parser<'_> {
     // table directives
 
     /// A `csv-table` directive: its rows are comma-separated values, with an optional explicit
-    /// `:header:` row and/or a count of leading `:header-rows:` taken from the data.
+    /// `:header:` row and/or a count of leading `:header-rows:` taken from the data. A `:file:` or
+    /// `:url:` option supplies the rows in place of the directive's own content.
     pub(super) fn csv_table(
         &mut self,
         argument: &str,
@@ -20,8 +21,18 @@ impl Parser<'_> {
         content: &[String],
         out: &mut Vec<Block>,
     ) {
+        let external = match self.includes.external(options) {
+            Ok(external) => external,
+            Err(error) => {
+                self.failure = Some(error);
+                return;
+            }
+        };
         let widths = directive_widths(options);
-        let mut records = parse_csv(&content.join("\n"));
+        let mut records = match &external {
+            Some(text) => parse_csv(text),
+            None => parse_csv(&content.join("\n")),
+        };
         let mut header_records: Vec<Vec<String>> = Vec::new();
         if let Some((_, header)) = options.iter().find(|(k, _)| k == "header") {
             header_records.extend(parse_csv(header));
@@ -34,7 +45,7 @@ impl Parser<'_> {
             .map(Vec::len)
             .max()
             .unwrap_or(0);
-        if num_cols == 0 {
+        if num_cols == 0 && external.is_none() {
             return;
         }
         let head_rows = header_records

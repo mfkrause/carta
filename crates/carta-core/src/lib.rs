@@ -1,5 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! Conversion traits, options, and errors shared by readers and writers.
 
 use std::fmt;
@@ -13,6 +15,7 @@ pub mod budget;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "container", feature = "xml"))))]
 pub mod container;
 pub mod extensions;
+mod host;
 pub mod media;
 pub mod sections;
 pub mod stack;
@@ -24,6 +27,7 @@ mod wide_breaks;
 pub mod width;
 
 pub use extensions::{Extension, Extensions, presets};
+pub use host::{Fetcher, HostAccess};
 pub use media::{MediaBag, MediaItem};
 pub use stack::{DEEP_STACK, DeepStack, on_deep_stack, with_stack};
 pub use wide_breaks::{drop_document_wide_breaks, drop_metadata_wide_breaks};
@@ -133,6 +137,12 @@ pub struct ReaderOptions {
     /// Source filenames keyed by starting UTF-8 byte offset. Readers use these names to identify
     /// recursive includes. Standard input has no entry.
     pub source_paths: std::collections::BTreeMap<usize, std::path::PathBuf>,
+    /// Directories searched, in order, for a file the input names that is not found beside the
+    /// source: a data file, or in some formats an included source. Empty searches the working
+    /// directory.
+    pub resource_path: Vec<std::path::PathBuf>,
+    /// What the files and URLs named by the input may reach on the host.
+    pub host: HostAccess,
 }
 
 impl Default for ReaderOptions {
@@ -145,7 +155,56 @@ impl Default for ReaderOptions {
             source_dir: None,
             source_dirs: std::collections::BTreeMap::new(),
             source_paths: std::collections::BTreeMap::new(),
+            resource_path: Vec::new(),
+            host: HostAccess::default(),
         }
+    }
+}
+
+/// The part of a reader's input that one source file supplied.
+#[derive(Debug, Clone, Copy)]
+pub struct SourceFile<'a> {
+    /// The text the file supplied.
+    pub text: &'a str,
+    /// The directory the file was named under. An empty path is the working directory.
+    pub directory: Option<&'a std::path::Path>,
+    /// The file's name. Standard input has none.
+    pub path: Option<&'a std::path::Path>,
+}
+
+impl ReaderOptions {
+    /// Splits `input` into the parts its source files supplied, in order. Input from one source,
+    /// or with offsets that do not fit it, is a single part.
+    #[must_use]
+    pub fn source_files<'a>(&'a self, input: &'a str) -> Vec<SourceFile<'a>> {
+        let path = |start| {
+            self.source_paths
+                .get(start)
+                .map(std::path::PathBuf::as_path)
+        };
+        let directory = self.source_dirs.get(&0).or(self.source_dir.as_ref());
+        let whole = SourceFile {
+            text: input,
+            directory: directory.map(std::path::PathBuf::as_path),
+            path: self.source_paths.keys().next().and_then(path),
+        };
+        if self.source_dirs.len() < 2 || !self.source_dirs.contains_key(&0) {
+            return vec![whole];
+        }
+        let mut files = Vec::new();
+        let mut starts = self.source_dirs.iter().peekable();
+        while let Some((start, directory)) = starts.next() {
+            let end = starts.peek().map_or(input.len(), |&(&end, _)| end);
+            let Some(text) = input.get(*start..end) else {
+                return vec![whole];
+            };
+            files.push(SourceFile {
+                text,
+                directory: Some(directory),
+                path: path(start),
+            });
+        }
+        files
     }
 }
 
@@ -365,6 +424,9 @@ pub struct WriterOptions {
 
     /// Options for external PDF compilation; ignored by other writers.
     pub pdf: PdfOptions,
+
+    /// What the files and URLs named by the document may reach on the host.
+    pub host: HostAccess,
 
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.

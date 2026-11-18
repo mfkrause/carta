@@ -77,7 +77,7 @@ Deprecated alias for `--embed-resources --standalone`: produce a self-contained 
 - false
 
 **--sandbox**\[=*\<SANDBOX\>*\] \[default: false\]  
-Disable network access for document resources. EPUB and PDF use descriptions for unavailable images; HTML keeps external references\
+Block every file and URL the document names: included sources, images, stylesheets, and remote resources all count as missing. Files named on the command line are still read. Filters and the PDF engine are separate programs that the sandbox does not confine\
 
 \
 *Possible values:*

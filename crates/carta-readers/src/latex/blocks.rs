@@ -12,7 +12,7 @@ use crate::heading_ids::IdScheme;
 
 use super::support::demote_image_para;
 use super::tables::{build_table, parse_column_spec, parse_key_values};
-use super::{InlineStop, LABEL_ATTRIBUTE, Parser, Stop};
+use super::{InlineStop, LABEL_ATTRIBUTE, PARSED_SECTION_LEVEL, Parser, Stop};
 
 impl Parser {
     // Sectioning
@@ -35,7 +35,7 @@ impl Parser {
             label = Some(id);
         }
 
-        let level = (intrinsic - self.base_level + 1).max(1);
+        let level = i64::from(intrinsic - 1) + PARSED_SECTION_LEVEL;
         let labelled = label.is_some();
         let id = match label {
             Some(id) => {
@@ -49,7 +49,7 @@ impl Parser {
             classes.push("unnumbered".into());
         }
         Block::Header(
-            i64::from(level),
+            level,
             Box::new(Attr {
                 id: id.into(),
                 classes,

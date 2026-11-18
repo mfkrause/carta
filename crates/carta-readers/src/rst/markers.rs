@@ -412,6 +412,14 @@ pub(super) fn explicit_body(
     body
 }
 
+/// The body of the directive spanning `start..end`: its argument line, option lines, and content,
+/// dedented.
+pub(super) fn directive_body(lines: &[String], start: usize, end: usize) -> Vec<String> {
+    let line = line_at(lines, start);
+    let after = line.split_once("::").map_or("", |(_, after)| after);
+    explicit_body(lines, start, end, line.len() - after.len())
+}
+
 /// A classified explicit-markup construct, by the first non-`..` token on its line.
 pub(super) enum Explicit {
     Target,

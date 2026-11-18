@@ -410,7 +410,7 @@ impl Parser {
 
     /// Pushes a macro or expansion primitive's replacement before the remaining input.
     pub(super) fn try_expand_macro(&mut self) -> bool {
-        self.expand_macro(true)
+        self.expand_macro(true) || self.expand_input()
     }
 
     fn expand_macro(&mut self, track_call: bool) -> bool {
@@ -722,7 +722,7 @@ impl Parser {
         self.recording.take().unwrap_or_default()
     }
 
-    fn expand_source(&mut self, definitions: bool) -> String {
+    pub(super) fn expand_source(&mut self, definitions: bool) -> String {
         let mut output = String::new();
         let mut control_word = false;
         let mut scopes = Vec::new();
@@ -845,7 +845,7 @@ pub(crate) struct MacroExpander(Parser);
 impl MacroExpander {
     pub(crate) fn new(source_len: usize, mut extensions: carta_core::Extensions) -> Self {
         extensions.insert(Extension::LatexMacros);
-        Self(Parser::new(source_len, extensions, 1))
+        Self(Parser::new(source_len, extensions))
     }
 
     pub(crate) fn has_definitions(&self) -> bool {
@@ -853,7 +853,7 @@ impl MacroExpander {
     }
 
     pub(crate) fn probe(&self) -> Self {
-        let mut parser = Parser::new(0, self.0.ext, self.0.base_level);
+        let mut parser = Parser::new(0, self.0.ext);
         parser.macros = Rc::clone(&self.0.macros);
         parser.expansions.calls.set(self.0.expansions.calls.get());
         parser

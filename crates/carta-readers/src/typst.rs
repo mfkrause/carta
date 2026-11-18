@@ -16,7 +16,7 @@ use carta_ast::{
     Document, Inline, InlineParts, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
     MetaValue, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target, Text,
 };
-use carta_core::{Error, Extension, Reader, ReaderOptions, Result};
+use carta_core::{Error, Extension, HostAccess, Reader, ReaderOptions, Result};
 
 mod data;
 mod emoji;
@@ -73,7 +73,10 @@ impl Reader for TypstReader {
 
 /// Parses a whole source text into the document model.
 fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
-    let mut parser = Parser::new(normalize(input), options.source_dir.clone());
+    let mut parser = Parser::new(normalize(input), options.source_dir.clone(), options.host);
+    let canonical = |path: &PathBuf| options.host.canonicalize(path).ok();
+    let first = options.source_paths.values().next().and_then(canonical);
+    parser.sources.insert(0, first);
     let mut characters = input.char_indices().peekable();
     let mut position = 0;
     let mut previous = None;
@@ -89,8 +92,13 @@ fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
             previous = Some(character);
         }
         parser.directories.insert(position, Some(directory.clone()));
+        let path = options.source_paths.get(&offset).and_then(canonical);
+        parser.sources.insert(position, path);
     }
     let mut blocks = parser.blocks(0);
+    if let Some(failure) = parser.failure.take() {
+        return Err(failure);
+    }
     if parser.work.get().is_none() {
         return Err(Error::OutputTooLarge);
     }
@@ -943,6 +951,10 @@ struct Parser {
     evaluated: Option<(usize, Value, usize)>,
     /// Source directories keyed by character offsets, including loaded files and evaluated code.
     directories: BTreeMap<usize, Option<PathBuf>>,
+    /// The document's own source files, as the character each starts on and its canonical path.
+    sources: BTreeMap<usize, Option<PathBuf>>,
+    /// The place in the document's own text that last referred to a file.
+    referring: usize,
     /// The files whose text is currently being parsed, so a cycle of references terminates.
     open: BTreeSet<PathBuf>,
     loaded: BTreeSet<PathBuf>,
@@ -969,6 +981,9 @@ struct Parser {
     /// Remaining materialization and lookup work; `None` records exhaustion.
     work: Rc<cell::Cell<Option<usize>>>,
     invalid_emoji: Option<String>,
+    host: HostAccess,
+    /// The error that fails the whole parse, such as a referenced file that cannot be read.
+    failure: Option<Error>,
 }
 
 /// A file pulled into the character arena by `#include` or `#import`.
@@ -992,7 +1007,7 @@ enum ImportList {
 }
 
 impl Parser {
-    fn new(source: Vec<char>, base: Option<PathBuf>) -> Self {
+    fn new(source: Vec<char>, base: Option<PathBuf>, host: HostAccess) -> Self {
         let limit = source.len();
         let work = BASE_WORK.saturating_add(limit.saturating_mul(WORK_PER_CHARACTER));
         Self {
@@ -1008,6 +1023,8 @@ impl Parser {
             functions: BTreeMap::new(),
             evaluated: None,
             directories: BTreeMap::from([(0, base)]),
+            sources: BTreeMap::new(),
+            referring: 0,
             open: BTreeSet::new(),
             loaded: BTreeSet::new(),
             line_closed: None,
@@ -1020,6 +1037,8 @@ impl Parser {
             flow: None,
             work: Rc::new(cell::Cell::new(Some(work))),
             invalid_emoji: None,
+            host,
+            failure: None,
         }
     }
 
@@ -3251,21 +3270,63 @@ impl Parser {
         }
     }
 
-    /// Append a referenced file's characters to the arena. A file that cannot be read, or one
-    /// already being parsed further up the chain, contributes nothing.
+    /// The file a reference names: beside the current file, or under the project root when the
+    /// reference starts with a slash. The root is the directory of the document's own source
+    /// file.
+    fn locate(&mut self, reference: &str) -> PathBuf {
+        let rooted = reference.trim_start_matches('/');
+        let directory = if rooted.len() == reference.len() {
+            self.base()
+        } else {
+            let own = self.own_position();
+            let root = self.directories.range(..=own).next_back();
+            root.and_then(|(_, directory)| directory.as_deref())
+        };
+        directory.map_or_else(|| PathBuf::from(rooted), |directory| directory.join(rooted))
+    }
+
+    /// Read a referenced file as text. A file that cannot be read fails the whole parse.
+    fn read_file(&mut self, path: &Path) -> Option<String> {
+        self.host
+            .read_to_string(path)
+            .map_err(|error| {
+                let error =
+                    std::io::Error::new(error.kind(), format!("{}: {error}", path.display()));
+                self.failure.get_or_insert(error.into());
+            })
+            .ok()
+    }
+
+    /// The place in the document's own text that holds the code being read, or that referred to
+    /// the file that holds it.
+    fn own_position(&mut self) -> usize {
+        let position = self.pos.saturating_sub(1);
+        let own = self.directories.range(..=position).next_back();
+        if own.is_some_and(|(start, _)| self.sources.contains_key(start)) {
+            self.referring = position;
+        }
+        self.referring
+    }
+
+    /// The document's own source file that holds the code being read, or that referred to the
+    /// file that holds it.
+    fn source_file(&mut self) -> Option<&PathBuf> {
+        let own = self.own_position();
+        self.sources.range(..=own).next_back()?.1.as_ref()
+    }
+
+    /// Append a referenced file's characters to the arena. A file already being parsed further up
+    /// the chain contributes nothing.
     fn open_source(&mut self, reference: &str) -> Option<Loaded> {
         if reference.is_empty() {
             return None;
         }
-        let path = match self.base() {
-            Some(base) => base.join(reference),
-            None => PathBuf::from(reference),
-        };
-        let path = path.canonicalize().unwrap_or(path);
-        if !self.open.insert(path.clone()) {
+        let path = self.locate(reference);
+        let path = self.host.canonicalize(&path).unwrap_or(path);
+        if self.source_file() == Some(&path) || !self.open.insert(path.clone()) {
             return None;
         }
-        let Ok(text) = std::fs::read_to_string(&path) else {
+        let Some(text) = self.read_file(&path) else {
             self.open.remove(&path);
             return None;
         };
@@ -3298,11 +3359,8 @@ impl Parser {
         if reference.is_empty() {
             return Value::Nothing;
         }
-        let path = match self.base() {
-            Some(base) => base.join(&reference),
-            None => PathBuf::from(&reference),
-        };
-        let Ok(text) = std::fs::read_to_string(&path) else {
+        let path = self.locate(&reference);
+        let Some(text) = self.read_file(&path) else {
             return Value::Nothing;
         };
         data::load(name, &text).unwrap_or(Value::Nothing)
@@ -3317,6 +3375,8 @@ impl Parser {
         if !self.spend(source.len()) {
             return Value::Nothing;
         }
+        // The code is read at a new place, so the place in the document that made it is noted.
+        self.own_position();
         let start = self.source.len();
         self.directories
             .insert(start, self.base().map(Path::to_path_buf));
@@ -3981,16 +4041,26 @@ impl Parser {
     fn disjunction(&mut self) -> Value {
         let mut value = self.conjunction();
         while self.eat_keyword("or") {
-            let right = self.conjunction();
+            let right = self.right_operand(value.is_truthy(), Self::conjunction);
             value = Value::Bool(value.is_truthy() || right.is_truthy());
         }
+        value
+    }
+
+    /// Reads the right operand of `and` or `or`. When the left operand has `decided` the result,
+    /// a file that the right operand cannot read does not fail the parse.
+    fn right_operand(&mut self, decided: bool, operand: fn(&mut Self) -> Value) -> Value {
+        let earlier = self.failure.take();
+        let value = operand(self);
+        let raised = self.failure.take().filter(|_| !decided);
+        self.failure = earlier.or(raised);
         value
     }
 
     fn conjunction(&mut self) -> Value {
         let mut value = self.comparison();
         while self.eat_keyword("and") {
-            let right = self.comparison();
+            let right = self.right_operand(!value.is_truthy(), Self::comparison);
             value = Value::Bool(value.is_truthy() && right.is_truthy());
         }
         value

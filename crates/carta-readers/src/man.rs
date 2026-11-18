@@ -4,7 +4,8 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{Attr, Block, Document, Inline, MetaValue, slug, slug_gfm, to_plain_text};
-use carta_core::{Extensions, Reader, ReaderOptions, Result};
+use carta_core::{Extensions, HostAccess, Reader, ReaderOptions, Result};
+use std::path::{Path, PathBuf};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
@@ -78,8 +79,7 @@ pub struct ManReader;
 
 impl Reader for ManReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let lines = logical_lines(input);
-        let mut parser = Parser::new(lines, options.extensions);
+        let mut parser = Parser::new(input, options);
         let blocks = parser.parse_blocks(Ctx::TOP);
         Ok(Document {
             meta: parser
@@ -106,8 +106,7 @@ fn logical_lines(input: &str) -> Vec<String> {
             acc.clear();
         }
         acc.push_str(raw);
-        let trailing = acc.chars().rev().take_while(|&c| c == '\\').count();
-        if trailing % 2 == 1 {
+        if continues(&acc) {
             acc.pop();
             continuing = true;
         } else {
@@ -119,6 +118,11 @@ fn logical_lines(input: &str) -> Vec<String> {
         out.push(acc);
     }
     out
+}
+
+/// Whether a line ends in an odd number of backslashes, so the next line continues it.
+fn continues(line: &str) -> bool {
+    line.chars().rev().take_while(|&c| c == '\\').count() % 2 == 1
 }
 
 /// What may end a block sequence early. Section headings always rise to the top level; a new
@@ -206,19 +210,39 @@ struct Parser {
     macros: BTreeMap<String, Vec<String>>,
     /// Set when the most recent `.ie` condition was false, so the following `.el` takes its branch.
     else_branch: bool,
-    /// What remains of the document-wide macro-expansion budget; once spent, macro calls expand to
-    /// nothing.
+    /// What remains of the document-wide expansion budget, shared by macro calls and included
+    /// files; once spent, both expand to nothing.
     expansion_budget: ExpansionBudget,
+    host: HostAccess,
+    /// The directories searched for a `.so` file; empty searches the working directory.
+    resource_path: Vec<PathBuf>,
+    /// The document's own files: the line each starts on and its canonical path, if it has one.
+    sources: Vec<(usize, Option<PathBuf>)>,
+    /// Canonical paths of the files being included, outermost first.
+    including: Vec<PathBuf>,
 }
 
+/// Closes an included file in the pending queue. No input line holds a newline.
+const INCLUDE_END: &str = "\n";
+
 impl Parser {
-    fn new(lines: Vec<String>, extensions: Extensions) -> Self {
-        Self {
-            lines,
+    fn new(input: &str, options: &ReaderOptions) -> Self {
+        let mut line = 0;
+        let sources = options.source_files(input).into_iter().map(|file| {
+            let first = line;
+            // The text of a file that another follows ends in a line break.
+            line += logical_lines(file.text).len().saturating_sub(1);
+            let path = file
+                .path
+                .and_then(|path| options.host.canonicalize(path).ok());
+            (first, path)
+        });
+        let mut parser = Self {
+            lines: logical_lines(input),
             pos: 0,
             pending: std::collections::VecDeque::new(),
             meta: BTreeMap::new(),
-            headings: HeadingIds::new(extensions),
+            headings: HeadingIds::new(options.extensions),
             strings: predefined_strings(),
             macros: BTreeMap::new(),
             else_branch: false,
@@ -226,7 +250,13 @@ impl Parser {
                 lines: MAX_MACRO_EXPANSION_LINES,
                 bytes: MAX_MACRO_EXPANSION_BYTES,
             },
-        }
+            host: options.host,
+            resource_path: options.resource_path.clone(),
+            sources: sources.collect(),
+            including: Vec::new(),
+        };
+        parser.splice_includes();
+        parser
     }
 
     fn peek(&self) -> Option<&str> {
@@ -237,9 +267,98 @@ impl Parser {
     }
 
     fn advance(&mut self) {
+        self.drop_line();
+        self.splice_includes();
+    }
+
+    fn drop_line(&mut self) {
         if self.pending.pop_front().is_none() {
             self.pos += 1;
         }
+    }
+
+    /// Replaces a `.so` request at the head of the input with the lines of the file it names, so
+    /// every context reads included text in place. The head is never left on such a request.
+    fn splice_includes(&mut self) {
+        loop {
+            let name = match self.peek() {
+                Some(INCLUDE_END) => None,
+                Some(line) if !is_comment(line) => match control_parts(line) {
+                    Some(("so", rest)) => {
+                        split_args(rest).into_iter().next().or(Some(String::new()))
+                    }
+                    _ => return,
+                },
+                _ => return,
+            };
+            self.drop_line();
+            let Some(name) = name else {
+                self.including.pop();
+                continue;
+            };
+            if let Some(lines) = self.included_lines(&name) {
+                self.pending.push_front(INCLUDE_END.to_owned());
+                for line in lines.into_iter().rev() {
+                    self.pending.push_front(line);
+                }
+            }
+        }
+    }
+
+    /// The canonical path of the input file that holds the document line read last.
+    fn source(&self) -> Option<&PathBuf> {
+        let line = self.pos.checked_sub(1)?;
+        let mut sources = self.sources.iter().rev();
+        let (_, path) = sources.find(|(first, _)| *first <= line)?;
+        path.as_ref()
+    }
+
+    /// The logical lines of the file a `.so` request names, found along the resource path. `None`
+    /// when the file cannot be read, is already being included, or the expansion budget is spent.
+    fn included_lines(&mut self, name: &str) -> Option<Vec<String>> {
+        if self.expansion_budget.exhausted() {
+            return None;
+        }
+        let found = self.host.read_from(&self.resource_path, Path::new(name));
+        let (path, text) = found.ok()?;
+        if self.including.contains(&path) || self.source() == Some(&path) {
+            return None;
+        }
+        let ended = text
+            .strip_suffix('\n')
+            .map(|body| body.strip_suffix('\r').unwrap_or(body))
+            .filter(|body| !continues(body));
+        let mut lines = if text.is_empty() {
+            Vec::new()
+        } else {
+            logical_lines(ended.unwrap_or(&text))
+        };
+        // The line after the request lies past the ends of the files that the request closes.
+        let closed = self.pending.iter().take_while(|line| *line == INCLUDE_END);
+        let closed = closed.count();
+        let next = self.pending.get(closed).or(self.lines.get(self.pos));
+        // A last line with no newline, or one that is continued, runs on into that line.
+        let run_on = next.filter(|_| ended.is_none() && !lines.is_empty());
+        let run_on = run_on.cloned();
+        // The file is charged as a whole or not at all, before the input gives up a line to it.
+        let mut budget = self.expansion_budget;
+        let last = lines.len().saturating_sub(1);
+        for (index, line) in lines.iter().enumerate() {
+            if budget.exhausted() {
+                return None;
+            }
+            let joined = run_on.as_ref().filter(|_| index == last);
+            budget.debit(line.len() + joined.map_or(0, String::len));
+        }
+        self.expansion_budget = budget;
+        if let (Some(last), Some(next)) = (lines.last_mut(), run_on) {
+            last.push_str(&next);
+            if self.pending.remove(closed).is_none() {
+                self.pos += 1;
+            }
+        }
+        self.including.push(path);
+        Some(lines)
     }
 
     /// The control-line request name of the line at `pos`, if it is a non-comment control line.
@@ -253,12 +372,9 @@ impl Parser {
 
     /// Consumes and returns the next line, if any.
     fn take_line(&mut self) -> Option<String> {
-        if let Some(line) = self.pending.pop_front() {
-            return Some(line);
-        }
-        let line = self.lines.get(self.pos).cloned();
+        let line = self.peek().map(str::to_owned);
         if line.is_some() {
-            self.pos += 1;
+            self.advance();
         }
         line
     }
@@ -276,6 +392,7 @@ impl Parser {
         } else {
             self.advance();
         }
+        self.splice_includes();
     }
 
     /// Consumes the body of a `.de`/`.de1` macro definition up to (but not including) the line whose
@@ -284,7 +401,12 @@ impl Parser {
     fn collect_macro_definition(&mut self, end: &str) -> Vec<String> {
         let mut body = Vec::new();
         while let Some(line) = self.peek().map(str::to_owned) {
-            self.advance();
+            // A definition stores its requests: a `.so` in it is read when the macro is called.
+            self.drop_line();
+            if line == INCLUDE_END {
+                self.including.pop();
+                continue;
+            }
             let is_end =
                 !is_comment(&line) && control_parts(&line).is_some_and(|(name, _)| name == end);
             if is_end {
@@ -292,6 +414,7 @@ impl Parser {
             }
             body.push(reduce_copy_mode(&line));
         }
+        self.splice_includes();
         body
     }
 
@@ -528,7 +651,7 @@ impl Parser {
                     }
                 }
                 "de" | "de1" => {
-                    self.advance();
+                    self.drop_line();
                     let args = split_args(rest);
                     let end = args.get(1).map_or(".", String::as_str).to_owned();
                     let body = self.collect_macro_definition(&end);
@@ -564,12 +687,14 @@ impl Parser {
                 }
                 // A user-macro call queues its expansion ahead of the current position, parsed in place.
                 _ if self.macros.contains_key(name) => {
-                    self.advance();
+                    // A `.so` after the call is read after the expansion, not before it.
+                    self.drop_line();
                     let args = split_args(rest);
                     let expansion = self.expand_macro_call(name, &args);
                     for line in expansion.into_iter().rev() {
                         self.pending.push_front(line);
                     }
+                    self.splice_includes();
                 }
                 _ if is_noop_request(name) => {
                     self.advance();

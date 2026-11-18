@@ -203,6 +203,10 @@ fn a_loop_binding_outlives_its_loop() {
 /// Write the named files into a fresh directory and read the first one from there, as a document
 /// named on the command line is read.
 fn parse_in_directory(label: &str, files: &[(&str, &str)]) -> Vec<Block> {
+    read_in_directory(label, files).expect("reader does not fail")
+}
+
+fn read_in_directory(label: &str, files: &[(&str, &str)]) -> carta_core::Result<Vec<Block>> {
     let directory =
         std::env::temp_dir().join(format!("carta-typst-{}-{label}", std::process::id()));
     let _ = std::fs::remove_dir_all(&directory);
@@ -213,15 +217,52 @@ fn parse_in_directory(label: &str, files: &[(&str, &str)]) -> Vec<Block> {
         }
         std::fs::write(&path, contents).expect("file is writable");
     }
-    let (_, source) = files.first().expect("at least one file");
+    let (name, source) = files.first().expect("at least one file");
     let mut options = ReaderOptions::default();
     options.source_dir = Some(directory.clone());
-    let blocks = TypstReader
-        .read(source, &options)
-        .expect("reader does not fail")
-        .blocks;
+    options.source_paths.insert(0, directory.join(name));
+    let document = TypstReader.read(source, &options);
     let _ = std::fs::remove_dir_all(&directory);
-    blocks
+    Ok(document?.blocks)
+}
+
+#[test]
+fn a_referenced_file_that_cannot_be_read_fails_the_parse() {
+    for source in [
+        "#include \"missing.typ\"\n",
+        "#import \"missing.typ\": name\n",
+        "#read(\"missing.txt\")\n",
+    ] {
+        assert!(read_in_directory("missing", &[("doc.typ", source)]).is_err());
+    }
+}
+
+#[test]
+fn a_file_read_in_an_operand_that_is_not_needed_does_not_fail_the_parse() {
+    for source in [
+        "#if true or read(\"missing.txt\") == \"x\" [kept]\n",
+        "#if false and read(\"missing.txt\") == \"x\" [dropped] else [kept]\n",
+    ] {
+        let blocks = parse_in_directory("operand", &[("doc.typ", source)]);
+        assert_eq!(
+            blocks,
+            parse_in_directory("operand", &[("doc.typ", "kept\n")])
+        );
+    }
+    let needed = "#if false or read(\"missing.txt\") == \"x\" [kept]\n";
+    assert!(read_in_directory("operand", &[("doc.typ", needed)]).is_err());
+}
+
+// An absolute path starts with a slash only on Unix.
+#[cfg(unix)]
+#[test]
+fn a_rooted_reference_does_not_start_at_the_root_of_the_file_system() {
+    let outside = std::env::temp_dir().join(format!("carta-typst-{}-outside", std::process::id()));
+    std::fs::write(&outside, "outside").expect("file is writable");
+    let source = format!("#read(\"{}\")\n", outside.display());
+    let result = read_in_directory("rooted", &[("doc.typ", &source)]);
+    let _ = std::fs::remove_file(outside);
+    assert!(result.is_err());
 }
 
 #[test]
@@ -237,6 +278,30 @@ fn an_image_resolves_against_the_directory_of_its_source() {
         },
         other => panic!("expected one paragraph, got {other:?}"),
     }
+}
+
+#[test]
+fn a_rooted_reference_starts_at_the_directory_of_the_document() {
+    let blocks = parse_in_directory(
+        "root",
+        &[
+            ("doc.typ", "#include \"sub/part.typ\"\n"),
+            (
+                "sub/part.typ",
+                "#read(\"/title.txt\") #read(\"title.txt\")\n",
+            ),
+            ("title.txt", "root"),
+            ("sub/title.txt", "beside"),
+        ],
+    );
+    assert_eq!(
+        blocks,
+        vec![Block::Para(vec![
+            text("root"),
+            Inline::Space,
+            text("beside")
+        ])]
+    );
 }
 
 #[test]
@@ -290,10 +355,10 @@ fn an_import_resolves_a_nested_file_against_its_own_directory() {
 }
 
 #[test]
-fn a_file_that_includes_itself_terminates() {
+fn a_document_that_includes_itself_is_read_once() {
     assert_eq!(
         parse_in_directory("cycle", &[("doc.typ", "#include \"doc.typ\"\nx\n")]),
-        vec![Block::Para(vec![text("x")]), Block::Para(vec![text("x")])]
+        vec![Block::Para(vec![text("x")])]
     );
 }
 

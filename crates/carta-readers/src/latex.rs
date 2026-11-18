@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use carta_ast::{Block, Document, MetaValue};
+use carta_core::walk::{for_each_block, for_each_document_block};
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::IdRegistry;
@@ -16,12 +17,16 @@ mod blocks;
 mod expand;
 #[cfg(feature = "commonmark")]
 pub(crate) use expand::MacroExpander;
+mod include;
 mod inline;
 mod references;
 mod support;
 mod tables;
 
 const RAW_COMMAND: &str = "\0latex-command";
+/// The level a `\section` heading has while the document is parsed, with room above it for a
+/// chapter and a part.
+const PARSED_SECTION_LEVEL: i64 = 3;
 const LABEL_ATTRIBUTE: &str = "\0latex-label";
 
 #[cfg(test)]
@@ -33,22 +38,23 @@ pub struct LatexReader;
 
 impl Reader for LatexReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let input = expand_tabs(input, options.tab_stop);
+        let expanded = expand_tabs(input, options.tab_stop);
         let ext = options.extensions;
-        let (preamble, body) = split_document(&input);
+        let (preamble, body) = split_document(&expanded);
 
-        let base_level = base_section_level(body);
-
-        let mut parser = Parser::new(input.len(), ext, base_level);
+        let mut parser = Parser::new(expanded.len(), ext);
+        parser.read_files(input, options);
 
         let mut blocks = if let Some(preamble) = preamble {
             parser.set_source(preamble);
+            parser.document_offset = Some(0);
             parser.parse_blocks(&Stop::Begin("document"))
         } else {
             Vec::new()
         };
 
         parser.set_source(body);
+        parser.document_offset = Some(preamble.map_or(0, |preamble| preamble.chars().count()));
         blocks.extend(parser.parse_blocks(&Stop::Env("document")));
 
         let mut document = Document {
@@ -67,6 +73,7 @@ impl Reader for LatexReader {
                 format.0 = "latex".into();
             }
         });
+        let base_level = raise_sections(&mut document);
         references::resolve(&mut document, base_level);
         Ok(document)
     }
@@ -86,33 +93,24 @@ fn split_document(input: &str) -> (Option<&str>, &str) {
     }
 }
 
-/// The header level the top-most sectioning command in `body` maps to. `\part` shifts every section
-/// down by two levels and `\chapter` by one, so that whichever appears highest becomes level one.
-fn base_section_level(body: &str) -> i32 {
-    if has_command(body, "part") {
-        -1
-    } else {
-        i32::from(!has_command(body, "chapter"))
-    }
-}
-
-/// Whether the control word `\name` (a backslash, the exact letters, then a non-letter) occurs in
-/// `text`. A trailing `*` counts, so the starred form is found too.
-fn has_command(text: &str, name: &str) -> bool {
-    let bytes = text.as_bytes();
-    let pat = format!("\\{name}");
-    let mut from = 0;
-    while let Some(rel) = text[from..].find(&pat) {
-        let start = from + rel;
-        let after = start + pat.len();
-        let next = bytes.get(after).copied();
-        match next {
-            Some(b) if b.is_ascii_alphabetic() => {}
-            _ => return true,
+/// Raises the headings so the highest sectioning command the document body uses becomes level
+/// one: not at all after a `\part`, one level after a `\chapter`, and otherwise two. Headings in
+/// metadata move with them. Returns the level offset of the sectioning commands, which is the
+/// intrinsic level of that highest command.
+fn raise_sections(document: &mut Document) -> i32 {
+    let mut highest = PARSED_SECTION_LEVEL;
+    for_each_block(&mut document.blocks, &mut |block| {
+        if let Block::Header(level, _, _) = block {
+            highest = highest.min(*level);
         }
-        from = after;
-    }
-    false
+    });
+    let raise = highest - 1;
+    for_each_document_block(document, &mut |block| {
+        if let Block::Header(level, _, _) = block {
+            *level -= raise;
+        }
+    });
+    i32::try_from(highest).unwrap_or(0) - 2
 }
 
 /// When to stop a block-parsing loop.
@@ -224,8 +222,6 @@ struct Parser {
     /// macro copies the table on write, so definitions never leak across scopes.
     macros: MacroDefinitions,
     ids: IdRegistry,
-    /// The level offset for sectioning commands (see [`base_section_level`]).
-    base_level: i32,
     /// Whether the current context is a figure body, where an image carries no alt text.
     in_figure: bool,
     /// Whether the current context is a float body, where `\caption` ends a paragraph so it can be
@@ -237,6 +233,11 @@ struct Parser {
     last_ws_had_newline: bool,
     recording: Option<String>,
     tex_comments: bool,
+    /// Access to the files the document names. `None` for a parser that only expands macros.
+    files: Option<Rc<include::Files>>,
+    /// Where the bottom frame starts in the document, counted in characters. `None` for a parser
+    /// of text that is not the document's own.
+    document_offset: Option<usize>,
 }
 
 /// Where an inline run ends.
@@ -255,7 +256,7 @@ enum InlineStop {
 }
 
 impl Parser {
-    fn new(source_len: usize, ext: Extensions, base_level: i32) -> Self {
+    fn new(source_len: usize, ext: Extensions) -> Self {
         Self {
             frames: Vec::new(),
             ext,
@@ -263,7 +264,6 @@ impl Parser {
             meta: BTreeMap::new(),
             macros: Rc::new(BTreeMap::new()),
             ids: IdRegistry::default(),
-            base_level,
             in_figure: false,
             in_float: false,
             expansions: Rc::new(Expansions {
@@ -274,6 +274,8 @@ impl Parser {
             last_ws_had_newline: false,
             recording: None,
             tex_comments: true,
+            files: None,
+            document_offset: None,
         }
     }
 
@@ -515,8 +517,9 @@ impl Parser {
             }
             return Some(self.parse_environment(&env));
         }
+        // The caller checks where its blocks stop before it reads what the expansion left.
         if self.try_expand_macro() {
-            return self.parse_block_construct();
+            return Some(Vec::new());
         }
         let name = self.peek_control_word()?;
         if let Some(level) = section_intrinsic(&name) {
@@ -534,6 +537,9 @@ impl Parser {
             | "DeclareRobustCommand"
             | "def"
             | "let" => Some(self.parse_macro_definition(&name)),
+            "lstinputlisting" | "inputminted" if self.files.is_some() => {
+                Some(vec![self.parse_listing_file(&name)])
+            }
             "par" | "maketitle" | "tableofcontents" | "listoffigures" | "listoftables"
             | "frontmatter" | "mainmatter" | "backmatter" | "appendix" | "clearpage"
             | "cleardoublepage" | "newpage" | "pagebreak" | "noindent" | "bigskip" | "medskip"

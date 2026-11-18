@@ -11,8 +11,8 @@ use carta::ast::MetaValue;
 #[cfg(feature = "write-html")]
 use carta::inline_resources;
 use carta::{
-    Error, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision, WrapMode,
-    WriterOptions, render_document,
+    Error, HostAccess, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision,
+    WrapMode, WriterOptions, render_document,
 };
 use carta_core::template::Value;
 use clap::{ArgAction, CommandFactory, Parser};
@@ -82,8 +82,9 @@ struct Cli {
     /// HTML file.
     #[arg(long = "self-contained")]
     self_contained: bool,
-    /// Disable network access for document resources. EPUB and PDF use descriptions for unavailable
-    /// images; HTML keeps external references.
+    /// Block every file and URL the document names: included sources, images, stylesheets, and
+    /// remote resources all count as missing. Files named on the command line are still read.
+    /// Filters and the PDF engine are separate programs that the sandbox does not confine.
     #[arg(long = "sandbox")]
     sandbox: bool,
     /// Produce a standalone document, wrapping the body in the format's template.
@@ -451,9 +452,9 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = writer_options.standalone || cli.template.is_some();
 
-    let mut reader_options = ReaderOptions::default();
-    reader_options.columns = writer_options.columns.unwrap_or(72);
-    reader_options.tab_stop = reader_tab_stop(cli, reader_options.tab_stop);
+    let host = host_access(cli);
+    writer_options.host = host;
+    let reader_options = reader_options(cli, from, writer_options.columns, host);
     let (mut document, resources) =
         input::read_documents(from, &cli.input, &reader_options, cli.file_scope)?;
 
@@ -488,16 +489,13 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         resources = MediaBag::new();
     }
 
-    // Containers gather tree resources; HTML embedding also reads rendered tags and styles.
-    if embeds_resources(&to_base) {
-        let search_path = resource_search_path(cli);
-        resources::gather_local_images(&mut document, &mut resources, &search_path);
-    }
-
-    #[cfg(any(feature = "write-pdf", feature = "write-epub"))]
-    if to_base == "pdf" || to_base.starts_with("epub") {
-        resources::fetch_remote_images(&mut document, &mut resources, cli.sandbox);
-    }
+    gather_resources(
+        cli,
+        &to_base,
+        &mut document,
+        &mut resources,
+        &mut writer_options,
+    )?;
 
     // Inlines against the finished page; the bag lets reader-carried resources resolve without disk I/O.
     #[cfg(feature = "write-html")]
@@ -514,13 +512,76 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         Output::Text(html) if embed_resources && cli.extract_media.is_none() => {
             let search_path = resource_search_path(cli);
             Output::Text(inline_resources(&html, |reference| {
-                resolve_embed(reference, &embed_bag, &search_path, cli.sandbox)
+                resolve_embed(reference, &embed_bag, &search_path, &cli.css, host)
             }))
         }
         output => output,
     };
 
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// Gather the files and URLs the document names that the target format packs into its output.
+/// HTML embedding happens later, on the rendered page.
+#[cfg_attr(
+    not(any(feature = "write-pdf", feature = "write-epub")),
+    expect(clippy::unnecessary_wraps, reason = "only container formats can fail")
+)]
+fn gather_resources(
+    cli: &Cli,
+    to_base: &str,
+    document: &mut carta::Document,
+    resources: &mut MediaBag,
+    options: &mut WriterOptions,
+) -> Result<()> {
+    let host = options.host;
+    let search_path = resource_search_path(cli);
+    if embeds_resources(to_base) {
+        resources::gather_local_images(document, resources, &search_path, host);
+    }
+    #[cfg(any(feature = "write-pdf", feature = "write-epub"))]
+    if to_base == "pdf" || to_base.starts_with("epub") {
+        resources::fetch_remote_images(document, resources, host);
+    }
+    #[cfg(feature = "write-epub")]
+    if to_base.starts_with("epub") {
+        let epub = Arc::make_mut(&mut options.epub);
+        resources::gather_epub_metadata(document, epub, &search_path, host)?;
+    }
+    Ok(())
+}
+
+/// What the files and URLs a document names may reach: nothing under `--sandbox`.
+fn host_access(cli: &Cli) -> HostAccess {
+    if cli.sandbox {
+        return HostAccess::Sandboxed;
+    }
+    #[cfg(feature = "fetch")]
+    {
+        HostAccess::Networked(resources::fetch_remote)
+    }
+    #[cfg(not(feature = "fetch"))]
+    {
+        HostAccess::Local
+    }
+}
+
+fn reader_options(
+    cli: &Cli,
+    from: &str,
+    columns: Option<usize>,
+    host: HostAccess,
+) -> ReaderOptions {
+    let mut options = ReaderOptions::default();
+    options.host = host;
+    options.resource_path = if from.starts_with("latex") {
+        resources::tex_search_path()
+    } else {
+        resource_search_path(cli)
+    };
+    options.columns = columns.unwrap_or(72);
+    options.tab_stop = reader_tab_stop(cli, options.tab_stop);
+    options
 }
 
 fn reader_tab_stop(cli: &Cli, default: usize) -> usize {

@@ -6,19 +6,29 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use carta_ast::{Document, Inline};
-use carta_core::{BytesWriter, Error, Output, PdfEngine, Result, WriterOptions, media, walk};
+use carta_core::{
+    BytesWriter, Error, HostAccess, Output, PdfEngine, Result, WriterOptions, media, walk,
+};
 
 pub(crate) struct PdfWriter;
 
 impl BytesWriter for PdfWriter {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "runs the caller's PDF engine over a private staging directory"
+    )]
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         let directory = tempfile::tempdir()?;
         let directory_path = directory.path().canonicalize()?;
         let working_directory = std::env::current_dir()?.canonicalize()?;
-        let root = working_directory
-            .ancestors()
-            .last()
-            .unwrap_or(&working_directory);
+        let root = match options.host {
+            // The staging directory holds every image, so the engine needs to read nothing else.
+            HostAccess::Sandboxed => directory_path.as_path(),
+            HostAccess::Local | HostAccess::Networked(_) => working_directory
+                .ancestors()
+                .last()
+                .unwrap_or(&working_directory),
+        };
         let mut document = document.clone();
         crate::standalone::merge_metadata(&mut document, options);
         stage_images(&mut document, options, &directory_path, root)?;
@@ -31,8 +41,8 @@ impl BytesWriter for PdfWriter {
         else {
             return Err(Error::Pdf("Typst source is not text".to_owned()));
         };
-        let input = directory.path().join("document.typ");
-        let output = directory.path().join("document.pdf");
+        let input = directory_path.join("document.typ");
+        let output = directory_path.join("document.pdf");
         fs::write(&input, source)?;
         let engine = match options.pdf.engine {
             PdfEngine::Typst => "typst",
@@ -138,5 +148,5 @@ fn image_bytes(reference: &str, options: &WriterOptions) -> Option<Vec<u8>> {
         .iter()
         .map(|directory| directory.join(&path))
         .chain(std::iter::once(path.clone()))
-        .find_map(|path| fs::read(path).ok())
+        .find_map(|path| options.host.read(&path).ok())
 }

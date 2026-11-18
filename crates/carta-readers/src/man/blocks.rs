@@ -267,21 +267,22 @@ impl Parser {
 
     /// Whether the label that opens at the current position is plain: only text lines (and comments)
     /// up to a `.UE`/`.ME` terminator. A request inside the label, or end of input before the
-    /// terminator, makes the label non-plain, so the link is abandoned.
-    pub(super) fn link_label_is_plain(&self) -> bool {
-        let lookahead = self
-            .pending
-            .iter()
-            .chain(self.lines.get(self.pos..).into_iter().flatten());
-        for line in lookahead {
-            if is_comment(line) {
-                continue;
+    /// terminator, makes the label non-plain, so the link is abandoned. A `.so` among the text
+    /// lines gives way to its file first, so the label is seen whole.
+    pub(super) fn link_label_is_plain(&mut self) -> bool {
+        let mut label = Vec::new();
+        while let Some(line) = self.peek() {
+            if !is_comment(line) && control_parts(line).is_some() {
+                break;
             }
-            if let Some((name, _)) = control_parts(line) {
-                return matches!(name, "UE" | "ME");
-            }
+            label.push(line.to_owned());
+            self.advance();
         }
-        false
+        let plain = matches!(self.peek_request(), Some("UE" | "ME"));
+        for line in label.into_iter().rev() {
+            self.pending.push_front(line);
+        }
+        plain
     }
 
     /// Collects a plain hyperlink's label between `.UR`/`.MT` and its `.UE`/`.ME` terminator,

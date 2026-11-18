@@ -187,6 +187,12 @@ impl Parser {
             if self.in_float && word == "caption" {
                 return true;
             }
+            let listing = matches!(word.as_str(), "lstinputlisting" | "inputminted");
+            let redefined =
+                self.ext.contains(Extension::LatexMacros) && self.macros.contains_key(&word);
+            if listing && self.files.is_some() && !redefined {
+                return true;
+            }
             return matches!(word.as_str(), "item" | "par");
         }
         false
@@ -758,6 +764,7 @@ impl Parser {
     }
 
     fn child_frame(&self, frame: Frame, in_figure: bool) -> Parser {
+        self.enter_source_file();
         Parser {
             frames: vec![frame],
             ext: self.ext,
@@ -765,13 +772,14 @@ impl Parser {
             meta: BTreeMap::new(),
             macros: Rc::clone(&self.macros),
             ids: IdRegistry::default(),
-            base_level: self.base_level,
             in_figure,
             in_float: false,
             expansions: Rc::clone(&self.expansions),
             last_ws_had_newline: false,
             recording: None,
             tex_comments: self.tex_comments,
+            files: self.files.clone(),
+            document_offset: None,
         }
     }
 

@@ -165,7 +165,12 @@ pub(super) fn parse_csv(text: &str) -> Vec<Vec<String>> {
         record.push(field.trim().to_string());
         #[allow(clippy::match_same_arms)]
         match chars.get(i) {
-            Some(',') => i += 1,
+            Some(',') => {
+                i += 1;
+                if i == chars.len() {
+                    record.push(String::new());
+                }
+            }
             Some('\n') => {
                 i += 1;
                 records.push(std::mem::take(&mut record));

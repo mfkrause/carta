@@ -6,8 +6,8 @@
 
 mod common;
 
-use carta::{ReaderOptions, WriterOptions};
-use common::corpus_cases;
+use carta::WriterOptions;
+use common::{corpus_cases, text_reader_options};
 
 #[test]
 fn every_text_case_renders_with_every_writer() {
@@ -24,7 +24,7 @@ fn every_text_case_renders_with_every_writer() {
         let (document, media) = carta::read_document(
             &case.group,
             case.input.as_bytes(),
-            &ReaderOptions::default(),
+            &text_reader_options(&case.group),
         )
         .unwrap_or_else(|error| panic!("read {}/{}: {error}", case.group, case.label));
         for &target in &targets {
