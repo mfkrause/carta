@@ -112,6 +112,17 @@ fn number_lines_start_from_offsets_counter_and_ids() {
 }
 
 #[test]
+fn space_around_the_start_number_is_ignored() {
+    let out = render(vec![code_block(
+        "",
+        &["numberLines"],
+        &[("startFrom", "5\n\n")],
+        "a",
+    )]);
+    assert!(out.contains("<span id=\"cb1-5\">"), "{out}");
+}
+
+#[test]
 fn start_from_one_carries_no_counter_reset() {
     let out = render(vec![code_block(
         "",

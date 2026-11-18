@@ -10,7 +10,7 @@ use carta_core::{Extension, WriterOptions};
 use crate::common::is_literate_code;
 
 #[cfg(feature = "highlight")]
-use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
+use crate::highlight::{is_number_lines_class, plain_source_lines, start_from, start_line};
 #[cfg(feature = "highlight")]
 use carta_highlight::{Highlighter, Token as HighlightToken, TokenKind};
 
@@ -128,12 +128,7 @@ pub(super) fn listings_options(attr: &Attr) -> String {
     if attr.classes.iter().any(is_number_lines_class) {
         parts.push(String::from("numbers=left"));
     }
-    if let Some((_, value)) = attr
-        .attributes
-        .iter()
-        .find(|(key, _)| key.as_str() == "startFrom")
-        && let Ok(start) = value.as_str().parse::<i64>()
-    {
+    if let Some(start) = start_from(attr) {
         parts.push(format!("firstnumber={start}"));
     }
     for (key, value) in &attr.attributes {
