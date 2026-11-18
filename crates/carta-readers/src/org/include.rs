@@ -147,7 +147,8 @@ impl Expander {
             }
         };
         let indent = include.indent;
-        spend(&mut self.work, indent.len().saturating_mul(produced.len()))?;
+        let indented = produced.iter().filter(|line| !line.is_empty()).count();
+        spend(&mut self.work, indent.len().saturating_mul(indented))?;
         out.extend(produced.into_iter().map(|line| {
             if line.is_empty() {
                 line
