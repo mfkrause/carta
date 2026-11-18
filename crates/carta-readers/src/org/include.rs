@@ -118,7 +118,7 @@ impl Expander {
                 let expanded = self.expand(lines, path.parent(), &mut included);
                 self.chain.pop();
                 expanded?;
-                shift_headlines(&mut included, include.minimum_level);
+                shift_headlines(&mut included, include.minimum_level, &mut self.work)?;
                 self.closing = out.last().is_some_and(|line| !line.trim().is_empty());
                 self.separate(included.first().map_or("", String::as_str), out);
                 out.extend(included.into_iter().map(|line| {
@@ -146,10 +146,7 @@ impl Expander {
         if self.known.insert(canonical.clone()) {
             self.work = self.work.saturating_add(text.len().saturating_mul(64));
         }
-        self.work = self
-            .work
-            .checked_sub(text.len().max(1))
-            .ok_or(Error::OutputTooLarge)?;
+        spend(&mut self.work, text.len().max(1))?;
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
         Ok(Some((canonical, text)))
     }
@@ -276,11 +273,21 @@ impl BlockTracker {
     }
 }
 
+/// Charges `bytes` of generated text to the remaining `work`.
+fn spend(work: &mut usize, bytes: usize) -> Result<()> {
+    *work = work.checked_sub(bytes).ok_or(Error::OutputTooLarge)?;
+    Ok(())
+}
+
 /// Moves every headline of an included file by the same number of levels, so its shallowest
-/// headline sits at `minimum_level`.
-fn shift_headlines(lines: &mut [String], minimum_level: Option<usize>) {
+/// headline sits at `minimum_level`. The stars it adds are charged to `work`.
+fn shift_headlines(
+    lines: &mut [String],
+    minimum_level: Option<usize>,
+    work: &mut usize,
+) -> Result<()> {
     let Some(minimum_level) = minimum_level else {
-        return;
+        return Ok(());
     };
     let mut blocks = BlockTracker::default();
     let headlines: Vec<(usize, usize)> = lines
@@ -290,18 +297,21 @@ fn shift_headlines(lines: &mut [String], minimum_level: Option<usize>) {
         .filter_map(|(index, line)| Some((index, headline_level(line)?)))
         .collect();
     let Some(shallowest) = headlines.iter().map(|(_, level)| *level).min() else {
-        return;
+        return Ok(());
     };
+    let deeper = minimum_level.saturating_sub(shallowest);
+    spend(work, deeper.saturating_mul(headlines.len()))?;
     for (index, _) in headlines {
         let Some(line) = lines.get_mut(index) else {
             continue;
         };
-        if minimum_level >= shallowest {
-            line.insert_str(0, &"*".repeat(minimum_level - shallowest));
+        if deeper > 0 {
+            line.insert_str(0, &"*".repeat(deeper));
         } else {
             line.drain(..shallowest - minimum_level);
         }
     }
+    Ok(())
 }
 
 /// Guards a line of included verbatim text with a comma when it would read as a headline or a
@@ -345,7 +355,8 @@ mod tests {
             ]
             .map(str::to_owned)
             .into();
-            shift_headlines(&mut lines, Some(minimum_level));
+            let mut work = usize::MAX;
+            shift_headlines(&mut lines, Some(minimum_level), &mut work).unwrap();
             lines.join("|")
         };
         assert_eq!(
@@ -356,5 +367,12 @@ mod tests {
             shifted(1),
             "* two|#+begin_src org|* code|#+end_src|** three"
         );
+    }
+
+    #[test]
+    fn a_minimum_level_beyond_the_budget_fails() {
+        let mut lines = vec!["* one".to_owned()];
+        let mut work = 1000;
+        assert!(shift_headlines(&mut lines, Some(usize::MAX), &mut work).is_err());
     }
 }
