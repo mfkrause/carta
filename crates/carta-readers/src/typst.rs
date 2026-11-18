@@ -3375,6 +3375,8 @@ impl Parser {
         if !self.spend(source.len()) {
             return Value::Nothing;
         }
+        // The code is read at a new place, so the place in the document that made it is noted.
+        self.own_position();
         let start = self.source.len();
         self.directories
             .insert(start, self.base().map(Path::to_path_buf));
