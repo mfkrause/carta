@@ -29,9 +29,9 @@ fn paragraph_with_emphasis() {
     }
 }
 
-/// The inlines of `input` as a paragraph that follows another, in a compact notation: `S`trong,
-/// `E`mph, stri`K`eout, `U`nderline, `C`ode, `L`ink, `N`ote, `Sub`/`Sup`, `_` for a space, `/` for
-/// a soft break and `//` for a hard one.
+/// The inlines of `input` as a paragraph that follows another, in a compact notation: `S` for
+/// strong, `E` for emphasis, `K` for strikeout, `U` for underline, `C` for code, `L` for a link,
+/// `N` for a note, `Sub`/`Sup`, `_` for a space, `/` for a soft break and `//` for a hard one.
 fn shape(input: &str) -> String {
     opening_shape(&format!("lead\n\n{input}"), 1)
 }
