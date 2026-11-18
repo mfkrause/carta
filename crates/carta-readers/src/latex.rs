@@ -16,6 +16,7 @@ mod blocks;
 mod expand;
 #[cfg(feature = "commonmark")]
 pub(crate) use expand::MacroExpander;
+mod include;
 mod inline;
 mod references;
 mod support;
@@ -40,6 +41,7 @@ impl Reader for LatexReader {
         let base_level = base_section_level(body);
 
         let mut parser = Parser::new(input.len(), ext, base_level);
+        parser.read_files(options);
 
         let mut blocks = if let Some(preamble) = preamble {
             parser.set_source(preamble);
@@ -237,6 +239,8 @@ struct Parser {
     last_ws_had_newline: bool,
     recording: Option<String>,
     tex_comments: bool,
+    /// Access to the files the document names. `None` for a parser that only expands macros.
+    files: Option<Rc<include::Files>>,
 }
 
 /// Where an inline run ends.
@@ -274,6 +278,7 @@ impl Parser {
             last_ws_had_newline: false,
             recording: None,
             tex_comments: true,
+            files: None,
         }
     }
 
@@ -534,6 +539,14 @@ impl Parser {
             | "DeclareRobustCommand"
             | "def"
             | "let" => Some(self.parse_macro_definition(&name)),
+            "usepackage" | "RequirePackage" if self.files.is_some() => {
+                self.consume_control_word();
+                self.load_packages();
+                Some(Vec::new())
+            }
+            "lstinputlisting" | "inputminted" if self.files.is_some() => {
+                Some(vec![self.parse_listing_file(&name)])
+            }
             "par" | "maketitle" | "tableofcontents" | "listoffigures" | "listoftables"
             | "frontmatter" | "mainmatter" | "backmatter" | "appendix" | "clearpage"
             | "cleardoublepage" | "newpage" | "pagebreak" | "noindent" | "bigskip" | "medskip"

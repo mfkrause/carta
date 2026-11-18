@@ -454,7 +454,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
 
     let host = host_access(cli);
     writer_options.host = host;
-    let reader_options = reader_options(cli, writer_options.columns, host);
+    let reader_options = reader_options(cli, from, writer_options.columns, host);
     let (mut document, resources) =
         input::read_documents(from, &cli.input, &reader_options, cli.file_scope)?;
 
@@ -566,10 +566,19 @@ fn host_access(cli: &Cli) -> HostAccess {
     }
 }
 
-fn reader_options(cli: &Cli, columns: Option<usize>, host: HostAccess) -> ReaderOptions {
+fn reader_options(
+    cli: &Cli,
+    from: &str,
+    columns: Option<usize>,
+    host: HostAccess,
+) -> ReaderOptions {
     let mut options = ReaderOptions::default();
     options.host = host;
-    options.resource_path = resource_search_path(cli);
+    options.resource_path = if from.starts_with("latex") {
+        resources::tex_search_path()
+    } else {
+        resource_search_path(cli)
+    };
     options.columns = columns.unwrap_or(72);
     options.tab_stop = reader_tab_stop(cli, options.tab_stop);
     options

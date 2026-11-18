@@ -26,6 +26,23 @@ pub(super) fn resource_search_path(cli: &Cli) -> Vec<PathBuf> {
     dirs
 }
 
+/// The directories a LaTeX document's files are looked for in: those `TEXINPUTS` lists, where an
+/// empty entry is the working directory, or the working directory alone.
+pub(super) fn tex_search_path() -> Vec<PathBuf> {
+    let Some(paths) = std::env::var_os("TEXINPUTS") else {
+        return vec![PathBuf::from(".")];
+    };
+    std::env::split_paths(&paths)
+        .map(|path| {
+            if path.as_os_str().is_empty() {
+                PathBuf::from(".")
+            } else {
+                path
+            }
+        })
+        .collect()
+}
+
 /// Read the file a document references, trying each directory of `search_path` in turn; an absolute
 /// reference is read directly. Returns the bytes, or `None` when no directory holds the file (or the
 /// reference is not a readable local path), leaving the reference as written.

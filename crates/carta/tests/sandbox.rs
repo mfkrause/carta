@@ -65,6 +65,16 @@ const CASES: &[Case] = &[
         source: ".so canary.txt\n",
     },
     Case {
+        format: "latex",
+        target: &["-t", "plain"],
+        source: "\\input{canary.txt}\n",
+    },
+    Case {
+        format: "latex",
+        target: &["-t", "plain"],
+        source: "\\lstinputlisting{canary.txt}\n",
+    },
+    Case {
         format: "org",
         target: &["-t", "plain"],
         source: "#+INCLUDE: \"canary.txt\"\n",

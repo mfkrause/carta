@@ -940,3 +940,119 @@ fn adversarially_nested_input_does_not_overflow_the_stack() {
     let balanced = format!("{}x{}", "{".repeat(10_000), "}".repeat(10_000));
     let _ = parse(&balanced);
 }
+
+/// Reads `files[0]` as the document, with every file written to a scratch directory that is the
+/// search path.
+fn read_with_files(label: &str, files: &[(&str, &str)]) -> Vec<Block> {
+    let directory =
+        std::env::temp_dir().join(format!("carta-latex-{}-{label}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    for (name, text) in files {
+        std::fs::write(directory.join(name), text).unwrap();
+    }
+    let (name, input) = files.first().unwrap();
+    let mut options = ReaderOptions::default();
+    options.extensions = latex_defaults();
+    options.resource_path = vec![directory.clone()];
+    options.source_paths.insert(0, directory.join(name));
+    let document = LatexReader.read(input, &options);
+    std::fs::remove_dir_all(directory).unwrap();
+    document.unwrap().blocks
+}
+
+fn plain(blocks: &[Block]) -> Vec<String> {
+    let text = |block: &Block| match block {
+        Block::Para(inlines) => to_plain_text(inlines),
+        Block::CodeBlock(_, text) => text.to_string(),
+        other => panic!("unexpected block: {other:?}"),
+    };
+    blocks.iter().map(text).collect()
+}
+
+#[test]
+fn an_input_reads_the_named_file_in_place() {
+    let blocks = read_with_files(
+        "input",
+        &[
+            (
+                "main.tex",
+                "\\input{macros}\n\nA \\input{part} B \\word.\n\n\\subfile{whole}\n\n\\include{missing}\n",
+            ),
+            ("macros.tex", "\\newcommand{\\word}{defined}\n"),
+            ("part.tex", "part"),
+            (
+                "whole.tex",
+                "\\documentclass{article}\\title{Not this}\\begin{document}Body.\\end{document}After.",
+            ),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["A part B defined.", "Body."]);
+}
+
+#[test]
+fn a_file_that_inputs_itself_is_read_once() {
+    let blocks = read_with_files(
+        "cycle",
+        &[
+            ("main.tex", "Main. \\input{main} \\input{other}\n"),
+            ("other.tex", "Other. \\input{other} \\input{main}"),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["Main. Other."]);
+}
+
+#[test]
+fn a_local_package_supplies_only_its_macros() {
+    let blocks = read_with_files(
+        "package",
+        &[
+            (
+                "main.tex",
+                "\\usepackage[option]{local,absent}\nA \\word{} B\n",
+            ),
+            (
+                "local.sty",
+                "\\ProvidesPackage{local}\nstray text\n\\newcommand{\\word}{defined}\n",
+            ),
+        ],
+    );
+    assert_eq!(plain(&blocks), ["A defined B"]);
+}
+
+#[test]
+fn a_listing_command_quotes_the_named_file() {
+    let blocks = read_with_files(
+        "listing",
+        &[
+            (
+                "main.tex",
+                "\\lstinputlisting[language=Python,firstline=2,lastline=3]{code.py}\n\n\\inputminted{rust}{code.py}\n\n\\lstinputlisting{missing.py}\n",
+            ),
+            ("code.py", "one\ntwo\nthree\nfour\n"),
+        ],
+    );
+    assert_eq!(
+        plain(&blocks),
+        ["two\nthree", "one\ntwo\nthree\nfour\n", ""]
+    );
+    let classes: Vec<String> = blocks
+        .iter()
+        .map(|block| match block {
+            Block::CodeBlock(attr, _) => attr.classes.join(" "),
+            other => panic!("unexpected block: {other:?}"),
+        })
+        .collect();
+    assert_eq!(classes, ["python", "rust", ""]);
+}
+
+#[cfg(feature = "commonmark")]
+#[test]
+fn a_macro_expander_reads_no_file() {
+    let file =
+        std::env::temp_dir().join(format!("carta-latex-{}-expander.tex", std::process::id()));
+    std::fs::write(&file, "included").unwrap();
+    let source = format!("\\input{{{}}}", file.display());
+    let expanded = MacroExpander::new(source.len(), latex_defaults()).raw(&source);
+    std::fs::remove_file(file).unwrap();
+    assert_eq!(expanded, source);
+}

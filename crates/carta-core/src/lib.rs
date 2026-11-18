@@ -137,8 +137,9 @@ pub struct ReaderOptions {
     /// Source filenames keyed by starting UTF-8 byte offset. Readers use these names to identify
     /// recursive includes. Standard input has no entry.
     pub source_paths: std::collections::BTreeMap<usize, std::path::PathBuf>,
-    /// Directories searched, in order, for a data file the input names. Empty searches the
-    /// working directory.
+    /// Directories searched, in order, for a file the input names that is not found beside the
+    /// source: a data file, or in some formats an included source. Empty searches the working
+    /// directory.
     pub resource_path: Vec<std::path::PathBuf>,
     /// What the files and URLs named by the input may reach on the host.
     pub host: HostAccess,

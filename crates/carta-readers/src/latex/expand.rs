@@ -410,7 +410,7 @@ impl Parser {
 
     /// Pushes a macro or expansion primitive's replacement before the remaining input.
     pub(super) fn try_expand_macro(&mut self) -> bool {
-        self.expand_macro(true)
+        self.expand_input() || self.expand_macro(true)
     }
 
     fn expand_macro(&mut self, track_call: bool) -> bool {
@@ -722,7 +722,7 @@ impl Parser {
         self.recording.take().unwrap_or_default()
     }
 
-    fn expand_source(&mut self, definitions: bool) -> String {
+    pub(super) fn expand_source(&mut self, definitions: bool) -> String {
         let mut output = String::new();
         let mut control_word = false;
         let mut scopes = Vec::new();

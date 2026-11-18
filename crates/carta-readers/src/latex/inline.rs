@@ -772,6 +772,7 @@ impl Parser {
             last_ws_had_newline: false,
             recording: None,
             tex_comments: self.tex_comments,
+            files: self.files.clone(),
         }
     }
 
