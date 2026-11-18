@@ -60,6 +60,11 @@ const CASES: &[Case] = &[
         source: "#read(\"canary.txt\")\n",
     },
     Case {
+        format: "man",
+        target: &["-t", "plain"],
+        source: ".so canary.txt\n",
+    },
+    Case {
         format: "markdown",
         target: &["-t", "html", "--embed-resources"],
         source: "![image](canary.txt)\n",

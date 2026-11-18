@@ -4,7 +4,8 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{Attr, Block, Document, Inline, MetaValue, slug, slug_gfm, to_plain_text};
-use carta_core::{Extensions, Reader, ReaderOptions, Result};
+use carta_core::{Extensions, HostAccess, Reader, ReaderOptions, Result};
+use std::path::PathBuf;
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
@@ -79,7 +80,7 @@ pub struct ManReader;
 impl Reader for ManReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let lines = logical_lines(input);
-        let mut parser = Parser::new(lines, options.extensions);
+        let mut parser = Parser::new(lines, options);
         let blocks = parser.parse_blocks(Ctx::TOP);
         Ok(Document {
             meta: parser
@@ -206,19 +207,28 @@ struct Parser {
     macros: BTreeMap<String, Vec<String>>,
     /// Set when the most recent `.ie` condition was false, so the following `.el` takes its branch.
     else_branch: bool,
-    /// What remains of the document-wide macro-expansion budget; once spent, macro calls expand to
-    /// nothing.
+    /// What remains of the document-wide expansion budget, shared by macro calls and included
+    /// files; once spent, both expand to nothing.
     expansion_budget: ExpansionBudget,
+    host: HostAccess,
+    /// The directories searched for a `.so` file; empty searches the working directory.
+    resource_path: Vec<PathBuf>,
+    /// Canonical paths of the document's own files, then of each file being included.
+    including: Vec<PathBuf>,
 }
 
+/// Closes an included file in the pending queue. No input line holds a newline.
+const INCLUDE_END: &str = "\n";
+
 impl Parser {
-    fn new(lines: Vec<String>, extensions: Extensions) -> Self {
-        Self {
+    fn new(lines: Vec<String>, options: &ReaderOptions) -> Self {
+        let sources = options.source_paths.values();
+        let mut parser = Self {
             lines,
             pos: 0,
             pending: std::collections::VecDeque::new(),
             meta: BTreeMap::new(),
-            headings: HeadingIds::new(extensions),
+            headings: HeadingIds::new(options.extensions),
             strings: predefined_strings(),
             macros: BTreeMap::new(),
             else_branch: false,
@@ -226,7 +236,14 @@ impl Parser {
                 lines: MAX_MACRO_EXPANSION_LINES,
                 bytes: MAX_MACRO_EXPANSION_BYTES,
             },
-        }
+            host: options.host,
+            resource_path: options.resource_path.clone(),
+            including: sources
+                .filter_map(|path| options.host.canonicalize(path).ok())
+                .collect(),
+        };
+        parser.splice_includes();
+        parser
     }
 
     fn peek(&self) -> Option<&str> {
@@ -237,9 +254,72 @@ impl Parser {
     }
 
     fn advance(&mut self) {
+        self.drop_line();
+        self.splice_includes();
+    }
+
+    fn drop_line(&mut self) {
         if self.pending.pop_front().is_none() {
             self.pos += 1;
         }
+    }
+
+    /// Replaces a `.so` request at the head of the input with the lines of the file it names, so
+    /// every context reads included text in place. The head is never left on such a request.
+    fn splice_includes(&mut self) {
+        loop {
+            let name = match self.peek() {
+                Some(INCLUDE_END) => None,
+                Some(line) if !is_comment(line) => match control_parts(line) {
+                    Some(("so", rest)) => {
+                        split_args(rest).into_iter().next().or(Some(String::new()))
+                    }
+                    _ => return,
+                },
+                _ => return,
+            };
+            self.drop_line();
+            let Some(name) = name else {
+                self.including.pop();
+                continue;
+            };
+            if let Some(lines) = self.included_lines(&name) {
+                self.pending.push_front(INCLUDE_END.to_owned());
+                for line in lines.into_iter().rev() {
+                    self.pending.push_front(line);
+                }
+            }
+        }
+    }
+
+    /// The logical lines of the file a `.so` request names, found along the resource path. `None`
+    /// when the file cannot be read, is already being included, or the expansion budget is spent.
+    fn included_lines(&mut self, name: &str) -> Option<Vec<String>> {
+        let working_directory = [PathBuf::new()];
+        let directories = if self.resource_path.is_empty() {
+            &working_directory[..]
+        } else {
+            &self.resource_path
+        };
+        let path = directories
+            .iter()
+            .find_map(|directory| self.host.canonicalize(&directory.join(name)).ok())?;
+        if self.including.contains(&path) {
+            return None;
+        }
+        let text = self.host.read_to_string(&path).ok()?;
+        let mut lines = logical_lines(&text);
+        if text.ends_with('\n') {
+            lines.pop();
+        }
+        for line in &lines {
+            if self.expansion_budget.exhausted() {
+                return None;
+            }
+            self.expansion_budget.debit(line.len());
+        }
+        self.including.push(path);
+        Some(lines)
     }
 
     /// The control-line request name of the line at `pos`, if it is a non-comment control line.
@@ -253,12 +333,9 @@ impl Parser {
 
     /// Consumes and returns the next line, if any.
     fn take_line(&mut self) -> Option<String> {
-        if let Some(line) = self.pending.pop_front() {
-            return Some(line);
-        }
-        let line = self.lines.get(self.pos).cloned();
+        let line = self.peek().map(str::to_owned);
         if line.is_some() {
-            self.pos += 1;
+            self.advance();
         }
         line
     }
@@ -276,6 +353,7 @@ impl Parser {
         } else {
             self.advance();
         }
+        self.splice_includes();
     }
 
     /// Consumes the body of a `.de`/`.de1` macro definition up to (but not including) the line whose
@@ -570,6 +648,7 @@ impl Parser {
                     for line in expansion.into_iter().rev() {
                         self.pending.push_front(line);
                     }
+                    self.splice_includes();
                 }
                 _ if is_noop_request(name) => {
                     self.advance();

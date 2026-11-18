@@ -1071,3 +1071,43 @@ fn east_asian_line_breaks_is_accepted_and_inert() {
     );
     assert_eq!(base.blocks, with.blocks);
 }
+
+/// Reads `input` with `files` written to a scratch directory that is the resource path.
+fn read_with_files(label: &str, input: &str, files: &[(&str, &str)]) -> Vec<Block> {
+    let directory = std::env::temp_dir().join(format!("carta-man-{}-{label}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    for (name, text) in files {
+        std::fs::write(directory.join(name), text).unwrap();
+    }
+    let mut options = ReaderOptions::default();
+    options.resource_path = vec![directory.clone()];
+    let document = ManReader.read(input, &options);
+    std::fs::remove_dir_all(directory).unwrap();
+    document.unwrap().blocks
+}
+
+#[test]
+fn a_source_request_reads_the_named_file_in_place() {
+    let blocks = read_with_files(
+        "source",
+        ".nf\nfirst\n.so middle.man extra\nlast\n.fi\n",
+        &[("middle.man", ".so inner.man\n"), ("inner.man", "inner\n")],
+    );
+    assert_eq!(
+        blocks,
+        vec![Block::CodeBlock(
+            Box::default(),
+            "first\ninner\nlast".into()
+        )]
+    );
+}
+
+#[test]
+fn a_file_that_sources_itself_is_read_once() {
+    let blocks = read_with_files(
+        "cycle",
+        ".so cycle.man\n",
+        &[("cycle.man", "text\n.so cycle.man\n")],
+    );
+    assert_eq!(blocks, vec![Block::Para(vec![Inline::Str("text".into())])]);
+}
