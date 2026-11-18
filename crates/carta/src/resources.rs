@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "write-html")]
 use carta::Resource;
-use carta::{Document, MediaBag, Result, media};
+use carta::{Document, HostAccess, MediaBag, Result, media};
 
 use super::Cli;
 
@@ -26,21 +26,26 @@ pub(super) fn resource_search_path(cli: &Cli) -> Vec<PathBuf> {
 /// Read the file a document references, trying each directory of `search_path` in turn; an absolute
 /// reference is read directly. Returns the bytes, or `None` when no directory holds the file (or the
 /// reference is not a readable local path), leaving the reference as written.
-pub(super) fn resolve_resource(reference: &str, search_path: &[PathBuf]) -> Option<Vec<u8>> {
+pub(super) fn resolve_resource(
+    reference: &str,
+    search_path: &[PathBuf],
+    host: HostAccess,
+) -> Option<Vec<u8>> {
     let decoded = media::percent_decode(reference).unwrap_or_else(|| reference.to_owned());
     let reference = Path::new(&decoded);
     if reference.is_absolute() {
-        return fs::read(reference).ok();
+        return host.read(reference).ok();
     }
     search_path
         .iter()
-        .find_map(|dir| fs::read(dir.join(reference)).ok())
+        .find_map(|dir| host.read(&dir.join(reference)).ok())
 }
 
 pub(super) fn gather_local_images(
     document: &mut Document,
     media: &mut MediaBag,
     search_path: &[PathBuf],
+    host: HostAccess,
 ) {
     let mut references = BTreeSet::new();
     carta::walk::for_each_document_image_target(document, &mut |target| {
@@ -56,7 +61,7 @@ pub(super) fn gather_local_images(
         {
             continue;
         }
-        if let Some(bytes) = resolve_resource(&reference, search_path) {
+        if let Some(bytes) = resolve_resource(&reference, search_path, host) {
             let mime = media::image_mime_for_extension(&reference).map(str::to_owned);
             media.insert(reference, mime, bytes);
         }
@@ -64,15 +69,15 @@ pub(super) fn gather_local_images(
 }
 
 /// Resolve a reference the self-contained HTML pass encounters into its bytes and MIME type, in order:
-/// a resource the reader carried in the bag, then a local file found along `search_path`, then, with
-/// the `fetch` feature, a resource retrieved over HTTP(S). A reference that resolves nowhere is left
-/// external (the pass keeps it as written).
+/// a resource the reader carried in the bag, then a resource retrieved over HTTP(S), then a local
+/// file found along `search_path`. A reference that resolves nowhere is left external (the pass
+/// keeps it as written).
 #[cfg(feature = "write-html")]
 pub(super) fn resolve_embed(
     reference: &str,
     bag: &MediaBag,
     search_path: &[PathBuf],
-    sandbox: bool,
+    host: HostAccess,
 ) -> Option<Resource> {
     if let Some(item) = bag.get(reference) {
         return Some(Resource {
@@ -81,16 +86,12 @@ pub(super) fn resolve_embed(
         });
     }
     if is_remote_url(reference) {
-        if sandbox {
-            eprintln!("carta: not fetching {reference} (--sandbox); leaving reference external");
-            return None;
-        }
-        return fetch_remote(reference).map(|item| Resource {
+        return fetch(reference, host).map(|item| Resource {
             bytes: item.bytes,
             mime: item.mime,
         });
     }
-    let bytes = resolve_resource(reference, search_path)?;
+    let bytes = resolve_resource(reference, search_path, host)?;
     Some(Resource {
         bytes,
         mime: mime_for_path(reference),
@@ -139,46 +140,35 @@ fn mime_for_path(reference: &str) -> Option<String> {
     Some(mime.to_owned())
 }
 
+/// Fetch a remote resource, reporting a failure and returning `None`.
+#[cfg(any(feature = "write-html", feature = "write-pdf", feature = "write-epub"))]
+fn fetch(url: &str, host: HostAccess) -> Option<carta::MediaItem> {
+    host.fetch(url)
+        .inspect_err(|error| eprintln!("carta: could not fetch {url}: {error}"))
+        .ok()
+}
+
 /// Fetch a resource over HTTP(S), keeping its reported MIME type.
-/// A failed request reports the error and returns `None`.
-#[cfg(all(
-    any(feature = "write-html", feature = "write-pdf", feature = "write-epub"),
-    feature = "fetch"
-))]
-pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
+#[cfg(feature = "fetch")]
+pub(super) fn fetch_remote(url: &str) -> std::io::Result<carta::MediaItem> {
     // Embedded images can be large, so lift the client's default read limit.
     const LIMIT: u64 = 128 * 1024 * 1024;
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(std::time::Duration::from_secs(30)))
         .max_redirects(5)
         .build();
-    let agent = ureq::Agent::from(config);
-    match agent.get(url).call() {
-        Ok(mut response) => {
-            let mime = response.body().mime_type().map(str::to_owned);
-            match response.body_mut().with_config().limit(LIMIT).read_to_vec() {
-                Ok(bytes) => Some(carta::MediaItem { bytes, mime }),
-                Err(error) => {
-                    eprintln!("carta: could not read {url}: {error}");
-                    None
-                }
-            }
-        }
-        Err(error) => {
-            eprintln!("carta: could not fetch {url}: {error}");
-            None
-        }
-    }
-}
-
-/// Report that network support is unavailable and return `None`.
-#[cfg(all(
-    any(feature = "write-html", feature = "write-pdf", feature = "write-epub"),
-    not(feature = "fetch")
-))]
-pub(super) fn fetch_remote(url: &str) -> Option<carta::MediaItem> {
-    eprintln!("carta: cannot fetch {url}: built without network support");
-    None
+    let mut response = ureq::Agent::from(config)
+        .get(url)
+        .call()
+        .map_err(std::io::Error::other)?;
+    let mime = response.body().mime_type().map(str::to_owned);
+    let bytes = response
+        .body_mut()
+        .with_config()
+        .limit(LIMIT)
+        .read_to_vec()
+        .map_err(std::io::Error::other)?;
+    Ok(carta::MediaItem { mime, bytes })
 }
 
 /// Write embedded media under `dir` and rewrite image URLs under `references`.
@@ -252,11 +242,8 @@ pub(super) fn extract_tex_media(
 pub(super) fn fetch_remote_images(
     document: &mut carta::Document,
     resources: &mut MediaBag,
-    sandbox: bool,
+    host: HostAccess,
 ) {
-    if sandbox {
-        return;
-    }
     let mut references = BTreeSet::new();
     carta::walk::for_each_document_image_target(document, &mut |target| {
         let url = target.url.as_ref();
@@ -265,7 +252,7 @@ pub(super) fn fetch_remote_images(
         }
     });
     for url in references {
-        if let Some(item) = fetch_remote(&url) {
+        if let Some(item) = fetch(&url, host) {
             resources.insert(url, item.mime, item.bytes);
         }
     }

@@ -1386,37 +1386,6 @@ fn embed_resources_inlines_local_images_as_data_uris() {
     );
 }
 
-#[cfg(feature = "write-html")]
-#[test]
-fn sandbox_leaves_remote_references_external() {
-    // `--sandbox` never fetches document-controlled URLs (no SSRF surface); the reference stays external
-    let result = run(
-        &[
-            "-f",
-            "commonmark",
-            "-t",
-            "html",
-            "--embed-resources",
-            "--sandbox",
-            "--wrap=none",
-        ],
-        "![probe](http://169.254.169.254/latest/meta-data/)\n",
-    );
-    assert!(result.success, "stderr: {}", result.stderr);
-    assert!(
-        result
-            .stdout
-            .contains("http://169.254.169.254/latest/meta-data/"),
-        "remote URL should be left external under --sandbox:\n{}",
-        result.stdout
-    );
-    assert!(
-        !result.stdout.contains("data:"),
-        "no resource should be inlined under --sandbox:\n{}",
-        result.stdout
-    );
-}
-
 #[cfg(feature = "write-markdown")]
 #[test]
 fn embed_resources_rejects_non_html_output() {

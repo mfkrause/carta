@@ -9,7 +9,7 @@ use super::{
 };
 use crate::heading_ids::IdRegistry;
 use carta_ast::{Attr, Block, Inline};
-use carta_core::Extensions;
+use carta_core::{Extensions, HostAccess};
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -106,12 +106,13 @@ pub(super) fn included_blocks(
     tab_stop: usize,
     work: &Cell<Option<usize>>,
     includes: &Includes,
+    host: HostAccess,
 ) -> Option<Vec<Block>> {
-    let path = std::fs::canonicalize(path).ok()?;
+    let path = host.canonicalize(Path::new(path)).ok()?;
     if matches!(includes.borrow().get(&path), Some(IncludeState::Active)) {
         return None;
     }
-    let content = std::fs::read_to_string(&path).ok()?;
+    let content = host.read_to_string(&path).ok()?;
     let new_source = includes
         .borrow_mut()
         .insert(path.clone(), IncludeState::Active)
@@ -147,6 +148,7 @@ pub(super) fn included_blocks(
         custom_roles: BTreeMap::new(),
         default_role: DEFAULT_ROLE.to_string(),
         includes,
+        host,
         active_substitutions: BTreeSet::new(),
         active_footnotes: BTreeSet::new(),
         deferred: BTreeMap::new(),

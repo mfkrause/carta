@@ -16,7 +16,7 @@ use carta_ast::{
     Document, Inline, InlineParts, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
     MetaValue, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target, Text,
 };
-use carta_core::{Error, Extension, Reader, ReaderOptions, Result};
+use carta_core::{Error, Extension, HostAccess, Reader, ReaderOptions, Result};
 
 mod data;
 mod emoji;
@@ -73,7 +73,7 @@ impl Reader for TypstReader {
 
 /// Parses a whole source text into the document model.
 fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
-    let mut parser = Parser::new(normalize(input), options.source_dir.clone());
+    let mut parser = Parser::new(normalize(input), options.source_dir.clone(), options.host);
     let mut characters = input.char_indices().peekable();
     let mut position = 0;
     let mut previous = None;
@@ -969,6 +969,7 @@ struct Parser {
     /// Remaining materialization and lookup work; `None` records exhaustion.
     work: Rc<cell::Cell<Option<usize>>>,
     invalid_emoji: Option<String>,
+    host: HostAccess,
 }
 
 /// A file pulled into the character arena by `#include` or `#import`.
@@ -992,7 +993,7 @@ enum ImportList {
 }
 
 impl Parser {
-    fn new(source: Vec<char>, base: Option<PathBuf>) -> Self {
+    fn new(source: Vec<char>, base: Option<PathBuf>, host: HostAccess) -> Self {
         let limit = source.len();
         let work = BASE_WORK.saturating_add(limit.saturating_mul(WORK_PER_CHARACTER));
         Self {
@@ -1020,6 +1021,7 @@ impl Parser {
             flow: None,
             work: Rc::new(cell::Cell::new(Some(work))),
             invalid_emoji: None,
+            host,
         }
     }
 
@@ -3261,11 +3263,11 @@ impl Parser {
             Some(base) => base.join(reference),
             None => PathBuf::from(reference),
         };
-        let path = path.canonicalize().unwrap_or(path);
+        let path = self.host.canonicalize(&path).unwrap_or(path);
         if !self.open.insert(path.clone()) {
             return None;
         }
-        let Ok(text) = std::fs::read_to_string(&path) else {
+        let Ok(text) = self.host.read_to_string(&path) else {
             self.open.remove(&path);
             return None;
         };
@@ -3302,7 +3304,7 @@ impl Parser {
             Some(base) => base.join(&reference),
             None => PathBuf::from(&reference),
         };
-        let Ok(text) = std::fs::read_to_string(&path) else {
+        let Ok(text) = self.host.read_to_string(&path) else {
             return Value::Nothing;
         };
         data::load(name, &text).unwrap_or(Value::Nothing)

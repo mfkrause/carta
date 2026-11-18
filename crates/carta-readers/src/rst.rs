@@ -3,7 +3,7 @@
 use crate::heading_ids::IdRegistry;
 use crate::tabs::expand_tabs;
 use carta_ast::Document;
-use carta_core::{Error, Extensions, Reader, ReaderOptions, Result};
+use carta_core::{Error, Extensions, HostAccess, Reader, ReaderOptions, Result};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -51,6 +51,7 @@ impl Reader for RstReader {
             custom_roles: BTreeMap::new(),
             default_role: DEFAULT_ROLE.to_string(),
             includes: &includes,
+            host: options.host,
             active_substitutions: BTreeSet::new(),
             active_footnotes: BTreeSet::new(),
             deferred: BTreeMap::new(),
@@ -202,6 +203,7 @@ struct Parser<'a> {
     /// The role applied to interpreted text with no explicit role.
     default_role: String,
     includes: &'a Includes,
+    host: HostAccess,
     /// Substitution names being expanded; cyclic references stay unresolved.
     active_substitutions: BTreeSet<String>,
     /// Named footnotes being expanded; cyclic references stay unresolved.

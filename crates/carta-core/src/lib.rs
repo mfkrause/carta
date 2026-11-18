@@ -13,6 +13,7 @@ pub mod budget;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "container", feature = "xml"))))]
 pub mod container;
 pub mod extensions;
+mod host;
 pub mod media;
 pub mod sections;
 pub mod stack;
@@ -24,6 +25,7 @@ mod wide_breaks;
 pub mod width;
 
 pub use extensions::{Extension, Extensions, presets};
+pub use host::{Fetcher, HostAccess};
 pub use media::{MediaBag, MediaItem};
 pub use stack::{DEEP_STACK, DeepStack, on_deep_stack, with_stack};
 pub use wide_breaks::{drop_document_wide_breaks, drop_metadata_wide_breaks};
@@ -133,6 +135,8 @@ pub struct ReaderOptions {
     /// Source filenames keyed by starting UTF-8 byte offset. Readers use these names to identify
     /// recursive includes. Standard input has no entry.
     pub source_paths: std::collections::BTreeMap<usize, std::path::PathBuf>,
+    /// What the files and URLs named by the input may reach on the host.
+    pub host: HostAccess,
 }
 
 impl Default for ReaderOptions {
@@ -145,6 +149,7 @@ impl Default for ReaderOptions {
             source_dir: None,
             source_dirs: std::collections::BTreeMap::new(),
             source_paths: std::collections::BTreeMap::new(),
+            host: HostAccess::default(),
         }
     }
 }
@@ -365,6 +370,9 @@ pub struct WriterOptions {
 
     /// Options for external PDF compilation; ignored by other writers.
     pub pdf: PdfOptions,
+
+    /// What the files and URLs named by the document may reach on the host.
+    pub host: HostAccess,
 
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.

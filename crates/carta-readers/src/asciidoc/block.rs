@@ -702,7 +702,7 @@ impl Parser {
                         pending_start = position;
                         continue;
                     }
-                    match std::fs::read_to_string(&path) {
+                    match self.host.read_to_string(&path) {
                         Ok(content) => {
                             block = Block::Div(
                                 Box::new(Attr {
@@ -987,7 +987,7 @@ impl Parser {
                 || std::path::PathBuf::from(&target),
                 |directory| directory.join(&target),
             );
-            match std::fs::read_to_string(&path) {
+            match self.host.read_to_string(&path) {
                 Ok(contents) => {
                     let contents = contents.replace('\r', "");
                     return Some(contents.lines().collect::<Vec<_>>().join("\n"));

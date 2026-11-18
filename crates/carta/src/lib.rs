@@ -9,9 +9,9 @@ pub use carta_ast as ast;
 pub use carta_ast::Document;
 pub use carta_core::{
     AnyReader, AnyWriter, BytesReader, BytesWriter, DocxOptions, EpubOptions, Error, Extension,
-    Extensions, MathMethod, MediaBag, MediaItem, Output, PdfEngine, PdfOptions, Reader,
-    ReaderOptions, Result, TocStyle, TopLevelDivision, WrapMode, Writer, WriterOptions, media,
-    presets, walk,
+    Extensions, Fetcher, HostAccess, MathMethod, MediaBag, MediaItem, Output, PdfEngine,
+    PdfOptions, Reader, ReaderOptions, Result, TocStyle, TopLevelDivision, WrapMode, Writer,
+    WriterOptions, media, presets, walk,
 };
 
 use std::sync::Arc;

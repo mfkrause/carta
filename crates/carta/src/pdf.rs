@@ -138,5 +138,5 @@ fn image_bytes(reference: &str, options: &WriterOptions) -> Option<Vec<u8>> {
         .iter()
         .map(|directory| directory.join(&path))
         .chain(std::iter::once(path.clone()))
-        .find_map(|path| fs::read(path).ok())
+        .find_map(|path| options.host.read(&path).ok())
 }

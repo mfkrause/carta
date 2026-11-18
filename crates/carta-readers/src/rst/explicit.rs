@@ -197,6 +197,7 @@ impl Parser<'_> {
                     self.tab_stop,
                     self.work,
                     self.includes,
+                    self.host,
                 ) {
                     out.extend(blocks);
                 }
