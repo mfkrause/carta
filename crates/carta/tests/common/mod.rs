@@ -11,6 +11,14 @@ pub(crate) fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
+/// Reader options for a `corpus/text/<group>/` case: the files the case names resolve beside it.
+/// The directory is relative to the package root, which keeps the paths in snapshots portable.
+pub(crate) fn text_reader_options(group: &str) -> carta::ReaderOptions {
+    let mut options = carta::ReaderOptions::default();
+    options.source_dir = Some(Path::new("../../corpus/text").join(group));
+    options
+}
+
 /// One discovered corpus case, decoded as UTF-8 text.
 #[derive(Debug)]
 pub(crate) struct Case {

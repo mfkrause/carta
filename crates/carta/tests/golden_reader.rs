@@ -9,7 +9,7 @@
 mod common;
 
 use carta::{Output, ReaderOptions, WriterOptions};
-use common::{corpus_binary_cases, corpus_cases, corpus_groups};
+use common::{corpus_binary_cases, corpus_cases, corpus_groups, text_reader_options};
 
 /// Snapshots the JSON AST of every `corpus/text/<format>/*` case whose reader is compiled in.
 #[test]
@@ -23,7 +23,7 @@ fn text_corpus_ast_snapshots() {
             &case.group,
             "json",
             &case.input,
-            &ReaderOptions::default(),
+            &text_reader_options(&case.group),
             &WriterOptions::default(),
         )
         .unwrap_or_else(|error| panic!("convert {}/{} -> json: {error}", case.group, case.label));
