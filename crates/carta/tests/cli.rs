@@ -2491,7 +2491,10 @@ fn asciidoc_file_scope_preserves_cross_file_targets() {
 /// A format, its file extension, the line that includes the file `NAME`, and whether the name
 /// resolves beside the including file (otherwise against the working directory).
 #[cfg(feature = "full")]
-const INCLUDES: &[(&str, &str, &str, bool)] = &[("org", "org", "#+INCLUDE: \"NAME\"", true)];
+const INCLUDES: &[(&str, &str, &str, bool)] = &[
+    ("org", "org", "#+INCLUDE: \"NAME\"", true),
+    ("rst", "rst", ".. include:: NAME", true),
+];
 
 #[cfg(feature = "full")]
 #[test]

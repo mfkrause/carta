@@ -36,7 +36,7 @@ impl Reader for RstReader {
         let work = Cell::new(Some(
             (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         ));
-        let includes = Includes::new(options, &work);
+        let includes = Includes::new(input, options, &work);
         let defs = collect_definitions(&lines, &includes);
         let mut parser = Parser {
             defs: &defs,
@@ -56,7 +56,7 @@ impl Reader for RstReader {
             active_footnotes: BTreeSet::new(),
             deferred: BTreeMap::new(),
         };
-        let mut blocks = parser.blocks(&lines);
+        let mut blocks = parser.document(&lines);
         if let Some(div) = parser.citation_block() {
             blocks.push(div);
         }

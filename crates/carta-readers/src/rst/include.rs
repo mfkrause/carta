@@ -13,20 +13,21 @@ pub(super) struct Includes<'a> {
     host: HostAccess,
     /// Remaining expanded text work; each inclusion spends the length of its file.
     work: &'a Cell<Option<usize>>,
-    /// The directory the document's own includes resolve against.
-    directory: Option<PathBuf>,
+    /// The document's own source files, each with the document line it starts on.
+    files: Vec<(usize, Active)>,
+    /// The source file that holds the document line being read.
+    current: Cell<usize>,
     /// The directories searched for a data file; empty searches the working directory.
     resource_path: Vec<PathBuf>,
-    /// Canonical paths of the document's own source files.
-    sources: Vec<PathBuf>,
     /// The files being included, outermost first.
     chain: RefCell<Vec<Active>>,
     /// File texts by canonical path.
     texts: RefCell<BTreeMap<PathBuf, Rc<str>>>,
 }
 
+/// A file whose lines are being read. Standard input has no path.
 struct Active {
-    canonical: PathBuf,
+    canonical: Option<PathBuf>,
     directory: Option<PathBuf>,
 }
 
@@ -44,20 +45,42 @@ impl Drop for Included<'_> {
 }
 
 impl<'a> Includes<'a> {
-    pub(super) fn new(options: &ReaderOptions, work: &'a Cell<Option<usize>>) -> Self {
+    pub(super) fn new(input: &str, options: &ReaderOptions, work: &'a Cell<Option<usize>>) -> Self {
+        let mut line = 0;
+        let files = options.source_files(input).into_iter().map(|file| {
+            let first = line;
+            line += line_breaks(file.text);
+            let path = file
+                .path
+                .and_then(|path| options.host.canonicalize(path).ok());
+            let directory = file.directory.map(Path::to_path_buf);
+            (
+                first,
+                Active {
+                    canonical: path,
+                    directory,
+                },
+            )
+        });
         Self {
             host: options.host,
             work,
-            directory: options.source_dir.clone(),
+            files: files.collect(),
+            current: Cell::new(0),
             resource_path: options.resource_path.clone(),
-            sources: options
-                .source_paths
-                .values()
-                .filter_map(|path| options.host.canonicalize(path).ok())
-                .collect(),
             chain: RefCell::new(Vec::new()),
             texts: RefCell::new(BTreeMap::new()),
         }
+    }
+
+    /// Resolves the includes that follow against the source file that holds document line `line`.
+    pub(super) fn enter_line(&self, line: usize) {
+        let file = self.files.iter().rposition(|(first, _)| *first <= line);
+        self.current.set(file.unwrap_or(0));
+    }
+
+    fn source(&self) -> Option<&Active> {
+        self.files.get(self.current.get()).map(|(_, file)| file)
     }
 
     /// Opens the file an `include` directive names, to parse its lines in place. `Ok(None)` when
@@ -73,23 +96,17 @@ impl<'a> Includes<'a> {
         let Some((path, canonical)) = self.locate(argument) else {
             return Ok(None);
         };
-        if self.sources.contains(&canonical)
-            || self
-                .chain
-                .borrow()
-                .iter()
-                .any(|active| active.canonical == canonical)
-        {
-            return Err(Error::Io(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("include file loop at {}", argument.trim()),
-            )));
+        let chain = self.chain.borrow();
+        let mut active = self.source().into_iter().chain(chain.iter());
+        if active.any(|active| active.canonical.as_ref() == Some(&canonical)) {
+            return Err(invalid(format!("include file loop at {}", argument.trim())));
         }
+        drop(chain);
         let Some(lines) = self.lines(&canonical, options) else {
             return Ok(None);
         };
         self.chain.borrow_mut().push(Active {
-            canonical,
+            canonical: Some(canonical),
             directory: path.parent().map(Path::to_path_buf),
         });
         Ok(Some(Included {
@@ -113,10 +130,10 @@ impl<'a> Includes<'a> {
         if argument.is_empty() {
             return None;
         }
-        let path = match self.chain.borrow().last() {
-            Some(active) => resolve(active.directory.as_deref(), argument),
-            None => resolve(self.directory.as_deref(), argument),
-        };
+        let chain = self.chain.borrow();
+        let including = chain.last().or_else(|| self.source());
+        let directory = including.and_then(|active| active.directory.as_deref());
+        let path = resolve(directory, argument);
         let canonical = self.host.canonicalize(&path).ok()?;
         Some((path, canonical))
     }
@@ -209,6 +226,16 @@ impl<'a> Includes<'a> {
         self.work.set(remaining);
         remaining.is_some()
     }
+}
+
+fn invalid(message: String) -> Error {
+    Error::Io(io::Error::new(io::ErrorKind::InvalidData, message))
+}
+
+/// How many line ends `text` holds: a line feed, a carriage return, or the pair of them.
+fn line_breaks(text: &str) -> usize {
+    let pairs = text.matches("\r\n").count();
+    text.matches(['\r', '\n']).count() - pairs
 }
 
 fn resolve(directory: Option<&Path>, argument: &str) -> PathBuf {

@@ -81,11 +81,17 @@ pub(super) struct RoleChain {
 /// Collects the definitions of a document, following the files it includes for parsing.
 pub(super) fn collect_definitions<'a>(lines: &[String], includes: &'a Includes<'a>) -> Definitions {
     let mut defs = Definitions::default();
-    collect_into(&mut defs, lines, includes);
+    collect_into(&mut defs, lines, includes, true);
     defs
 }
 
-fn collect_into<'a>(defs: &mut Definitions, lines: &[String], includes: &'a Includes<'a>) {
+/// Collects from `lines`, which are the whole document's when `document` is set.
+fn collect_into<'a>(
+    defs: &mut Definitions,
+    lines: &[String],
+    includes: &'a Includes<'a>,
+    document: bool,
+) {
     let mut i = 0;
     while i < lines.len() {
         let line = line_at(lines, i);
@@ -98,13 +104,16 @@ fn collect_into<'a>(defs: &mut Definitions, lines: &[String], includes: &'a Incl
         if let Some(kind) = classify_explicit(trimmed) {
             let end = explicit_extent(lines, i, indent);
             if matches!(&kind, Explicit::Directive(name) if name == "include") {
+                if document {
+                    includes.enter_line(i);
+                }
                 let (argument, options, _) =
                     split_directive(&directive_body("include", lines, i, end));
                 // A loop is reported where the block pass meets the directive.
                 if !is_literal(&options)
                     && let Ok(Some(included)) = includes.open(&argument, &options)
                 {
-                    collect_into(defs, &included.lines, includes);
+                    collect_into(defs, &included.lines, includes, false);
                 }
             } else {
                 record_definition(defs, lines, i, end, indent, kind);

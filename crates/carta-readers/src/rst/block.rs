@@ -19,10 +19,15 @@ use carta_core::Extension;
 
 impl Parser<'_> {
     pub(super) fn blocks(&mut self, lines: &[String]) -> Vec<Block> {
-        carta_core::with_stack(|| self.blocks_nested(lines))
+        carta_core::with_stack(|| self.blocks_nested(lines, false))
     }
 
-    fn blocks_nested(&mut self, lines: &[String]) -> Vec<Block> {
+    /// The blocks of the whole document, whose lines can come from several source files.
+    pub(super) fn document(&mut self, lines: &[String]) -> Vec<Block> {
+        carta_core::with_stack(|| self.blocks_nested(lines, true))
+    }
+
+    fn blocks_nested(&mut self, lines: &[String], document: bool) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending_classes: Option<Vec<String>> = None;
         let mut pending_targets: Vec<String> = Vec::new();
@@ -45,6 +50,9 @@ impl Parser<'_> {
             if is_blank(line) {
                 i += 1;
                 continue;
+            }
+            if document {
+                self.includes.enter_line(i);
             }
             // Empty targets attach to the next block; indirect names stay raw, URLs are encoded.
             if matches!(classify_explicit(line), Some(Explicit::Target)) {
