@@ -1,5 +1,10 @@
 //! Host access for the files and URLs a document names.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "the one module that reaches the host for a document"
+)]
+
 use std::io;
 use std::path::{Path, PathBuf};
 

@@ -1,5 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! Document conversion with compile-time reader and writer selection.
 //!
 //! [`convert`] accepts bytes and returns [`Output`]; [`convert_text`] handles text formats.

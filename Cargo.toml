@@ -55,6 +55,8 @@ unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
 indexing_slicing = "warn"
+# Enabled per crate, where documents are processed; the banned list is in clippy.toml.
+disallowed_methods = "allow"
 
 [profile.dev.package."*"]
 opt-level = 2

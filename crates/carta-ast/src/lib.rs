@@ -1,5 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! The document model and optional JSON interchange codec.
 //!
 //! [`Document`] contains [`Block`] and [`Inline`] nodes. The `serde` feature enables JSON codecs.

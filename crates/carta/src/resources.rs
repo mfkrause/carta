@@ -1,5 +1,8 @@
 //! Resource resolution: media extraction, disk lookup, and remote fetch for self-contained output.
 
+// A document reaches the host only through `carta::HostAccess`.
+#![warn(clippy::disallowed_methods)]
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -13,6 +13,10 @@ use carta_core::{
 pub(crate) struct PdfWriter;
 
 impl BytesWriter for PdfWriter {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "runs the caller's PDF engine over a private staging directory"
+    )]
     fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         let directory = tempfile::tempdir()?;
         let directory_path = directory.path().canonicalize()?;

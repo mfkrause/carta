@@ -12,3 +12,31 @@ disallowed-types = [
   { path = "std::collections::HashMap", reason = "non-deterministic iteration; use BTreeMap" },
   { path = "std::collections::HashSet", reason = "non-deterministic iteration; use BTreeSet" },
 ]
+
+# Document-driven host access goes through `carta_core::HostAccess` so the sandbox covers it.
+# Off by default (see the workspace lints); the crates that process documents turn it on.
+disallowed-methods = [
+  { path = "std::fs::read", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::read_to_string", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::read_dir", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::read_link", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::canonicalize", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::metadata", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::symlink_metadata", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::exists", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::File::open", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::fs::OpenOptions::open", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::canonicalize", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::exists", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::try_exists", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::is_file", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::is_dir", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::is_symlink", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::metadata", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::symlink_metadata", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::read_dir", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::path::Path::read_link", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::process::Command::new", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::net::TcpStream::connect", reason = "reach the host through carta_core::HostAccess" },
+  { path = "std::net::UdpSocket::bind", reason = "reach the host through carta_core::HostAccess" },
+]

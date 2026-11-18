@@ -1,5 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! Conversion traits, options, and errors shared by readers and writers.
 
 use std::fmt;

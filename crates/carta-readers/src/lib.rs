@@ -1,4 +1,6 @@
 #![warn(missing_docs)]
+// A document reaches the host only through `carta_core::HostAccess`.
+#![warn(clippy::disallowed_methods)]
 //! Input-format readers. Each module parses a source format's text into the document model
 //! ([`carta_ast::Document`]) via the [`carta_core::Reader`] trait.
 

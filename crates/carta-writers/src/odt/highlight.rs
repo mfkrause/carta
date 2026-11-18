@@ -127,6 +127,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::arc_with_non_send_sync)]
+    #[expect(clippy::disallowed_methods, reason = "reads a grammar fixture")]
     fn code_tokens_keep_spaces_quotes_and_comments() {
         let mut options = WriterOptions::default();
         let mut highlighter = Highlighter::new();
