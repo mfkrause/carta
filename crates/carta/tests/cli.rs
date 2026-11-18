@@ -2487,3 +2487,47 @@ fn asciidoc_file_scope_preserves_cross_file_targets() {
     assert_eq!(blocks[1]["c"][2]["c"][2][0], "second.adoc#_same");
     assert_eq!(blocks[2]["c"][1][0], "second.adoc___same");
 }
+
+/// A format, its file extension, the line that includes the file `NAME`, and whether the name
+/// resolves beside the including file (otherwise against the working directory).
+#[cfg(feature = "full")]
+const INCLUDES: &[(&str, &str, &str, bool)] = &[("org", "org", "#+INCLUDE: \"NAME\"", true)];
+
+#[cfg(feature = "full")]
+#[test]
+fn each_input_file_resolves_and_guards_its_own_includes() {
+    let directory = input_directory("input-includes");
+    for &(format, extension, include, beside) in INCLUDES {
+        let convert = |inputs: [&str; 2]| {
+            let mut command = Command::new(env!("CARGO_BIN_EXE_carta"));
+            command.args(["-f", format, "-t", "plain"]).args(inputs);
+            command.current_dir(&directory).env_remove("TEXINPUTS");
+            let result = run_command(&mut command, b"");
+            assert!(result.success, "{format}: {}", result.stderr);
+            result.stdout
+        };
+        let name = |stem: &str| format!("{stem}.{extension}");
+        let including = |file: &str| format!("Text.\n\n{}\n", include.replace("NAME", file));
+        fs::write(directory.join(name("first")), including(&name("second"))).unwrap();
+        fs::write(directory.join(name("second")), "Second.\n").unwrap();
+        let output = convert([&name("first"), &name("second")]);
+        assert_eq!(output.matches("Second.").count(), 2, "{format}: {output}");
+
+        if beside {
+            for folder in ["a", "b"] {
+                fs::create_dir_all(directory.join(folder)).unwrap();
+                let file = |stem: &str| directory.join(folder).join(name(stem));
+                fs::write(file("main"), including(&name("part"))).unwrap();
+                fs::write(file("part"), format!("Part {folder}.\n")).unwrap();
+            }
+            let output = convert([
+                &format!("a/{}", name("main")),
+                &format!("b/{}", name("main")),
+            ]);
+            assert!(
+                output.contains("Part a.") && output.contains("Part b."),
+                "{format}: {output}"
+            );
+        }
+    }
+}

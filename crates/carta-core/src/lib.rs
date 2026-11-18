@@ -161,6 +161,52 @@ impl Default for ReaderOptions {
     }
 }
 
+/// The part of a reader's input that one source file supplied.
+#[derive(Debug, Clone, Copy)]
+pub struct SourceFile<'a> {
+    /// The text the file supplied.
+    pub text: &'a str,
+    /// The directory the file was named under. An empty path is the working directory.
+    pub directory: Option<&'a std::path::Path>,
+    /// The file's name. Standard input has none.
+    pub path: Option<&'a std::path::Path>,
+}
+
+impl ReaderOptions {
+    /// Splits `input` into the parts its source files supplied, in order. Input from one source,
+    /// or with offsets that do not fit it, is a single part.
+    #[must_use]
+    pub fn source_files<'a>(&'a self, input: &'a str) -> Vec<SourceFile<'a>> {
+        let path = |start| {
+            self.source_paths
+                .get(start)
+                .map(std::path::PathBuf::as_path)
+        };
+        let whole = SourceFile {
+            text: input,
+            directory: self.source_dir.as_deref(),
+            path: self.source_paths.keys().next().and_then(path),
+        };
+        if self.source_dirs.len() < 2 || !self.source_dirs.contains_key(&0) {
+            return vec![whole];
+        }
+        let mut files = Vec::new();
+        let mut starts = self.source_dirs.iter().peekable();
+        while let Some((start, directory)) = starts.next() {
+            let end = starts.peek().map_or(input.len(), |&(&end, _)| end);
+            let Some(text) = input.get(*start..end) else {
+                return vec![whole];
+            };
+            files.push(SourceFile {
+                text,
+                directory: Some(directory),
+                path: path(start),
+            });
+        }
+        files
+    }
+}
+
 /// How math is presented by the HTML family of formats.
 /// Plain output uses text and inline HTML; script renderers retain TeX.
 /// MathML embeds structured math without a script loader.

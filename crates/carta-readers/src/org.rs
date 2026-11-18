@@ -39,8 +39,7 @@ pub struct OrgReader;
 impl Reader for OrgReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
-        let normalized = normalize(input);
-        let expanded = include::expand(&normalized, options)?;
+        let expanded = include::expand(input, options)?;
         let lines: Vec<&str> = expanded.split('\n').collect();
 
         let mut property_meta = BTreeMap::new();

@@ -9,38 +9,49 @@ use carta_core::{Error, HostAccess, ReaderOptions, Result};
 use super::blocks::headline_level;
 use super::greater::greater_block_open;
 use super::keyword::keyword_line;
+use super::normalize;
 
-/// Replaces every `#+INCLUDE: "file"` line of `text` with the content of the file it names. A
-/// plain include splices the file's own markup, nested includes resolved; `src`, `example`, and
-/// `export` wrap the file in the block of that kind. A file that cannot be read contributes
-/// nothing.
+/// Normalizes the line endings of `input` and replaces every `#+INCLUDE: "file"` line with the
+/// content of the file it names. A plain include splices the file's own markup, nested includes
+/// resolved; `src`, `example`, and `export` wrap the file in the block of that kind. A file that
+/// cannot be read contributes nothing.
 ///
 /// # Errors
 /// A file that includes itself, directly or through other files, and an expansion out of all
 /// proportion to the input.
-pub(super) fn expand<'a>(text: &'a str, options: &ReaderOptions) -> Result<Cow<'a, str>> {
-    if !text.lines().any(|line| Include::parse(line).is_some()) {
-        return Ok(Cow::Borrowed(text));
+pub(super) fn expand<'a>(input: &'a str, options: &ReaderOptions) -> Result<Cow<'a, str>> {
+    let normalized = normalize(input);
+    if !normalized
+        .lines()
+        .any(|line| Include::parse(line).is_some())
+    {
+        return Ok(normalized);
     }
-    let sources = options.source_paths.values();
     let mut expander = Expander {
         host: options.host,
-        chain: sources
-            .filter_map(|path| options.host.canonicalize(path).ok())
-            .collect(),
+        chain: Vec::new(),
         known: BTreeSet::new(),
-        work: (1usize << 20).saturating_add(text.len().saturating_mul(64)),
+        work: (1usize << 20).saturating_add(input.len().saturating_mul(64)),
         closing: false,
     };
-    let lines: Vec<&str> = text.split('\n').collect();
-    let mut out = Vec::new();
-    expander.expand(&lines, options.source_dir.as_deref(), &mut out)?;
-    Ok(Cow::Owned(out.join("\n")))
+    let mut expanded = String::new();
+    for file in options.source_files(input) {
+        let path = file
+            .path
+            .and_then(|path| options.host.canonicalize(path).ok());
+        expander.chain = path.into_iter().collect();
+        let text = normalize(file.text);
+        let lines: Vec<&str> = text.split('\n').collect();
+        let mut out = Vec::new();
+        expander.expand(&lines, file.directory, &mut out)?;
+        expanded.push_str(&out.join("\n"));
+    }
+    Ok(Cow::Owned(expanded))
 }
 
 struct Expander {
     host: HostAccess,
-    /// Canonical paths of the document's own files, then of each file being included.
+    /// The canonical path of the source file being expanded, then of each file being included.
     chain: Vec<PathBuf>,
     /// The files read so far; a file adds to the work budget once.
     known: BTreeSet<PathBuf>,
