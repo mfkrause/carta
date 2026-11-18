@@ -141,6 +141,25 @@ for extension in html tex txt typ native json; do
   fi
 done
 
+# A document reads the files it names in place, and none of them under --sandbox. Both tools
+# run in the scratch directory, where the LaTeX and man readers look for the names as written.
+includes="$WORK/include-inputs"
+mkdir -p "$includes/sub"
+printf '%s\n' 'Included *text*.' '' >"$includes/sub/part.txt"
+printf '%s\n' '.. include:: sub/part.txt' '' '.. include:: sub/part.txt' '   :literal:' '   :end-line: 1' \
+  >"$includes/main.rst"
+printf '%s\n' '#+INCLUDE: "sub/part.txt"' '' '#+INCLUDE: "sub/part.txt" example' >"$includes/main.org"
+printf '%s\n' 'include::sub/part.txt[]' >"$includes/main.adoc"
+printf '%s\n' '#include "sub/part.txt"' >"$includes/main.typ"
+printf '%s\n' 'Before \input{include-inputs/sub/part.txt} after.' >"$includes/main.tex"
+printf '%s\n' '.PP' 'Before' '.so include-inputs/sub/part.txt' >"$includes/main.1"
+for file in main.rst main.org main.adoc main.typ main.tex main.1; do
+  for sandbox in "" "--sandbox"; do
+    run_diff json "commands/include [$sandbox $file]" /dev/null \
+      "-t json $sandbox $includes/$file" "-t json $sandbox $includes/$file"
+  done
+done
+
 report commands all
 tally_group
 
