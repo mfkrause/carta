@@ -742,6 +742,26 @@ fn the_headlines_of_an_included_file_go_below_the_headline_above_the_include() {
 }
 
 #[test]
+fn a_file_link_of_an_included_file_still_names_the_same_file() {
+    let blocks = read_with_files(
+        "links",
+        &[
+            ("main.org", "#+INCLUDE: \"sub/part.org\"\n"),
+            ("sub/part.org", "[[file:diagram.png]] ~[[file:code.png]]~\n"),
+        ],
+    )
+    .unwrap();
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected one paragraph: {blocks:?}");
+    };
+    assert!(matches!(
+        inlines.as_slice(),
+        [Inline::Image(_, _, target), Inline::Space, Inline::Code(_, code)]
+            if target.url.as_str() == "sub/diagram.png" && code.as_str() == "[[file:code.png]]"
+    ));
+}
+
+#[test]
 fn an_include_quotes_a_file_as_a_verbatim_block() {
     let text = "* not a headline\n#+end_src\n,* guarded\n";
     let blocks = read_with_files(

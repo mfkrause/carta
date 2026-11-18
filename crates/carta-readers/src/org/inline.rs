@@ -120,7 +120,7 @@ fn is_emphasis_marker(character: char) -> bool {
     matches!(character, '*' | '/' | '+' | '_')
 }
 
-fn is_verbatim_marker(character: char) -> bool {
+pub(super) fn is_verbatim_marker(character: char) -> bool {
     matches!(character, '=' | '~')
 }
 

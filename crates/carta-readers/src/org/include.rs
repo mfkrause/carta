@@ -8,6 +8,8 @@ use carta_core::{Error, HostAccess, ReaderOptions, Result};
 
 use super::blocks::headline_level;
 use super::greater::greater_block_open;
+use super::inline::is_verbatim_marker;
+use super::inline_helpers::{post_ok, pre_ok};
 use super::keyword::keyword_line;
 use super::{collect_footnotes, footnote_definition, is_footnote_label_char, normalize};
 
@@ -161,6 +163,9 @@ impl Expander {
                 if include.indent.is_empty() {
                     self.localize_footnotes(&mut included, &context.footnotes)?;
                 }
+                if let Some((directory, _)) = include.file.rsplit_once('/') {
+                    self.rebase_links(&mut included, directory)?;
+                }
                 self.closing = out.last().is_some_and(|line| !line.trim().is_empty());
                 self.separate(included.first().map_or("", String::as_str), out);
                 self.closing = true;
@@ -199,7 +204,7 @@ impl Expander {
             return Ok(());
         }
         let prefix = format!("include-{}-", self.local_labels.len());
-        let relabel = |line: &str| relabel(line, &last, &prefix);
+        let relabel = |line: &str| outside_code(line, |text| relabel(text, &last, &prefix));
         let mut blocks = BlockTracker::default();
         for line in lines.iter_mut() {
             if !blocks.holds(line) {
@@ -218,6 +223,21 @@ impl Expander {
             lines.extend(definition.split('\n').map(str::to_owned));
         }
         lines.extend([String::new(), String::new()]);
+        Ok(())
+    }
+
+    /// Puts `directory`, where an included file lies as seen from the including file, before the
+    /// relative file targets of the file's links, so each link still names the same file.
+    fn rebase_links(&mut self, lines: &mut [String], directory: &str) -> Result<()> {
+        let mut blocks = BlockTracker::default();
+        for line in lines {
+            if blocks.holds(line) || !line.contains("[[") {
+                continue;
+            }
+            let rebased = outside_code(line, |text| rebase_links(text, directory));
+            spend(&mut self.work, rebased.len().saturating_sub(line.len()))?;
+            *line = rebased;
+        }
         Ok(())
     }
 
@@ -379,6 +399,94 @@ impl BlockTracker {
     }
 }
 
+/// Applies `rewrite` to the parts of `line` that are not inline code or verbatim text.
+fn outside_code(line: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
+    let mut rewritten = String::with_capacity(line.len());
+    let mut text = 0;
+    let mut characters = line.char_indices().peekable();
+    let mut previous = None;
+    while let Some((open, marker)) = characters.next() {
+        let inner = open + marker.len_utf8();
+        let opens = is_verbatim_marker(marker)
+            && pre_ok(previous)
+            && characters
+                .peek()
+                .is_some_and(|(_, next)| !next.is_whitespace());
+        let close = opens.then(|| code_end(line, inner, marker)).flatten();
+        previous = Some(marker);
+        if let Some(close) = close {
+            rewritten.push_str(&rewrite(line.get(text..open).unwrap_or("")));
+            rewritten.push_str(line.get(open..close).unwrap_or(""));
+            text = close;
+            while characters.next_if(|(index, _)| *index < close).is_some() {}
+        }
+    }
+    rewritten + &rewrite(line.get(text..).unwrap_or(""))
+}
+
+/// The end of the code that the marker before `inner` opens: past the next such marker that
+/// follows text and stands before a break. `None` when nothing closes it.
+fn code_end(line: &str, inner: usize, marker: char) -> Option<usize> {
+    let content = line.get(inner..)?;
+    content.match_indices(marker).find_map(|(at, _)| {
+        let end = inner + at + marker.len_utf8();
+        let before = content.get(..at)?.chars().next_back()?;
+        let closes = !before.is_whitespace() && post_ok(line.get(end..)?.chars().next());
+        closes.then_some(end)
+    })
+}
+
+/// Puts `directory` before the relative file target of each bracket link in `text`.
+fn rebase_links(text: &str, directory: &str) -> String {
+    let mut rebased = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("[[") {
+        let (before, link) = rest.split_at(start + "[[".len());
+        rebased.push_str(before);
+        let (target, after) = link.split_at(link.find(']').unwrap_or(link.len()));
+        let (scheme, path) = match target.strip_prefix("file:") {
+            Some(path) => ("file:", path),
+            None => ("", target),
+        };
+        let (path, search) = path.split_at(path.find("::").unwrap_or(path.len()));
+        let relative = if scheme.is_empty() {
+            path.starts_with("./") || path.starts_with("../")
+        } else {
+            !path.is_empty() && !path.starts_with(['/', '~']) && path.get(1..2) != Some(":")
+        };
+        if relative {
+            let joined = join(directory, path);
+            // A target without a scheme names a file only when it starts with a dot or a slash.
+            let dot = if scheme.is_empty() && !joined.starts_with(['.', '/']) {
+                "./"
+            } else {
+                ""
+            };
+            rebased.extend([scheme, dot, &joined, search]);
+        } else {
+            rebased.push_str(target);
+        }
+        rest = after;
+    }
+    rebased + rest
+}
+
+/// The path `path` under `directory`, with each `.` and `..` part resolved by name.
+fn join(directory: &str, path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in directory.split('/').chain(path.split('/')) {
+        match part {
+            "" | "." => {}
+            ".." if parts.last().is_some_and(|last| *last != "..") => {
+                parts.pop();
+            }
+            part => parts.push(part),
+        }
+    }
+    let root = if directory.starts_with('/') { "/" } else { "" };
+    format!("{root}{}", parts.join("/"))
+}
+
 /// Puts `prefix` before each of `labels` that a footnote reference or definition in `line` names.
 fn relabel(line: &str, labels: &BTreeMap<String, String>, prefix: &str) -> String {
     let mut relabeled = String::with_capacity(line.len());
@@ -498,6 +606,23 @@ mod tests {
             shifted(1),
             "* two|#+begin_src org|* code|#+end_src|** three"
         );
+    }
+
+    #[test]
+    fn a_relative_file_target_moves_below_the_directory_of_its_file() {
+        let links = "[[file:a.png]] [[./b.png][b]] [[file:../up.png]] [[file:n.org::*H]]";
+        let rebased =
+            "[[file:sub/a.png]] [[./sub/b.png][b]] [[file:up.png]] [[file:sub/n.org::*H]]";
+        assert_eq!(rebase_links(links, "sub"), rebased);
+        let fixed = "[[file:/a.png]] [[file:~/a.png]] [[https://a.org]] [[a.png]] [[#a]]";
+        assert_eq!(rebase_links(fixed, "sub"), fixed);
+    }
+
+    #[test]
+    fn inline_code_is_not_rewritten() {
+        let upper = |line| outside_code(line, str::to_uppercase);
+        assert_eq!(upper("a ~b~ c =d e= f"), "A ~b~ C =d e= F");
+        assert_eq!(upper("a~b~ c = d= ~e"), "A~B~ C = D= ~E");
     }
 
     #[test]
