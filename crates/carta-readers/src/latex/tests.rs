@@ -941,6 +941,16 @@ fn adversarially_nested_input_does_not_overflow_the_stack() {
     let _ = parse(&balanced);
 }
 
+#[test]
+fn an_expansion_at_the_start_of_a_block_returns_to_the_block_loop() {
+    let list = "\\newcommand{\\e}{}\\begin{itemize}\\item one\n\n\\e\\item two\\end{itemize}";
+    assert!(matches!(
+        parse(list).as_slice(),
+        [Block::BulletList(items)] if items.len() == 2
+    ));
+    let _ = parse(&format!("\\newcommand{{\\e}}{{}}{}", "\\e".repeat(100_000)));
+}
+
 /// Reads `files[0]` as the document, with every file written to a scratch directory that is the
 /// search path.
 fn read_with_files(label: &str, files: &[(&str, &str)]) -> Vec<Block> {

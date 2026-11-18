@@ -526,8 +526,9 @@ impl Parser {
             }
             return Some(self.parse_environment(&env));
         }
+        // The caller checks where its blocks stop before it reads what the expansion left.
         if self.try_expand_macro() {
-            return self.parse_block_construct();
+            return Some(Vec::new());
         }
         let name = self.peek_control_word()?;
         if let Some(level) = section_intrinsic(&name) {
