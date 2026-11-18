@@ -986,7 +986,7 @@ fn an_input_reads_the_named_file_in_place() {
         &[
             (
                 "main.tex",
-                "\\input{macros}\n\nA \\input{part} B \\word.\n\n\\subfile{whole}\n\n\\include{missing}\n",
+                "\\input macros\n\nA \\input{part} B \\word.\n\n\\subfile{whole}\n\n\\include{missing}\n\n\\input part.tex\nC\n",
             ),
             ("macros.tex", "\\newcommand{\\word}{defined}\n"),
             ("part.tex", "part"),
@@ -996,7 +996,7 @@ fn an_input_reads_the_named_file_in_place() {
             ),
         ],
     );
-    assert_eq!(plain(&blocks), ["A part B defined.", "Body."]);
+    assert_eq!(plain(&blocks), ["A part B defined.", "Body.", "part C"]);
 }
 
 #[test]

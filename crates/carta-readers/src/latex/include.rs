@@ -103,8 +103,9 @@ impl Parser {
     }
 
     /// Pushes the text of the file an `\input`, `\include`, or `\subfile` names before the
-    /// remaining input, and loads the packages a `\usepackage` or `\RequirePackage` names. A file
-    /// that cannot be read, or is being read already, adds nothing.
+    /// remaining input, and loads the packages a `\usepackage` or `\RequirePackage` names. An
+    /// `\input` also takes its name without braces. A file that cannot be read, or is being read
+    /// already, adds nothing.
     pub(super) fn expand_input(&mut self) -> bool {
         if self.files.is_none() {
             return false;
@@ -126,10 +127,16 @@ impl Parser {
         }
         let parent = self.frames.last().and_then(|frame| frame.expansion.clone());
         self.consume_control_word();
-        let Some(argument) = self.read_group_raw() else {
-            return true;
+        let argument = match self.read_group_raw() {
+            Some(argument) => argument,
+            // The primitive form of `\input` takes its name without braces.
+            None if command == "input" => self.read_bare_name(),
+            None => return true,
         };
         let mut name = argument.trim().to_owned();
+        if name.is_empty() {
+            return true;
+        }
         if Path::new(&name).extension().is_none() {
             name.push_str(".tex");
         }
@@ -156,6 +163,19 @@ impl Parser {
             self.frames.push(Frame::new(text, Some(expansion)));
         }
         true
+    }
+
+    /// Reads a file name written without braces: it ends at white space, a command, or a group.
+    fn read_bare_name(&mut self) -> String {
+        let mut name = String::new();
+        while let Some(character) = self.cur() {
+            if character.is_whitespace() || matches!(character, '\\' | '{' | '}' | '%') {
+                break;
+            }
+            name.push(character);
+            self.bump();
+        }
+        name
     }
 
     /// Reads the argument of a `\usepackage` or `\RequirePackage` and adopts the macros that each
