@@ -1133,6 +1133,10 @@ fn a_listing_command_ends_the_paragraph_before_it() {
         ],
     );
     assert_eq!(plain(&blocks), ["Prose", "code\n", "more"]);
+    let defined =
+        "\\newcommand{\\inputminted}[2]{macro #2}\nProse \\inputminted{rust}{word} more\n";
+    let blocks = read_with_files("listing-macro", &[("main.tex", defined)]);
+    assert_eq!(plain(&blocks), ["Prose macro word more"]);
 }
 
 #[cfg(feature = "commonmark")]

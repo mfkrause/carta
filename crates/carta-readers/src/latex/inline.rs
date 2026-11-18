@@ -187,7 +187,8 @@ impl Parser {
             if self.in_float && word == "caption" {
                 return true;
             }
-            if self.files.is_some() && matches!(word.as_str(), "lstinputlisting" | "inputminted") {
+            let listing = matches!(word.as_str(), "lstinputlisting" | "inputminted");
+            if listing && self.files.is_some() && !self.macros.contains_key(&word) {
                 return true;
             }
             return matches!(word.as_str(), "item" | "par");
