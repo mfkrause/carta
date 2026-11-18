@@ -1125,6 +1125,10 @@ fn a_source_request_in_a_macro_definition_runs_when_the_macro_is_called() {
     for (call, text) in [
         ("", "before after"),
         (".MM\n", "before sourced exposed body after"),
+        (
+            ".MM\n.so part.man\n",
+            "before sourced exposed body sourced exposed after",
+        ),
     ] {
         let blocks = read_with_files("copy", &format!("{define}{call}after\n"), &files);
         let [Block::Para(inlines)] = blocks.as_slice() else {

@@ -679,7 +679,8 @@ impl Parser {
                 }
                 // A user-macro call queues its expansion ahead of the current position, parsed in place.
                 _ if self.macros.contains_key(name) => {
-                    self.advance();
+                    // A `.so` after the call is read after the expansion, not before it.
+                    self.drop_line();
                     let args = split_args(rest);
                     let expansion = self.expand_macro_call(name, &args);
                     for line in expansion.into_iter().rev() {
