@@ -107,8 +107,7 @@ fn logical_lines(input: &str) -> Vec<String> {
             acc.clear();
         }
         acc.push_str(raw);
-        let trailing = acc.chars().rev().take_while(|&c| c == '\\').count();
-        if trailing % 2 == 1 {
+        if continues(&acc) {
             acc.pop();
             continuing = true;
         } else {
@@ -120,6 +119,11 @@ fn logical_lines(input: &str) -> Vec<String> {
         out.push(acc);
     }
     out
+}
+
+/// Whether a line ends in an odd number of backslashes, so the next line continues it.
+fn continues(line: &str) -> bool {
+    line.chars().rev().take_while(|&c| c == '\\').count() % 2 == 1
 }
 
 /// What may end a block sequence early. Section headings always rise to the top level; a new
@@ -308,12 +312,16 @@ impl Parser {
             return None;
         }
         let text = self.host.read_to_string(&path).ok()?;
-        let mut lines = logical_lines(&text);
+        let ended = text
+            .strip_suffix('\n')
+            .map(|body| body.strip_suffix('\r').unwrap_or(body))
+            .filter(|body| !continues(body));
+        let mut lines = logical_lines(ended.unwrap_or(&text));
         let next = self.peek().filter(|next| *next != INCLUDE_END);
-        if text.ends_with('\n') {
-            lines.pop();
-        } else if let (Some(last), Some(next)) = (lines.last_mut(), next) {
-            // Without a final newline, the file's last line runs on into the line after the request.
+        // A last line with no newline, or one that is continued, runs on into the line after the request.
+        if ended.is_none()
+            && let (Some(last), Some(next)) = (lines.last_mut(), next)
+        {
             last.push_str(next);
             self.drop_line();
         }
