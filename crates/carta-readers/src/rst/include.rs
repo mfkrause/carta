@@ -26,6 +26,8 @@ pub(super) struct Includes<'a> {
     chain: RefCell<Vec<Active>>,
     /// File texts by canonical path.
     texts: RefCell<BTreeMap<PathBuf, Rc<str>>>,
+    /// Data file texts by the name a directive gives, so a file named again is not read again.
+    data: RefCell<BTreeMap<PathBuf, Rc<str>>>,
 }
 
 /// A file whose lines are being read. Standard input has no path.
@@ -74,6 +76,7 @@ impl<'a> Includes<'a> {
             resource_path: options.resource_path.clone(),
             chain: RefCell::new(Vec::new()),
             texts: RefCell::new(BTreeMap::new()),
+            data: RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -175,8 +178,14 @@ impl<'a> Includes<'a> {
     }
 
     fn resource(&self, name: &Path) -> io::Result<Rc<str>> {
+        if let Some(text) = self.data.borrow().get(name) {
+            return Ok(Rc::clone(text));
+        }
         let (canonical, text) = self.host.read_from(&self.resource_path, name)?;
-        Ok(self.keep(&canonical, &text))
+        let text = self.keep(&canonical, &text);
+        let mut data = self.data.borrow_mut();
+        data.insert(name.to_path_buf(), Rc::clone(&text));
+        Ok(text)
     }
 
     fn lines(&self, canonical: &Path, options: &[(String, String)]) -> Option<Vec<String>> {
