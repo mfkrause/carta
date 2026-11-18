@@ -470,6 +470,25 @@ fn css_still_embeds_in_epub_output() {
         && String::from_utf8_lossy(&part.data).contains("href=\"../styles/stylesheet1.css\"")));
 }
 
+#[cfg(feature = "write-epub")]
+#[test]
+fn epub_metadata_assets_are_found_along_the_resource_path() {
+    let directory = input_directory("epub-resource-path");
+    fs::create_dir_all(directory.join("assets")).unwrap();
+    fs::write(directory.join("assets/theme.css"), "p{}").unwrap();
+    let image = "../../corpus/standalone/rectangle.png";
+    let image = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(image);
+    fs::copy(image, directory.join("assets/cover.png")).unwrap();
+    let source = "---\ntitle: T\ncover-image: cover.png\ncss: theme.css\n---\n\nText.\n";
+    let arguments = ["-o", "book.epub", "--resource-path", "assets"];
+    let result = run_in(&directory, &arguments, source);
+    assert!(result.success, "{}", result.stderr);
+    let bytes = fs::read(directory.join("book.epub")).unwrap();
+    let parts = carta_core::container::zip::read(&bytes).unwrap();
+    assert!(parts.iter().any(|part| part.data == b"p{}"));
+    assert!(parts.iter().any(|part| part.name.ends_with("cover.xhtml")));
+}
+
 #[test]
 fn defaults_options_use_the_selected_output_format() {
     let directory = input_directory("target-option-defaults");

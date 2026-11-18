@@ -89,7 +89,8 @@ pub(super) fn gather_local_images(
 }
 
 /// Read the cover image and the stylesheets an EPUB document's metadata names (`cover-image`,
-/// `css`, `stylesheet`). A cover from the command line stays; metadata stylesheets come first.
+/// `css`, `stylesheet`), each found along `search_path`. A cover from the command line stays;
+/// metadata stylesheets come first.
 ///
 /// # Errors
 /// A named file that cannot be read.
@@ -97,11 +98,18 @@ pub(super) fn gather_local_images(
 pub(super) fn gather_epub_metadata(
     document: &Document,
     epub: &mut carta::EpubOptions,
+    search_path: &[PathBuf],
     host: HostAccess,
 ) -> Result<()> {
     let read = |name: &str| {
-        host.read(Path::new(name))
-            .map_err(|error| std::io::Error::new(error.kind(), format!("{name}: {error}")))
+        let mut found = Err(std::io::ErrorKind::NotFound.into());
+        for directory in search_path {
+            found = host.read(&directory.join(name));
+            if found.is_ok() {
+                break;
+            }
+        }
+        found.map_err(|error| std::io::Error::new(error.kind(), format!("{name}: {error}")))
     };
     if epub.cover_image.is_none()
         && let Some(name) = metadata_names(document, "cover-image").first()

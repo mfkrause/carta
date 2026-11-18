@@ -535,8 +535,8 @@ fn gather_resources(
     options: &mut WriterOptions,
 ) -> Result<()> {
     let host = options.host;
+    let search_path = resource_search_path(cli);
     if embeds_resources(to_base) {
-        let search_path = resource_search_path(cli);
         resources::gather_local_images(document, resources, &search_path, host);
     }
     #[cfg(any(feature = "write-pdf", feature = "write-epub"))]
@@ -546,7 +546,7 @@ fn gather_resources(
     #[cfg(feature = "write-epub")]
     if to_base.starts_with("epub") {
         let epub = Arc::make_mut(&mut options.epub);
-        resources::gather_epub_metadata(document, epub, host)?;
+        resources::gather_epub_metadata(document, epub, &search_path, host)?;
     }
     Ok(())
 }
