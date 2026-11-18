@@ -203,6 +203,10 @@ fn a_loop_binding_outlives_its_loop() {
 /// Write the named files into a fresh directory and read the first one from there, as a document
 /// named on the command line is read.
 fn parse_in_directory(label: &str, files: &[(&str, &str)]) -> Vec<Block> {
+    read_in_directory(label, files).expect("reader does not fail")
+}
+
+fn read_in_directory(label: &str, files: &[(&str, &str)]) -> carta_core::Result<Vec<Block>> {
     let directory =
         std::env::temp_dir().join(format!("carta-typst-{}-{label}", std::process::id()));
     let _ = std::fs::remove_dir_all(&directory);
@@ -213,15 +217,34 @@ fn parse_in_directory(label: &str, files: &[(&str, &str)]) -> Vec<Block> {
         }
         std::fs::write(&path, contents).expect("file is writable");
     }
-    let (_, source) = files.first().expect("at least one file");
+    let (name, source) = files.first().expect("at least one file");
     let mut options = ReaderOptions::default();
     options.source_dir = Some(directory.clone());
-    let blocks = TypstReader
-        .read(source, &options)
-        .expect("reader does not fail")
-        .blocks;
+    options.source_paths.insert(0, directory.join(name));
+    let document = TypstReader.read(source, &options);
     let _ = std::fs::remove_dir_all(&directory);
-    blocks
+    Ok(document?.blocks)
+}
+
+#[test]
+fn a_referenced_file_that_cannot_be_read_fails_the_parse() {
+    for source in [
+        "#include \"missing.typ\"\n",
+        "#import \"missing.typ\": name\n",
+        "#read(\"missing.txt\")\n",
+    ] {
+        assert!(read_in_directory("missing", &[("doc.typ", source)]).is_err());
+    }
+}
+
+#[test]
+fn a_rooted_reference_does_not_leave_the_working_directory() {
+    let outside = std::env::temp_dir().join(format!("carta-typst-{}-outside", std::process::id()));
+    std::fs::write(&outside, "outside").expect("file is writable");
+    let source = format!("#read(\"{}\")\n", outside.display());
+    let result = read_in_directory("rooted", &[("doc.typ", &source)]);
+    let _ = std::fs::remove_file(outside);
+    assert!(result.is_err());
 }
 
 #[test]
@@ -290,10 +313,10 @@ fn an_import_resolves_a_nested_file_against_its_own_directory() {
 }
 
 #[test]
-fn a_file_that_includes_itself_terminates() {
+fn a_document_that_includes_itself_is_read_once() {
     assert_eq!(
         parse_in_directory("cycle", &[("doc.typ", "#include \"doc.typ\"\nx\n")]),
-        vec![Block::Para(vec![text("x")]), Block::Para(vec![text("x")])]
+        vec![Block::Para(vec![text("x")])]
     );
 }
 

@@ -74,6 +74,10 @@ impl Reader for TypstReader {
 /// Parses a whole source text into the document model.
 fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
     let mut parser = Parser::new(normalize(input), options.source_dir.clone(), options.host);
+    let sources = options.source_paths.values();
+    parser
+        .open
+        .extend(sources.filter_map(|path| options.host.canonicalize(path).ok()));
     let mut characters = input.char_indices().peekable();
     let mut position = 0;
     let mut previous = None;
@@ -91,6 +95,9 @@ fn parse_document(input: &str, options: &ReaderOptions) -> Result<Document> {
         parser.directories.insert(position, Some(directory.clone()));
     }
     let mut blocks = parser.blocks(0);
+    if let Some(failure) = parser.failure.take() {
+        return Err(failure);
+    }
     if parser.work.get().is_none() {
         return Err(Error::OutputTooLarge);
     }
@@ -970,6 +977,8 @@ struct Parser {
     work: Rc<cell::Cell<Option<usize>>>,
     invalid_emoji: Option<String>,
     host: HostAccess,
+    /// The error that fails the whole parse, such as a referenced file that cannot be read.
+    failure: Option<Error>,
 }
 
 /// A file pulled into the character arena by `#include` or `#import`.
@@ -1022,6 +1031,7 @@ impl Parser {
             work: Rc::new(cell::Cell::new(Some(work))),
             invalid_emoji: None,
             host,
+            failure: None,
         }
     }
 
@@ -3253,21 +3263,40 @@ impl Parser {
         }
     }
 
-    /// Append a referenced file's characters to the arena. A file that cannot be read, or one
-    /// already being parsed further up the chain, contributes nothing.
+    /// The file a reference names: beside the current file, or under the working directory when
+    /// the reference starts at the project root with a slash.
+    fn locate(&self, reference: &str) -> PathBuf {
+        let rooted = reference.trim_start_matches('/');
+        match self.base() {
+            Some(base) if rooted.len() == reference.len() => base.join(reference),
+            _ => PathBuf::from(rooted),
+        }
+    }
+
+    /// Read a referenced file as text. A file that cannot be read fails the whole parse.
+    fn read_file(&mut self, path: &Path) -> Option<String> {
+        self.host
+            .read_to_string(path)
+            .map_err(|error| {
+                let error =
+                    std::io::Error::new(error.kind(), format!("{}: {error}", path.display()));
+                self.failure.get_or_insert(error.into());
+            })
+            .ok()
+    }
+
+    /// Append a referenced file's characters to the arena. A file already being parsed further up
+    /// the chain contributes nothing.
     fn open_source(&mut self, reference: &str) -> Option<Loaded> {
         if reference.is_empty() {
             return None;
         }
-        let path = match self.base() {
-            Some(base) => base.join(reference),
-            None => PathBuf::from(reference),
-        };
+        let path = self.locate(reference);
         let path = self.host.canonicalize(&path).unwrap_or(path);
         if !self.open.insert(path.clone()) {
             return None;
         }
-        let Ok(text) = self.host.read_to_string(&path) else {
+        let Some(text) = self.read_file(&path) else {
             self.open.remove(&path);
             return None;
         };
@@ -3300,11 +3329,8 @@ impl Parser {
         if reference.is_empty() {
             return Value::Nothing;
         }
-        let path = match self.base() {
-            Some(base) => base.join(&reference),
-            None => PathBuf::from(&reference),
-        };
-        let Ok(text) = self.host.read_to_string(&path) else {
+        let path = self.locate(&reference);
+        let Some(text) = self.read_file(&path) else {
             return Value::Nothing;
         };
         data::load(name, &text).unwrap_or(Value::Nothing)
