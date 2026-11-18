@@ -9,7 +9,7 @@ use carta_core::{Error, HostAccess, ReaderOptions, Result};
 use super::blocks::headline_level;
 use super::greater::greater_block_open;
 use super::keyword::keyword_line;
-use super::{collect_footnotes, is_footnote_label_char, normalize};
+use super::{collect_footnotes, footnote_definition, is_footnote_label_char, normalize};
 
 /// Normalizes the line endings of `input` and replaces every `#+INCLUDE: "file"` line with the
 /// content of the file it names. A plain include splices the file's own markup, nested includes
@@ -74,6 +74,8 @@ struct Context {
     blocks: BlockTracker,
     /// The level of the text's own headline that the next line is below.
     level: Option<usize>,
+    /// The footnote labels that the text itself has defined.
+    footnotes: BTreeSet<String>,
 }
 
 impl Expander {
@@ -91,6 +93,8 @@ impl Expander {
             } else {
                 if !verbatim {
                     context.level = headline_level(line).or(context.level);
+                    let defined = footnote_definition(line).map(|(label, _)| label);
+                    context.footnotes.extend(defined);
                 }
                 self.separate(line, out);
                 out.push((*line).to_owned());
@@ -155,7 +159,7 @@ impl Expander {
                 let minimum_level = include.minimum_level.or(below);
                 shift_headlines(&mut included, minimum_level, &mut self.work)?;
                 if include.indent.is_empty() {
-                    self.localize_footnotes(&mut included)?;
+                    self.localize_footnotes(&mut included, &context.footnotes)?;
                 }
                 self.closing = out.last().is_some_and(|line| !line.trim().is_empty());
                 self.separate(included.first().map_or("", String::as_str), out);
@@ -178,8 +182,13 @@ impl Expander {
 
     /// Gives the footnotes that included markup defines labels of their own, so its references
     /// keep to its own notes when another file uses the same label. The last definition of each
-    /// label is repeated under the label as written, for the references outside the file.
-    fn localize_footnotes(&mut self, lines: &mut Vec<String>) -> Result<()> {
+    /// label is repeated under the label as written, for the references outside the file, unless
+    /// the including text has `defined` that label itself.
+    fn localize_footnotes(
+        &mut self,
+        lines: &mut Vec<String>,
+        defined: &BTreeSet<String>,
+    ) -> Result<()> {
         let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
         let (_, definitions) = collect_footnotes(&borrowed);
         let last: BTreeMap<String, String> = definitions
@@ -200,10 +209,13 @@ impl Expander {
         // Two blank lines end a definition, so the text after the include is not part of one.
         lines.push(String::new());
         for (label, body) in &last {
+            self.local_labels.insert(format!("{prefix}{label}"));
+            if defined.contains(label) {
+                continue;
+            }
             let definition = format!("[fn:{label}] {}", relabel(body));
             spend(&mut self.work, definition.len())?;
             lines.extend(definition.split('\n').map(str::to_owned));
-            self.local_labels.insert(format!("{prefix}{label}"));
         }
         lines.extend([String::new(), String::new()]);
         Ok(())
