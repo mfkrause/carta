@@ -227,18 +227,18 @@ fn missing_images_use_alt_text_and_warn() {
 #[test]
 fn the_sandbox_confines_the_engine_to_the_staging_directory() {
     let compiler = Compiler::new();
-    let root = |arguments: &[&str]| {
+    // The engine's root, and the output file that it writes into the staging directory.
+    let paths = |arguments: &[&str]| {
         assert!(compiler.run(arguments, "Text.", "").status.success());
         let captured = compiler.read("arguments");
         let mut lines = captured.lines().skip_while(|line| *line != "--root");
-        lines.nth(1).unwrap().to_owned()
+        let root = lines.nth(1).unwrap().to_owned();
+        (root, captured.lines().last().unwrap().to_owned())
     };
-    assert_eq!(root(&["-t", "pdf"]), "/");
-    let staging = root(&["-t", "pdf", "--sandbox"]);
-    assert!(
-        std::path::Path::new(&staging).starts_with(std::env::temp_dir().canonicalize().unwrap()),
-        "{staging}"
-    );
+    assert_eq!(paths(&["-t", "pdf"]).0, "/");
+    let (root, output) = paths(&["-t", "pdf", "--sandbox"]);
+    let staging = std::path::Path::new(&output).parent().unwrap();
+    assert_eq!(std::path::Path::new(&root), staging);
 }
 
 #[test]
