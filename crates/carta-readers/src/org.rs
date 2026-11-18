@@ -17,6 +17,7 @@ mod citations;
 mod drawers;
 mod entities;
 mod greater;
+mod include;
 mod inline;
 mod inline_helpers;
 mod keyword;
@@ -39,7 +40,8 @@ impl Reader for OrgReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
         let normalized = normalize(input);
-        let lines: Vec<&str> = normalized.split('\n').collect();
+        let expanded = include::expand(&normalized, options)?;
+        let lines: Vec<&str> = expanded.split('\n').collect();
 
         let mut property_meta = BTreeMap::new();
         let property_start = lines.iter().take_while(|line| is_comment(line)).count();

@@ -1,6 +1,6 @@
 #![allow(clippy::indexing_slicing)]
 use super::*;
-use carta_ast::{Inline, QuoteType};
+use carta_ast::{Attr, Inline, QuoteType};
 
 fn doc(input: &str) -> Document {
     let mut options = ReaderOptions::default();
@@ -677,6 +677,100 @@ fn file_links_preserve_urls_and_absolute_paths() {
         });
         assert_eq!(destinations, [expected], "{source}");
     }
+}
+
+/// Reads `files[0]` as the document, with every file written to a scratch directory.
+fn read_with_files(label: &str, files: &[(&str, &str)]) -> carta_core::Result<Vec<Block>> {
+    let directory = std::env::temp_dir().join(format!("carta-org-{}-{label}", std::process::id()));
+    for (name, text) in files {
+        let path = directory.join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+    let (name, input) = files.first().unwrap();
+    let mut options = ReaderOptions::default();
+    options.source_dir = Some(directory.clone());
+    options.source_paths.insert(0, directory.join(name));
+    let document = OrgReader.read(input, &options);
+    std::fs::remove_dir_all(directory).unwrap();
+    Ok(document?.blocks)
+}
+
+fn paragraph(text: &str) -> Block {
+    Block::Para(vec![Inline::Str(text.into())])
+}
+
+#[test]
+fn an_include_splices_markup_as_blocks_of_its_own() {
+    let blocks = read_with_files(
+        "markup",
+        &[
+            (
+                "main.org",
+                "before\n#+INCLUDE: \"sub/part.org\" :minlevel 2\nafter\n",
+            ),
+            (
+                "sub/part.org",
+                "* Head\n#+include: \"leaf.org\" :lines \"2-3\"\n",
+            ),
+            ("sub/leaf.org", "one\ntwo\nthree\n"),
+        ],
+    )
+    .unwrap();
+    assert!(matches!(
+        blocks.as_slice(),
+        [first, Block::Header(2, _, _), second, last]
+            if *first == paragraph("before") && *second == paragraph("two") && *last == paragraph("after")
+    ));
+}
+
+#[test]
+fn an_include_quotes_a_file_as_a_verbatim_block() {
+    let text = "* not a headline\n#+end_src\n,* guarded\n";
+    let blocks = read_with_files(
+        "verbatim",
+        &[
+            (
+                "main.org",
+                "#+INCLUDE: \"file.txt\" src org\n#+INCLUDE: \"file.txt\" export html\n\
+                 #+begin_example\n#+INCLUDE: \"file.txt\"\n#+end_example\n",
+            ),
+            ("file.txt", text),
+        ],
+    )
+    .unwrap();
+    let source = Attr {
+        classes: vec!["org".into()],
+        ..Attr::default()
+    };
+    assert_eq!(
+        blocks,
+        vec![
+            Block::CodeBlock(Box::new(source), text.into()),
+            Block::RawBlock(carta_ast::Format("html".into()), text.into()),
+            Block::CodeBlock(Box::default(), "#+INCLUDE: \"file.txt\"\n".into()),
+        ]
+    );
+}
+
+#[test]
+fn an_include_loop_fails_the_read_and_a_missing_file_adds_nothing() {
+    let read = |main: &str| {
+        read_with_files(
+            "loop",
+            &[
+                ("main.org", main),
+                ("back.org", "#+INCLUDE: \"main.org\"\n"),
+            ],
+        )
+    };
+    assert!(read("#+INCLUDE: \"back.org\"\n").is_err());
+    assert!(read("#+INCLUDE: \"main.org\"\n").is_err());
+    assert_eq!(read("#+INCLUDE: \"main.org\" example\n").unwrap().len(), 1);
+    assert_eq!(
+        read("#+INCLUDE: \"missing.org\"\ntext\n").unwrap(),
+        [paragraph("text")]
+    );
 }
 
 #[test]

@@ -65,6 +65,16 @@ const CASES: &[Case] = &[
         source: ".so canary.txt\n",
     },
     Case {
+        format: "org",
+        target: &["-t", "plain"],
+        source: "#+INCLUDE: \"canary.txt\"\n",
+    },
+    Case {
+        format: "org",
+        target: &["-t", "plain"],
+        source: "#+INCLUDE: \"canary.txt\" example\n",
+    },
+    Case {
         format: "markdown",
         target: &["-t", "html", "--embed-resources"],
         source: "![image](canary.txt)\n",
