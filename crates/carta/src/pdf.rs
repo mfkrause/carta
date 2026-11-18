@@ -41,8 +41,8 @@ impl BytesWriter for PdfWriter {
         else {
             return Err(Error::Pdf("Typst source is not text".to_owned()));
         };
-        let input = directory.path().join("document.typ");
-        let output = directory.path().join("document.pdf");
+        let input = directory_path.join("document.typ");
+        let output = directory_path.join("document.pdf");
         fs::write(&input, source)?;
         let engine = match options.pdf.engine {
             PdfEngine::Typst => "typst",
