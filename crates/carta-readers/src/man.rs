@@ -79,8 +79,7 @@ pub struct ManReader;
 
 impl Reader for ManReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let lines = logical_lines(input);
-        let mut parser = Parser::new(lines, options);
+        let mut parser = Parser::new(input, options);
         let blocks = parser.parse_blocks(Ctx::TOP);
         Ok(Document {
             meta: parser
@@ -217,7 +216,9 @@ struct Parser {
     host: HostAccess,
     /// The directories searched for a `.so` file; empty searches the working directory.
     resource_path: Vec<PathBuf>,
-    /// Canonical paths of the document's own files, then of each file being included.
+    /// The document's own files: the line each starts on and its canonical path, if it has one.
+    sources: Vec<(usize, Option<PathBuf>)>,
+    /// Canonical paths of the files being included, outermost first.
     including: Vec<PathBuf>,
 }
 
@@ -225,10 +226,19 @@ struct Parser {
 const INCLUDE_END: &str = "\n";
 
 impl Parser {
-    fn new(lines: Vec<String>, options: &ReaderOptions) -> Self {
-        let sources = options.source_paths.values();
+    fn new(input: &str, options: &ReaderOptions) -> Self {
+        let mut line = 0;
+        let sources = options.source_files(input).into_iter().map(|file| {
+            let first = line;
+            // The text of a file that another follows ends in a line break.
+            line += logical_lines(file.text).len().saturating_sub(1);
+            let path = file
+                .path
+                .and_then(|path| options.host.canonicalize(path).ok());
+            (first, path)
+        });
         let mut parser = Self {
-            lines,
+            lines: logical_lines(input),
             pos: 0,
             pending: std::collections::VecDeque::new(),
             meta: BTreeMap::new(),
@@ -242,9 +252,8 @@ impl Parser {
             },
             host: options.host,
             resource_path: options.resource_path.clone(),
-            including: sources
-                .filter_map(|path| options.host.canonicalize(path).ok())
-                .collect(),
+            sources: sources.collect(),
+            including: Vec::new(),
         };
         parser.splice_includes();
         parser
@@ -296,12 +305,20 @@ impl Parser {
         }
     }
 
+    /// The canonical path of the input file that holds the document line read last.
+    fn source(&self) -> Option<&PathBuf> {
+        let line = self.pos.checked_sub(1)?;
+        let mut sources = self.sources.iter().rev();
+        let (_, path) = sources.find(|(first, _)| *first <= line)?;
+        path.as_ref()
+    }
+
     /// The logical lines of the file a `.so` request names, found along the resource path. `None`
     /// when the file cannot be read, is already being included, or the expansion budget is spent.
     fn included_lines(&mut self, name: &str) -> Option<Vec<String>> {
         let found = self.host.read_from(&self.resource_path, Path::new(name));
         let (path, text) = found.ok()?;
-        if self.including.contains(&path) {
+        if self.including.contains(&path) || self.source() == Some(&path) {
             return None;
         }
         let ended = text

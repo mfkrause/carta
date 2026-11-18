@@ -2494,6 +2494,7 @@ fn asciidoc_file_scope_preserves_cross_file_targets() {
 const INCLUDES: &[(&str, &str, &str, bool)] = &[
     ("org", "org", "#+INCLUDE: \"NAME\"", true),
     ("rst", "rst", ".. include:: NAME", true),
+    ("man", "man", ".so NAME", false),
 ];
 
 #[cfg(feature = "full")]
