@@ -1048,11 +1048,10 @@ fn a_listing_command_quotes_the_named_file() {
 #[cfg(feature = "commonmark")]
 #[test]
 fn a_macro_expander_reads_no_file() {
-    let file =
-        std::env::temp_dir().join(format!("carta-latex-{}-expander.tex", std::process::id()));
-    std::fs::write(&file, "included").unwrap();
-    let source = format!("\\input{{{}}}", file.display());
-    let expanded = MacroExpander::new(source.len(), latex_defaults()).raw(&source);
-    std::fs::remove_file(file).unwrap();
+    // The package manifest is a file that exists in the directory the tests run in.
+    let source = "\\input{Cargo.toml}";
+    let manifest = std::path::Path::new("Cargo.toml");
+    assert!(carta_core::HostAccess::Local.read(manifest).is_ok());
+    let expanded = MacroExpander::new(source.len(), latex_defaults()).raw(source);
     assert_eq!(expanded, source);
 }

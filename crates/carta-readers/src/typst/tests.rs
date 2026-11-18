@@ -237,6 +237,8 @@ fn a_referenced_file_that_cannot_be_read_fails_the_parse() {
     }
 }
 
+// An absolute path starts with a slash only on Unix.
+#[cfg(unix)]
 #[test]
 fn a_rooted_reference_does_not_leave_the_working_directory() {
     let outside = std::env::temp_dir().join(format!("carta-typst-{}-outside", std::process::id()));
