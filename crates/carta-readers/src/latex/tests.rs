@@ -1075,6 +1075,29 @@ fn a_local_package_supplies_only_its_macros() {
 }
 
 #[test]
+fn packages_nested_past_the_limit_are_not_read() {
+    let chain = |length: usize| {
+        let name = |index: usize| format!("p{index}.sty");
+        let mut files = vec![(
+            "main.tex".to_owned(),
+            "\\usepackage{p0}\nA \\deep{} B\n".to_owned(),
+        )];
+        files.extend((0..length).map(|index| {
+            let next = format!("\\RequirePackage{{p{}}}\n", index + 1);
+            (name(index), next)
+        }));
+        files.push((name(length), "\\newcommand{\\deep}{deep}\n".to_owned()));
+        let files: Vec<(&str, &str)> = files
+            .iter()
+            .map(|(name, text)| (name.as_str(), text.as_str()))
+            .collect();
+        plain(&read_with_files("packages", &files))
+    };
+    assert_eq!(chain(100), ["A deep B"]);
+    assert_eq!(chain(200), ["A B"]);
+}
+
+#[test]
 fn a_listing_command_quotes_the_named_file() {
     let blocks = read_with_files(
         "listing",

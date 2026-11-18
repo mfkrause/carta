@@ -23,6 +23,8 @@ pub(super) struct Files {
     sources: Vec<(usize, Option<PathBuf>)>,
     /// The source file that holds the position being read.
     current: Cell<usize>,
+    /// How many packages deep the package being read is nested.
+    packages: Cell<usize>,
 }
 
 /// The expansion in progress while `canonical` is being read, so a file cannot include itself.
@@ -53,6 +55,7 @@ impl Parser {
             read: RefCell::new(BTreeSet::new()),
             sources: sources.collect(),
             current: Cell::new(0),
+            packages: Cell::new(0),
         }));
     }
 
@@ -157,11 +160,19 @@ impl Parser {
 
     /// Reads the argument of a `\usepackage` or `\RequirePackage` and adopts the macros that each
     /// named package found beside the document defines, and those of the packages it loads in
-    /// turn. Nothing else of a package is kept. A package that is being read is not read again.
+    /// turn. Nothing else of a package is kept. A package that is being read is not read again,
+    /// and packages nested past the limit are not read.
     fn load_packages(&mut self) {
         while self.read_optional_raw().is_some() {}
         let names = self.read_group_raw().unwrap_or_default();
         for name in names.split(',') {
+            let Some(files) = self.files.clone() else {
+                break;
+            };
+            let depth = files.packages.get();
+            if depth >= HostAccess::NESTING_LIMIT {
+                break;
+            }
             let Some((canonical, text)) = self.read_file(&format!("{}.sty", name.trim())) else {
                 continue;
             };
@@ -169,9 +180,11 @@ impl Parser {
             if !self.expansions.active.borrow_mut().insert(call.clone()) {
                 continue;
             }
+            files.packages.set(depth + 1);
             let mut package = self.child(&text, false);
             package.expand_source(true);
             self.macros = package.macros;
+            files.packages.set(depth);
             self.expansions.active.borrow_mut().remove(&call);
         }
         while self.read_optional_raw().is_some() {}
