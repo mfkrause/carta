@@ -55,6 +55,50 @@ fn preserved_hyphens_allow_later_arrow_replacements() {
 }
 
 #[test]
+fn links_and_macros_start_inside_words() {
+    let text = |text: &str| Inline::Str(text.into());
+    let link = |class: Option<&str>, label: &str, url: &str| {
+        Inline::Link(
+            Box::new(Attr {
+                classes: class.into_iter().map(Into::into).collect(),
+                ..Attr::default()
+            }),
+            vec![text(label)],
+            Box::new(carta_ast::Target {
+                url: url.into(),
+                title: "".into(),
+            }),
+        )
+    };
+    let address = |address: &str| link(None, address, address);
+    for (source, expected) in [
+        ("9abc@d.com", vec![text("9"), address("abc@d.com")]),
+        (
+            "9.joe@example.com",
+            vec![text("9."), address("joe@example.com")],
+        ),
+        (
+            "xhttp://example.com",
+            vec![text("x"), address("http://example.com")],
+        ),
+        (
+            "Hxref:target[label]",
+            vec![text("H"), link(Some("cross-reference"), "label", "#target")],
+        ),
+        ("1.1.1@x.yy", vec![text("1.1.1@x.yy")]),
+        (
+            "ab.cd_ef+gh: ij.",
+            vec![text("ab.cd_ef+gh:"), Inline::Space, text("ij.")],
+        ),
+    ] {
+        let document = AsciidocReader
+            .read(source, &ReaderOptions::default())
+            .unwrap();
+        assert_eq!(document.blocks, vec![Block::Para(expected)], "{source:?}");
+    }
+}
+
+#[test]
 fn included_checkboxes_require_ascii_spaces() {
     let directory = Directory::new();
     let mut options = ReaderOptions::default();

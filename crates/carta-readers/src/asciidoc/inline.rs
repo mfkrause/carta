@@ -34,8 +34,15 @@ impl Parser {
         let mut position = 0;
         let mut replacement_start = 0;
         let mut raw_hard_break = false;
+        let mut plain = PlainText::default();
         while position < source.len() {
             let rest = &source[position..];
+            let length = plain.length(rest, position);
+            if length > 0 {
+                push_text(&mut output, &rest[..length]);
+                position += length;
+                continue;
+            }
             let character = rest.chars().next().unwrap_or_default();
             let previous = if position == replacement_start {
                 None
@@ -302,14 +309,34 @@ impl Parser {
                 replacement_start = position;
                 continue;
             }
-            if let Some((nodes, consumed)) = self.macro_inline(rest) {
+            // The character tests from here on only skip lookups that cannot match.
+            if (character.is_ascii_lowercase() || matches!(character, '(' | '<'))
+                && let Some((nodes, consumed)) = self.macro_inline(rest)
+            {
                 finish_text(&mut output, &mut raw_hard_break);
                 append(&mut output, nodes);
                 position += consumed;
                 replacement_start = position;
                 continue;
             }
-            if let Some((nodes, consumed)) = self.formatted(rest, previous, None, hard_breaks) {
+            if position >= plain.address_free && letter(character) {
+                match email_address(rest) {
+                    Ok(address) => {
+                        let (nodes, consumed) = self.email_link(address, &rest[address.len()..]);
+                        finish_text(&mut output, &mut raw_hard_break);
+                        append(&mut output, nodes);
+                        position += consumed;
+                        replacement_start = position;
+                        continue;
+                    }
+                    Err(length) => plain.address_free = position + length,
+                }
+            }
+            if matches!(
+                character,
+                '"' | '\'' | '*' | '_' | '`' | '#' | '+' | '~' | '^'
+            ) && let Some((nodes, consumed)) = self.formatted(rest, previous, None, hard_breaks)
+            {
                 finish_text(&mut output, &mut raw_hard_break);
                 append(&mut output, nodes);
                 position += consumed;
@@ -348,7 +375,10 @@ impl Parser {
                 ("=>", "⇒"),
                 ("<=", "⇐"),
             ];
-            if let Some((from, to)) = replacements.iter().find(|(from, _)| rest.starts_with(from)) {
+            if matches!(character, ' ' | '.' | '(' | '-' | '<' | '=')
+                && let Some((from, to)) =
+                    replacements.iter().find(|(from, _)| rest.starts_with(from))
+            {
                 push_text(&mut output, to);
                 position += from.len();
                 replacement_start = position;
@@ -360,7 +390,7 @@ impl Parser {
                 replacement_start = position;
                 continue;
             }
-            push_text(&mut output, &character.to_string());
+            push_text(&mut output, &rest[..character.len_utf8()]);
             position += character.len_utf8();
         }
         output
@@ -573,51 +603,13 @@ impl Parser {
         }
         let angled = source.starts_with('<');
         let source_url = if angled { &source[1..] } else { source };
-        if let Some(end) = autolink_target_end(source_url) {
-            let target = &source_url[..end];
-            let mut consumed = end;
-            let mut attr = Attr::default();
-            let mut label = vec![Inline::Str(target.into())];
-            if source_url[end..].starts_with('[')
-                && let Some((description, attributes, count)) = link_description(&source_url[end..])
-            {
-                attr = attributes;
-                consumed += count;
-                if !description.is_empty() {
-                    label = self.inlines(&description);
-                }
-            }
-            if angled {
-                if !source_url[consumed..].starts_with('>') {
-                    return None;
-                }
-                consumed += 1;
-            }
-            return Some((
-                vec![Inline::Link(
-                    Box::new(attr),
-                    label,
-                    Box::new(Target {
-                        url: target.into(),
-                        title: "".into(),
-                    }),
-                )],
-                consumed + usize::from(angled),
-            ));
-        }
-        if angled {
-            return None;
-        }
-        if !source_url.chars().next().is_some_and(letter) {
-            return None;
-        }
-        let address = email_address(source_url)?;
-        let mut consumed = address.len();
+        let end = autolink_target_end(source_url)?;
+        let target = &source_url[..end];
+        let mut consumed = end;
         let mut attr = Attr::default();
-        let mut label = vec![Inline::Str(address.into())];
-        if source_url[consumed..].starts_with('[')
-            && let Some((description, attributes, count)) =
-                link_description(&source_url[consumed..])
+        let mut label = vec![Inline::Str(target.into())];
+        if source_url[end..].starts_with('[')
+            && let Some((description, attributes, count)) = link_description(&source_url[end..])
         {
             attr = attributes;
             consumed += count;
@@ -625,7 +617,40 @@ impl Parser {
                 label = self.inlines(&description);
             }
         }
+        if angled {
+            if !source_url[consumed..].starts_with('>') {
+                return None;
+            }
+            consumed += 1;
+        }
         Some((
+            vec![Inline::Link(
+                Box::new(attr),
+                label,
+                Box::new(Target {
+                    url: target.into(),
+                    title: "".into(),
+                }),
+            )],
+            consumed + usize::from(angled),
+        ))
+    }
+
+    /// Links `address`, taking a bracketed description from the start of `after` as its label.
+    fn email_link(&mut self, address: &str, after: &str) -> (Vec<Inline>, usize) {
+        let mut consumed = address.len();
+        let mut attr = Attr::default();
+        let mut label = vec![Inline::Str(address.into())];
+        if after.starts_with('[')
+            && let Some((description, attributes, count)) = link_description(after)
+        {
+            attr = attributes;
+            consumed += count;
+            if !description.is_empty() {
+                label = self.inlines(&description);
+            }
+        }
+        (
             vec![Inline::Link(
                 Box::new(attr),
                 label,
@@ -635,7 +660,7 @@ impl Parser {
                 }),
             )],
             consumed,
-        ))
+        )
     }
 
     #[allow(
@@ -905,6 +930,85 @@ impl Parser {
     pub(super) fn html_inlines(source: &str) -> Vec<Inline> {
         blocks_to_inlines(Self::html_blocks(source))
     }
+}
+
+/// Finds text in which no inline construct starts, so the scanner passes it through whole.
+///
+/// Offsets are positions in the scanned source. They keep the search linear: each word and each
+/// email local part is examined once.
+#[derive(Default)]
+struct PlainText {
+    /// No email address starts before this offset.
+    address_free: usize,
+    /// End of the word examined last.
+    word_end: usize,
+}
+
+impl PlainText {
+    /// Length of the plain text at the start of `rest`, which begins at offset `position`.
+    ///
+    /// Zero means a construct may start at `position`.
+    fn length(&mut self, rest: &str, position: usize) -> usize {
+        let character = rest.chars().next().unwrap_or_default();
+        if starts_markup(character) {
+            return 0;
+        }
+        if !alpha_numeric(character) {
+            return rest
+                .find(|character| starts_markup(character) || alpha_numeric(character))
+                .unwrap_or(rest.len());
+        }
+        if position < self.word_end {
+            return 0;
+        }
+        let word = rest
+            .find(|character| !alpha_numeric(character))
+            .unwrap_or(rest.len());
+        self.word_end = position + word;
+        if position >= self.address_free
+            && letter(character)
+            && let Err(length) = email_address(rest)
+        {
+            self.address_free = position + length;
+        }
+        // Inside a word only an address, or a macro name or URL scheme before a colon, can start.
+        if self.address_free >= self.word_end && !rest[word..].starts_with(':') {
+            word
+        } else {
+            0
+        }
+    }
+}
+
+/// Whether an inline construct can start with this punctuation or whitespace character.
+///
+/// Letters and digits start only macro names, URL schemes, and email addresses, which
+/// [`PlainText`] rules out word by word.
+fn starts_markup(character: char) -> bool {
+    matches!(
+        character,
+        ' ' | '\t'
+            | '\n'
+            | '"'
+            | '#'
+            | '&'
+            | '\''
+            | '('
+            | '*'
+            | '+'
+            | '-'
+            | '.'
+            | '/'
+            | '<'
+            | '='
+            | '['
+            | '\\'
+            | '^'
+            | '_'
+            | '`'
+            | '{'
+            | '~'
+    )
 }
 
 fn blocks_to_inlines(blocks: Vec<Block>) -> Vec<Inline> {
@@ -1436,14 +1540,17 @@ fn autolink_special_punctuation(character: char) -> bool {
     matches!(character, ',' | '.' | '?' | '!' | ':' | ';' | ')')
 }
 
-fn email_address(source: &str) -> Option<&str> {
+/// Reads the email address at the start of `source`.
+///
+/// On failure, returns the length of the leading local part: no address starts inside it either.
+fn email_address(source: &str) -> Result<&str, usize> {
     let local = source
         .chars()
         .take_while(|character| email_local_character(*character))
         .map(char::len_utf8)
         .sum::<usize>();
     if local == 0 || !source[local..].starts_with('@') {
-        return None;
+        return Err(local);
     }
     let domain = &source[local + 1..];
     let host = domain
@@ -1452,7 +1559,7 @@ fn email_address(source: &str) -> Option<&str> {
         .map(char::len_utf8)
         .sum::<usize>();
     if host == 0 || !domain[host..].starts_with('.') {
-        return None;
+        return Err(local);
     }
     let suffix = &domain[host + 1..];
     let count = suffix
@@ -1460,14 +1567,14 @@ fn email_address(source: &str) -> Option<&str> {
         .take_while(|character| letter(*character))
         .count();
     if !(2..=5).contains(&count) {
-        return None;
+        return Err(local);
     }
     let length = suffix
         .chars()
         .take(count)
         .map(char::len_utf8)
         .sum::<usize>();
-    Some(&source[..local + 1 + host + 1 + length])
+    Ok(&source[..local + 1 + host + 1 + length])
 }
 
 fn email_local_character(character: char) -> bool {
