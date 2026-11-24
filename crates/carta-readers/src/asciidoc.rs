@@ -341,6 +341,9 @@ fn text_inlines(text: &str) -> Vec<Inline> {
     for character in text.chars() {
         if matches!(character, ' ' | '\t' | '\n' | '\r') {
             if matches!(character, '\n' | '\r') {
+                if matches!(output.last(), Some(Inline::Space)) {
+                    output.pop();
+                }
                 output.push(Inline::SoftBreak);
             } else if !matches!(output.last(), Some(Inline::Space | Inline::SoftBreak)) {
                 output.push(Inline::Space);
