@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["i",[],[]],[]]},{"t":"Space"},{"t":"Str","c":"w"},{"t":"Space"},{"t":"Link","c":[["",["cross-reference"],[]],[],["#a",""]]},{"t":"Space"},{"t":"Link","c":[["",["cross-reference"],[]],[{"t":"Str","c":"i"}],["#i",""]]}]},{"t":"Para","c":[{"t":"Span","c":[["j",[],[]],[]]},{"t":"Space"},{"t":"Link","c":[["",["cross-reference"],[]],[{"t":"Str","c":"label"}],["#b",""]]},{"t":"Space"},{"t":"Link","c":[["",["cross-reference"],[]],[{"t":"Str","c":"j"}],["#j",""]]}]},{"t":"Para","c":[{"t":"Span","c":[["c",["r"],[]],[]]},{"t":"Space"},{"t":"Link","c":[["",["cross-reference"],[]],[],["#c",""]]}]}]}

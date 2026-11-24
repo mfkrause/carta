@@ -784,13 +784,10 @@ impl Parser {
                 if !self.in_definition_term() {
                     self.anchors.entry(identifier.to_owned()).or_insert(label);
                 }
-                vec![Inline::Span(
-                    Box::new(Attr {
-                        id: identifier.into(),
-                        ..attr
-                    }),
-                    vec![],
-                )]
+                if attr.id.is_empty() {
+                    attr.id = identifier.into();
+                }
+                vec![Inline::Span(Box::new(attr), vec![])]
             }
             "footnoteref:" | "footnote:" => {
                 let raw_content = content;

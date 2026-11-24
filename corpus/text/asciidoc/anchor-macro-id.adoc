@@ -1,0 +1,5 @@
+anchor:a[#i] w <<a>> <<i>>
+
+anchor:b,label[id=j] <<b>> <<j>>
+
+anchor:c[.r] <<c>>
