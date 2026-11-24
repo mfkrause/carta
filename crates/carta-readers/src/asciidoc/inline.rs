@@ -34,10 +34,10 @@ impl Parser {
         let mut position = 0;
         let mut replacement_start = 0;
         let mut raw_hard_break = false;
-        let mut plain = PlainText::default();
+        let mut ahead = Lookahead::new(source);
         while position < source.len() {
             let rest = &source[position..];
-            let length = plain.length(rest, position);
+            let length = ahead.plain_length(position);
             if length > 0 {
                 push_text(&mut output, &rest[..length]);
                 position += length;
@@ -146,8 +146,9 @@ impl Parser {
                 continue;
             }
             if character == '{'
-                && let Some(end) = rest.find('}')
+                && let Some(end) = ahead.next(Marker::Brace, position)
             {
+                let end = end - position;
                 let name = &rest[1..end];
                 if let Some((counter, specification)) = name
                     .strip_prefix("counter:")
@@ -233,22 +234,25 @@ impl Parser {
                 }
             }
             if character == '['
-                && let Some(end) = attribute_end(rest)
-                && let Some(attr) = formatted_attributes(&rest[1..end])
-                && let Some((node, consumed)) =
-                    self.formatted(&rest[end + 1..], previous, Some(attr), hard_breaks)
+                && let Some((nodes, consumed)) =
+                    self.attributed(&mut ahead, position, previous, hard_breaks)
             {
                 finish_text(&mut output, &mut raw_hard_break);
-                append(&mut output, node);
-                position += end + 1 + consumed;
+                append(&mut output, nodes);
+                position += consumed;
                 replacement_start = position;
                 continue;
             }
             if rest.starts_with("[[") {
-                let bibliography = rest.starts_with("[[[") && rest.contains("]]]");
-                let start = if bibliography { 3 } else { 2 };
-                let close = if bibliography { "]]]" } else { "]]" };
-                if let Some(end) = rest[start..].find(close) {
+                let bibliography = rest.starts_with("[[[")
+                    && ahead.next(Marker::BibliographyAnchor, position).is_some();
+                let (start, marker, close) = if bibliography {
+                    (3, Marker::BibliographyAnchor, "]]]")
+                } else {
+                    (2, Marker::Anchor, "]]")
+                };
+                if let Some(end) = ahead.next(marker, position + start) {
+                    let end = end - position - start;
                     let (name, label) = rest[start..start + end]
                         .split_once(',')
                         .unwrap_or((&rest[start..start + end], ""));
@@ -280,9 +284,12 @@ impl Parser {
                 }
             }
             if rest.starts_with("<<")
-                && let Some(end) = rest.find(">>")
-                && !rest[..end].contains(['\n', '\r'])
+                && let Some(end) = ahead.next(Marker::Reference, position)
+                && ahead
+                    .next(Marker::LineEnd, position)
+                    .is_none_or(|line_end| end < line_end)
             {
+                let end = end - position;
                 let (target, label) = rest[2..end]
                     .split_once(',')
                     .map_or((&rest[2..end], None), |(t, l)| (t, Some(l)));
@@ -311,7 +318,7 @@ impl Parser {
             }
             // The character tests from here on only skip lookups that cannot match.
             if (character.is_ascii_lowercase() || matches!(character, '(' | '<'))
-                && let Some((nodes, consumed)) = self.macro_inline(rest)
+                && let Some((nodes, consumed)) = self.macro_inline(&mut ahead, position)
             {
                 finish_text(&mut output, &mut raw_hard_break);
                 append(&mut output, nodes);
@@ -319,23 +326,22 @@ impl Parser {
                 replacement_start = position;
                 continue;
             }
-            if position >= plain.address_free && letter(character) {
+            if position >= ahead.address_free && letter(character) {
                 match email_address(rest) {
                     Ok(address) => {
-                        let (nodes, consumed) = self.email_link(address, &rest[address.len()..]);
+                        let (nodes, consumed) =
+                            self.email_link(&mut ahead, address, position + address.len());
                         finish_text(&mut output, &mut raw_hard_break);
                         append(&mut output, nodes);
                         position += consumed;
                         replacement_start = position;
                         continue;
                     }
-                    Err(length) => plain.address_free = position + length,
+                    Err(length) => ahead.address_free = position + length,
                 }
             }
-            if matches!(
-                character,
-                '"' | '\'' | '*' | '_' | '`' | '#' | '+' | '~' | '^'
-            ) && let Some((nodes, consumed)) = self.formatted(rest, previous, None, hard_breaks)
+            if opens_formatting(character)
+                && let Some((nodes, consumed)) = self.formatted(rest, previous, None, hard_breaks)
             {
                 finish_text(&mut output, &mut raw_hard_break);
                 append(&mut output, nodes);
@@ -394,6 +400,35 @@ impl Parser {
             position += character.len_utf8();
         }
         output
+    }
+
+    /// Reads formatted text that an attribute list precedes, as in `[.role]#text#`.
+    fn attributed(
+        &mut self,
+        ahead: &mut Lookahead,
+        position: usize,
+        previous: Option<char>,
+        hard_breaks: bool,
+    ) -> Option<(Vec<Inline>, usize)> {
+        let source = ahead.source;
+        let list = ahead.list_end(position);
+        let end = list.end?;
+        let text = source.get(end + 1..)?;
+        let unformatted = if follows_word(previous) {
+            &mut list.unformatted_after_word
+        } else {
+            &mut list.unformatted
+        };
+        if *unformatted || !text.starts_with(opens_formatting) {
+            return None;
+        }
+        let attributes = formatted_attributes(source.get(position + 1..end)?)?;
+        let Some((nodes, consumed)) = self.formatted(text, previous, Some(attributes), hard_breaks)
+        else {
+            *unformatted = true;
+            return None;
+        };
+        Some((nodes, end + 1 - position + consumed))
     }
 
     fn quoted(
@@ -471,9 +506,7 @@ impl Parser {
                 continue;
             }
             let unconstrained = open.len() > 1 || matches!(open, "~" | "^");
-            if !unconstrained
-                && previous.is_some_and(|c| !super::is_space(c) && !punctuation(c) && c != '+')
-            {
+            if !unconstrained && follows_word(previous) {
                 continue;
             }
             let body = &source[open.len()..];
@@ -542,7 +575,12 @@ impl Parser {
         clippy::too_many_lines,
         reason = "Macro names share target and attribute parsing."
     )]
-    fn macro_inline(&mut self, source: &str) -> Option<(Vec<Inline>, usize)> {
+    fn macro_inline(
+        &mut self,
+        ahead: &mut Lookahead,
+        position: usize,
+    ) -> Option<(Vec<Inline>, usize)> {
+        let source = ahead.source.get(position..)?;
         let names = [
             "footnoteref:",
             "anchor:",
@@ -562,15 +600,22 @@ impl Parser {
             "indexterm:",
             "indexterm2:",
         ];
-        if let Some(prefix) = names.iter().copied().find(|name| source.starts_with(name))
-            && let Some(parsed) = self.named_macro(prefix, &source[prefix.len()..])
+        let first = source.chars().next()?;
+        if first.is_ascii_lowercase()
+            && let Some(prefix) = names.iter().copied().find(|name| source.starts_with(name))
+            && let Some(parsed) = self.named_macro(ahead, prefix, position + prefix.len())
         {
             return Some(parsed);
         }
-        for (open, close) in [("(((", ")))"), ("((", "))")] {
-            if let Some(rest) = source.strip_prefix(open)
-                && let Some(end) = rest.find(close)
+        for (open, marker, close) in [
+            ("(((", Marker::ConcealedIndexTerm, ")))"),
+            ("((", Marker::IndexTerm, "))"),
+        ] {
+            if first == '('
+                && let Some(rest) = source.strip_prefix(open)
+                && let Some(end) = ahead.next(marker, position + open.len())
             {
+                let end = end - position - open.len();
                 let mut attr = class_attr("index");
                 attr.attributes.push((
                     "term".into(),
@@ -608,8 +653,8 @@ impl Parser {
         let mut consumed = end;
         let mut attr = Attr::default();
         let mut label = vec![Inline::Str(target.into())];
-        if source_url[end..].starts_with('[')
-            && let Some((description, attributes, count)) = link_description(&source_url[end..])
+        if let Some((description, attributes, count)) =
+            link_description(ahead, position + usize::from(angled) + end)
         {
             attr = attributes;
             consumed += count;
@@ -636,14 +681,17 @@ impl Parser {
         ))
     }
 
-    /// Links `address`, taking a bracketed description from the start of `after` as its label.
-    fn email_link(&mut self, address: &str, after: &str) -> (Vec<Inline>, usize) {
+    /// Links `address`, taking a bracketed description at offset `after` as its label.
+    fn email_link(
+        &mut self,
+        ahead: &mut Lookahead,
+        address: &str,
+        after: usize,
+    ) -> (Vec<Inline>, usize) {
         let mut consumed = address.len();
         let mut attr = Attr::default();
         let mut label = vec![Inline::Str(address.into())];
-        if after.starts_with('[')
-            && let Some((description, attributes, count)) = link_description(after)
-        {
+        if let Some((description, attributes, count)) = link_description(ahead, after) {
             attr = attributes;
             consumed += count;
             if !description.is_empty() {
@@ -667,9 +715,28 @@ impl Parser {
         clippy::too_many_lines,
         reason = "Named macros share target and attribute parsing."
     )]
-    fn named_macro(&mut self, prefix: &str, after: &str) -> Option<(Vec<Inline>, usize)> {
-        let (target, start) = read_macro_target(after, true)?;
+    fn named_macro(
+        &mut self,
+        ahead: &mut Lookahead,
+        prefix: &str,
+        from: usize,
+    ) -> Option<(Vec<Inline>, usize)> {
+        let after = ahead.source.get(from..)?;
+        // A target that starts here is known to reach no opening bracket.
+        if ahead
+            .targets_without_bracket
+            .as_ref()
+            .is_some_and(|targets| targets.contains(&from))
+            || ahead.next(Marker::OpenBracket, from).is_none()
+        {
+            return None;
+        }
+        let (target, start) = read_macro_target(after, Some((ahead, from)))?;
         if !after[start..].starts_with('[') {
+            // A target read character by character ends where every later start in it ends.
+            if target.len() == start {
+                ahead.targets_without_bracket = Some(from..=from + start);
+            }
             return None;
         }
         let raw = matches!(
@@ -683,10 +750,10 @@ impl Parser {
                 | "indexterm2:"
         );
         let end = if raw {
-            bracket_end(&after[start..])? + start
+            ahead.bracket_end(from + start)?
         } else {
-            attribute_end(&after[start..])? + start
-        };
+            ahead.list_end(from + start).end?
+        } - from;
         let content = &after[start + 1..end];
         if !raw && !Attributes::valid(content) {
             return None;
@@ -932,23 +999,125 @@ impl Parser {
     }
 }
 
-/// Finds text in which no inline construct starts, so the scanner passes it through whole.
+/// A marker that the scanner searches for ahead of its position.
+#[derive(Clone, Copy)]
+enum Marker {
+    Brace,
+    Reference,
+    LineEnd,
+    IndexTerm,
+    ConcealedIndexTerm,
+    Anchor,
+    BibliographyAnchor,
+    Bracket,
+    OpenBracket,
+}
+
+/// Where a marker next occurs: the first one at or after `from` is at `found`.
+#[derive(Clone, Copy)]
+struct Next {
+    from: usize,
+    found: Option<usize>,
+}
+
+impl Next {
+    const UNKNOWN: Self = Self {
+        from: usize::MAX,
+        found: None,
+    };
+}
+
+/// An unescaped bracket on a line whose nesting is matched.
+struct Bracket {
+    offset: usize,
+    /// Nesting depth after this bracket.
+    depth: isize,
+    /// Offset of the first later bracket that brings the nesting below `depth`.
+    leaves: Option<usize>,
+}
+
+/// Where the attribute lists that open in a stretch end.
+struct ListEnd {
+    /// Every list that opens between `from` and `end` ends at `end`.
+    from: usize,
+    end: Option<usize>,
+    /// Formatted text was sought after `end` and not found.
+    unformatted: bool,
+    /// The same for a list that follows a word character, which keeps some delimiters closed.
+    unformatted_after_word: bool,
+}
+
+impl ListEnd {
+    const UNKNOWN: Self = Self {
+        from: usize::MAX,
+        end: None,
+        unformatted: false,
+        unformatted_after_word: false,
+    };
+}
+
+/// What the scanner has learned about the source ahead of its position.
 ///
-/// Offsets are positions in the scanned source. They keep the search linear: each word and each
-/// email local part is examined once.
-#[derive(Default)]
-struct PlainText {
+/// It finds text in which no inline construct starts, so the scanner passes it through whole, and
+/// it remembers the outcome of each search for a closing marker, so no stretch of the source is
+/// searched again from every opening marker in it. Offsets are positions in the scanned source.
+struct Lookahead<'a> {
+    source: &'a str,
     /// No email address starts before this offset.
     address_free: usize,
     /// End of the word examined last.
     word_end: usize,
+    /// Offsets where a macro target starts that reaches no opening bracket.
+    targets_without_bracket: Option<std::ops::RangeInclusive<usize>>,
+    brace: Next,
+    reference: Next,
+    line_end: Next,
+    index_term: Next,
+    concealed_index_term: Next,
+    anchor: Next,
+    bibliography_anchor: Next,
+    bracket: Next,
+    open_bracket: Next,
+    /// Offsets of the double quotes, found when the first attribute list needs them.
+    quotes: Option<Vec<usize>>,
+    /// List ends, by whether an even or an odd number of quotes precedes the list.
+    list_ends: [ListEnd; 2],
+    /// Stretch of one line, from the first bracket matched in it to its end.
+    matched: std::ops::Range<usize>,
+    /// The unescaped brackets in that stretch, in order.
+    brackets: Vec<Bracket>,
 }
 
-impl PlainText {
-    /// Length of the plain text at the start of `rest`, which begins at offset `position`.
+impl<'a> Lookahead<'a> {
+    fn new(source: &'a str) -> Self {
+        Self {
+            source,
+            address_free: 0,
+            word_end: 0,
+            targets_without_bracket: None,
+            brace: Next::UNKNOWN,
+            reference: Next::UNKNOWN,
+            line_end: Next::UNKNOWN,
+            index_term: Next::UNKNOWN,
+            concealed_index_term: Next::UNKNOWN,
+            anchor: Next::UNKNOWN,
+            bibliography_anchor: Next::UNKNOWN,
+            bracket: Next::UNKNOWN,
+            open_bracket: Next::UNKNOWN,
+            quotes: None,
+            list_ends: [ListEnd::UNKNOWN, ListEnd::UNKNOWN],
+            matched: 0..0,
+            brackets: Vec::new(),
+        }
+    }
+
+    /// Length of the plain text at offset `position`.
     ///
     /// Zero means a construct may start at `position`.
-    fn length(&mut self, rest: &str, position: usize) -> usize {
+    fn plain_length(&mut self, position: usize) -> usize {
+        let Some(rest) = self.source.get(position..) else {
+            return 0;
+        };
         let character = rest.chars().next().unwrap_or_default();
         if starts_markup(character) {
             return 0;
@@ -978,12 +1147,127 @@ impl PlainText {
             0
         }
     }
+
+    /// Offset of the first `marker` at or after `from`.
+    fn next(&mut self, marker: Marker, from: usize) -> Option<usize> {
+        let rest = self.source.get(from..)?;
+        let (next, search): (&mut Next, fn(&str) -> Option<usize>) = match marker {
+            Marker::Brace => (&mut self.brace, |text| text.find('}')),
+            Marker::Reference => (&mut self.reference, |text| text.find(">>")),
+            Marker::LineEnd => (&mut self.line_end, |text| text.find(['\n', '\r'])),
+            Marker::IndexTerm => (&mut self.index_term, |text| text.find("))")),
+            Marker::ConcealedIndexTerm => (&mut self.concealed_index_term, |text| text.find(")))")),
+            Marker::Anchor => (&mut self.anchor, |text| text.find("]]")),
+            Marker::BibliographyAnchor => (&mut self.bibliography_anchor, |text| text.find("]]]")),
+            Marker::Bracket => (&mut self.bracket, |text| text.find(']')),
+            Marker::OpenBracket => (&mut self.open_bracket, |text| text.find('[')),
+        };
+        if !(next.from <= from && next.found.is_none_or(|found| from <= found)) {
+            *next = Next {
+                from,
+                found: search(rest).map(|offset| from + offset),
+            };
+        }
+        next.found
+    }
+
+    /// The end of the attribute list that opens at offset `at`.
+    fn list_end(&mut self, at: usize) -> &mut ListEnd {
+        let source = self.source;
+        let quotes = self.quotes.get_or_insert_with(|| {
+            source
+                .match_indices('"')
+                .map(|(offset, _)| offset)
+                .collect()
+        });
+        // Quotes pair up from the list onward, so the pairs depend only on this parity.
+        let odd = quotes.partition_point(|quote| *quote < at) % 2 == 1;
+        let [even_end, odd_end] = &mut self.list_ends;
+        let list = if odd { odd_end } else { even_end };
+        if !(list.from <= at && list.end.is_none_or(|end| at < end)) {
+            *list = ListEnd {
+                from: at,
+                end: source.get(at..).and_then(attribute_end).map(|end| at + end),
+                ..ListEnd::UNKNOWN
+            };
+        }
+        list
+    }
+
+    /// Offset of the bracket that closes the raw macro content opening at offset `at`.
+    ///
+    /// The content ends on its line, at the first bracket that leaves the nesting it opens.
+    fn bracket_end(&mut self, at: usize) -> Option<usize> {
+        if !self.matched.contains(&at) {
+            self.match_brackets(at);
+        }
+        // An opening bracket that an escape hid from the match nests like the bracket before it.
+        let index = self
+            .brackets
+            .partition_point(|bracket| bracket.offset <= at)
+            .checked_sub(1)?;
+        self.brackets.get(index)?.leaves
+    }
+
+    /// Records the nesting of the brackets from offset `from` to the end of its line.
+    fn match_brackets(&mut self, from: usize) {
+        self.brackets.clear();
+        let mut inside: Vec<usize> = Vec::new();
+        let mut depth = 0_isize;
+        let mut escaped = false;
+        let mut line_end = self.source.len();
+        for (offset, character) in self.source.get(from..).unwrap_or_default().char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match character {
+                '\n' | '\r' => {
+                    line_end = from + offset;
+                    break;
+                }
+                '\\' => escaped = true,
+                '[' | ']' => {
+                    depth += if character == '[' { 1 } else { -1 };
+                    while let Some(bracket) = inside
+                        .last()
+                        .and_then(|index| self.brackets.get_mut(*index))
+                        .filter(|bracket| bracket.depth > depth)
+                    {
+                        bracket.leaves = Some(from + offset);
+                        inside.pop();
+                    }
+                    inside.push(self.brackets.len());
+                    self.brackets.push(Bracket {
+                        offset: from + offset,
+                        depth,
+                        leaves: None,
+                    });
+                }
+                _ => {}
+            }
+        }
+        self.matched = from..line_end;
+    }
+}
+
+/// Whether formatted or quoted text can open with `character`.
+fn opens_formatting(character: char) -> bool {
+    matches!(
+        character,
+        '"' | '\'' | '*' | '_' | '`' | '#' | '+' | '~' | '^'
+    )
+}
+
+/// Whether `previous` keeps a constrained delimiter from opening formatted text.
+fn follows_word(previous: Option<char>) -> bool {
+    previous.is_some_and(|c| !super::is_space(c) && !punctuation(c) && c != '+')
 }
 
 /// Whether an inline construct can start with this punctuation or whitespace character.
 ///
 /// Letters and digits start only macro names, URL schemes, and email addresses, which
-/// [`PlainText`] rules out word by word.
+/// [`Lookahead::plain_length`] rules out word by word.
 fn starts_markup(character: char) -> bool {
     matches!(
         character,
@@ -1146,32 +1430,6 @@ fn ends_with_line_break(inline: &Inline) -> bool {
     }
 }
 
-fn bracket_end(source: &str) -> Option<usize> {
-    let mut depth = 0;
-    let mut escaped = false;
-    for (position, character) in source.char_indices() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if character == '\n' || character == '\r' {
-            return None;
-        }
-        match character {
-            '\\' => escaped = true,
-            '[' => depth += 1,
-            ']' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(position);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 // Pandoc drops a text segment's final newline when it creates hard breaks.
 fn finish_text(output: &mut Vec<Inline>, raw_hard_break: &mut bool) {
     if *raw_hard_break && matches!(output.last(), Some(Inline::LineBreak)) {
@@ -1218,10 +1476,17 @@ fn append(output: &mut Vec<Inline>, nodes: Vec<Inline>) {
 }
 
 pub(super) fn macro_target(source: &str) -> Option<(String, usize)> {
-    read_macro_target(source, false)
+    read_macro_target(source, None)
 }
 
-fn read_macro_target(source: &str, inline: bool) -> Option<(String, usize)> {
+/// Reads a macro target up to its opening bracket.
+///
+/// An inline macro passes the lookahead of the scanned source and the offset of `source` in it;
+/// only its target may hold a `pass:[]` span.
+fn read_macro_target(
+    source: &str,
+    mut inline: Option<(&mut Lookahead, usize)>,
+) -> Option<(String, usize)> {
     let mut target = String::new();
     let mut position = 0;
     while position < source.len() {
@@ -1229,11 +1494,13 @@ fn read_macro_target(source: &str, inline: bool) -> Option<(String, usize)> {
         if rest.starts_with('[') {
             return Some((target, position));
         }
-        if let Some(pass) = rest
-            .strip_prefix("pass:[")
-            .filter(|pass| inline && !pass.starts_with(']'))
+        if let Some((ahead, base)) = inline.as_mut()
+            && let Some(pass) = rest
+                .strip_prefix("pass:[")
+                .filter(|pass| !pass.starts_with(']'))
         {
-            let end = pass.find(']')?;
+            let start = *base + position + 6;
+            let end = ahead.next(Marker::Bracket, start)? - start;
             target.push_str(&pass[..end]);
             position += 6 + end + 1;
             continue;
@@ -1473,8 +1740,13 @@ pub(super) fn attribute_end(source: &str) -> Option<usize> {
     None
 }
 
-fn link_description(source: &str) -> Option<(String, Attr, usize)> {
-    let end = attribute_end(source)?;
+/// Reads the bracketed description of a link, when one opens at offset `at`.
+fn link_description(ahead: &mut Lookahead, at: usize) -> Option<(String, Attr, usize)> {
+    let source = ahead.source.get(at..)?;
+    if !source.starts_with('[') {
+        return None;
+    }
+    let end = ahead.list_end(at).end? - at;
     let content = &source[1..end];
     let (description, attributes) = if let Some(quoted) = content.strip_prefix('"') {
         let close = quoted.find('"')?;
