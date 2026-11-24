@@ -1,0 +1,9 @@
+footnote:[a \[ b] c] d
+
+xref:e[f \[ g] h] i
+
+footnote:[j\
+k] l
+
+stem:[m\
+n] o and footnote:[p \] q] r

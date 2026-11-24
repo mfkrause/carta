@@ -1051,7 +1051,7 @@ impl Next {
     };
 }
 
-/// An unescaped bracket on a line whose nesting is matched.
+/// A bracket on a line whose nesting is matched.
 struct Bracket {
     offset: usize,
     /// Nesting depth after this bracket.
@@ -1105,7 +1105,7 @@ pub(super) struct Lookahead<'a> {
     unformatted: Unformatted,
     /// Stretch of one line, from the first bracket matched in it to its end.
     matched: std::ops::Range<usize>,
-    /// The unescaped brackets in that stretch, in order.
+    /// The brackets that nest in that stretch, in order.
     brackets: Vec<Bracket>,
 }
 
@@ -1380,51 +1380,45 @@ impl<'a> Lookahead<'a> {
         if !self.matched.contains(&at) {
             self.match_brackets(at);
         }
-        // An opening bracket that an escape hid from the match nests like the bracket before it.
         let index = self
             .brackets
-            .partition_point(|bracket| bracket.offset <= at)
-            .checked_sub(1)?;
+            .binary_search_by_key(&at, |bracket| bracket.offset)
+            .ok()?;
         self.brackets.get(index)?.leaves
     }
 
     /// Records the nesting of the brackets from offset `from` to the end of its line.
+    ///
+    /// Every opening bracket nests; a closing bracket after a backslash closes nothing.
     fn match_brackets(&mut self, from: usize) {
         self.brackets.clear();
         let mut inside: Vec<usize> = Vec::new();
         let mut depth = 0_isize;
-        let mut escaped = false;
+        let mut previous = '\0';
         let mut line_end = self.source.len();
         for (offset, character) in self.source.get(from..).unwrap_or_default().char_indices() {
-            if escaped {
-                escaped = false;
-                continue;
+            if matches!(character, '\n' | '\r') {
+                line_end = from + offset;
+                break;
             }
-            match character {
-                '\n' | '\r' => {
-                    line_end = from + offset;
-                    break;
+            if character == '[' || character == ']' && previous != '\\' {
+                depth += if character == '[' { 1 } else { -1 };
+                while let Some(bracket) = inside
+                    .last()
+                    .and_then(|index| self.brackets.get_mut(*index))
+                    .filter(|bracket| bracket.depth > depth)
+                {
+                    bracket.leaves = Some(from + offset);
+                    inside.pop();
                 }
-                '\\' => escaped = true,
-                '[' | ']' => {
-                    depth += if character == '[' { 1 } else { -1 };
-                    while let Some(bracket) = inside
-                        .last()
-                        .and_then(|index| self.brackets.get_mut(*index))
-                        .filter(|bracket| bracket.depth > depth)
-                    {
-                        bracket.leaves = Some(from + offset);
-                        inside.pop();
-                    }
-                    inside.push(self.brackets.len());
-                    self.brackets.push(Bracket {
-                        offset: from + offset,
-                        depth,
-                        leaves: None,
-                    });
-                }
-                _ => {}
+                inside.push(self.brackets.len());
+                self.brackets.push(Bracket {
+                    offset: from + offset,
+                    depth,
+                    leaves: None,
+                });
             }
+            previous = character;
         }
         self.matched = from..line_end;
     }

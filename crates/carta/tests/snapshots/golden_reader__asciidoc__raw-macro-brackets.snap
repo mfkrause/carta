@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"["},{"t":"Space"},{"t":"Str","c":"b]"},{"t":"Space"},{"t":"Str","c":"c"}]}]},{"t":"Space"},{"t":"Str","c":"d"}]},{"t":"Para","c":[{"t":"Link","c":[["",["cross-reference"],[]],[{"t":"Str","c":"f"},{"t":"Space"},{"t":"Str","c":"["},{"t":"Space"},{"t":"Str","c":"g]"},{"t":"Space"},{"t":"Str","c":"h"}],["#e",""]]},{"t":"Space"},{"t":"Str","c":"i"}]},{"t":"Para","c":[{"t":"Str","c":"footnote:[j\\"},{"t":"SoftBreak"},{"t":"Str","c":"k]"},{"t":"Space"},{"t":"Str","c":"l"}]},{"t":"Para","c":[{"t":"Str","c":"stem:[m\\"},{"t":"SoftBreak"},{"t":"Str","c":"n]"},{"t":"Space"},{"t":"Str","c":"o"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"p"},{"t":"Space"},{"t":"Str","c":"]"},{"t":"Space"},{"t":"Str","c":"q"}]}]},{"t":"Space"},{"t":"Str","c":"r"}]}]}
