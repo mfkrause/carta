@@ -1,0 +1,7 @@
+(((a)) b and x (((c)) (((d))) y
+
+(((e) f))) g and ((h) ) i)) j
+
+(()) k and ((())) l and ((( ))) m and (( )) n
+
+((o\)p)) q and ((((r)))) s and ((t(u)) v

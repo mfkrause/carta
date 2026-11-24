@@ -603,44 +603,47 @@ impl Parser {
         {
             return Some(parsed);
         }
-        for (open, marker, close) in [
-            ("(((", Marker::ConcealedIndexTerm, ")))"),
-            ("((", Marker::IndexTerm, "))"),
-        ] {
-            if first == '('
-                && let Some(rest) = source.strip_prefix(open)
-                && let Some(end) = ahead.next(marker, position + open.len())
-            {
-                let end = end - position - open.len();
-                let mut attr = class_attr("index");
-                attr.attributes.push((
-                    "term".into(),
-                    if open == "(((" {
-                        rest[..end]
-                            .split(',')
-                            .map(super::trim_space)
-                            .collect::<Vec<_>>()
-                            .join(",")
-                            .into()
-                    } else {
-                        rest[..end].into()
-                    },
-                ));
-                return Some((
-                    identifier_source(
-                        vec![Inline::Span(
-                            Box::new(attr),
-                            if open == "((" {
-                                text_inlines(&rest[..end])
-                            } else {
-                                vec![]
-                            },
-                        )],
-                        String::new(),
-                    ),
-                    open.len() + end + close.len(),
-                ));
+        if first == '(' {
+            // An index term runs to the first closing parenthesis, which starts its closing marker.
+            let (open, close) = if source.starts_with("(((") {
+                ("(((", ")))")
+            } else {
+                ("((", "))")
+            };
+            let rest = source.strip_prefix(open)?;
+            let start = position + open.len();
+            let end = ahead.next(Marker::Parenthesis, start)? - start;
+            if end == 0 || !rest[end..].starts_with(close) {
+                return None;
             }
+            let mut attr = class_attr("index");
+            attr.attributes.push((
+                "term".into(),
+                if open == "(((" {
+                    rest[..end]
+                        .split(',')
+                        .map(super::trim_space)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                        .into()
+                } else {
+                    rest[..end].into()
+                },
+            ));
+            return Some((
+                identifier_source(
+                    vec![Inline::Span(
+                        Box::new(attr),
+                        if open == "((" {
+                            text_inlines(&rest[..end])
+                        } else {
+                            vec![]
+                        },
+                    )],
+                    String::new(),
+                ),
+                open.len() + end + close.len(),
+            ));
         }
         let angled = source.starts_with('<');
         let source_url = if angled { &source[1..] } else { source };
@@ -997,8 +1000,7 @@ enum Marker {
     Brace,
     Reference,
     LineEnd,
-    IndexTerm,
-    ConcealedIndexTerm,
+    Parenthesis,
     Anchor,
     BibliographyAnchor,
     Bracket,
@@ -1087,8 +1089,7 @@ pub(super) struct Lookahead<'a> {
     brace: Next,
     reference: Next,
     line_end: Next,
-    index_term: Next,
-    concealed_index_term: Next,
+    parenthesis: Next,
     anchor: Next,
     bibliography_anchor: Next,
     bracket: Next,
@@ -1118,8 +1119,7 @@ impl<'a> Lookahead<'a> {
             brace: Next::UNKNOWN,
             reference: Next::UNKNOWN,
             line_end: Next::UNKNOWN,
-            index_term: Next::UNKNOWN,
-            concealed_index_term: Next::UNKNOWN,
+            parenthesis: Next::UNKNOWN,
             anchor: Next::UNKNOWN,
             bibliography_anchor: Next::UNKNOWN,
             bracket: Next::UNKNOWN,
@@ -1181,8 +1181,7 @@ impl<'a> Lookahead<'a> {
             Marker::Brace => (&mut self.brace, |text| text.find('}')),
             Marker::Reference => (&mut self.reference, |text| text.find(">>")),
             Marker::LineEnd => (&mut self.line_end, |text| text.find(['\n', '\r'])),
-            Marker::IndexTerm => (&mut self.index_term, |text| text.find("))")),
-            Marker::ConcealedIndexTerm => (&mut self.concealed_index_term, |text| text.find(")))")),
+            Marker::Parenthesis => (&mut self.parenthesis, |text| text.find(')')),
             Marker::Anchor => (&mut self.anchor, |text| text.find("]]")),
             Marker::BibliographyAnchor => (&mut self.bibliography_anchor, |text| text.find("]]]")),
             Marker::Bracket => (&mut self.bracket, |text| text.find(']')),
