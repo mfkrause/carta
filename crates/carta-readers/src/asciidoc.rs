@@ -22,6 +22,12 @@ const MONOSPACE_ATTRIBUTE: &str = "asciidoc-monospace-attribute";
 const MONOSPACE_REFERENCE: &str = "asciidoc-monospace-reference";
 const MONOSPACE_SCOPE: &str = "asciidoc-monospace-scope";
 const TERM_STEM_ERROR: &str = "asciidoc-term-stem-error";
+
+/// Work every document may spend on the copies its table multipliers make.
+const BASE_WORK: usize = 1 << 20;
+
+/// Work each source character adds to that allowance.
+const WORK_PER_CHARACTER: usize = 64;
 mod table;
 #[cfg(test)]
 mod tests;
@@ -150,6 +156,7 @@ fn read_source(
         pending_line: None,
         error: None,
         host: options.host,
+        work: source_work(BASE_WORK, input),
     };
     let normalized = input.trim_start_matches('\u{feff}').replace('\r', "");
     let mut document = parser.document(&crate::tabs::expand_tabs(&normalized, options.tab_stop));
@@ -207,6 +214,8 @@ struct Parser {
     pending_line: Option<String>,
     error: Option<ParserError>,
     host: HostAccess,
+    /// Work left for the copies that table multipliers make. A rollback does not return it.
+    work: usize,
 }
 
 pub(super) struct ParserSnapshot {
@@ -279,6 +288,11 @@ impl Parser {
         self.list_boundary = snapshot.list_boundary;
         self.pending_line = snapshot.pending_line;
     }
+}
+
+/// Adds the allowance that `source` earns to `work`.
+fn source_work(work: usize, source: &str) -> usize {
+    work.saturating_add(source.len().saturating_mul(WORK_PER_CHARACTER))
 }
 
 fn class_attr(class: &str) -> carta_ast::Attr {

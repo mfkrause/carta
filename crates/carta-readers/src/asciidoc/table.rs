@@ -19,6 +19,9 @@ struct CellSpec {
     repeat: usize,
 }
 
+/// Work one copy of a multiplied cell or column costs, besides its text.
+const COPY_WORK: usize = 64;
+
 struct PlannedCell {
     spec: CellSpec,
     style: char,
@@ -39,7 +42,13 @@ impl Parser {
         section: Option<i64>,
     ) -> Option<Block> {
         let explicit_columns = attributes.get("cols").is_some();
-        let mut columns = attributes.get("cols").map_or_else(Vec::new, columns);
+        let mut columns = match attributes.get("cols") {
+            None => Vec::new(),
+            Some(source) => match columns(source, &mut self.work) {
+                Some(columns) => columns,
+                None => return Some(self.too_large()),
+            },
+        };
         if explicit_columns && columns.is_empty() && attributes.get("cols") == Some("") {
             columns.push(Column::default());
         }
@@ -99,8 +108,7 @@ impl Parser {
                     })
                     .fold(0usize, usize::saturating_add);
                 if count > 10000 {
-                    self.fatal_error(carta_core::Error::OutputTooLarge);
-                    return Some(Block::Table(Box::default()));
+                    return Some(self.too_large());
                 }
                 if count == 0 {
                     plans.push(Vec::new());
@@ -111,13 +119,10 @@ impl Parser {
             if columns.is_empty() && !pieces.is_empty() {
                 return None;
             }
-            match plan_psv_rows(&pieces, &columns, &mut plans) {
+            match plan_psv_rows(&pieces, &columns, &mut plans, &mut self.work) {
                 Ok(()) => {}
                 Err(PlanError::Invalid) => return None,
-                Err(PlanError::TooLarge) => {
-                    self.fatal_error(carta_core::Error::OutputTooLarge);
-                    return Some(Block::Table(Box::default()));
-                }
+                Err(PlanError::TooLarge) => return Some(self.too_large()),
             }
             let snapshot = self.snapshot();
             for planned in plans {
@@ -221,6 +226,12 @@ impl Parser {
             ..Default::default()
         });
         Some(Block::Table(Box::new(table)))
+    }
+
+    /// Fails the read over a table out of proportion to the source that spells it out.
+    fn too_large(&mut self) -> Block {
+        self.fatal_error(carta_core::Error::OutputTooLarge);
+        Block::Table(Box::default())
     }
 
     fn cell_content(&mut self, text: &str, style: char, section: Option<i64>) -> Vec<Block> {
@@ -460,6 +471,7 @@ fn plan_psv_rows(
     pieces: &[(String, String, usize)],
     columns: &[Column],
     plans: &mut Vec<Vec<PlannedCell>>,
+    work: &mut usize,
 ) -> Result<(), PlanError> {
     if columns.is_empty() {
         return if pieces.is_empty() {
@@ -495,6 +507,10 @@ fn plan_psv_rows(
             }
             let spec = cell_spec(specification);
             let span = usize::try_from(spec.columns).unwrap_or(usize::MAX);
+            let copies = spec.repeat.saturating_sub(1);
+            *work = work
+                .checked_sub(copies.saturating_mul(COPY_WORK.saturating_add(text.len())))
+                .ok_or(PlanError::TooLarge)?;
             for _ in 0..spec.repeat {
                 let style_column = available.get(used_columns).copied();
                 let style = if spec.style == '\0' {
@@ -623,13 +639,15 @@ fn delimited_rows(content: &str, separator: char, quoted: bool) -> Option<Vec<Ve
     Some(rows)
 }
 
-fn columns(mut source: &str) -> Vec<Column> {
+/// Reads a `cols` value, or nothing when its multipliers need more than `work` holds.
+fn columns(mut source: &str, work: &mut usize) -> Option<Vec<Column>> {
     let mut columns = Vec::new();
     if source.is_empty() {
-        return vec![Column::default()];
+        return Some(vec![Column::default()]);
     }
     loop {
         let (repeat, rest) = multiplier(source);
+        *work = work.checked_sub(repeat.saturating_sub(1).saturating_mul(COPY_WORK))?;
         source = rest;
         let align = alignment(source);
         if align.is_some() {
@@ -673,7 +691,7 @@ fn columns(mut source: &str) -> Vec<Column> {
             break;
         }
     }
-    columns
+    Some(columns)
 }
 fn multiplier(source: &str) -> (usize, &str) {
     let digits = source.chars().take_while(char::is_ascii_digit).count();
@@ -821,6 +839,27 @@ mod tests {
             panic!("expected a table cell");
         };
         cell.content.clone()
+    }
+
+    #[test]
+    fn multipliers_share_one_allowance_across_the_document() {
+        let read = |source: &str| AsciidocReader.read(source, &ReaderOptions::default());
+        let table = "|===\n9000*|x\n|===\n";
+        let document = read(table).unwrap();
+        let Some(Block::Table(read_table)) = document.blocks.first() else {
+            panic!("expected a table");
+        };
+        assert_eq!(read_table.col_specs.len(), 9000);
+
+        for source in [
+            format!("{table}\n{table}"),
+            "[cols=\"10000*,10000*\"]\n|===\n|x\n|===\n".to_owned(),
+        ] {
+            assert!(
+                matches!(read(&source), Err(carta_core::Error::OutputTooLarge)),
+                "{source}"
+            );
+        }
     }
 
     #[test]

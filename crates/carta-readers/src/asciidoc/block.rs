@@ -941,6 +941,7 @@ impl Parser {
         }
         self.include_depth += 1;
         self.includes.push(path.to_path_buf());
+        self.work = super::source_work(self.work, source);
         let directory = std::mem::replace(
             &mut self.directory,
             path.parent().map(std::path::Path::to_path_buf),
