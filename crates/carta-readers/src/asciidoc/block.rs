@@ -1,6 +1,7 @@
 use super::attributes::{
     add_block_attr, block_anchor, block_attributes, block_attributes_at, protect_attribute_names,
 };
+use super::inline::{ListKind, Lookahead};
 use super::lists::{definition, definition_item, marker, marker_after_space, marker_in_list};
 use super::{AUTO_HEADING, line_comment};
 use super::{Attributes, Parser, ParserError, class_attr, text_inlines};
@@ -1622,14 +1623,15 @@ fn block_macro_line(lines: &[&str], position: usize, line: &str) -> Option<Block
     if !source[start..].starts_with('[') {
         return None;
     }
+    let list_end = |arguments: &str| Lookahead::new(arguments).list_end(0, ListKind::Named);
     let mut arguments = source[start..].to_owned();
-    let mut end = super::inline::attribute_end(&arguments);
+    let mut end = list_end(&arguments);
     if end.is_none() {
         for line in lines.get(position + 1..)? {
             arguments.push('\n');
             arguments.push_str(line);
         }
-        end = super::inline::attribute_end(&arguments);
+        end = list_end(&arguments);
     }
     let end = end?;
     let consumed_lines = arguments[..end]
@@ -1637,9 +1639,6 @@ fn block_macro_line(lines: &[&str], position: usize, line: &str) -> Option<Block
         .filter(|byte| *byte == b'\n')
         .count();
     let attributes = &arguments[1..end];
-    if !Attributes::valid(attributes) {
-        return None;
-    }
     let tail = arguments[end + 1..].split('\n').next().unwrap_or_default();
     Some(BlockMacro {
         name,

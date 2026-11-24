@@ -1,10 +1,11 @@
-use super::attributes::{add_inline_attr, fields, formatted_attributes};
+use super::attributes::{add_inline_attr, formatted_attributes, shorthand};
 use super::{
     ATTRIBUTE_REFERENCE, IDENTIFIER_SOURCE, MONOSPACE_ATTRIBUTE, MONOSPACE_REFERENCE,
     MONOSPACE_SCOPE, REFERENCE_LABEL,
 };
 use super::{Attributes, Parser, class_attr, push_text, text_inlines};
 use carta_ast::{Attr, Block, BlockParts, Inline, MathType, QuoteType, Table, Target};
+use std::collections::BTreeMap;
 
 impl Parser {
     pub(super) fn inlines(&mut self, source: &str) -> Vec<Inline> {
@@ -411,21 +412,16 @@ impl Parser {
         hard_breaks: bool,
     ) -> Option<(Vec<Inline>, usize)> {
         let source = ahead.source;
-        let list = ahead.list_end(position);
-        let end = list.end?;
+        let end = ahead.list_end(position, ListKind::Positional)?;
         let text = source.get(end + 1..)?;
-        let unformatted = if follows_word(previous) {
-            &mut list.unformatted_after_word
-        } else {
-            &mut list.unformatted
-        };
-        if *unformatted || !text.starts_with(opens_formatting) {
+        let after_word = follows_word(previous);
+        if !text.starts_with(opens_formatting) || ahead.unformatted(end, after_word) {
             return None;
         }
-        let attributes = formatted_attributes(source.get(position + 1..end)?)?;
+        let attributes = formatted_attributes(source.get(position + 1..end)?);
         let Some((nodes, consumed)) = self.formatted(text, previous, Some(attributes), hard_breaks)
         else {
-            *unformatted = true;
+            ahead.set_unformatted(end, after_word);
             return None;
         };
         Some((nodes, end + 1 - position + consumed))
@@ -752,18 +748,14 @@ impl Parser {
         let end = if raw {
             ahead.bracket_end(from + start)?
         } else {
-            ahead.list_end(from + start).end?
+            ahead.list_end(from + start, ListKind::Named)?
         } - from;
         let content = &after[start + 1..end];
-        if !raw && !Attributes::valid(content) {
-            return None;
-        }
         let attributes = Attributes::parse(content);
         if prefix == "footnoteref:" && attributes.positional.is_empty() {
             return None;
         }
         let mut attr = attributes.attr();
-        let fields = fields(content);
         let label = attributes.positional.first().map_or("", String::as_str);
         let mut origin = matches!(
             prefix,
@@ -801,8 +793,8 @@ impl Parser {
                 let raw_content = content;
                 let (target, content) = if prefix == "footnoteref:" {
                     (
-                        fields.first().cloned().unwrap_or_default(),
-                        fields.get(1).map_or("", String::as_str),
+                        attributes.positional.first().cloned().unwrap_or_default(),
+                        attributes.positional.get(1).map_or("", String::as_str),
                     )
                 } else {
                     (target, raw_content)
@@ -1011,6 +1003,36 @@ enum Marker {
     BibliographyAnchor,
     Bracket,
     OpenBracket,
+    Comma,
+    Equals,
+    Quote,
+}
+
+/// How an attribute list reads its fields.
+#[derive(Clone, Copy)]
+pub(super) enum ListKind {
+    /// Positional and named values, as in a macro or on a block attribute line.
+    Named,
+    /// Positional values only, as before formatted text.
+    Positional,
+    /// A link description, which only named values may follow.
+    Description,
+}
+
+/// The fields a list may hold from some field on.
+#[derive(Clone, Copy)]
+enum Fields {
+    Named,
+    Positional,
+    NamedOnly,
+}
+
+/// What follows a field of an attribute list.
+enum Step {
+    /// The bracket that closes the list, at this offset.
+    End(usize),
+    /// Another field, which starts at this offset.
+    Next(usize),
 }
 
 /// Where a marker next occurs: the first one at or after `from` is at `found`.
@@ -1036,24 +1058,17 @@ struct Bracket {
     leaves: Option<usize>,
 }
 
-/// Where the attribute lists that open in a stretch end.
-struct ListEnd {
-    /// Every list that opens between `from` and `end` ends at `end`.
-    from: usize,
-    end: Option<usize>,
-    /// Formatted text was sought after `end` and not found.
-    unformatted: bool,
-    /// The same for a list that follows a word character, which keeps some delimiters closed.
-    unformatted_after_word: bool,
-}
+/// Where a list was found to end, by the offset of each field after a comma in it.
+type ListEnds = BTreeMap<usize, Option<usize>>;
 
-impl ListEnd {
-    const UNKNOWN: Self = Self {
-        from: usize::MAX,
-        end: None,
-        unformatted: false,
-        unformatted_after_word: false,
-    };
+/// An attribute list end after which formatted text was sought and not found.
+#[derive(Default)]
+struct Unformatted {
+    end: usize,
+    /// For a list that follows a word character, which keeps some delimiters closed.
+    after_word: bool,
+    /// For any other list.
+    elsewhere: bool,
 }
 
 /// What the scanner has learned about the source ahead of its position.
@@ -1061,7 +1076,7 @@ impl ListEnd {
 /// It finds text in which no inline construct starts, so the scanner passes it through whole, and
 /// it remembers the outcome of each search for a closing marker, so no stretch of the source is
 /// searched again from every opening marker in it. Offsets are positions in the scanned source.
-struct Lookahead<'a> {
+pub(super) struct Lookahead<'a> {
     source: &'a str,
     /// No email address starts before this offset.
     address_free: usize,
@@ -1078,10 +1093,15 @@ struct Lookahead<'a> {
     bibliography_anchor: Next,
     bracket: Next,
     open_bracket: Next,
-    /// Offsets of the double quotes, found when the first attribute list needs them.
-    quotes: Option<Vec<usize>>,
-    /// List ends, by whether an even or an odd number of quotes precedes the list.
-    list_ends: [ListEnd; 2],
+    comma: Next,
+    equals: Next,
+    quote: Next,
+    named_lists: ListEnds,
+    positional_lists: ListEnds,
+    named_only_lists: ListEnds,
+    /// The last comma before an equals sign: the offsets searched between, and the comma.
+    last_comma: (usize, usize, Option<usize>),
+    unformatted: Unformatted,
     /// Stretch of one line, from the first bracket matched in it to its end.
     matched: std::ops::Range<usize>,
     /// The unescaped brackets in that stretch, in order.
@@ -1089,7 +1109,7 @@ struct Lookahead<'a> {
 }
 
 impl<'a> Lookahead<'a> {
-    fn new(source: &'a str) -> Self {
+    pub(super) fn new(source: &'a str) -> Self {
         Self {
             source,
             address_free: 0,
@@ -1104,8 +1124,14 @@ impl<'a> Lookahead<'a> {
             bibliography_anchor: Next::UNKNOWN,
             bracket: Next::UNKNOWN,
             open_bracket: Next::UNKNOWN,
-            quotes: None,
-            list_ends: [ListEnd::UNKNOWN, ListEnd::UNKNOWN],
+            comma: Next::UNKNOWN,
+            equals: Next::UNKNOWN,
+            quote: Next::UNKNOWN,
+            named_lists: ListEnds::new(),
+            positional_lists: ListEnds::new(),
+            named_only_lists: ListEnds::new(),
+            last_comma: (usize::MAX, 0, None),
+            unformatted: Unformatted::default(),
             matched: 0..0,
             brackets: Vec::new(),
         }
@@ -1161,6 +1187,9 @@ impl<'a> Lookahead<'a> {
             Marker::BibliographyAnchor => (&mut self.bibliography_anchor, |text| text.find("]]]")),
             Marker::Bracket => (&mut self.bracket, |text| text.find(']')),
             Marker::OpenBracket => (&mut self.open_bracket, |text| text.find('[')),
+            Marker::Comma => (&mut self.comma, |text| text.find(',')),
+            Marker::Equals => (&mut self.equals, |text| text.find('=')),
+            Marker::Quote => (&mut self.quote, |text| text.find('"')),
         };
         if !(next.from <= from && next.found.is_none_or(|found| from <= found)) {
             *next = Next {
@@ -1171,27 +1200,178 @@ impl<'a> Lookahead<'a> {
         next.found
     }
 
-    /// The end of the attribute list that opens at offset `at`.
-    fn list_end(&mut self, at: usize) -> &mut ListEnd {
+    /// Offset of the bracket that closes the attribute list opening at offset `at`.
+    ///
+    /// Nothing when the list is malformed or never closes.
+    pub(super) fn list_end(&mut self, at: usize, kind: ListKind) -> Option<usize> {
+        let first = at + 1;
+        let (step, fields) = match kind {
+            ListKind::Named if shorthand(self.source.get(first..)?) => {
+                // A first field in shorthand is bare: it names no value and quotes none.
+                let bracket = self.next(Marker::Bracket, first)?;
+                let step = match self.next(Marker::Comma, first) {
+                    Some(comma) if comma < bracket => Step::Next(self.skip_space(comma + 1)),
+                    _ => Step::End(bracket),
+                };
+                (step, Fields::Named)
+            }
+            ListKind::Named => (self.field(first, Fields::Named)?, Fields::Named),
+            ListKind::Positional => {
+                let first = self.skip_space(first);
+                (self.field(first, Fields::Positional)?, Fields::Positional)
+            }
+            ListKind::Description => return self.description_end(first),
+        };
+        match step {
+            Step::End(end) => Some(end),
+            Step::Next(start) => self.fields_end(start, fields),
+        }
+    }
+
+    /// Offset of the bracket that closes a link description starting at offset `start`.
+    fn description_end(&mut self, start: usize) -> Option<usize> {
         let source = self.source;
-        let quotes = self.quotes.get_or_insert_with(|| {
-            source
-                .match_indices('"')
-                .map(|(offset, _)| offset)
-                .collect()
-        });
-        // Quotes pair up from the list onward, so the pairs depend only on this parity.
-        let odd = quotes.partition_point(|quote| *quote < at) % 2 == 1;
-        let [even_end, odd_end] = &mut self.list_ends;
-        let list = if odd { odd_end } else { even_end };
-        if !(list.from <= at && list.end.is_none_or(|end| at < end)) {
-            *list = ListEnd {
-                from: at,
-                end: source.get(at..).and_then(attribute_end).map(|end| at + end),
-                ..ListEnd::UNKNOWN
+        if source.get(start..)?.starts_with('"')
+            && let Some(close) = self.next(Marker::Quote, start + 1)
+        {
+            let after = close + 1;
+            return match source.get(after..)?.chars().next()? {
+                ']' => Some(after),
+                ',' => self.fields_end(self.skip_space(after + 1), Fields::NamedOnly),
+                _ => None,
             };
         }
-        list
+        let bracket = self.next(Marker::Bracket, start)?;
+        let Some(equals) = self
+            .next(Marker::Equals, start)
+            .filter(|equals| *equals < bracket)
+        else {
+            return Some(bracket);
+        };
+        // The text runs to the comma before the first named value and is not empty.
+        let (from, before, _) = self.last_comma;
+        if !(before == equals && from <= start) {
+            let comma = source
+                .get(start..equals)?
+                .rfind(',')
+                .map(|comma| start + comma);
+            self.last_comma = (start, equals, comma);
+        }
+        let comma = self.last_comma.2.filter(|comma| *comma > start)?;
+        self.fields_end(self.skip_space(comma + 1), Fields::NamedOnly)
+    }
+
+    /// Offset of the bracket that closes the list whose next field starts at offset `start`.
+    ///
+    /// Lists that open at different brackets share the fields after a comma, so the outcome is
+    /// remembered for each such field.
+    fn fields_end(&mut self, mut start: usize, fields: Fields) -> Option<usize> {
+        let mut walked = Vec::new();
+        let end = loop {
+            if let Some(end) = self.list_ends(fields).get(&start) {
+                break *end;
+            }
+            walked.push(start);
+            match self.field(start, fields) {
+                Some(Step::Next(next)) => start = next,
+                Some(Step::End(end)) => break Some(end),
+                None => break None,
+            }
+        };
+        let ends = self.list_ends(fields);
+        for start in walked {
+            ends.insert(start, end);
+        }
+        end
+    }
+
+    /// Reads the field that starts at offset `start`: the list ends after it or goes on.
+    fn field(&mut self, start: usize, fields: Fields) -> Option<Step> {
+        let source = self.source;
+        // A list of named values may end in an empty field.
+        if matches!(fields, Fields::NamedOnly) && source.get(start..)?.starts_with(']') {
+            return Some(Step::End(start));
+        }
+        let (delimiter, named) = self.field_end(start, !matches!(fields, Fields::Positional))?;
+        if matches!(fields, Fields::NamedOnly) && !named {
+            return None;
+        }
+        if !source.get(delimiter..)?.starts_with(']') {
+            return Some(Step::Next(self.skip_space(delimiter + 1)));
+        }
+        // The last positional value may be absent, but not blank or an empty quote.
+        let text = source.get(start..delimiter)?;
+        let blank = !text.is_empty() && super::trim_space(text).is_empty();
+        if matches!(fields, Fields::Named) && !named && (blank || text == "\"\"") {
+            return None;
+        }
+        Some(Step::End(delimiter))
+    }
+
+    fn list_ends(&mut self, fields: Fields) -> &mut ListEnds {
+        match fields {
+            Fields::Named => &mut self.named_lists,
+            Fields::Positional => &mut self.positional_lists,
+            Fields::NamedOnly => &mut self.named_only_lists,
+        }
+    }
+
+    /// Reads the field of an attribute list that starts at offset `start`.
+    ///
+    /// Gives the offset of the comma or closing bracket after the field, and whether the field
+    /// names its value. Nothing when the field is malformed or the list never closes. A field
+    /// ends at the first comma or bracket, but a value that opens with a quote, positional or
+    /// right after the equals sign of a named one, runs to its closing quote.
+    fn field_end(&mut self, start: usize, may_name: bool) -> Option<(usize, bool)> {
+        let bracket = self.next(Marker::Bracket, start)?;
+        let delimiter = self
+            .next(Marker::Comma, start)
+            .map_or(bracket, |comma| comma.min(bracket));
+        let name_end = self
+            .next(Marker::Equals, start)
+            .filter(|equals| may_name && start < *equals && *equals < delimiter);
+        let value = name_end.map_or(start, |equals| equals + 1);
+        if self.source.get(value..)?.starts_with('"')
+            && let Some(close) = self.next(Marker::Quote, value + 1)
+        {
+            let after = close + 1;
+            return self
+                .source
+                .get(after..)?
+                .starts_with([',', ']'])
+                .then_some((after, name_end.is_some()));
+        }
+        Some((delimiter, name_end.is_some()))
+    }
+
+    /// Offset of the first character at or after `from` that is not a space.
+    fn skip_space(&self, from: usize) -> usize {
+        let rest = self.source.get(from..).unwrap_or_default();
+        from + rest.len() - super::trim_space_start(rest).len()
+    }
+
+    /// Whether formatted text is known not to follow the attribute list that ends at `end`.
+    fn unformatted(&self, end: usize, after_word: bool) -> bool {
+        self.unformatted.end == end
+            && if after_word {
+                self.unformatted.after_word
+            } else {
+                self.unformatted.elsewhere
+            }
+    }
+
+    fn set_unformatted(&mut self, end: usize, after_word: bool) {
+        if self.unformatted.end != end {
+            self.unformatted = Unformatted {
+                end,
+                ..Unformatted::default()
+            };
+        }
+        if after_word {
+            self.unformatted.after_word = true;
+        } else {
+            self.unformatted.elsewhere = true;
+        }
     }
 
     /// Offset of the bracket that closes the raw macro content opening at offset `at`.
@@ -1727,61 +1907,34 @@ pub(super) fn alpha_numeric(character: char) -> bool {
         )
 }
 
-pub(super) fn attribute_end(source: &str) -> Option<usize> {
-    let mut quoted = false;
-    for (position, character) in source.char_indices().skip(1) {
-        if character == '"' && (quoted || source[position + 1..].contains('"')) {
-            quoted = !quoted;
-        }
-        if character == ']' && !quoted {
-            return Some(position);
-        }
-    }
-    None
-}
-
 /// Reads the bracketed description of a link, when one opens at offset `at`.
 fn link_description(ahead: &mut Lookahead, at: usize) -> Option<(String, Attr, usize)> {
     let source = ahead.source.get(at..)?;
     if !source.starts_with('[') {
         return None;
     }
-    let end = ahead.list_end(at).end? - at;
+    let end = ahead.list_end(at, ListKind::Description)? - at;
     let content = &source[1..end];
-    let (description, attributes) = if let Some(quoted) = content.strip_prefix('"') {
-        let close = quoted.find('"')?;
-        let rest = super::trim_space_start(&quoted[close + 1..]);
-        let attributes = if rest.is_empty() {
-            Attr::default()
-        } else {
-            Attributes::parse(super::trim_space_start(rest.strip_prefix(',')?)).attr()
-        };
-        (quoted[..close].to_owned(), attributes)
+    let named = |fields: &str| Attributes::parse_rest(super::trim_space_start(fields)).attr();
+    let (description, attributes) = if let Some(quoted) = content.strip_prefix('"')
+        && let Some(close) = quoted.find('"')
+    {
+        let rest = &quoted[close + 1..];
+        (&quoted[..close], rest.strip_prefix(',').map(named))
     } else {
-        let boundary = content.char_indices().find_map(|(position, character)| {
-            if character != ',' {
-                return None;
-            }
-            let next = &content[position + 1..];
-            next.split(',')
-                .next()
-                .filter(|field| field.contains('='))
-                .map(|_| position)
-        });
-        let (description, rest) = boundary.map_or((content, None), |position| {
-            (&content[..position], Some(&content[position + 1..]))
-        });
-        if description.contains('=') {
-            return None;
-        }
-        (
-            description.to_owned(),
-            rest.map_or_else(Attr::default, |rest| {
-                Attributes::parse(super::trim_space_start(rest)).attr()
-            }),
-        )
+        // Named values start at the comma before the first equals sign.
+        let boundary = content
+            .find('=')
+            .and_then(|equals| content[..equals].rfind(','));
+        boundary.map_or((content, None), |comma| {
+            (&content[..comma], Some(named(&content[comma + 1..])))
+        })
     };
-    Some((description, attributes, end + 1))
+    Some((
+        description.to_owned(),
+        attributes.unwrap_or_default(),
+        end + 1,
+    ))
 }
 
 fn autolink_target_end(source: &str) -> Option<usize> {

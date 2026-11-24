@@ -1,0 +1,37 @@
+link:a[b "c]d" e] z
+
+link:a["x]y", z] and link:a["x]y" ,z] and link:a[x, "y]z"] and link:a[ "x]y"] w
+
+link:a[x,title="y]z"] and link:a[x,title= "y]z"] and link:a[ t="a]b"] w
+
+link:a[b "c,d" e,f=g] and link:a["a]=b"] and link:a["y=z"] and link:a[=x] w
+
+link:a[.r=x] and link:a[a .b] and link:a[ a.b] and link:a["a.b"] w
+
+link:a[""] and link:a["",x] and link:a[x,""] and link:a[t=""] and link:a[ ] w
+
+image:a.png[x,title="y]z"] and kbd:["a]b" ] and btn:[ "a"] and btn:["a"] w
+
+[x="a]b"]*c* and [.r,"a]b"]*c* and ["a]b" ]*c* and [x="a"b]*c* d
+
+http://a.b[x,"y]z"] and http://a.b["x]y",role=r] and http://a.b["x] w
+
+http://a.b[x,y=z,w] and http://a.b["x",y] and http://a.b[,y=z] and http://a.b[x,y=z,] w
+
+j@b.cd[x "y]z"] and j@b.cd[x,role="r]s"] w
+
+footnoteref:[n1,"b]c"] and footnoteref:[t=1,n2,d] and footnoteref:[.r,n3] and footnoteref:[ =x] w
+
+[quote, who "a,b" x, where]
+____
+text
+____
+
+[.r,t = "a,b",u=v]
+first
+
+[ "a]b"]
+second
+
+[=x]
+third
