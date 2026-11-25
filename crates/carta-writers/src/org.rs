@@ -1292,7 +1292,8 @@ fn has_scheme(url: &str) -> bool {
     }
 }
 
-/// Collapse Unicode dashes and the ellipsis to their ASCII forms so the text reads plainly in Org.
+/// Collapse Unicode dashes, the ellipsis, and the typographic apostrophe to their ASCII forms so
+/// the text reads plainly in Org.
 fn special_strings(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
@@ -1300,6 +1301,7 @@ fn special_strings(text: &str) -> String {
             '\u{2014}' => out.push_str("---"),
             '\u{2013}' => out.push_str("--"),
             '\u{2026}' => out.push_str("..."),
+            '\u{2019}' => out.push('\''),
             _ => out.push(ch),
         }
     }
