@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p>[a [b]’s <span class="c">d</span></p>
+<p>x[a <span class="b">c</span></p>
+<p>xref:a[b[c [d] e] f</p>
+<p><a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>
+e</p>
+<p><span class="index" term="a ((b">a ((b</span> c</p>
+<p>&lt;&lt;a <a href="#b" class="cross-reference">b</a> c</p>
+<p><span id="a [[b"></span> <span id="id_[c"></span> d</p>
+<p><a href="link:a">b</a> c</p>
+<p>link:a <a href="b">c</a></p>
+<p>kbd:x <kbd><strong>y</strong></kbd> z</p>
+<p>{a {b   c</p>
+<p><a href="ab">c</a> d</p>
+<p>["a" <span class="b">c</span> "d" <span class="e">f</span></p>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>a [b] c] d<a href="#fnref1"
+class="footnote-back">↩︎</a></p></li>
+</ol>
+</div>

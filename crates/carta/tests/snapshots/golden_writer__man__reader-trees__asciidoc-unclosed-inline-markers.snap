@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+[a [b]\(cqs d
+.PP
+x[a c
+.PP
+xref:a[b[c [d] e] f
+.PP
+[1] e
+.PP
+a ((b c
+.PP
+<<a b c
+.PP
+\  d
+.PP
+b c
+.PP
+link:a c
+.PP
+kbd:x \f[B]y\f[R] z
+.PP
+{a {b \  c
+.PP
+c d
+.PP
+[\(dqa\(dq c \(dqd\(dq f
+.SH NOTES
+.SS [1]
+.PP
+a [b] c] d

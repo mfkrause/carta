@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\protect\phantomsection\label{i}{} w \hyperref[a]{} \hyperref[i]{i}
+
+\protect\phantomsection\label{j}{} \hyperref[b]{label} \hyperref[j]{j}
+
+\protect\phantomsection\label{c}{} \hyperref[c]{}

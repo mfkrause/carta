@@ -151,6 +151,7 @@ WRITER = {
     ("rst", "common", "span"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "common", "span-semantic"): "Pandoc's RST output drops the span's identifier.",
     ("rst", "reader-trees", "asciidoc-anchor-labels"): DROPPED_TARGET,
+    ("rst", "reader-trees", "asciidoc-anchor-macro-id"): DROPPED_TARGET,
     ("rst", "reader-trees", "asciidoc-cross-references"): DROPPED_TARGET,
     ("rst", "reader-trees", "asciidoc-definition-terms"): DROPPED_TARGET,
     ("rst", "reader-trees", "asciidoc-discrete-cross-references"): DROPPED_TARGET,
@@ -171,6 +172,7 @@ WRITER = {
     ("rst", "reader-trees", "asciidoc-table-block-anchors"): (
         "Pandoc's RST output drops targets in cells."
     ),
+    ("rst", "reader-trees", "asciidoc-unclosed-inline-markers"): DROPPED_TARGET,
     ("rst", "reader-trees", "asciidoc-user-attribute-names"): DROPPED_TARGET,
     ("rst", "reader-trees", "asciidoc-zero-table-span"): (
         "Pandoc writes a table without columns as '|  |', a broken RST substitution."

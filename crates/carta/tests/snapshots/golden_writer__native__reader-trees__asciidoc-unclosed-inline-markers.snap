@@ -1,0 +1,105 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "[a"
+    , Space
+    , Str "[b]\8217s"
+    , Space
+    , Span ( "" , [ "c" ] , [] ) [ Str "d" ]
+    ]
+, Para
+    [ Str "x[a"
+    , Space
+    , Span ( "" , [ "b" ] , [] ) [ Str "c" ]
+    ]
+, Para
+    [ Str "xref:a[b[c"
+    , Space
+    , Str "[d]"
+    , Space
+    , Str "e]"
+    , Space
+    , Str "f"
+    ]
+, Para
+    [ Note
+        [ Para
+            [ Str "a"
+            , Space
+            , Str "[b]"
+            , Space
+            , Str "c]"
+            , Space
+            , Str "d"
+            ]
+        ]
+    , Space
+    , Str "e"
+    ]
+, Para
+    [ Span
+        ( "" , [ "index" ] , [ ( "term" , "a ((b" ) ] )
+        [ Str "a" , Space , Str "((b" ]
+    , Space
+    , Str "c"
+    ]
+, Para
+    [ Str "<<a"
+    , SoftBreak
+    , Link
+        ( "" , [ "cross-reference" ] , [] )
+        [ Str "b" ]
+        ( "#b" , "" )
+    , Space
+    , Str "c"
+    ]
+, Para
+    [ Span ( "a [[b" , [] , [] ) []
+    , Space
+    , Span ( "[c" , [] , [] ) []
+    , Space
+    , Str "d"
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "b" ] ( "link:a" , "" )
+    , Space
+    , Str "c"
+    ]
+, Para
+    [ Str "link:a"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "c" ] ( "b" , "" )
+    ]
+, Para
+    [ Str "kbd:x"
+    , Space
+    , Span ( "" , [ "kbd" ] , [] ) [ Strong [ Str "y" ] ]
+    , Space
+    , Str "z"
+    ]
+, Para
+    [ Str "{a"
+    , Space
+    , Str "{b"
+    , Space
+    , Str "\160"
+    , Space
+    , Str "c"
+    ]
+, Para
+    [ Link ( "" , [] , [] ) [ Str "c" ] ( "ab" , "" )
+    , Space
+    , Str "d"
+    ]
+, Para
+    [ Str "[\"a\""
+    , Space
+    , Span ( "" , [ "b" ] , [] ) [ Str "c" ]
+    , Space
+    , Str "\"d\""
+    , Space
+    , Span ( "" , [ "e" ] , [] ) [ Str "f" ]
+    ]
+]

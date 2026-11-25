@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "\\[a \\[b\\]’s <span class=\"c\">d</span>\n",
+    "\n",
+    "x\\[a <span class=\"b\">c</span>\n",
+    "\n",
+    "xref:a\\[b\\[c \\[d\\] e\\] f\n",
+    "\n",
+    "[1] e\n",
+    "\n",
+    "<span class=\"index\" data-term=\"a ((b\">a ((b</span> c\n",
+    "\n",
+    "\\<\\<a <a href=\"#b\" class=\"cross-reference\">b</a> c\n",
+    "\n",
+    "<span id=\"a [[b\"></span> <span id=\"[c\"></span> d\n",
+    "\n",
+    "[b](link:a) c\n",
+    "\n",
+    "link:a [c](b)\n",
+    "\n",
+    "kbd:x <span class=\"kbd\">**y**</span> z\n",
+    "\n",
+    "{a {b   c\n",
+    "\n",
+    "[c](ab) d\n",
+    "\n",
+    "\\[\"a\" <span class=\"b\">c</span> \"d\" <span class=\"e\">f</span>\n",
+    "\n",
+    "[1] a \\[b\\] c\\] d"
+   ],
+   "id": "88cefd97-3a4a-41ab-8fee-2d1562172cb2"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

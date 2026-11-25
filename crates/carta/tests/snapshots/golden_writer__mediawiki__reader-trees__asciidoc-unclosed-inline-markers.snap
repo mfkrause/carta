@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[a [b]’s <span class="c">d</span>
+
+x[a <span class="b">c</span>
+
+xref:a[b[c [d] e] f
+
+<ref>a [b] c] d</ref> e
+
+<span class="index" data-term="a ((b">a ((b</span> c
+
+&lt;&lt;a [[#b|b]] c
+
+<span id="a [[b"></span> <span id="[c"></span> d
+
+[[link:a|b]] c
+
+link:a [[b|c]]
+
+kbd:x <span class="kbd">'''y'''</span> z
+
+{a {b   c
+
+[[ab|c]] d
+
+[&quot;a&quot; <span class="b">c</span> &quot;d&quot; <span class="e">f</span>
+
+<references />

@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<span id=\"i\"></span> w <a href=\"#a\" class=\"cross-reference\"></a>\n",
+    "<a href=\"#i\" class=\"cross-reference\">i</a>\n",
+    "\n",
+    "<span id=\"j\"></span> <a href=\"#b\" class=\"cross-reference\">label</a>\n",
+    "<a href=\"#j\" class=\"cross-reference\">j</a>\n",
+    "\n",
+    "<span id=\"c\" class=\"r\"></span> <a href=\"#c\" class=\"cross-reference\"></a>"
+   ],
+   "id": "22c55a6f-c0a1-40fd-aa02-7cf511bc984a"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\protect\phantomsection\label{i}{} w \hyperlink{a}{} \hyperlink{i}{i}
+
+\protect\phantomsection\label{j}{} \hyperlink{b}{label} \hyperlink{j}{j}
+
+\protect\phantomsection\label{c}{} \hyperlink{c}{}
+\end{frame}

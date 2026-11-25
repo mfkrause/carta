@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="i"></span> w <a href="#a" class="cross-reference"></a>
+<a href="#i" class="cross-reference">i</a>
+
+<span id="j"></span> <a href="#b" class="cross-reference">label</a>
+<a href="#j" class="cross-reference">j</a>
+
+<span id="c" class="r"></span> <a href="#c" class="cross-reference"></a>

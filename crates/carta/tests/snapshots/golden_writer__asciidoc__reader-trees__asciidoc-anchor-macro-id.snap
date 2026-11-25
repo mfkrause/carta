@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{empty}[#i]## w link:#a[] link:#i[i]
+
+{empty}[#j]## link:#b[label] link:#j[j]
+
+{empty}[#c .r]## link:#c[]

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+​<i> w #link(<a>)[] #link(<i>)[i]
+
+​<j> #link(<b>)[label] #link(<j>)[j]
+
+​<c> #link(<c>)[]

@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <anchor xml:id="i" /> w
+  <xref linkend="a" role="cross-reference"></xref>
+  <link linkend="i" role="cross-reference">i</link>
+</para>
+<para>
+  <anchor xml:id="j" />
+  <link linkend="b" role="cross-reference">label</link>
+  <link linkend="j" role="cross-reference">j</link>
+</para>
+<para>
+  <anchor xml:id="c" /> <xref linkend="c" role="cross-reference"></xref>
+</para>

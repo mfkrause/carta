@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  [a [b]’s d
+</para>
+<para>
+  x[a c
+</para>
+<para>
+  xref:a[b[c [d] e] f
+</para>
+<para>
+  <footnote>
+    <para>
+      a [b] c] d
+    </para>
+  </footnote> e
+</para>
+<para>
+  a ((b c
+</para>
+<para>
+  &lt;&lt;a <link linkend="b" role="cross-reference">b</link> c
+</para>
+<para>
+  <anchor xml:id="a [[b" /> <anchor xml:id="id_[c" /> d
+</para>
+<para>
+  <link xlink:href="link:a">b</link> c
+</para>
+<para>
+  link:a <link xlink:href="b">c</link>
+</para>
+<para>
+  kbd:x <emphasis role="strong">y</emphasis> z
+</para>
+<para>
+  {a {b   c
+</para>
+<para>
+  <link xlink:href="ab">c</link> d
+</para>
+<para>
+  [&quot;a&quot; c &quot;d&quot; f
+</para>

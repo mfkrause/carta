@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+++[++a ++[++b++]++’s [.c]#d#
+
+x++[++a [.b]#c#
+
+xref:a++[++b++[++c ++[++d++]++ e++]++ f
+
+footnote:[a ++[++b++]++ c++]++ d] e
+
+[.index]#a ((b# c
+
+++<<++a link:#b[b] c
+
+[#a [[b]## [#[c]## d
+
+link:link:a[b] c
+
+link:a link:b[c]
+
+kbd:x [.kbd]#*y*# z
+
+++{++a ++{++b   c
+
+link:ab[c] d
+
+++[++"a" [.b]#c# "d" [.e]#f#

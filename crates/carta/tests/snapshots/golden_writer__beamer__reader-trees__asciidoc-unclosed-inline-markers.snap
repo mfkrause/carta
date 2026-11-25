@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{[}a {[}b{]}'s {d}
+
+x{[}a {c}
+
+xref:a{[}b{[}c {[}d{]} e{]} f
+
+\footnote<\value{beamerpauses}->[frame]{a {[}b{]} c{]} d} e
+
+{a ((b} c
+
+\textless\textless a \hyperlink{b}{b} c
+
+\protect\phantomsection\label{aux20ux5cux255Bux5cux255Bb}{}
+\protect\phantomsection\label{ux5cux255Bc}{} d
+
+\href{link:a}{b} c
+
+link:a \href{b}{c}
+
+kbd:x {\textbf{y}} z
+
+\{a \{b ~ c
+
+\href{ab}{c} d
+
+{[}"a" {c} "d" {f}
+\end{frame}

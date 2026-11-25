@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[]{#i} w [](#a){.cross-reference} [i](#i){.cross-reference}
+
+[]{#j} [label](#b){.cross-reference} [j](#j){.cross-reference}
+
+[]{#c .r} [](#c){.cross-reference}

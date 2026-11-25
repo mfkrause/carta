@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 [a [b]\u8217's d\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 x[a c\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 xref:a[b[c [d] e] f\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\super\chftn}{\*\footnote\chftn\~\plain\pard {\pard \ql \f0 \sa180 \li0 \fi0 a [b] c] d\par}
+} e\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 a ((b c\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 <<a {\field{\*\fldinst{HYPERLINK "#b"}}{\fldrslt{\ul
+b
+}}}
+ c\par}
+{\pard \ql \f0 \sa180 \li0 \fi0   d\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "link:a"}}{\fldrslt{\ul
+b
+}}}
+ c\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 link:a {\field{\*\fldinst{HYPERLINK "b"}}{\fldrslt{\ul
+c
+}}}
+\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 kbd:x {\b y} z\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \{a \{b \u160 ? c\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "ab"}}{\fldrslt{\ul
+c
+}}}
+ d\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ["a" c "d" f\par}

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="i"></span> w [[#a|]] [[#i|i]]
+
+<span id="j"></span> [[#b|label]] [[#j|j]]
+
+<span id="c" class="r"></span> [[#c|]]

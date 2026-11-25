@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[a [b]’s d
+
+x[a c
+
+xref:a[b[c [d] e] f
+
+ [1]_ e
+
+a ((b c
+
+<<a `b <#b>`__ c
+
+.. _a [[b:
+
+.. _[c:
+
+d
+
+`b <link:a>`__ c
+
+link:a `c <b>`__
+
+kbd:x **y** z
+
+{a {b   c
+
+`c <ab>`__ d
+
+["a" c "d" f
+
+.. [1]
+   a [b] c] d
