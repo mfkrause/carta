@@ -1,6 +1,6 @@
-[a [b]'s [c]*d*
+[a [b]'s [c]#d#
 
-x[a [b]*c*
+x[a [b]#c#
 
 xref:a\[b[c [d] e] f
 
@@ -23,4 +23,4 @@ kbd:x kbd:[y] z
 
 link:pass:[a]b[c] d
 
-["a" [b]*c* "d" [e]_f_
+["a" [b]#c# "d" [e]#f#

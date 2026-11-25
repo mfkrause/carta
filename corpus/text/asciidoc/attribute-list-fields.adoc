@@ -12,7 +12,7 @@ link:a[""] and link:a["",x] and link:a[x,""] and link:a[t=""] and link:a[ ] w
 
 image:a.png[x,title="y]z"] and kbd:["a]b" ] and btn:[ "a"] and btn:["a"] w
 
-[x="a]b"]*c* and [.r,"a]b"]*c* and ["a]b" ]*c* and [x="a"b]*c* d
+[x="a]b"]*c* and [.r,"a]b"]#c# and ["a]b" ]*c* and [r,x="a"b]#c# d
 
 http://a.b[x,"y]z"] and http://a.b["x]y",role=r] and http://a.b["x] w
 
