@@ -5,6 +5,26 @@ All notable changes to carta are documented in this file.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.16](https://github.com/mfkrause/carta/compare/v0.0.15...v0.0.16) - 2026-11-26
+
+### Fixed
+
+- *(asciidoc)* drop the space before a line end in plain macro text
+- *(asciidoc)* give an anchor macro the id from its attribute list
+- *(asciidoc)* nest every bracket in raw macro content and end it at the line end
+- *(asciidoc)* end an index term at its first closing parenthesis
+- *(asciidoc)* read attribute lists field by field
+- *(org)* write a typographic apostrophe as a plain one
+
+### Performance
+
+- *(asciidoc)* search ahead for each closing marker once
+- *(asciidoc)* scan plain text and email local parts once
+
+### Security
+
+- *(asciidoc)* bound the work that table multipliers add
+
 ## [0.0.15](https://github.com/mfkrause/carta/compare/v0.0.14...v0.0.15) - 2026-11-18
 
 ### Added
